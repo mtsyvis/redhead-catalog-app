@@ -18,6 +18,7 @@ Production-ready internal web application for browsing and managing a sites cata
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (or latest LTS)
 - [Node.js 22.22.0+](https://nodejs.org/) (LTS) and npm
   - **Note:** Vite 7.3.1 requires Node.js 20.19+ or 22.12+. We recommend using [nvm-windows](https://github.com/coreybutler/nvm-windows) to manage Node.js versions.
+- [PostgreSQL 15+](https://www.postgresql.org/download/)
 
 ### Node.js Version Management (Optional but Recommended)
 
@@ -34,6 +35,27 @@ nvm use 22.22.0
 node --version
 # Should show: v22.22.0
 ```
+
+### PostgreSQL Database Setup
+
+1. **Install PostgreSQL** if you haven't already (PostgreSQL 15+ recommended)
+
+2. **Create the database:**
+   ```sql
+   CREATE DATABASE redhead_sites_catalog;
+   ```
+
+3. **Update connection string** (if needed):
+   - Edit `src/Redhead.SitesCatalog.Api/appsettings.json`
+   - Default: `Host=localhost;Database=redhead_sites_catalog;Username=postgres;Password=postgres`
+
+4. **Apply migrations:**
+   ```bash
+   # From the repository root
+   dotnet ef database update --project src/Redhead.SitesCatalog.Infrastructure --startup-project src/Redhead.SitesCatalog.Api
+   ```
+
+   This will create all tables and seed initial RoleSettings data.
 
 ## Getting Started
 
