@@ -2,6 +2,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Redhead.SitesCatalog.Domain\Redhead.SitesCatalog.Domain.csproj" />
+    <ProjectReference Include="..\Redhead.SitesCatalog.Infrastructure\Redhead.SitesCatalog.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
   </ItemGroup>
 
   <PropertyGroup>
