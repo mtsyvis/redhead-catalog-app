@@ -114,3 +114,8 @@ export class ApiClient {
     return this.handleResponse<T>(response);
   }
 }
+
+/**
+ * Singleton instance of ApiClient for convenient usage
+ */
+export const apiClient = ApiClient;

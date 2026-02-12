@@ -9,10 +9,12 @@ import {
   Menu,
   MenuItem,
   styled,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import { AccountCircle } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   background: theme.palette.background.paper,
@@ -36,6 +38,7 @@ export const PageShell: React.FC<PageShellProps> = ({
 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -57,48 +60,77 @@ export const PageShell: React.FC<PageShellProps> = ({
     navigate('/change-password');
   };
 
+  const getCurrentTab = () => {
+    if (location.pathname === '/sites') return '/sites';
+    if (location.pathname === '/dashboard') return '/dashboard';
+    return false;
+  };
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
+    navigate(newValue);
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <StyledAppBar position="static">
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
+          <Typography variant="h6" component="div" sx={{ fontWeight: 600, mr: 4 }}>
             Redhead Sites Catalog
           </Typography>
           
           {user && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                {user.email}
-              </Typography>
-              <IconButton
-                size="large"
-                aria-label="account menu"
-                aria-controls="menu-appbar"
-                aria-haspopup="true"
-                onClick={handleMenu}
-                color="inherit"
-              >
-                <AccountCircle />
-              </IconButton>
-              <Menu
-                id="menu-appbar"
-                anchorEl={anchorEl}
-                anchorOrigin={{
-                  vertical: 'bottom',
-                  horizontal: 'right',
+            <>
+              <Tabs
+                value={getCurrentTab()}
+                onChange={handleTabChange}
+                sx={{
+                  flexGrow: 1,
+                  '& .MuiTab-root': {
+                    color: 'text.secondary',
+                    '&.Mui-selected': {
+                      color: 'primary.main',
+                    },
+                  },
                 }}
-                keepMounted
-                transformOrigin={{
-                  vertical: 'top',
-                  horizontal: 'right',
-                }}
-                open={Boolean(anchorEl)}
-                onClose={handleClose}
               >
-                <MenuItem onClick={handleChangePassword}>Change Password</MenuItem>
-                <MenuItem onClick={handleLogout}>Logout</MenuItem>
-              </Menu>
-            </Box>
+                <Tab label="Sites" value="/sites" />
+                <Tab label="Dashboard" value="/dashboard" />
+              </Tabs>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {user.email}
+                </Typography>
+                <IconButton
+                  size="large"
+                  aria-label="account menu"
+                  aria-controls="menu-appbar"
+                  aria-haspopup="true"
+                  onClick={handleMenu}
+                  color="inherit"
+                >
+                  <AccountCircle />
+                </IconButton>
+                <Menu
+                  id="menu-appbar"
+                  anchorEl={anchorEl}
+                  anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'right',
+                  }}
+                  keepMounted
+                  transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                  }}
+                  open={Boolean(anchorEl)}
+                  onClose={handleClose}
+                >
+                  <MenuItem onClick={handleChangePassword}>Change Password</MenuItem>
+                  <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                </Menu>
+              </Box>
+            </>
           )}
         </Toolbar>
       </StyledAppBar>

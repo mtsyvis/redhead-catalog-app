@@ -8,6 +8,7 @@ import { MustChangePasswordRoute } from './components/routing/MustChangePassword
 import { Login } from './pages/Login';
 import { ChangePassword } from './pages/ChangePassword';
 import { Home } from './pages/Home';
+import { Sites } from './pages/Sites';
 
 /**
  * Main App component
@@ -25,6 +26,22 @@ const App: React.FC = () => {
             {/* Protected routes */}
             <Route
               path="/"
+              element={<Navigate to="/sites" replace />}
+            />
+
+            <Route
+              path="/sites"
+              element={
+                <ProtectedRoute>
+                  <MustChangePasswordRoute>
+                    <Sites />
+                  </MustChangePasswordRoute>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/dashboard"
               element={
                 <ProtectedRoute>
                   <MustChangePasswordRoute>
@@ -44,7 +61,7 @@ const App: React.FC = () => {
             />
 
             {/* Catch-all redirect */}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/sites" replace />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>
