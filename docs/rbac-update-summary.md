@@ -153,3 +153,30 @@ After migration is applied, the RoleSettings table will contain:
    - Implement soft delete UI (sets IsActive=false)
    - Implement role restrictions for user creation
    - Implement password reset restrictions (SuperAdmin can reset any; Admin can reset non-Admins)
+
+## Docker Setup for Local Development
+
+**File created:** `docker-compose.dev.yml` (not `docker-compose.yml` to avoid conflict with future production setup in Commit 14)
+
+**PostgreSQL configuration:**
+- Running on port **5433** (not 5432 to avoid conflict with Windows PostgreSQL)
+- Username: `postgres`
+- Password: `postgres`
+- Database: `redhead_sites_catalog`
+
+**Commands:**
+```bash
+# Start PostgreSQL
+docker-compose -f docker-compose.dev.yml up -d
+
+# Stop PostgreSQL
+docker-compose -f docker-compose.dev.yml down
+
+# Stop and remove volumes (clean slate)
+docker-compose -f docker-compose.dev.yml down -v
+```
+
+**Connection string updated in `appsettings.json`:**
+```
+Host=localhost;Port=5433;Database=redhead_sites_catalog;Username=postgres;Password=postgres
+```
