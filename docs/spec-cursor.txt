@@ -48,25 +48,35 @@ DevOps (Option 1A)
 One role per user.
 
 Roles:
+- SuperAdmin
+  - Full control over everything
+  - Can reset passwords for Admins
+  - Can remove/disable any account (including Admins)
+  - Can manage RoleSettings, imports, edit sites, export, view logs
 - Admin
-  - Full access: user mgmt, reset passwords, RoleSettings, imports, edit sites, export, view logs
-- UserManager
-  - Can create users ONLY with roles: Viewer, Client
-  - Cannot create Admin/Editor/UserManager
-  - No RoleSettings changes
-  - No imports
-- Editor
-  - Can edit sites (including quarantine toggle + reason)
-  - Can import Sites + Quarantine
+  - Can manage users (including creating other Admins)
+  - Can manage RoleSettings
+  - Can run imports (Sites + Quarantine)
+  - Can edit sites
   - Can export (subject to RoleSettings limit)
-- Viewer
-  - Read-only Sites + export (subject to RoleSettings limit)
+- Internal
+  - Read-only sites + export
+  - Export limit applies (configured in RoleSettings)
 - Client
-  - Read-only Sites + export (subject to RoleSettings limit)
+  - Read-only sites + export
+  - Export limit applies (configured in RoleSettings; different limit than Internal)
 
 Authorization:
 - All API routes require auth by default
 - Enforce RBAC server-side via policies, not via UI hiding
+
+User Soft Delete (IsActive flag):
+- Users have an `IsActive` boolean field (default: true)
+- "Delete user" in UI sets `IsActive = false` (soft delete)
+- When `IsActive = false`:
+  - User cannot login
+  - User cannot access any API endpoint
+- Physical deletion is NOT allowed (audit logs must preserve user references)
 
 ============================================================
 4) Password provisioning (generated + must-change-on-first-login)
@@ -74,14 +84,15 @@ Authorization:
 No self-registration.
 
 Create user flow:
-- Admin/UserManager creates user (email + role)
+- Admin creates user (email + role)
 - System generates temporary random password
 - User MUST change password at first login:
-  - Persist `MustChangePassword` boolean on user
+  - Persist `MustChangePassword` boolean on user (default: true for new users)
   - After login, if MustChangePassword==true, UI forces /change-password and blocks everything else
 
 Reset password:
-- Admin can reset any user password:
+- SuperAdmin can reset passwords for Admins and any other users
+- Admin can reset passwords for non-Admin users:
   - Generate new temp password
   - Set MustChangePassword=true
 
@@ -89,6 +100,10 @@ Security notes (keep minimal, but correct):
 - Temp password displayed ONCE in UI after creation/reset
 - Do not store temp password in DB logs
 - Rate limit login attempts (optional MVP)
+
+User entity fields (to be implemented in Identity commit):
+- IsActive (bool, default: true) – soft delete flag
+- MustChangePassword (bool, default: true for new users) – force password change
 
 ============================================================
 5) Data Model
@@ -123,6 +138,12 @@ Indexes:
 Rules:
 - ExportLimitRows == 0 => export disabled
 - “Unlimited” = big number (e.g., 1000000) configured per role
+
+Default limits per role:
+- SuperAdmin: 1000000 (unlimited)
+- Admin: 1000000 (unlimited)
+- Internal: 10000
+- Client: 5000
 
 5.3 Audit tables (minimum viable)
 - ExportLog:
@@ -192,7 +213,7 @@ Use normalization in:
   - Output: Found list + Not found list
   - Format hint: “Paste domains/URLs. We ignore https/www/path.”
 
-7.4 Editing sites (Editor/Admin)
+7.4 Editing sites (SuperAdmin/Admin)
 Edit dialog:
 - Edit numeric + text fields (pragmatic; don’t over-restrict)
 - Quarantine toggle:
@@ -295,23 +316,24 @@ Sites
            locations[], casinoAllowed, cryptoAllowed, linkInsertAllowed,
            quarantine=all|only|exclude
 - POST /api/sites/multi-search  { inputs: string[] }
-- PUT  /api/sites/{id}          (Editor/Admin)
+- PUT  /api/sites/{id}          (SuperAdmin/Admin)
 
 Export
 - GET /api/export/sites.csv (same query params as /api/sites)
 
 Imports
-- POST /api/import/sites      (Admin/Editor) multipart file
-- POST /api/import/quarantine (Admin/Editor) multipart file
+- POST /api/import/sites      (SuperAdmin/Admin) multipart file
+- POST /api/import/quarantine (SuperAdmin/Admin) multipart file
 
 Users
-- POST /api/users                 (Admin/UserManager restrictions)
-- GET  /api/users                 (Admin only)
-- POST /api/users/{id}/reset-password (Admin)
+- POST /api/users                      (SuperAdmin/Admin)
+- GET  /api/users                      (SuperAdmin/Admin)
+- DELETE /api/users/{id}               (SuperAdmin/Admin) - soft delete (sets IsActive=false)
+- POST /api/users/{id}/reset-password  (SuperAdmin can reset any; Admin can reset non-Admins)
 
 Role Settings
-- GET /api/role-settings (Admin)
-- PUT /api/role-settings (Admin)
+- GET /api/role-settings (SuperAdmin/Admin)
+- PUT /api/role-settings (SuperAdmin/Admin)
 
 Logs (optional UI; endpoints useful)
 - GET /api/logs/exports (Admin)
@@ -392,7 +414,7 @@ Commit: feat: csv export with per-role limits
 Commit 9 — Sites import (ADD-ONLY) + UI + ImportLog
 - CSV/XLSX parsing isolated behind interface
 - Add-only insert, duplicates/errors report, ImportLog
-- UI import page (Admin/Editor)
+- UI import page (SuperAdmin/Admin)
 AC:
 - 60k import works in batches
 Commit: feat: sites add-only import with duplicate reporting
@@ -413,10 +435,12 @@ Commit: feat: quarantine import and reason support
 Commit 12 — Users mgmt + temp passwords
 - Users page:
   - create user => generate temp password shown once
-- UserManager restriction: only Viewer/Client
-- Admin reset password endpoint
+  - delete user => soft delete (sets IsActive=false)
+- SuperAdmin can manage any user including Admins
+- Admin can manage non-Admin users
+- Reset password restrictions enforced
 AC:
-- restrictions enforced server-side
+- restrictions enforced server-side; soft delete works
 Commit: feat: user provisioning with temp passwords and role restrictions
 
 Commit 13 — Role Settings admin page
@@ -452,6 +476,4 @@ B) Global mass price adjustment tool:
 ============================================================
 14) Open items (can decide later)
 ============================================================
-- Exact default RoleSettings per role
-- Whether UserManager can reset passwords for Viewer/Client
 - Optional Location normalization strategy (aliases) if data is messy

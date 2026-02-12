@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -92,11 +92,10 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                 columns: new[] { "RoleName", "ExportLimitRows" },
                 values: new object[,]
                 {
+                    { "SuperAdmin", 1000000 },
                     { "Admin", 1000000 },
-                    { "Client", 1000 },
-                    { "Editor", 10000 },
-                    { "UserManager", 0 },
-                    { "Viewer", 5000 }
+                    { "Internal", 10000 },
+                    { "Client", 5000 }
                 });
 
             migrationBuilder.CreateIndex(

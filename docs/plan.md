@@ -23,13 +23,15 @@ AC:
 - migrations apply cleanly
 Commit: feat: add database models, migrations, and seeds
 
-Commit 3 — Identity + RBAC + MustChangePassword
+Commit 3 — Identity + RBAC + MustChangePassword + IsActive
 - Identity cookie auth
-- Roles + policies
-- Extend user with MustChangePassword
-- Seed dev admin user
+- Roles: SuperAdmin, Admin, Internal, Client
+- Policies per role
+- Extend user with MustChangePassword (bool, default true)
+- Extend user with IsActive (bool, default true) for soft delete
+- Seed dev SuperAdmin user
 AC:
-- login works; RBAC enforced
+- login works; RBAC enforced; IsActive=false blocks login
 Commit: feat: identity auth and RBAC policies
 
 Commit 4 — Domain normalization helper + unit tests
@@ -74,7 +76,7 @@ Commit: feat: csv export with per-role limits
 Commit 9 — Sites import (ADD-ONLY) + UI + ImportLog
 - CSV/XLSX parsing isolated behind interface
 - Add-only insert, duplicates/errors report, ImportLog
-- UI import page (Admin/Editor)
+- UI import page (SuperAdmin/Admin)
 AC:
 - 60k import works in batches
 Commit: feat: sites add-only import with duplicate reporting
@@ -92,13 +94,15 @@ AC:
 - client sees Unavailable; reason stored
 Commit: feat: quarantine import and reason support
 
-Commit 12 — Users mgmt + temp passwords
+Commit 12 — Users mgmt + temp passwords + soft delete
 - Users page:
   - create user => generate temp password shown once
-- UserManager restriction: only Viewer/Client
-- Admin reset password endpoint
+  - delete user => soft delete (sets IsActive=false)
+- SuperAdmin can manage any user including Admins
+- Admin can manage non-Admin users
+- Reset password restrictions enforced (SuperAdmin can reset any; Admin can reset non-Admins)
 AC:
-- restrictions enforced server-side
+- restrictions enforced server-side; soft delete works
 Commit: feat: user provisioning with temp passwords and role restrictions
 
 Commit 13 — Role Settings admin page

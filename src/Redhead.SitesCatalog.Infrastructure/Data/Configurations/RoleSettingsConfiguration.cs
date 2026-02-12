@@ -21,11 +21,10 @@ public class RoleSettingsConfiguration : IEntityTypeConfiguration<RoleSettings>
 
         // Seed default role settings
         builder.HasData(
+            new RoleSettings { RoleName = "SuperAdmin", ExportLimitRows = 1000000 },
             new RoleSettings { RoleName = "Admin", ExportLimitRows = 1000000 },
-            new RoleSettings { RoleName = "UserManager", ExportLimitRows = 0 },
-            new RoleSettings { RoleName = "Editor", ExportLimitRows = 10000 },
-            new RoleSettings { RoleName = "Viewer", ExportLimitRows = 5000 },
-            new RoleSettings { RoleName = "Client", ExportLimitRows = 1000 }
+            new RoleSettings { RoleName = "Internal", ExportLimitRows = 10000 },
+            new RoleSettings { RoleName = "Client", ExportLimitRows = 5000 }
         );
     }
 }
