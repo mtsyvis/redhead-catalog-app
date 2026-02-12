@@ -1,0 +1,22 @@
+---
+alwaysApply: true
+---
+
+Source of truth:
+- Follow docs/spec-cursor.txt and docs/plan.md.
+- Implement ONLY the current commit step from plan.md. Do not do future work.
+
+Working style:
+- Keep changes minimal and reviewable.
+- If requirements conflict or are unclear, STOP and ask. Do not guess.
+- Enforce server-side authorization; never rely on UI-only restrictions.
+
+Quality gates before “done”:
+- Backend: dotnet build must pass.
+- Frontend: npm run lint must pass.
+- Provide: (1) changed files summary, (2) commands to run/verify, (3) any assumptions.
+
+Code quality:
+- No dead code, no commented-out code, no “TODO” without a clear next step.
+- Prefer simple solutions over clever abstractions.
+- Names in code/docs: English.
