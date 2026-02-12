@@ -1,0 +1,457 @@
+REDHEAD – (SITES CATALOG) – CURSOR IMPLEMENTATION SPEC
+Target model for Cursor: Claude Sonnet 4.5
+Architecture: Single ASP.NET Core app serves API + React SPA
+
+============================================================
+1) Goal
+============================================================
+Build a production-ready internal + client web app to browse/export a Sites catalog (~60k rows), with:
+- Email+password authentication (no self-registration)
+- Role-based access control (RBAC)
+- Admin-managed per-role CSV export limits
+- Fast server-side search / filters / paging / sorting
+- Multi-search by pasted list of domains/URLs (found + not found)
+- Imports:
+  - Sites import (ADD-ONLY) from CSV/XLSX; skip duplicates; report
+  - Quarantine import (domain + reason) from CSV/XLSX; mark sites “Unavailable”
+- Basic audit logs for exports/imports
+
+MVP explicitly does NOT include:
+- Bulk price update by import (upsert)
+- Global mass price adjustment tools (multiplier/additive)
+These are “Future Scope” (separate scope later).
+
+============================================================
+2) Tech Stack (use latest stable versions at implementation time)
+============================================================
+Backend
+- .NET (latest LTS) + ASP.NET Core
+- EF Core + PostgreSQL
+- ASP.NET Core Identity (cookie auth)
+- CSV: CsvHelper
+- XLSX: pick ONE library and isolate it behind an interface (ExcelDataReader OR ClosedXML)
+- Validation: FluentValidation (recommended)
+
+Frontend
+- React + TypeScript + Vite
+- MUI + MUI DataGrid (server-side mode)
+- ESLint + Prettier + TypeScript strict
+
+DevOps (Option 1A)
+- Docker (recommended)
+- PostgreSQL on the same VPS (initially)
+- Reverse proxy (Nginx or Caddy) for HTTPS + domain
+
+============================================================
+3) Roles & Permissions (RBAC)
+============================================================
+One role per user.
+
+Roles:
+- Admin
+  - Full access: user mgmt, reset passwords, RoleSettings, imports, edit sites, export, view logs
+- UserManager
+  - Can create users ONLY with roles: Viewer, Client
+  - Cannot create Admin/Editor/UserManager
+  - No RoleSettings changes
+  - No imports
+- Editor
+  - Can edit sites (including quarantine toggle + reason)
+  - Can import Sites + Quarantine
+  - Can export (subject to RoleSettings limit)
+- Viewer
+  - Read-only Sites + export (subject to RoleSettings limit)
+- Client
+  - Read-only Sites + export (subject to RoleSettings limit)
+
+Authorization:
+- All API routes require auth by default
+- Enforce RBAC server-side via policies, not via UI hiding
+
+============================================================
+4) Password provisioning (generated + must-change-on-first-login)
+============================================================
+No self-registration.
+
+Create user flow:
+- Admin/UserManager creates user (email + role)
+- System generates temporary random password
+- User MUST change password at first login:
+  - Persist `MustChangePassword` boolean on user
+  - After login, if MustChangePassword==true, UI forces /change-password and blocks everything else
+
+Reset password:
+- Admin can reset any user password:
+  - Generate new temp password
+  - Set MustChangePassword=true
+
+Security notes (keep minimal, but correct):
+- Temp password displayed ONCE in UI after creation/reset
+- Do not store temp password in DB logs
+- Rate limit login attempts (optional MVP)
+
+============================================================
+5) Data Model
+============================================================
+5.1 Sites (from Sites.xlsx)
+Fields:
+- Id (GUID or long)
+- Domain (normalized host, unique)
+- DR (number)
+- Traffic (number)              // from “Traf 11/12/25”
+- Location (string)
+- PriceUsd (decimal)
+- PriceCasino (decimal? nullable)     // null => NOT allowed
+- PriceCrypto (decimal? nullable)     // null => NOT allowed
+- PriceLinkInsert (decimal? nullable) // null => NOT allowed
+- Niche (string, nullable)            // stored, no filtering in MVP
+- Categories (string, nullable)       // stored, no filtering in MVP
+- IsQuarantined (bool)
+- QuarantineReason (string, nullable)
+- QuarantineUpdatedAtUtc (datetime?, nullable)
+- CreatedAtUtc, UpdatedAtUtc
+
+Indexes:
+- Unique on Domain
+- Index on Location
+- Index on IsQuarantined
+- (Optional) indexes on DR, Traffic, PriceUsd
+
+5.2 RoleSettings
+- RoleName (PK)
+- ExportLimitRows (int)
+Rules:
+- ExportLimitRows == 0 => export disabled
+- “Unlimited” = big number (e.g., 1000000) configured per role
+
+5.3 Audit tables (minimum viable)
+- ExportLog:
+  - Id, UserId, UserEmail, Role, TimestampUtc, RowsReturned, FilterSummaryJson(optional)
+- ImportLog:
+  - Id, UserId, UserEmail, Type(Sites/Quarantine), TimestampUtc,
+    Inserted, Duplicates, Matched, Unmatched, ErrorsCount
+
+============================================================
+6) Domain Normalization (must be consistent everywhere)
+============================================================
+Normalize and store/match by domain host only.
+
+Normalization rules:
+- Trim whitespace
+- Remove scheme: http://, https://
+- Remove leading www.
+- Remove trailing slash
+- If input contains path/query/fragment, keep only host
+- Lowercase
+
+Example:
+  https://www.Example.com/path?q=1  -> example.com
+
+Use normalization in:
+- Sites import
+- Quarantine import
+- Single search
+- Multi-search
+
+============================================================
+7) Sites UI requirements (MUI DataGrid, server-side)
+============================================================
+7.1 Grid columns (clients see all fields)
+- Domain
+- DR
+- Traffic
+- Location
+- PriceUsd
+- PriceCasino
+- PriceCrypto
+- PriceLinkInsert
+- Niche
+- Categories
+- Status: Available / Unavailable (from IsQuarantined)
+- QuarantineReason (only visible if quarantined)
+
+7.2 Filters (MVP)
+- DR range (min/max)
+- Traffic range (min/max)
+- PriceUsd range (min/max)
+- Location multi-select:
+  - Options come from backend endpoint returning distinct values
+  - No separate Countries table in MVP
+- Allowed flags:
+  - Casino allowed (PriceCasino != null)
+  - Crypto allowed (PriceCrypto != null)
+  - Link insert allowed (PriceLinkInsert != null)
+- Quarantine filter: All / Only quarantined / Exclude quarantined
+
+7.3 Search
+- Single search input: partial match on Domain (case-insensitive)
+- Multi-search modal:
+  - Textarea input
+  - Separators: newline OR comma OR space
+  - Hard cap: 500 inputs
+  - Output: Found list + Not found list
+  - Format hint: “Paste domains/URLs. We ignore https/www/path.”
+
+7.4 Editing sites (Editor/Admin)
+Edit dialog:
+- Edit numeric + text fields (pragmatic; don’t over-restrict)
+- Quarantine toggle:
+  - When turning ON: optional reason input
+  - When turning OFF: clear reason (recommended)
+- Save updates UpdatedAtUtc automatically
+
+============================================================
+8) CSV Export (must enforce RoleSettings)
+============================================================
+- Export current filtered result set
+- Apply role limit:
+  - limit==0 => 403 “Export is disabled for your role”
+  - else export up to limit rows
+- Include all columns
+- Insert ExportLog row
+
+============================================================
+9) Imports
+============================================================
+9.1 Sites import (ADD-ONLY)
+Input: CSV/XLSX (same columns as existing file).
+
+Rules:
+- Normalize domain for each row
+- If Domain already exists => skip, record in duplicates list
+- Else insert
+- Parsing/validation errors are collected and shown; do not crash the entire import
+
+Output:
+- Inserted count
+- Duplicates count + list
+- Errors count + list (row number + message)
+
+Performance:
+- Batch inserts (e.g., 1000 rows)
+- Avoid loading all 60k into memory if possible
+
+Log:
+- Insert ImportLog row
+
+9.2 Quarantine import (domain + reason)
+Input: CSV/XLSX with:
+- Column A: domain/url
+- Column B: quarantine reason (string)
+
+Rules:
+- Normalize domain
+- If exists:
+  - IsQuarantined = true
+  - QuarantineReason = reason (trim/sanitize)
+  - QuarantineUpdatedAtUtc = now
+- If not found: add to unmatched list
+
+Output:
+- matched count
+- unmatched list
+- errors list
+
+Log:
+- Insert ImportLog row
+
+============================================================
+10) UI Styling / Brand (MUI theme + tokens)
+============================================================
+Use MUI ThemeProvider with brand tokens:
+- Font: Outfit
+- Text primary: #262626
+- Accent gradient: #FF455B -> #FF7C32
+- Pill radius: ~20px
+
+Implementation requirements:
+- Create `theme.ts` and wrap app with ThemeProvider
+- Reusable components:
+  - BrandButton:
+    - Outlined by default
+    - On hover: apply accent gradient background, white text
+  - PageShell:
+    - header + container + consistent spacing
+- Keep admin/product UI clean; do NOT replicate marketing site layout
+
+Frontend quality gates:
+- ESLint + Prettier + TS strict enabled
+- Disallow `any` where reasonable
+- Enforce consistent imports + formatting via CI scripts (npm scripts)
+
+============================================================
+11) API Endpoints (suggested)
+============================================================
+Auth
+- POST /api/auth/login
+- POST /api/auth/logout
+- GET  /api/auth/me
+- POST /api/auth/change-password
+
+Sites
+- GET  /api/sites
+  - query: page, pageSize, sortBy, sortDir, q,
+           drMin/drMax, trafficMin/trafficMax, priceMin/priceMax,
+           locations[], casinoAllowed, cryptoAllowed, linkInsertAllowed,
+           quarantine=all|only|exclude
+- POST /api/sites/multi-search  { inputs: string[] }
+- PUT  /api/sites/{id}          (Editor/Admin)
+
+Export
+- GET /api/export/sites.csv (same query params as /api/sites)
+
+Imports
+- POST /api/import/sites      (Admin/Editor) multipart file
+- POST /api/import/quarantine (Admin/Editor) multipart file
+
+Users
+- POST /api/users                 (Admin/UserManager restrictions)
+- GET  /api/users                 (Admin only)
+- POST /api/users/{id}/reset-password (Admin)
+
+Role Settings
+- GET /api/role-settings (Admin)
+- PUT /api/role-settings (Admin)
+
+Logs (optional UI; endpoints useful)
+- GET /api/logs/exports (Admin)
+- GET /api/logs/imports (Admin)
+
+============================================================
+12) Step-by-step plan (each step = one commit + reviewable)
+============================================================
+Commit 1 — Bootstrap + linting
+- Create .NET solution:
+  - Api, Domain, Application, Infrastructure
+- Create React Vite app (TS)
+- Add:
+  - .editorconfig
+  - Backend analyzers + dotnet format config
+  - ESLint + Prettier + TS strict
+AC:
+- dotnet build passes
+- npm run lint passes
+Commit: chore: bootstrap backend and frontend with linting
+
+Commit 2 — EF Core + Postgres + migrations
+- Add Postgres provider + config
+- Entities: Site, RoleSettings, ImportLog, ExportLog
+- Migrations + seed RoleSettings
+AC:
+- migrations apply cleanly
+Commit: feat: add database models, migrations, and seeds
+
+Commit 3 — Identity + RBAC + MustChangePassword
+- Identity cookie auth
+- Roles + policies
+- Extend user with MustChangePassword
+- Seed dev admin user
+AC:
+- login works; RBAC enforced
+Commit: feat: identity auth and RBAC policies
+
+Commit 4 — Domain normalization helper + unit tests
+- Implement normalization function + tests
+AC:
+- tests cover scheme/www/path cases
+Commit: test: add domain normalization and unit tests
+
+Commit 5 — Sites listing API
+- GET /api/sites: server-side paging/sort/filter/search
+- Return { items, total }
+AC:
+- filters correct; performance ok for 60k
+Commit: feat: sites listing API with filters and pagination
+
+Commit 6 — Frontend theme + auth + must-change flow
+- ThemeProvider (Outfit + tokens)
+- BrandButton + PageShell
+- Login + protected routes
+- /change-password page that blocks other routes while MustChangePassword==true
+AC:
+- redirects correct; tokens applied globally
+Commit: feat: frontend auth scaffold and brand theme
+
+Commit 7 — Sites page (DataGrid)
+- Server-side MUI DataGrid
+- Filter panel + search input
+- Unavailable marker + reason display
+AC:
+- browse/filter/sort/paginate works end-to-end
+Commit: feat: sites grid with server-side filters and search
+
+Commit 8 — CSV export + per-role limits + ExportLog
+- Implement /api/export/sites.csv
+- Enforce RoleSettings limit; 0 blocks export
+- Log ExportLog
+- UI: export button
+AC:
+- limit is enforced
+Commit: feat: csv export with per-role limits
+
+Commit 9 — Sites import (ADD-ONLY) + UI + ImportLog
+- CSV/XLSX parsing isolated behind interface
+- Add-only insert, duplicates/errors report, ImportLog
+- UI import page (Admin/Editor)
+AC:
+- 60k import works in batches
+Commit: feat: sites add-only import with duplicate reporting
+
+Commit 10 — Multi-search
+- API + UI modal; cap 500 inputs
+AC:
+- found/not found correct and fast
+Commit: feat: multi-search paste list feature
+
+Commit 11 — Quarantine import + reason + edit dialog
+- Quarantine import reads domain + reason and stores it
+- Edit dialog supports toggle + optional reason
+AC:
+- client sees Unavailable; reason stored
+Commit: feat: quarantine import and reason support
+
+Commit 12 — Users mgmt + temp passwords
+- Users page:
+  - create user => generate temp password shown once
+- UserManager restriction: only Viewer/Client
+- Admin reset password endpoint
+AC:
+- restrictions enforced server-side
+Commit: feat: user provisioning with temp passwords and role restrictions
+
+Commit 13 — Role Settings admin page
+- Editable grid for ExportLimitRows
+AC:
+- changing limits affects export immediately
+Commit: feat: role settings admin page
+
+Commit 14 — Production packaging (Option 1A)
+- Build SPA into Api wwwroot/app
+- SPA fallback routing
+- docker-compose templates (app + postgres)
+- sample Nginx/Caddy config for HTTPS + domain
+AC:
+- single-deploy works on VPS
+Commit: chore: production packaging and deployment templates
+
+============================================================
+13) Future Scope (separate scope after MVP)
+============================================================
+Bulk price updates:
+A) Upsert import for vendor batches:
+- update existing domains
+- allow updating only selected columns (prices)
+- preview + confirm
+- audit log
+B) Global mass price adjustment tool:
+- multiplier/additive change on selected price columns
+- optional filters (e.g., non-quarantine only)
+- preview + confirm
+- audit log
+
+============================================================
+14) Open items (can decide later)
+============================================================
+- Exact default RoleSettings per role
+- Whether UserManager can reset passwords for Viewer/Client
+- Optional Location normalization strategy (aliases) if data is messy
