@@ -1,9 +1,12 @@
 import type { ApiError } from '../types/auth.types';
 
 /**
- * Base API configuration
+ * Base API configuration.
+ * In dev we use '' so requests are same-origin and Vite proxy forwards /api to the backend.
+ * In production use env or default (same-origin when SPA is served from API).
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL =
+  import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
 
 /**
  * Custom error class for API errors

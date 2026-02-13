@@ -81,6 +81,94 @@ class SitesService {
     const response = await apiClient.get<LocationsResponse>(`${this.baseUrl}/locations`);
     return response.locations;
   }
+
+  /**
+   * Export sites as CSV with current filters
+   */
+  async exportSites(params: SitesQueryParams): Promise<void> {
+    const queryParams = new URLSearchParams();
+
+    // Pagination (not used for export, but kept for consistency)
+    queryParams.append('page', params.page.toString());
+    queryParams.append('pageSize', params.pageSize.toString());
+
+    // Sorting
+    if (params.sortBy) {
+      queryParams.append('sortBy', params.sortBy);
+    }
+    if (params.sortDir) {
+      queryParams.append('sortDir', params.sortDir);
+    }
+
+    // Search
+    if (params.search) {
+      queryParams.append('search', params.search);
+    }
+
+    // Range filters
+    if (params.drMin !== undefined) {
+      queryParams.append('drMin', params.drMin.toString());
+    }
+    if (params.drMax !== undefined) {
+      queryParams.append('drMax', params.drMax.toString());
+    }
+    if (params.trafficMin !== undefined) {
+      queryParams.append('trafficMin', params.trafficMin.toString());
+    }
+    if (params.trafficMax !== undefined) {
+      queryParams.append('trafficMax', params.trafficMax.toString());
+    }
+    if (params.priceMin !== undefined) {
+      queryParams.append('priceMin', params.priceMin.toString());
+    }
+    if (params.priceMax !== undefined) {
+      queryParams.append('priceMax', params.priceMax.toString());
+    }
+
+    // Location multi-select
+    if (params.location && params.location.length > 0) {
+      params.location.forEach(loc => queryParams.append('locations', loc));
+    }
+
+    // Allowed flags
+    if (params.casinoAllowed !== undefined) {
+      queryParams.append('casinoAllowed', params.casinoAllowed.toString());
+    }
+    if (params.cryptoAllowed !== undefined) {
+      queryParams.append('cryptoAllowed', params.cryptoAllowed.toString());
+    }
+    if (params.linkInsertAllowed !== undefined) {
+      queryParams.append('linkInsertAllowed', params.linkInsertAllowed.toString());
+    }
+
+    // Quarantine filter
+    if (params.quarantine) {
+      queryParams.append('quarantine', params.quarantine);
+    }
+
+    // Trigger file download
+    const url = `/api/export/sites.csv?${queryParams.toString()}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Export failed' }));
+      throw new Error(error.error || 'Export failed');
+    }
+
+    // Create download link
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = 'sites.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
 }
 
 export const sitesService = new SitesService();

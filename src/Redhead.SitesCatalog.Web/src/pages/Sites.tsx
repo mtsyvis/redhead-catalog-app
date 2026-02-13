@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Box, Paper, Typography, Tooltip } from '@mui/material';
+import { Box, Paper, Typography, Tooltip, Button, Alert, Snackbar } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import DownloadIcon from '@mui/icons-material/Download';
 import { PageShell } from '../components/layout/PageShell';
 import { SitesFilters } from '../components/sites/SitesFilters';
 import type { Site, SitesFilters as FiltersType, SitesQueryParams } from '../types/sites.types';
@@ -28,7 +29,13 @@ export function Sites() {
   const [sites, setSites] = useState<Site[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState<FiltersType>(INITIAL_FILTERS);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
   
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -81,6 +88,42 @@ export function Sites() {
     // Reset to first page when filters change
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
     loadSites();
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const params: SitesQueryParams = {
+        page: 1,
+        pageSize: 1000000, // Large number to export all filtered results (subject to role limit)
+        sortBy: sortModel[0]?.field || 'domain',
+        sortDir: sortModel[0]?.sort || 'asc',
+        search: filters.search || undefined,
+        drMin: filters.drMin ? Number(filters.drMin) : undefined,
+        drMax: filters.drMax ? Number(filters.drMax) : undefined,
+        trafficMin: filters.trafficMin ? Number(filters.trafficMin) : undefined,
+        trafficMax: filters.trafficMax ? Number(filters.trafficMax) : undefined,
+        priceMin: filters.priceMin ? Number(filters.priceMin) : undefined,
+        priceMax: filters.priceMax ? Number(filters.priceMax) : undefined,
+        location: filters.location.length > 0 ? filters.location : undefined,
+        casinoAllowed: filters.casinoAllowed || undefined,
+        cryptoAllowed: filters.cryptoAllowed || undefined,
+        linkInsertAllowed: filters.linkInsertAllowed || undefined,
+        quarantine: filters.quarantine,
+      };
+
+      await sitesService.exportSites(params);
+      setSnackbar({ open: true, message: 'Export completed successfully', severity: 'success' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Export failed';
+      setSnackbar({ open: true, message, severity: 'error' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
   };
 
   const columns: GridColDef<Site>[] = [
@@ -206,9 +249,19 @@ export function Sites() {
   return (
     <PageShell maxWidth="xl">
       <Box>
-        <Typography variant="h4" gutterBottom>
-          Sites Catalog
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h4">
+            Sites Catalog
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<DownloadIcon />}
+            onClick={handleExport}
+            disabled={exporting || loading}
+          >
+            {exporting ? 'Exporting...' : 'Export CSV'}
+          </Button>
+        </Box>
         
         <SitesFilters
           filters={filters}
@@ -257,6 +310,17 @@ export function Sites() {
             }}
           />
         </Paper>
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Box>
     </PageShell>
   );

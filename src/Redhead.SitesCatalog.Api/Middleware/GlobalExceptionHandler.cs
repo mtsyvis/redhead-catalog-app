@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics;
+using Redhead.SitesCatalog.Domain.Exceptions;
 
 namespace Redhead.SitesCatalog.Api.Middleware;
 
@@ -29,6 +30,8 @@ public class GlobalExceptionHandler : IExceptionHandler
 
         var statusCode = exception switch
         {
+            ExportDisabledException => HttpStatusCode.Forbidden,
+            RoleSettingsNotFoundException => HttpStatusCode.InternalServerError,
             ArgumentException => HttpStatusCode.BadRequest,
             UnauthorizedAccessException => HttpStatusCode.Unauthorized,
             KeyNotFoundException => HttpStatusCode.NotFound,

@@ -19,7 +19,8 @@ public class SitesServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        _service = new SitesService(_context);
+        var queryBuilder = new SitesQueryBuilder();
+        _service = new SitesService(_context, queryBuilder);
 
         SeedTestData();
     }

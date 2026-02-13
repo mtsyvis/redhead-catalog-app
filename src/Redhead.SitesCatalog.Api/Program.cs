@@ -18,7 +18,9 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 // Add application services
+builder.Services.AddScoped<ISitesQueryBuilder, SitesQueryBuilder>();
 builder.Services.AddScoped<ISitesService, SitesService>();
+builder.Services.AddScoped<IExportService, ExportService>();
 
 // Add Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
