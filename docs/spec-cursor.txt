@@ -12,8 +12,9 @@ Build a production-ready internal + client web app to browse/export a Sites cata
 - Fast server-side search / filters / paging / sorting
 - Multi-search by pasted list of domains/URLs (found + not found)
 - Imports:
-  - Sites import (ADD-ONLY) from CSV/XLSX; skip duplicates; report
-  - Quarantine import (domain + reason) from CSV/XLSX; mark sites “Unavailable”
+  - MVP: CSV only. Sites import (ADD-ONLY) from CSV; skip duplicates; report
+  - Quarantine import (domain + reason) from CSV; mark sites “Unavailable”
+  - XLSX import is Future Scope (optional)
 - Basic audit logs for exports/imports
 
 MVP explicitly does NOT include:
@@ -28,8 +29,8 @@ Backend
 - .NET (latest LTS) + ASP.NET Core
 - EF Core + PostgreSQL
 - ASP.NET Core Identity (cookie auth)
-- CSV: CsvHelper
-- XLSX: pick ONE library and isolate it behind an interface (ExcelDataReader OR ClosedXML)
+- CSV: CsvHelper (MVP import format)
+- XLSX import: Future Scope (optional)
 - Validation: FluentValidation (recommended)
 
 Frontend
@@ -235,7 +236,7 @@ Edit dialog:
 9) Imports
 ============================================================
 9.1 Sites import (ADD-ONLY)
-Input: CSV/XLSX (same columns as existing file).
+Input: CSV only (MVP). Same columns as existing file. XLSX is Future Scope.
 
 Rules:
 - Normalize domain for each row
@@ -256,7 +257,7 @@ Log:
 - Insert ImportLog row
 
 9.2 Quarantine import (domain + reason)
-Input: CSV/XLSX with:
+Input: CSV only (MVP). XLSX is Future Scope. Columns:
 - Column A: domain/url
 - Column B: quarantine reason (string)
 

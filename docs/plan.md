@@ -74,7 +74,7 @@ AC:
 Commit: feat: csv export with per-role limits
 
 Commit 9 — Sites import (ADD-ONLY) + UI + ImportLog
-- CSV/XLSX parsing isolated behind interface
+- CSV parsing isolated behind interface (MVP: CSV only; XLSX Future Scope)
 - Add-only insert, duplicates/errors report, ImportLog
 - UI import page (SuperAdmin/Admin)
 AC:

@@ -191,6 +191,10 @@ redhead-catalog-app/
 
 ```
 
+## Imports
+
+- **MVP: CSV only.** Sites import (add-only) and quarantine import use CSV. XLSX import is future scope.
+
 ## Development Notes
 
 - The backend uses CORS to allow requests from the frontend (ports 5173-5174)
