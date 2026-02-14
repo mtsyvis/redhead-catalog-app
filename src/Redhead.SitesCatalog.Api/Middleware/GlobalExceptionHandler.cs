@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Exceptions;
 
 namespace Redhead.SitesCatalog.Api.Middleware;
@@ -30,6 +32,9 @@ public class GlobalExceptionHandler : IExceptionHandler
 
         var statusCode = exception switch
         {
+            BadHttpRequestException badReq when badReq.StatusCode == StatusCodes.Status413PayloadTooLarge
+                => HttpStatusCode.RequestEntityTooLarge,
+            ImportHeaderValidationException => HttpStatusCode.BadRequest,
             ExportDisabledException => HttpStatusCode.Forbidden,
             RoleSettingsNotFoundException => HttpStatusCode.InternalServerError,
             ArgumentException => HttpStatusCode.BadRequest,
@@ -39,11 +44,16 @@ public class GlobalExceptionHandler : IExceptionHandler
             _ => HttpStatusCode.InternalServerError
         };
 
+        var message = statusCode switch
+        {
+            HttpStatusCode.InternalServerError => "An unexpected error occurred. Please try again later.",
+            HttpStatusCode.RequestEntityTooLarge => ImportConstants.FileTooLargeMessage,
+            _ => exception.Message
+        };
+
         var response = new
         {
-            message = statusCode == HttpStatusCode.InternalServerError
-                ? "An unexpected error occurred. Please try again later."
-                : exception.Message,
+            message,
             statusCode = (int)statusCode
         };
 
