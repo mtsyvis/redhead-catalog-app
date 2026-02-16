@@ -1,0 +1,6 @@
+Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories
+example.com,45,12000,US,250.00,150.00,80.00,200.00,Finance,Business
+test-site.org,32,8500,UK,120.00,,50.00,,Tech,Software
+demo.net,28,4200,DE,99.50,,,,,
+sample.io,67,25000,US,500.00,300.00,150.00,400.00,Health,Medical
+import-test.co,15,1200,,75.00,,,,,

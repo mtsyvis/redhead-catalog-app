@@ -63,8 +63,11 @@ export const PageShell: React.FC<PageShellProps> = ({
   const getCurrentTab = () => {
     if (location.pathname === '/sites') return '/sites';
     if (location.pathname === '/dashboard') return '/dashboard';
+    if (location.pathname === '/import/sites') return '/import/sites';
     return false;
   };
+
+  const isAdmin = user?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
     navigate(newValue);
@@ -95,6 +98,7 @@ export const PageShell: React.FC<PageShellProps> = ({
               >
                 <Tab label="Sites" value="/sites" />
                 <Tab label="Dashboard" value="/dashboard" />
+                {isAdmin && <Tab label="Import Sites" value="/import/sites" />}
               </Tabs>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

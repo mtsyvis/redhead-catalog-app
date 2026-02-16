@@ -9,6 +9,7 @@ import { Login } from './pages/Login';
 import { ChangePassword } from './pages/ChangePassword';
 import { Home } from './pages/Home';
 import { Sites } from './pages/Sites';
+import { ImportSites } from './pages/ImportSites';
 
 /**
  * Main App component
@@ -46,6 +47,17 @@ const App: React.FC = () => {
                 <ProtectedRoute>
                   <MustChangePasswordRoute>
                     <Home />
+                  </MustChangePasswordRoute>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/import/sites"
+              element={
+                <ProtectedRoute>
+                  <MustChangePasswordRoute>
+                    <ImportSites />
                   </MustChangePasswordRoute>
                 </ProtectedRoute>
               }
