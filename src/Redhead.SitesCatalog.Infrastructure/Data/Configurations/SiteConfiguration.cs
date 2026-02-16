@@ -42,10 +42,10 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
             .HasPrecision(18, 2);
 
         builder.Property(s => s.Niche)
-            .HasMaxLength(200);
+            .HasColumnType("text");
 
         builder.Property(s => s.Categories)
-            .HasMaxLength(500);
+            .HasColumnType("text");
 
         builder.Property(s => s.IsQuarantined)
             .IsRequired();
