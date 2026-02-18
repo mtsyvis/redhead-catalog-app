@@ -208,7 +208,7 @@ export function Sites() {
     try {
       const params: SitesQueryParams = {
         page: 1,
-        pageSize: 1000000, // Large number to export all filtered results (subject to role limit)
+        pageSize: 1000000,
         sortBy: sortModel[0]?.field || 'domain',
         sortDir: sortModel[0]?.sort || 'asc',
         search: filters.search || undefined,
@@ -225,7 +225,16 @@ export function Sites() {
         quarantine: filters.quarantine,
       };
 
-      await sitesService.exportSites(params);
+      if (multiSearchResult !== null) {
+        await sitesService.exportSitesMultiSearch({
+          queryText: filters.search,
+          filters: params,
+          sortBy: params.sortBy,
+          sortDir: params.sortDir,
+        });
+      } else {
+        await sitesService.exportSites(params);
+      }
       setSnackbar({ open: true, message: 'Export completed successfully', severity: 'success' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Export failed';

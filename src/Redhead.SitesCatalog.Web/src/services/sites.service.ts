@@ -4,6 +4,7 @@ import type {
   SitesQueryParams,
   LocationsResponse,
   MultiSearchResponse,
+  ExportMultiSearchPayload,
 } from '../types/sites.types';
 
 /**
@@ -161,7 +162,6 @@ class SitesService {
       queryParams.append('quarantine', params.quarantine);
     }
 
-    // Trigger file download
     const url = `/api/export/sites.csv?${queryParams.toString()}`;
     const response = await fetch(url, {
       method: 'GET',
@@ -170,10 +170,37 @@ class SitesService {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Export failed' }));
-      throw new Error(error.error || 'Export failed');
+      throw new Error((error as { error?: string }).error || 'Export failed');
     }
 
-    // Create download link
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = 'sites.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  /**
+   * Export multi-search result as CSV (filtered Found + all Not found). Uses POST.
+   */
+  async exportSitesMultiSearch(payload: ExportMultiSearchPayload): Promise<void> {
+    const baseUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
+    const response = await fetch(`${baseUrl}/api/export/sites-multi-search.csv`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Export failed' }));
+      throw new Error((error as { detail?: string }).detail || 'Export failed');
+    }
+
     const blob = await response.blob();
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');

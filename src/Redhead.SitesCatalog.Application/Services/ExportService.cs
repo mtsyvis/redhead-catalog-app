@@ -17,6 +17,9 @@ namespace Redhead.SitesCatalog.Application.Services;
 /// </summary>
 public class ExportService : IExportService
 {
+    /// <summary>Number of CSV columns after Domain for not-found rows (placeholder "-").</summary>
+    private const int NotFoundPlaceholderColumnCount = 14;
+
     private readonly ApplicationDbContext _context;
     private readonly ISitesQueryBuilder _queryBuilder;
 
@@ -73,6 +76,67 @@ public class ExportService : IExportService
 
         // Log export operation
         await LogExportAsync(userId, userEmail, userRole, sites.Count, query, cancellationToken);
+
+        return stream;
+    }
+
+    public async Task<Stream> ExportMultiSearchAsCsvAsync(
+        string queryText,
+        SitesQuery query,
+        string userId,
+        string userEmail,
+        string userRole,
+        CancellationToken cancellationToken = default)
+    {
+        var parseResult = MultiSearchParser.Parse(queryText);
+
+        var roleSettings = await _context.RoleSettings
+            .FirstOrDefaultAsync(rs => rs.RoleName == userRole, cancellationToken);
+
+        if (roleSettings == null)
+        {
+            throw new RoleSettingsNotFoundException(userRole);
+        }
+
+        if (roleSettings.ExportLimitRows == ExportConstants.DisabledLimit)
+        {
+            throw new ExportDisabledException(userRole, ExportConstants.ExportDisabledMessage);
+        }
+
+        IQueryable<Site> baseQuery = _context.Sites
+            .Where(s => parseResult.UniqueDomains.Contains(s.Domain));
+
+        var filteredQuery = _queryBuilder.BuildQuery(baseQuery, query);
+        var limitedQuery = filteredQuery.Take(roleSettings.ExportLimitRows);
+        var sites = await limitedQuery.ToListAsync(cancellationToken);
+
+        var foundDomains = new HashSet<string>(sites.Select(s => s.Domain), StringComparer.Ordinal);
+        var notFound = parseResult.UniqueDomains
+            .Where(d => !foundDomains.Contains(d))
+            .ToList();
+
+        var stream = new MemoryStream();
+        var writer = new StreamWriter(stream, Encoding.UTF8);
+        var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
+        var csvWriter = new CsvWriter(writer, csvConfig);
+
+        csvWriter.WriteRecords(sites);
+
+        foreach (var domain in notFound)
+        {
+            csvWriter.WriteField(domain);
+            for (var i = 0; i < NotFoundPlaceholderColumnCount; i++)
+            {
+                csvWriter.WriteField("-");
+            }
+            csvWriter.NextRecord();
+        }
+
+        await csvWriter.FlushAsync();
+        await writer.FlushAsync();
+        stream.Position = 0;
+
+        await LogExportAsync(userId, userEmail, userRole, sites.Count + notFound.Count, query, cancellationToken);
 
         return stream;
     }

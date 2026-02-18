@@ -81,3 +81,13 @@ export interface MultiSearchResponse {
   notFound: string[];
   duplicates: string[];
 }
+
+/**
+ * Request body for POST /api/export/sites-multi-search.csv
+ */
+export interface ExportMultiSearchPayload {
+  queryText: string;
+  filters: SitesQueryParams;
+  sortBy?: string;
+  sortDir?: string;
+}
