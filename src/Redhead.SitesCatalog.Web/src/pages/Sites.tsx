@@ -1,5 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Box, Paper, Typography, Tooltip, Button, Alert, Snackbar } from '@mui/material';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+  Box,
+  Paper,
+  Typography,
+  Tooltip,
+  Button,
+  Alert,
+  Snackbar,
+  Popover,
+  List,
+  ListItem,
+  ListItemText,
+} from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
@@ -7,8 +19,52 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DownloadIcon from '@mui/icons-material/Download';
 import { PageShell } from '../components/layout/PageShell';
 import { SitesFilters } from '../components/sites/SitesFilters';
-import type { Site, SitesFilters as FiltersType, SitesQueryParams } from '../types/sites.types';
+import type {
+  Site,
+  SitesFilters as FiltersType,
+  SitesQueryParams,
+  MultiSearchResponse,
+} from '../types/sites.types';
 import { sitesService } from '../services/sites.service';
+
+/** Row type for grid: normal site or not-found placeholder (domain only). */
+type NotFoundRow = { domain: string; _isNotFound: true };
+type GridRow = Site | NotFoundRow;
+
+function isNotFoundRow(row: GridRow): row is NotFoundRow {
+  return '_isNotFound' in row && row._isNotFound === true;
+}
+
+function getQuarantineReason(row: GridRow): string | null {
+  return isNotFoundRow(row) ? null : row.quarantineReason;
+}
+
+function formatCell<T>(row: GridRow, value: T, format: (v: T) => string): string {
+  return isNotFoundRow(row) ? '—' : format(value);
+}
+
+function formatPrice(row: GridRow, value: number | null): string {
+  return formatCell(row, value, (v) => (v == null ? '—' : `$${v}`));
+}
+
+/** Client-side filter for multi-search found rows (same logic as server filters, excluding search). */
+function filterSites(sites: Site[], f: FiltersType): Site[] {
+  return sites.filter((s) => {
+    if (f.drMin !== '' && s.dr < Number(f.drMin)) return false;
+    if (f.drMax !== '' && s.dr > Number(f.drMax)) return false;
+    if (f.trafficMin !== '' && s.traffic < Number(f.trafficMin)) return false;
+    if (f.trafficMax !== '' && s.traffic > Number(f.trafficMax)) return false;
+    if (f.priceMin !== '' && (s.priceUsd ?? 0) < Number(f.priceMin)) return false;
+    if (f.priceMax !== '' && (s.priceUsd ?? 0) > Number(f.priceMax)) return false;
+    if (f.location.length > 0 && !f.location.includes(s.location)) return false;
+    if (f.casinoAllowed && s.priceCasino == null) return false;
+    if (f.cryptoAllowed && s.priceCrypto == null) return false;
+    if (f.linkInsertAllowed && s.priceLinkInsert == null) return false;
+    if (f.quarantine === 'only' && !s.isQuarantined) return false;
+    if (f.quarantine === 'exclude' && s.isQuarantined) return false;
+    return true;
+  });
+}
 
 const INITIAL_FILTERS: FiltersType = {
   search: '',
@@ -31,20 +87,42 @@ export function Sites() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState<FiltersType>(INITIAL_FILTERS);
+  const [multiSearchMode, setMultiSearchMode] = useState(false);
+  const [multiSearchResult, setMultiSearchResult] = useState<MultiSearchResponse | null>(null);
+  const [multiSearchLoading, setMultiSearchLoading] = useState(false);
+  const [duplicatesAnchor, setDuplicatesAnchor] = useState<HTMLElement | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
     severity: 'success',
   });
-  
+
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
   });
-  
+
   const [sortModel, setSortModel] = useState<GridSortModel>([
     { field: 'domain', sort: 'asc' },
   ]);
+  const skipLoadAfterUncheckRef = useRef(false);
+
+  /** Grid filters active = any filter differs from default (excluding search text). */
+  const gridFiltersActive = useMemo(
+    () =>
+      filters.drMin !== INITIAL_FILTERS.drMin ||
+      filters.drMax !== INITIAL_FILTERS.drMax ||
+      filters.trafficMin !== INITIAL_FILTERS.trafficMin ||
+      filters.trafficMax !== INITIAL_FILTERS.trafficMax ||
+      filters.priceMin !== INITIAL_FILTERS.priceMin ||
+      filters.priceMax !== INITIAL_FILTERS.priceMax ||
+      filters.location.length !== 0 ||
+      filters.casinoAllowed !== INITIAL_FILTERS.casinoAllowed ||
+      filters.cryptoAllowed !== INITIAL_FILTERS.cryptoAllowed ||
+      filters.linkInsertAllowed !== INITIAL_FILTERS.linkInsertAllowed ||
+      filters.quarantine !== INITIAL_FILTERS.quarantine,
+    [filters]
+  );
 
   const loadSites = useCallback(async () => {
     setLoading(true);
@@ -81,13 +159,48 @@ export function Sites() {
   }, [paginationModel, sortModel, filters]);
 
   useEffect(() => {
+    if (multiSearchMode) return;
+    if (skipLoadAfterUncheckRef.current) {
+      skipLoadAfterUncheckRef.current = false;
+      return;
+    }
     loadSites();
-  }, [loadSites]);
+  }, [loadSites, multiSearchMode]);
 
   const handleFiltersApply = () => {
-    // Reset to first page when filters change
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
+    if (multiSearchMode) {
+      const query = filters.search.trim();
+      if (!query) return;
+      setMultiSearchLoading(true);
+      sitesService
+        .multiSearch(query)
+        .then((res) => setMultiSearchResult(res))
+        .catch((err) => {
+          console.error('Multi-search failed:', err);
+          setSnackbar({
+            open: true,
+            message: err instanceof Error ? err.message : 'Multi-search failed',
+            severity: 'error',
+          });
+        })
+        .finally(() => setMultiSearchLoading(false));
+      return;
+    }
     loadSites();
+  };
+
+  const handleMultiSearchModeChange = (enabled: boolean) => {
+    setMultiSearchMode(enabled);
+    if (!enabled) {
+      setMultiSearchResult(null);
+      if (filters.search.trim() === '') skipLoadAfterUncheckRef.current = true;
+    }
+  };
+
+  const handleClearFilters = () => {
+    setFilters(INITIAL_FILTERS);
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
   };
 
   const handleExport = async () => {
@@ -123,10 +236,36 @@ export function Sites() {
   };
 
   const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
+    setSnackbar((s) => ({ ...s, open: false }));
   };
 
-  const columns: GridColDef<Site>[] = [
+  const isMultiSearchView = multiSearchResult !== null;
+  const gridRows: GridRow[] = useMemo(() => {
+    if (!multiSearchResult) {
+      return sites;
+    }
+    const filtered = filterSites(multiSearchResult.found, filters);
+    const field = sortModel[0]?.field ?? 'domain';
+    const dir = sortModel[0]?.sort ?? 'asc';
+    const sorted = [...filtered].sort((a, b) => {
+      const av = a[field as keyof Site];
+      const bv = b[field as keyof Site];
+      if (av == null && bv == null) return 0;
+      if (av == null) return dir === 'asc' ? 1 : -1;
+      if (bv == null) return dir === 'asc' ? -1 : 1;
+      const cmp = typeof av === 'string' ? (av as string).localeCompare(bv as string) : (av as number) - (bv as number);
+      return dir === 'asc' ? cmp : -cmp;
+    });
+    const notFoundRows: NotFoundRow[] = gridFiltersActive
+      ? []
+      : multiSearchResult.notFound.map((d) => ({ domain: d, _isNotFound: true as const }));
+    return [...sorted, ...notFoundRows];
+  }, [multiSearchResult, filters, sortModel, sites, gridFiltersActive]);
+
+  const gridRowCount = isMultiSearchView ? gridRows.length : total;
+  const gridLoading = loading || multiSearchLoading;
+
+  const columns: GridColDef<GridRow>[] = [
     {
       field: 'domain',
       headerName: 'Domain',
@@ -138,108 +277,88 @@ export function Sites() {
       headerName: 'DR',
       width: 80,
       type: 'number',
+      valueFormatter: (value, row) =>
+        formatCell(row, value as number | null, (v) => (v == null ? '' : String(v))),
     },
     {
       field: 'traffic',
       headerName: 'Traffic',
       width: 120,
       type: 'number',
-      valueFormatter: (value) => {
+      valueFormatter: (value, row) => {
+        if (isNotFoundRow(row)) return '—';
         if (value == null) return '';
-        return new Intl.NumberFormat('en-US').format(value);
+        return new Intl.NumberFormat('en-US').format(value as number);
       },
     },
     {
       field: 'location',
       headerName: 'Location',
       width: 120,
+      valueFormatter: (value, row) => formatCell(row, value as string, (v) => v ?? '—'),
     },
     {
       field: 'priceUsd',
       headerName: 'Price USD',
       width: 120,
       type: 'number',
-      valueFormatter: (value) => {
-        if (value == null) return '—';
-        return `$${value}`;
-      },
+      valueFormatter: (value, row) => formatPrice(row, value as number | null),
     },
     {
       field: 'priceCasino',
       headerName: 'Casino',
       width: 100,
       type: 'number',
-      valueFormatter: (value) => {
-        if (value == null) return '—';
-        return `$${value}`;
-      },
+      valueFormatter: (value, row) => formatPrice(row, value as number | null),
     },
     {
       field: 'priceCrypto',
       headerName: 'Crypto',
       width: 100,
       type: 'number',
-      valueFormatter: (value) => {
-        if (value == null) return '—';
-        return `$${value}`;
-      },
+      valueFormatter: (value, row) => formatPrice(row, value as number | null),
     },
     {
       field: 'priceLinkInsert',
       headerName: 'Link Insert',
       width: 120,
       type: 'number',
-      valueFormatter: (value) => {
-        if (value == null) return '—';
-        return `$${value}`;
-      },
+      valueFormatter: (value, row) => formatPrice(row, value as number | null),
     },
     {
       field: 'niche',
       headerName: 'Niche',
       width: 150,
-      valueFormatter: (value) => value || '—',
+      valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
     },
     {
       field: 'categories',
       headerName: 'Categories',
       width: 150,
-      valueFormatter: (value) => value || '—',
+      valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
     },
     {
       field: 'isQuarantined',
       headerName: 'Status',
       width: 80,
-      sortable: false,
+      sortable: !isMultiSearchView,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => {
+        if (isNotFoundRow(params.row)) return '—';
         const isQuarantined = params.value as boolean;
-        
         if (isQuarantined) {
-          const reason = params.row.quarantineReason;
+          const reason = getQuarantineReason(params.row);
           const tooltipText = reason ? `Unavailable: ${reason}` : 'Unavailable';
-          
           return (
             <Tooltip title={tooltipText} arrow>
-              <WarningAmberIcon 
-                sx={{ 
-                  color: 'error.main',
-                  fontSize: 20
-                }} 
-              />
+              <WarningAmberIcon sx={{ color: 'error.main', fontSize: 20 }} />
             </Tooltip>
           );
         }
-        
         return (
           <Tooltip title="Available" arrow>
-            <CheckCircleIcon 
-              sx={{ 
-                color: 'success.main',
-                fontSize: 20
-              }} 
-            />
+            <CheckCircleIcon sx={{ color: 'success.main', fontSize: 20 }} />
           </Tooltip>
         );
       },
@@ -267,20 +386,56 @@ export function Sites() {
           filters={filters}
           onFiltersChange={setFilters}
           onApply={handleFiltersApply}
+          multiSearchMode={multiSearchMode}
+          onMultiSearchModeChange={handleMultiSearchModeChange}
         />
+
+        {multiSearchResult && multiSearchResult.duplicates.length > 0 && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 2 }}
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={(e) => setDuplicatesAnchor(e.currentTarget)}
+              >
+                View list
+              </Button>
+            }
+          >
+            Duplicates removed: {multiSearchResult.duplicates.length}
+          </Alert>
+        )}
+
+        {multiSearchResult &&
+          multiSearchResult.notFound.length > 0 &&
+          gridFiltersActive && (
+            <Alert
+              severity="info"
+              sx={{ mb: 2 }}
+              action={
+                <Button color="inherit" size="small" onClick={handleClearFilters}>
+                  Clear filters
+                </Button>
+              }
+            >
+              Not found ({multiSearchResult.notFound.length}) hidden while filters are active
+            </Alert>
+          )}
 
         <Paper>
           <DataGrid
-            rows={sites}
+            rows={gridRows}
             columns={columns}
-            getRowId={(row) => row.domain}
-            rowCount={total}
-            loading={loading}
+            getRowId={(row) => (isNotFoundRow(row) ? `notfound:${row.domain}` : row.domain)}
+            rowCount={gridRowCount}
+            loading={gridLoading}
             pageSizeOptions={[10, 25, 50, 100]}
             paginationModel={paginationModel}
-            paginationMode="server"
+            paginationMode={isMultiSearchView ? 'client' : 'server'}
             onPaginationModelChange={setPaginationModel}
-            sortingMode="server"
+            sortingMode={isMultiSearchView ? 'client' : 'server'}
             sortModel={sortModel}
             onSortModelChange={setSortModel}
             disableRowSelectionOnClick
@@ -310,6 +465,22 @@ export function Sites() {
             }}
           />
         </Paper>
+
+        <Popover
+          open={Boolean(duplicatesAnchor)}
+          anchorEl={duplicatesAnchor}
+          onClose={() => setDuplicatesAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        >
+          <List dense sx={{ maxHeight: 300, overflow: 'auto', minWidth: 200 }}>
+            {multiSearchResult?.duplicates.map((d) => (
+              <ListItem key={d}>
+                <ListItemText primary={d} />
+              </ListItem>
+            ))}
+          </List>
+        </Popover>
 
         <Snackbar
           open={snackbar.open}

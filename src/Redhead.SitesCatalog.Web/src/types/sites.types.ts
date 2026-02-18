@@ -72,3 +72,12 @@ export interface SitesFilters {
   linkInsertAllowed: boolean;
   quarantine: 'all' | 'only' | 'exclude';
 }
+
+/**
+ * Response from POST /api/sites/multi-search
+ */
+export interface MultiSearchResponse {
+  found: Site[];
+  notFound: string[];
+  duplicates: string[];
+}

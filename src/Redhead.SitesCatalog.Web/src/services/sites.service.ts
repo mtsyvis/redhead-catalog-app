@@ -1,5 +1,10 @@
 import { apiClient } from './api.client';
-import type { SitesListResponse, SitesQueryParams, LocationsResponse } from '../types/sites.types';
+import type {
+  SitesListResponse,
+  SitesQueryParams,
+  LocationsResponse,
+  MultiSearchResponse,
+} from '../types/sites.types';
 
 /**
  * Service for sites-related API calls
@@ -72,6 +77,16 @@ class SitesService {
     }
 
     return apiClient.get<SitesListResponse>(`${this.baseUrl}?${queryParams.toString()}`);
+  }
+
+  /**
+   * Multi-search by domains/URLs (exact match, max 500). Uses same search box input as queryText.
+   */
+  async multiSearch(queryText: string): Promise<MultiSearchResponse> {
+    return apiClient.post<MultiSearchResponse, { queryText: string }>(
+      `${this.baseUrl}/multi-search`,
+      { queryText }
+    );
   }
 
   /**

@@ -26,6 +26,8 @@ interface SitesFiltersProps {
   filters: SitesFilters;
   onFiltersChange: (filters: SitesFilters) => void;
   onApply: () => void;
+  multiSearchMode?: boolean;
+  onMultiSearchModeChange?: (enabled: boolean) => void;
 }
 
 const INITIAL_FILTERS: SitesFilters = {
@@ -43,7 +45,13 @@ const INITIAL_FILTERS: SitesFilters = {
   quarantine: 'all',
 };
 
-export function SitesFilters({ filters, onFiltersChange, onApply }: SitesFiltersProps) {
+export function SitesFilters({
+  filters,
+  onFiltersChange,
+  onApply,
+  multiSearchMode = false,
+  onMultiSearchModeChange,
+}: SitesFiltersProps) {
   const [locations, setLocations] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(false);
 
@@ -92,21 +100,41 @@ export function SitesFilters({ filters, onFiltersChange, onApply }: SitesFilters
   return (
     <Box sx={{ mb: 3 }}>
       {/* Search Bar */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-        <TextField
-          fullWidth
-          placeholder="Search by domain (e.g., example.com or https://www.example.com/path)"
-          value={filters.search}
-          onChange={(e) => handleChange('search', e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              onApply();
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'flex-start' }}>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <TextField
+            fullWidth
+            multiline={multiSearchMode}
+            minRows={multiSearchMode ? 3 : 1}
+            maxRows={multiSearchMode ? 12 : 1}
+            placeholder={
+              multiSearchMode
+                ? 'Paste domains or URLs (one per line or space-separated, max 500)'
+                : 'Search by domain (example.com or https://www.example.com/path)'
             }
-          }}
-          InputProps={{
-            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-          }}
-        />
+            value={filters.search}
+            onChange={(e) => handleChange('search', e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !multiSearchMode) {
+                onApply();
+              }
+            }}
+            InputProps={{
+              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+            }}
+          />
+          {onMultiSearchModeChange && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={multiSearchMode}
+                  onChange={(e) => onMultiSearchModeChange(e.target.checked)}
+                />
+              }
+              label="Multi-search"
+            />
+          )}
+        </Box>
         <Button
           variant="contained"
           onClick={onApply}
