@@ -819,4 +819,100 @@ public class SitesServiceTests : IDisposable
     }
 
     #endregion
+
+    #region MultiSearch Tests
+
+    [Fact]
+    public async Task MultiSearchSitesAsync_ExactMatchOnly_NoSubstringMatch()
+    {
+        var normalizedDomains = new List<string> { "example", "example.com", "test.com" };
+        var duplicates = new List<string>();
+
+        var result = await _service.MultiSearchSitesAsync(normalizedDomains, duplicates);
+
+        Assert.Equal(2, result.Found.Count);
+        Assert.Contains(result.Found, s => s.Domain == "example.com");
+        Assert.Contains(result.Found, s => s.Domain == "test.com");
+        Assert.Single(result.NotFound);
+        Assert.Equal("example", result.NotFound[0]);
+        Assert.Empty(result.Duplicates);
+    }
+
+    [Fact]
+    public async Task MultiSearchSitesAsync_ReturnsFoundAndNotFound()
+    {
+        var normalizedDomains = new List<string> { "example.com", "nonexistent.com", "crypto.com" };
+        var duplicates = new List<string>();
+
+        var result = await _service.MultiSearchSitesAsync(normalizedDomains, duplicates);
+
+        Assert.Equal(2, result.Found.Count);
+        Assert.Contains(result.Found, s => s.Domain == "example.com");
+        Assert.Contains(result.Found, s => s.Domain == "crypto.com");
+        Assert.Single(result.NotFound);
+        Assert.Equal("nonexistent.com", result.NotFound[0]);
+    }
+
+    [Fact]
+    public async Task MultiSearchSitesAsync_ReturnsDuplicatesFromInput()
+    {
+        var normalizedDomains = new List<string> { "example.com" };
+        var duplicates = new List<string> { "example.com", "b.com" };
+
+        var result = await _service.MultiSearchSitesAsync(normalizedDomains, duplicates);
+
+        Assert.Single(result.Found);
+        Assert.Equal("example.com", result.Found[0].Domain);
+        Assert.Empty(result.NotFound);
+        Assert.Equal(2, result.Duplicates.Count);
+        Assert.Contains("example.com", result.Duplicates);
+        Assert.Contains("b.com", result.Duplicates);
+    }
+
+    [Fact]
+    public async Task MultiSearchSitesAsync_EmptyDomains_ReturnsOnlyDuplicates()
+    {
+        var normalizedDomains = new List<string>();
+        var duplicates = new List<string> { "dup.com" };
+
+        var result = await _service.MultiSearchSitesAsync(normalizedDomains, duplicates);
+
+        Assert.Empty(result.Found);
+        Assert.Empty(result.NotFound);
+        Assert.Single(result.Duplicates);
+        Assert.Equal("dup.com", result.Duplicates[0]);
+    }
+
+    [Fact]
+    public async Task MultiSearchSitesAsync_AllNotFound_ReturnsEmptyFound()
+    {
+        var normalizedDomains = new List<string> { "missing1.com", "missing2.com" };
+        var duplicates = new List<string>();
+
+        var result = await _service.MultiSearchSitesAsync(normalizedDomains, duplicates);
+
+        Assert.Empty(result.Found);
+        Assert.Equal(2, result.NotFound.Count);
+        Assert.Contains("missing1.com", result.NotFound);
+        Assert.Contains("missing2.com", result.NotFound);
+    }
+
+    [Fact]
+    public async Task MultiSearchSitesAsync_SingleQuery_ReturnsFullSiteDto()
+    {
+        var normalizedDomains = new List<string> { "gambling.com" };
+        var duplicates = new List<string>();
+
+        var result = await _service.MultiSearchSitesAsync(normalizedDomains, duplicates);
+
+        Assert.Single(result.Found);
+        var site = result.Found[0];
+        Assert.Equal("gambling.com", site.Domain);
+        Assert.Equal(90, site.DR);
+        Assert.Equal(100000, site.Traffic);
+        Assert.True(site.IsQuarantined);
+        Assert.Equal("Under review", site.QuarantineReason);
+    }
+
+    #endregion
 }

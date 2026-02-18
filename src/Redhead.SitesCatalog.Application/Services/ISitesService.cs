@@ -16,4 +16,15 @@ public interface ISitesService
     /// Get distinct location values
     /// </summary>
     Task<List<string>> GetLocationsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Multi-search: exact match by normalized domains. Single DB query.
+    /// </summary>
+    /// <param name="normalizedDomains">Unique normalized domains to look up</param>
+    /// <param name="duplicates">Domains that appeared more than once in input (for response)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task<MultiSearchSitesResult> MultiSearchSitesAsync(
+        IReadOnlyList<string> normalizedDomains,
+        IReadOnlyList<string> duplicates,
+        CancellationToken cancellationToken = default);
 }

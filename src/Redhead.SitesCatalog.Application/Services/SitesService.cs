@@ -71,4 +71,52 @@ public class SitesService : ISitesService
             .OrderBy(l => l)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<MultiSearchSitesResult> MultiSearchSitesAsync(
+        IReadOnlyList<string> normalizedDomains,
+        IReadOnlyList<string> duplicates,
+        CancellationToken cancellationToken = default)
+    {
+        if (normalizedDomains.Count == 0)
+        {
+            return new MultiSearchSitesResult
+            {
+                Found = [],
+                NotFound = [],
+                Duplicates = duplicates.ToList()
+            };
+        }
+
+        var found = await _context.Sites
+            .Where(s => normalizedDomains.Contains(s.Domain))
+            .Select(s => new SiteDto
+            {
+                Domain = s.Domain,
+                DR = s.DR,
+                Traffic = s.Traffic,
+                Location = s.Location,
+                PriceUsd = s.PriceUsd,
+                PriceCasino = s.PriceCasino,
+                PriceCrypto = s.PriceCrypto,
+                PriceLinkInsert = s.PriceLinkInsert,
+                Niche = s.Niche,
+                Categories = s.Categories,
+                IsQuarantined = s.IsQuarantined,
+                QuarantineReason = s.QuarantineReason,
+                QuarantineUpdatedAtUtc = s.QuarantineUpdatedAtUtc,
+                CreatedAtUtc = s.CreatedAtUtc,
+                UpdatedAtUtc = s.UpdatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var foundDomains = new HashSet<string>(found.Select(s => s.Domain), StringComparer.Ordinal);
+        var notFound = normalizedDomains.Where(d => !foundDomains.Contains(d)).ToList();
+
+        return new MultiSearchSitesResult
+        {
+            Found = found,
+            NotFound = notFound,
+            Duplicates = duplicates.ToList()
+        };
+    }
 }
