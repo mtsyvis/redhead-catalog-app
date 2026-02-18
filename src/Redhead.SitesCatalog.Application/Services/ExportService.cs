@@ -103,19 +103,29 @@ public class ExportService : IExportService
             throw new ExportDisabledException(userRole, ExportConstants.ExportDisabledMessage);
         }
 
+        var includeNotFound = !AreFiltersActive(query);
+
         IQueryable<Site> baseQuery = _context.Sites
             .Where(s => parseResult.UniqueDomains.Contains(s.Domain));
+
+        // IMPORTANT:
+        // "Not found" must mean "not present in DB", not "not included due to export limit".
+        // So we compute matched domains from the base query (domain IN list) BEFORE applying role limits.
+        List<string> notFound = new();
+        if (includeNotFound)
+        {
+            var matchedDomains = await baseQuery
+                .Select(s => s.Domain)
+                .ToListAsync(cancellationToken);
+            var matchedSet = new HashSet<string>(matchedDomains, StringComparer.Ordinal);
+            notFound = parseResult.UniqueDomains
+                .Where(d => !matchedSet.Contains(d))
+                .ToList();
+        }
 
         var filteredQuery = _queryBuilder.BuildQuery(baseQuery, query);
         var limitedQuery = filteredQuery.Take(roleSettings.ExportLimitRows);
         var sites = await limitedQuery.ToListAsync(cancellationToken);
-
-        var foundDomains = new HashSet<string>(sites.Select(s => s.Domain), StringComparer.Ordinal);
-        var notFound = parseResult.UniqueDomains
-            .Where(d => !foundDomains.Contains(d))
-            .ToList();
-
-        var includeNotFound = !AreFiltersActive(query);
 
         var stream = new MemoryStream();
         var writer = new StreamWriter(stream, Encoding.UTF8);

@@ -227,7 +227,7 @@ export function Sites() {
 
       if (multiSearchResult !== null) {
         await sitesService.exportSitesMultiSearch({
-          queryText: filters.search,
+          queryText: filters.search.trim(),
           filters: params,
           sortBy: params.sortBy,
           sortDir: params.sortDir,
@@ -444,7 +444,7 @@ export function Sites() {
             paginationModel={paginationModel}
             paginationMode={isMultiSearchView ? 'client' : 'server'}
             onPaginationModelChange={setPaginationModel}
-            sortingMode={isMultiSearchView ? 'client' : 'server'}
+            sortingMode="server"
             sortModel={sortModel}
             onSortModelChange={setSortModel}
             disableRowSelectionOnClick
