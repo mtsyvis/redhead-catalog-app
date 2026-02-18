@@ -115,6 +115,8 @@ public class ExportService : IExportService
             .Where(d => !foundDomains.Contains(d))
             .ToList();
 
+        var includeNotFound = !AreFiltersActive(query);
+
         var stream = new MemoryStream();
         var writer = new StreamWriter(stream, Encoding.UTF8);
         var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
@@ -122,21 +124,25 @@ public class ExportService : IExportService
 
         csvWriter.WriteRecords(sites);
 
-        foreach (var domain in notFound)
+        if (includeNotFound)
         {
-            csvWriter.WriteField(domain);
-            for (var i = 0; i < NotFoundPlaceholderColumnCount; i++)
+            foreach (var domain in notFound)
             {
-                csvWriter.WriteField("-");
+                csvWriter.WriteField(domain);
+                for (var i = 0; i < NotFoundPlaceholderColumnCount; i++)
+                {
+                    csvWriter.WriteField("-");
+                }
+                csvWriter.NextRecord();
             }
-            csvWriter.NextRecord();
         }
 
         await csvWriter.FlushAsync();
         await writer.FlushAsync();
         stream.Position = 0;
 
-        await LogExportAsync(userId, userEmail, userRole, sites.Count + notFound.Count, query, cancellationToken);
+        var rowsReturned = sites.Count + (includeNotFound ? notFound.Count : 0);
+        await LogExportAsync(userId, userEmail, userRole, rowsReturned, query, cancellationToken);
 
         return stream;
     }
@@ -178,5 +184,24 @@ public class ExportService : IExportService
 
         _context.ExportLogs.Add(exportLog);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// True when any filter differs from defaults (same definition as UI: range, location, allowed flags, quarantine).
+    /// </summary>
+    private static bool AreFiltersActive(SitesQuery query)
+    {
+        if (query.DrMin.HasValue || query.DrMax.HasValue) { return true; }
+        if (query.TrafficMin.HasValue || query.TrafficMax.HasValue) { return true; }
+        if (query.PriceMin.HasValue || query.PriceMax.HasValue) { return true; }
+        if (query.Locations is { Count: > 0 }) { return true; }
+        if (query.CasinoAllowed == true || query.CryptoAllowed == true || query.LinkInsertAllowed == true) { return true; }
+        if (!string.IsNullOrEmpty(query.Quarantine) &&
+            !string.Equals(query.Quarantine, QuarantineFilterValues.All, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
     }
 }

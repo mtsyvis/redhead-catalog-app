@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Api.Models.Sites;
@@ -37,7 +38,8 @@ public class SitesQueryRequest
     public decimal? PriceMin { get; set; }
     public decimal? PriceMax { get; set; }
 
-    // Location multi-select
+    // Location multi-select (frontend sends "location")
+    [JsonPropertyName("location")]
     public List<string>? Locations { get; set; }
 
     // Allowed flags (null = ignore, true = must have value)
