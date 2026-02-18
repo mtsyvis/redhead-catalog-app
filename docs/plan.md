@@ -130,22 +130,22 @@ Commit: feat: sites add-only import with duplicate reporting
 
 ---
 
-## Commit 10C — Multi-search export (filtered Found + always Not found)
+## Commit 10C — Multi-search export (filtered Found + conditional Not found)
 **Scope**
 - Add POST `/api/export/sites-multi-search.csv`:
-  - Accept queryText + filters
   - Apply filters to found
   - Enforce role export limit on found count
-  - Append all notFound domains at end of CSV
-- UI:
-  - Export button uses this endpoint when Multi-search is ON
-  - Existing export endpoint remains for normal single/browse mode
+  - Include Not found domains ONLY when NO filters are active
+  - Exclude Not found domains when ANY filters are active
+- UI: Export button uses this endpoint when Multi-search is ON
+
 **Acceptance criteria**
-- Export includes filtered Found rows + all Not found domains appended
+- Export includes filtered Found rows
 - Role export limit applies to Found rows
-- Works whether Not found is visible or hidden due to filters
-- `dotnet build` passes
-- `npm run lint` passes
+- Not found are appended ONLY when no filters are active
+- Not found are NOT included when any filters are active
+- `dotnet build` and `npm run lint` pass
+
 
 Commit 11 — Quarantine import + reason + edit dialog
 - Quarantine import reads domain + reason and stores it

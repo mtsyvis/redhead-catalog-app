@@ -556,12 +556,18 @@ Result display (same grid as single search):
 
 Filtering & export behavior:
 - Found rows in Multi-search MUST support the same filters as the normal Sites grid.
-- Export must include:
-  - Found rows respecting CURRENT filters
-  - PLUS all Not found domains appended at the end (even when Not found is hidden in UI due to active filters).
-- RoleSettings export_limit_rows enforcement:
-  - Apply the limit to Found rows count.
-  - Always append all Not found domains after Found rows in the CSV.
+- Not found rows:
+  - Visible in UI only when no filters are active
+  - Hidden when any filters are active (show hint + Clear filters)
+
+Export rules (Multi-search):
+- If NO filters are active:
+  - Export includes Found rows (respecting export_limit_rows)
+  - AND appends all Not found domains at the end
+- If ANY filters are active:
+  - Export includes ONLY Found rows respecting CURRENT filters (and export_limit_rows)
+  - Not found domains MUST NOT be included in the export file
+
 
 API (recommended):
 - Multi-search should NOT use GET with huge query strings.
