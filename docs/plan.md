@@ -81,11 +81,71 @@ AC:
 - 60k import works in batches
 Commit: feat: sites add-only import with duplicate reporting
 
-Commit 10 — Multi-search
-- API + UI modal; cap 500 inputs
-AC:
-- found/not found correct and fast
-Commit: feat: multi-search paste list feature
+## Commit 10A — Multi-search backend (parse + exact match + response)
+**Scope**
+- Add POST `/api/sites/multi-search`:
+  - Parse `queryText` into up to 500 domains (split whitespace/newlines)
+  - Normalize inputs
+  - Detect duplicates (after normalization) and return `duplicates[]`
+  - Exact match on normalized Domain (full string equality)
+  - Return:
+    - `found[]` as full SiteDto
+    - `notFound[]` as list of normalized domains not found in DB
+    - `duplicates[]`
+- Add unit tests for:
+  - normalization + exact match behavior
+  - duplicate detection
+  - max 500 enforcement
+  - whitespace split (spaces/newlines)
+**Acceptance criteria**
+- Endpoint works for 1 domain and for 500 domains
+- Exact match only (no substring)
+- Duplicates are removed from search and reported
+- `dotnet build` passes
+- `dotnet test` passes (if tests exist)
+
+---
+
+## Commit 10B — Multi-search UI (toggle + show Found + Not found UX rules)
+**Scope**
+- Add Multi-search toggle next to existing search input.
+- In Multi-search mode:
+  - Use the same search box; switch to multiline input (recommended) for paste.
+  - Submit triggers `/api/sites/multi-search` and stores:
+    - found rows
+    - notFound list
+    - duplicates list
+- Render in the SAME DataGrid:
+  - Found rows first (normal rows)
+  - Not found rows appended at end ONLY when no filters active
+  - If filters active: hide Not found rows and show hint banner with “Clear filters”
+- Duplicates UX:
+  - Show a warning banner: “Duplicates removed: X” + “View list” (optional collapse/popover)
+**Acceptance criteria**
+- Multi-search works end-to-end in UI
+- Not found appended only when filters inactive
+- When any filter changes from default, Not found hides + hint appears + Clear filters resets filters
+- `npm run lint` passes
+- `dotnet build` passes
+
+---
+
+## Commit 10C — Multi-search export (filtered Found + always Not found)
+**Scope**
+- Add POST `/api/export/sites-multi-search.csv`:
+  - Accept queryText + filters
+  - Apply filters to found
+  - Enforce role export limit on found count
+  - Append all notFound domains at end of CSV
+- UI:
+  - Export button uses this endpoint when Multi-search is ON
+  - Existing export endpoint remains for normal single/browse mode
+**Acceptance criteria**
+- Export includes filtered Found rows + all Not found domains appended
+- Role export limit applies to Found rows
+- Works whether Not found is visible or hidden due to filters
+- `dotnet build` passes
+- `npm run lint` passes
 
 Commit 11 — Quarantine import + reason + edit dialog
 - Quarantine import reads domain + reason and stores it

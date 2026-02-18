@@ -207,12 +207,6 @@ Use normalization in:
 
 7.3 Search
 - Single search input: partial match on Domain (case-insensitive)
-- Multi-search modal:
-  - Textarea input
-  - Separators: newline OR comma OR space
-  - Hard cap: 500 inputs
-  - Output: Found list + Not found list
-  - Format hint: “Paste domains/URLs. We ignore https/www/path.”
 
 7.4 Editing sites (SuperAdmin/Admin)
 Edit dialog:
@@ -478,3 +472,110 @@ B) Global mass price adjustment tool:
 14) Open items (can decide later)
 ============================================================
 - Optional Location normalization strategy (aliases) if data is messy
+
+
+
+UI / Frontend (must follow)
+
+Routes:
+- /login
+- /change-password (forced when MustChangePassword=true)
+- /sites (main)
+- /import/sites (Admin, Editor)
+- /import/quarantine (Admin, Editor)
+- /admin/users (SuperAdmin, Admin)
+- /admin/role-settings (SuperAdmin, Admin)
+
+Layout:
+- Use PageShell with top app bar:
+  - Left: app name "Readhead Catalog"
+  - Right: current user email + role, Logout
+- Left navigation (drawer or sidebar) with links:
+  - Sites
+  - Imports (only if allowed)
+  - Users (only if allowed)
+  - Role Settings (only if allowed)
+
+Sites page:
+- Top toolbar row:
+  - Search by domain input
+  - Button "Multi-search" (opens modal)
+  - Button "Export CSV" (disabled if role limit==0)
+- Filters panel (left or collapsible):
+  - DR min/max, Traffic min/max, PriceUsd min/max
+  - Location multi-select
+  - Checkboxes: Casino allowed / Crypto allowed / Link insert allowed
+  - Quarantine: All / Only / Exclude
+- DataGrid server-side paging/sorting/filtering.
+- Quarantined rows show Status = "Unavailable" and reason column (only if quarantined).
+- Row action: "Edit" visible only for Admin/Editor.
+
+Multi-search modal:
+- Textarea, hint about accepted input (domains/urls)
+- Hard cap 500 items
+- Show two lists: Found / Not found
+
+Imports pages:
+- File picker + upload button
+- Show result summary: inserted/duplicates/errors (sites) OR matched/unmatched/errors (quarantine)
+- Show lists in expandable sections
+
+Users page:
+- Create user: email + role dropdown (allowed roles depend on current user)
+- After creation show generated temp password ONCE
+- Actions: Reset password (Admin+), Delete user (soft delete -> IsActive=false)
+
+Role settings page:
+- Grid of roles with ExportLimitRows editable
+- Explain: 0 disables export
+
+
+============================================================
+15) Multi-search (MVP) — UX + Behavior
+============================================================
+
+Availability:
+- Multi-search is available to ALL authenticated users.
+
+Input & parsing:
+- Uses the SAME search box as single search, with a toggle: [ ] Multi-search
+- Multi-search input accepts domains/URLs ONLY, separated by whitespace (spaces and/or new lines).
+- Max inputs: 500.
+- Normalize each input using the same normalization rules as the system (remove scheme, www, trailing slash, path/query, lowercase).
+- Match rule: EXACT string equality on normalized Domain stored in DB (no substring matching).
+- If input contains duplicates (after normalization), remove duplicates before searching and return duplicates list for UX notification.
+
+Result display (same grid as single search):
+- Display Found rows first (full data columns).
+- Display Not found rows appended at the end ONLY when no filters are active.
+  - Not found rows contain only Domain column filled.
+  - All other columns display "-" (dashes) / empty placeholders.
+- If ANY filters are active (range/location/allowed flags/quarantine filter etc.):
+  - Hide Not found rows
+  - Show a hint/banner: “Not found (X) hidden while filters are active” + action “Clear filters”.
+
+Filtering & export behavior:
+- Found rows in Multi-search MUST support the same filters as the normal Sites grid.
+- Export must include:
+  - Found rows respecting CURRENT filters
+  - PLUS all Not found domains appended at the end (even when Not found is hidden in UI due to active filters).
+- RoleSettings export_limit_rows enforcement:
+  - Apply the limit to Found rows count.
+  - Always append all Not found domains after Found rows in the CSV.
+
+API (recommended):
+- Multi-search should NOT use GET with huge query strings.
+- Use POST endpoints:
+  - POST /api/sites/multi-search
+    Request: { queryText: string, filters: SitesFilterDto, sort?: SortDto }
+    Response: { found: SiteDto[], notFound: string[], duplicates: string[] }
+  - POST /api/export/sites-multi-search.csv
+    Request: { queryText: string, filters: SitesFilterDto, sort?: SortDto }
+    Response: CSV file (filtered Found + Not found)
+
+Frontend UX (minimal but clear):
+- Toggle next to the search input.
+- When Multi-search is ON, the same input may switch to multiline (recommended) to make paste easy.
+- Show duplicates warning (non-blocking):
+  - Banner/alert: “Duplicates removed: X” + optional “View list”.
+- Not found hint banner when hidden due to filters (with “Clear filters” button).
