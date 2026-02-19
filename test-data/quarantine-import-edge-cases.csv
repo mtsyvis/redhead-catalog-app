@@ -1,0 +1,11 @@
+Domain,Reason
+482jobs.com,Matched - existing site
+,Error - empty domain
+absolutearmenia.com,Matched - will update
+not-in-catalog.com,Unmatched - not in system
+   ,Error - whitespace only
+phantom-site.org,Unmatched - fake domain
+all-andorra.com,Matched
+https://www.animeslayer.net/,Matched - URL normalizes to domain
+never-existed.example,Unmatched
+typo-in-domain.xzy,Unmatched

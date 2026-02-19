@@ -27,4 +27,18 @@ public interface ISitesService
         IReadOnlyList<string> normalizedDomains,
         IReadOnlyList<string> duplicates,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Update site quarantine status. When IsQuarantined is false, QuarantineReason is cleared.
+    /// </summary>
+    /// <param name="domain">Normalized domain (exact match)</param>
+    /// <param name="isQuarantined">New quarantine flag</param>
+    /// <param name="quarantineReason">Reason when quarantined; ignored when not quarantined</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Updated site DTO or null if not found</returns>
+    Task<SiteDto?> UpdateQuarantineAsync(
+        string domain,
+        bool isQuarantined,
+        string? quarantineReason,
+        CancellationToken cancellationToken = default);
 }

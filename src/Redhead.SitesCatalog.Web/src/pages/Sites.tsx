@@ -11,14 +11,20 @@ import {
   List,
   ListItem,
   ListItemText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Switch,
+  TextField,
+  FormControlLabel,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DownloadIcon from '@mui/icons-material/Download';
 import { PageShell } from '../components/layout/PageShell';
 import { SitesFilters } from '../components/sites/SitesFilters';
+import { useAuth } from '../contexts/AuthContext';
 import type {
   Site,
   SitesFilters as FiltersType,
@@ -91,11 +97,18 @@ export function Sites() {
   const [multiSearchResult, setMultiSearchResult] = useState<MultiSearchResponse | null>(null);
   const [multiSearchLoading, setMultiSearchLoading] = useState(false);
   const [duplicatesAnchor, setDuplicatesAnchor] = useState<HTMLElement | null>(null);
+  const [editSite, setEditSite] = useState<Site | null>(null);
+  const [editIsQuarantined, setEditIsQuarantined] = useState(false);
+  const [editReason, setEditReason] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
     severity: 'success',
   });
+
+  const { user } = useAuth();
+  const isAdmin = user?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin') ?? false;
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -248,6 +261,51 @@ export function Sites() {
     setSnackbar((s) => ({ ...s, open: false }));
   };
 
+  const handleOpenEdit = (site: Site) => {
+    setEditSite(site);
+    setEditIsQuarantined(site.isQuarantined);
+    setEditReason(site.quarantineReason ?? '');
+  };
+
+  const handleCloseEdit = () => {
+    setEditSite(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editSite) return;
+    setEditSaving(true);
+    try {
+      await sitesService.updateSiteQuarantine(editSite.domain, {
+        isQuarantined: editIsQuarantined,
+        quarantineReason: editIsQuarantined ? (editReason.trim() || null) : null,
+      });
+      setEditSite(null);
+      setSnackbar({ open: true, message: 'Site updated', severity: 'success' });
+      if (multiSearchResult) {
+        const updated = multiSearchResult.found.map((s) =>
+          s.domain === editSite.domain
+            ? {
+                ...s,
+                isQuarantined: editIsQuarantined,
+                quarantineReason: editIsQuarantined ? (editReason.trim() || null) : null,
+              }
+            : s
+        );
+        setMultiSearchResult({ ...multiSearchResult, found: updated });
+      } else {
+        loadSites();
+      }
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : 'Update failed',
+        severity: 'error',
+      });
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const isMultiSearchView = multiSearchResult !== null;
   const gridRows: GridRow[] = useMemo(() => {
     if (!multiSearchResult) {
@@ -349,7 +407,7 @@ export function Sites() {
     {
       field: 'isQuarantined',
       headerName: 'Status',
-      width: 80,
+      width: 100,
       sortable: !isMultiSearchView,
       align: 'center',
       headerAlign: 'center',
@@ -361,17 +419,49 @@ export function Sites() {
           const tooltipText = reason ? `Unavailable: ${reason}` : 'Unavailable';
           return (
             <Tooltip title={tooltipText} arrow>
-              <WarningAmberIcon sx={{ color: 'error.main', fontSize: 20 }} />
+              <span>Unavailable</span>
             </Tooltip>
           );
         }
         return (
           <Tooltip title="Available" arrow>
-            <CheckCircleIcon sx={{ color: 'success.main', fontSize: 20 }} />
+            <span>Available</span>
           </Tooltip>
         );
       },
     },
+    {
+      field: 'quarantineReason',
+      headerName: 'Quarantine reason',
+      width: 160,
+      valueFormatter: (_value, row) => {
+        if (isNotFoundRow(row)) return '—';
+        const site = row as Site;
+        return site.isQuarantined ? (site.quarantineReason || '—') : '—';
+      },
+    },
+    ...(isAdmin
+      ? [
+          {
+            field: 'actions',
+            headerName: 'Actions',
+            width: 90,
+            sortable: false,
+            renderCell: (params: { row: GridRow }) => {
+              if (isNotFoundRow(params.row)) return null;
+              return (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleOpenEdit(params.row as Site)}
+                >
+                  Edit
+                </Button>
+              );
+            },
+          } as GridColDef<GridRow>,
+        ]
+      : []),
   ];
 
   return (
@@ -390,7 +480,7 @@ export function Sites() {
             {exporting ? 'Exporting...' : 'Export CSV'}
           </Button>
         </Box>
-        
+
         <SitesFilters
           filters={filters}
           onFiltersChange={setFilters}
@@ -501,6 +591,43 @@ export function Sites() {
             {snackbar.message}
           </Alert>
         </Snackbar>
+
+        <Dialog open={Boolean(editSite)} onClose={handleCloseEdit} maxWidth="sm" fullWidth>
+          <DialogTitle>Edit site</DialogTitle>
+          <DialogContent>
+            {editSite && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+                <TextField label="Domain" value={editSite.domain} disabled size="small" fullWidth />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={editIsQuarantined}
+                      onChange={(e) => setEditIsQuarantined(e.target.checked)}
+                    />
+                  }
+                  label="Unavailable (quarantined)"
+                />
+                {editIsQuarantined && (
+                  <TextField
+                    label="Reason (optional)"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    size="small"
+                    fullWidth
+                    multiline
+                    minRows={2}
+                  />
+                )}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseEdit}>Cancel</Button>
+            <Button onClick={handleSaveEdit} variant="contained" disabled={editSaving}>
+              {editSaving ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </PageShell>
   );

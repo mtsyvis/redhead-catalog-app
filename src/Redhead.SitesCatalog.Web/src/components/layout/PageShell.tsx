@@ -63,7 +63,7 @@ export const PageShell: React.FC<PageShellProps> = ({
   const getCurrentTab = () => {
     if (location.pathname === '/sites') return '/sites';
     if (location.pathname === '/dashboard') return '/dashboard';
-    if (location.pathname === '/import/sites') return '/import/sites';
+    if (location.pathname.startsWith('/imports')) return '/imports';
     return false;
   };
 
@@ -98,7 +98,7 @@ export const PageShell: React.FC<PageShellProps> = ({
               >
                 <Tab label="Sites" value="/sites" />
                 <Tab label="Dashboard" value="/dashboard" />
-                {isAdmin && <Tab label="Import Sites" value="/import/sites" />}
+                {isAdmin && <Tab label="Imports" value="/imports" />}
               </Tabs>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

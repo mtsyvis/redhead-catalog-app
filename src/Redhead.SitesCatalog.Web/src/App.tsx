@@ -9,7 +9,7 @@ import { Login } from './pages/Login';
 import { ChangePassword } from './pages/ChangePassword';
 import { Home } from './pages/Home';
 import { Sites } from './pages/Sites';
-import { ImportSites } from './pages/ImportSites';
+import { Imports } from './pages/Imports';
 
 /**
  * Main App component
@@ -53,15 +53,17 @@ const App: React.FC = () => {
             />
 
             <Route
-              path="/import/sites"
+              path="/imports"
               element={
                 <ProtectedRoute>
                   <MustChangePasswordRoute>
-                    <ImportSites />
+                    <Imports />
                   </MustChangePasswordRoute>
                 </ProtectedRoute>
               }
             />
+
+            <Route path="/import/sites" element={<Navigate to="/imports" replace />} />
 
             <Route
               path="/change-password"

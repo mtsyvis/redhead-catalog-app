@@ -4,6 +4,7 @@ using Redhead.SitesCatalog.Api.Mappers;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -84,6 +85,32 @@ public class SitesController : ControllerBase
         {
             Locations = locations
         });
+    }
+
+    /// <summary>
+    /// Update site quarantine status (Admin/SuperAdmin). When IsQuarantined is false, reason is cleared.
+    /// </summary>
+    [HttpPut("{domain}")]
+    [Authorize(Policy = AppPolicies.AdminAccess)]
+    public async Task<ActionResult<SiteResponse>> UpdateSite(string domain, [FromBody] UpdateSiteRequest request, CancellationToken cancellationToken)
+    {
+        if (request == null)
+        {
+            return BadRequest(ProblemDetailsValidation("Request body is required."));
+        }
+
+        var updated = await _sitesService.UpdateQuarantineAsync(
+            domain,
+            request.IsQuarantined,
+            request.QuarantineReason,
+            cancellationToken);
+
+        if (updated == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(SitesMapper.ToSiteResponse(updated));
     }
 
     private static Microsoft.AspNetCore.Mvc.ProblemDetails ProblemDetailsValidation(string detail)

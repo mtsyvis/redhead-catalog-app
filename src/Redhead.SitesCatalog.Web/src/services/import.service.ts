@@ -11,6 +11,18 @@ export interface SitesImportResult {
   errors: SitesImportError[];
 }
 
+export interface QuarantineImportError {
+  rowNumber: number;
+  message: string;
+}
+
+export interface QuarantineImportResult {
+  matched: number;
+  unmatched: string[];
+  errorsCount: number;
+  errors: QuarantineImportError[];
+}
+
 /** Maximum file size for sites import (50 MB) */
 export const MAX_IMPORT_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
@@ -29,6 +41,32 @@ export async function importSites(file: File): Promise<SitesImportResult> {
 
   const baseUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
   const response = await fetch(`${baseUrl}/api/import/sites`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ message: 'Import failed' }));
+    throw new Error(err.message || err.error || 'Import failed');
+  }
+
+  return response.json();
+}
+
+/**
+ * Import quarantine from CSV (Domain, Reason). Updates existing sites by exact normalized domain match.
+ */
+export async function importQuarantine(file: File): Promise<QuarantineImportResult> {
+  if (file.size > MAX_IMPORT_FILE_SIZE_BYTES) {
+    throw new Error(FILE_TOO_LARGE_MESSAGE);
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const baseUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
+  const response = await fetch(`${baseUrl}/api/import/quarantine`, {
     method: 'POST',
     credentials: 'include',
     body: formData,

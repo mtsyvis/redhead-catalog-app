@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Application.Services;
@@ -117,6 +119,51 @@ public class SitesService : ISitesService
             Found = found,
             NotFound = notFound,
             Duplicates = duplicates.ToList()
+        };
+    }
+
+    public async Task<SiteDto?> UpdateQuarantineAsync(
+        string domain,
+        bool isQuarantined,
+        string? quarantineReason,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = DomainNormalizer.Normalize(domain);
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return null;
+        }
+
+        var site = await _context.Sites.FirstOrDefaultAsync(s => s.Domain == normalized, cancellationToken);
+        if (site == null)
+        {
+            return null;
+        }
+
+        var now = DateTime.UtcNow;
+        site.IsQuarantined = isQuarantined;
+        site.QuarantineReason = isQuarantined ? (string.IsNullOrWhiteSpace(quarantineReason) ? null : quarantineReason.Trim()) : null;
+        site.QuarantineUpdatedAtUtc = isQuarantined ? now : null;
+        site.UpdatedAtUtc = now;
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return new SiteDto
+        {
+            Domain = site.Domain,
+            DR = site.DR,
+            Traffic = site.Traffic,
+            Location = site.Location,
+            PriceUsd = site.PriceUsd,
+            PriceCasino = site.PriceCasino,
+            PriceCrypto = site.PriceCrypto,
+            PriceLinkInsert = site.PriceLinkInsert,
+            Niche = site.Niche,
+            Categories = site.Categories,
+            IsQuarantined = site.IsQuarantined,
+            QuarantineReason = site.QuarantineReason,
+            QuarantineUpdatedAtUtc = site.QuarantineUpdatedAtUtc,
+            CreatedAtUtc = site.CreatedAtUtc,
+            UpdatedAtUtc = site.UpdatedAtUtc
         };
     }
 }

@@ -1,5 +1,6 @@
 import { apiClient } from './api.client';
 import type {
+  Site,
   SitesListResponse,
   SitesQueryParams,
   LocationsResponse,
@@ -87,6 +88,19 @@ class SitesService {
     return apiClient.post<MultiSearchResponse, { queryText: string }>(
       `${this.baseUrl}/multi-search`,
       { queryText }
+    );
+  }
+
+  /**
+   * Update site quarantine status (Admin only). When turning off quarantine, reason is cleared.
+   */
+  async updateSiteQuarantine(
+    domain: string,
+    payload: { isQuarantined: boolean; quarantineReason?: string | null }
+  ): Promise<Site> {
+    return apiClient.put<Site, { isQuarantined: boolean; quarantineReason?: string | null }>(
+      `${this.baseUrl}/${encodeURIComponent(domain)}`,
+      payload
     );
   }
 

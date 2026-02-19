@@ -915,4 +915,64 @@ public class SitesServiceTests : IDisposable
     }
 
     #endregion
+
+    #region UpdateQuarantineAsync Tests
+
+    [Fact]
+    public async Task UpdateQuarantineAsync_ExistingDomain_TurnOn_SetsQuarantineAndReason()
+    {
+        var updated = await _service.UpdateQuarantineAsync("example.com", isQuarantined: true, "Policy violation", CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.True(updated.IsQuarantined);
+        Assert.Equal("Policy violation", updated.QuarantineReason);
+        Assert.NotNull(updated.QuarantineUpdatedAtUtc);
+
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        Assert.True(site.IsQuarantined);
+        Assert.Equal("Policy violation", site.QuarantineReason);
+    }
+
+    [Fact]
+    public async Task UpdateQuarantineAsync_ExistingDomain_TurnOff_ClearsReason()
+    {
+        var updated = await _service.UpdateQuarantineAsync("gambling.com", isQuarantined: false, null, CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.False(updated.IsQuarantined);
+        Assert.Null(updated.QuarantineReason);
+        Assert.Null(updated.QuarantineUpdatedAtUtc);
+
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "gambling.com");
+        Assert.False(site.IsQuarantined);
+        Assert.Null(site.QuarantineReason);
+    }
+
+    [Fact]
+    public async Task UpdateQuarantineAsync_NormalizesDomain_MatchesExistingSite()
+    {
+        var updated = await _service.UpdateQuarantineAsync("HTTPS://www.Example.COM/", isQuarantined: true, "Test", CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Equal("example.com", updated.Domain);
+        Assert.True(updated.IsQuarantined);
+    }
+
+    [Fact]
+    public async Task UpdateQuarantineAsync_UnknownDomain_ReturnsNull()
+    {
+        var updated = await _service.UpdateQuarantineAsync("nonexistent.org", isQuarantined: true, "X", CancellationToken.None);
+
+        Assert.Null(updated);
+    }
+
+    [Fact]
+    public async Task UpdateQuarantineAsync_EmptyDomainAfterNormalize_ReturnsNull()
+    {
+        var updated = await _service.UpdateQuarantineAsync("  ", isQuarantined: true, "X", CancellationToken.None);
+
+        Assert.Null(updated);
+    }
+
+    #endregion
 }

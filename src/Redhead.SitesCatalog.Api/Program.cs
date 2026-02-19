@@ -23,6 +23,7 @@ builder.Services.AddScoped<ISitesService, SitesService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<IImportFileParser, Redhead.SitesCatalog.Application.Services.Parsers.CsvSitesParser>();
 builder.Services.AddScoped<ISitesImportService, SitesImportService>();
+builder.Services.AddScoped<IQuarantineImportService, QuarantineImportService>();
 
 // Add Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
