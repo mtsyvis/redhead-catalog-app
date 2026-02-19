@@ -250,26 +250,38 @@ Performance:
 Log:
 - Insert ImportLog row
 
-9.2 Quarantine import (domain + reason)
-Input: CSV only (MVP). XLSX is Future Scope. Columns:
-- Column A: domain/url
-- Column B: quarantine reason (string)
+============================================================
+9.2 Quarantine (MVP)
+============================================================
 
-Rules:
-- Normalize domain
-- If exists:
-  - IsQuarantined = true
-  - QuarantineReason = reason (trim/sanitize)
-  - QuarantineUpdatedAtUtc = now
-- If not found: add to unmatched list
+Data:
+- Site has:
+  - IsQuarantined: bool
+  - QuarantineReason: string? (optional)
+  - QuarantineUpdatedAtUtc: datetime?
 
-Output:
-- matched count
-- unmatched list
-- errors list
+Quarantine import (CSV only):
+- Columns (strict headers):
+  - Domain (required)
+  - Reason (optional)
+- Input parsing:
+  - Split rows, ignore fully empty rows
+  - Normalize Domain using the same rules as everywhere (remove scheme/www/path/slashes, lowercase)
+  - Match by EXACT equality to Site.Domain (normalized)
+- Behavior:
+  - If matched: set IsQuarantined=true, set QuarantineReason=trimmed Reason (nullable), set QuarantineUpdatedAtUtc=now
+  - If not matched: add domain to Unmatched list
+  - Collect row-level validation errors (row + message)
 
-Log:
-- Insert ImportLog row
+UI display rules:
+- In Sites grid, quarantined sites are marked "Unavailable"
+- QuarantineReason is shown only when IsQuarantined=true
+
+Editing:
+- Admin/Editor can toggle quarantine for a single site in Edit dialog
+- When turning ON: show optional input "Reason"
+- When turning OFF: clear QuarantineReason (preferred) and update QuarantineUpdatedAtUtc
+
 
 ============================================================
 10) UI Styling / Brand (MUI theme + tokens)
@@ -420,12 +432,35 @@ AC:
 - found/not found correct and fast
 Commit: feat: multi-search paste list feature
 
-Commit 11 — Quarantine import + reason + edit dialog
-- Quarantine import reads domain + reason and stores it
-- Edit dialog supports toggle + optional reason
-AC:
-- client sees Unavailable; reason stored
-Commit: feat: quarantine import and reason support
+## Commit 11 — Imports Hub + Quarantine Import (CSV) + Quarantine reason editing
+**Scope**
+- UI:
+  - Add /imports page (Admin, Editor only)
+  - Add tabs:
+    - Sites Import (move existing UI here if needed)
+    - Quarantine Import (new)
+- Backend:
+  - Add Quarantine import endpoint (CSV only):
+    - strict headers: Domain, Reason
+    - normalize input domains
+    - exact match by Domain
+    - set IsQuarantined=true, set QuarantineReason (optional), set QuarantineUpdatedAtUtc
+    - return summary: matched/unmatched/errors
+  - Add ImportLog entries for quarantine import
+- Sites UI:
+  - Show quarantined rows as Unavailable
+  - Show QuarantineReason when quarantined
+  - Edit dialog: toggle quarantine + optional reason
+  - When unquarantine: clear reason
+
+**Acceptance criteria**
+- /imports is visible only to Admin/Editor
+- Quarantine import uploads CSV, applies updates to existing sites by exact normalized domain match
+- Unmatched domains are returned and displayed
+- Validation errors show row + message
+- Quarantine status + reason are visible in Sites grid and editable by Admin/Editor
+- `dotnet build` and `npm run lint` pass
+
 
 Commit 12 — Users mgmt + temp passwords
 - Users page:
@@ -481,10 +516,15 @@ Routes:
 - /login
 - /change-password (forced when MustChangePassword=true)
 - /sites (main)
-- /import/sites (Admin, Editor)
-- /import/quarantine (Admin, Editor)
+- /imports (Imports Hub: tabs)
 - /admin/users (SuperAdmin, Admin)
 - /admin/role-settings (SuperAdmin, Admin)
+
+Navigation:
+- Sidebar item "Sites" (all users)
+- Sidebar item "Imports" (Admin, Editor only)
+- Sidebar item "Users" (SuperAdmin, Admin)
+- Sidebar item "Role Settings" (SuperAdmin, Admin)
 
 Layout:
 - Use PageShell with top app bar:
@@ -585,3 +625,27 @@ Frontend UX (minimal but clear):
 - Show duplicates warning (non-blocking):
   - Banner/alert: “Duplicates removed: X” + optional “View list”.
 - Not found hint banner when hidden due to filters (with “Clear filters” button).
+
+
+============================================================
+Imports Hub (MVP)
+============================================================
+
+UI:
+- Single page: /imports (Admin, Editor only)
+- Tabs:
+  1) "Sites Import" (existing ADD-ONLY CSV import)
+  2) "Quarantine Import" (new in Commit 11)
+
+Common behavior for all import tabs:
+- File picker (CSV only)
+- Upload button
+- Show results summary:
+  - inserted/updated/matched counts
+  - duplicates/unmatched list
+  - validation errors list (row number + message)
+- Persist import logs (ImportLog) with metadata (who, when, file name, summary counts)
+
+Future scope (NOT MVP, but UI structure must allow):
+- Tab: "Vendor Price Update Import" (upsert for existing domains, update selected columns)
+- Tab: "Mass Price Adjustment" (apply multiplier/additive with preview + confirm + audit)

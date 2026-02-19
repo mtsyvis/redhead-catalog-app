@@ -147,12 +147,35 @@ Commit: feat: sites add-only import with duplicate reporting
 - `dotnet build` and `npm run lint` pass
 
 
-Commit 11 — Quarantine import + reason + edit dialog
-- Quarantine import reads domain + reason and stores it
-- Edit dialog supports toggle + optional reason
-AC:
-- client sees Unavailable; reason stored
-Commit: feat: quarantine import and reason support
+## Commit 11 — Imports Hub + Quarantine Import (CSV) + Quarantine reason editing
+**Scope**
+- UI:
+  - Add /imports page (Admin, Editor only)
+  - Add tabs:
+    - Sites Import (move existing UI here if needed)
+    - Quarantine Import (new)
+- Backend:
+  - Add Quarantine import endpoint (CSV only):
+    - strict headers: Domain, Reason
+    - normalize input domains
+    - exact match by Domain
+    - set IsQuarantined=true, set QuarantineReason (optional), set QuarantineUpdatedAtUtc
+    - return summary: matched/unmatched/errors
+  - Add ImportLog entries for quarantine import
+- Sites UI:
+  - Show quarantined rows as Unavailable
+  - Show QuarantineReason when quarantined
+  - Edit dialog: toggle quarantine + optional reason
+  - When unquarantine: clear reason
+
+**Acceptance criteria**
+- /imports is visible only to Admin/Editor
+- Quarantine import uploads CSV, applies updates to existing sites by exact normalized domain match
+- Unmatched domains are returned and displayed
+- Validation errors show row + message
+- Quarantine status + reason are visible in Sites grid and editable by Admin/Editor
+- `dotnet build` and `npm run lint` pass
+
 
 Commit 12 — Users mgmt + temp passwords + soft delete
 - Users page:
