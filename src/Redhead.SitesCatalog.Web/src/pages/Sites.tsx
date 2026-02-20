@@ -10,20 +10,13 @@ import {
   Popover,
   List,
   ListItem,
-  ListItemText,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Switch,
-  TextField,
-  FormControlLabel,
-} from '@mui/material';
+  ListItemText,} from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
 import DownloadIcon from '@mui/icons-material/Download';
 import { PageShell } from '../components/layout/PageShell';
 import { SitesFilters } from '../components/sites/SitesFilters';
+import { EditSiteDialog } from '../components/sites/EditSiteDialog';
 import { useAuth } from '../contexts/AuthContext';
 import type {
   Site,
@@ -32,7 +25,6 @@ import type {
   MultiSearchResponse,
 } from '../types/sites.types';
 import { sitesService } from '../services/sites.service';
-import { ApiClientError } from '../services/api.client';
 
 /** Row type for grid: normal site or not-found placeholder (domain only). */
 type NotFoundRow = { domain: string; _isNotFound: true };
@@ -99,19 +91,6 @@ export function Sites() {
   const [multiSearchLoading, setMultiSearchLoading] = useState(false);
   const [duplicatesAnchor, setDuplicatesAnchor] = useState<HTMLElement | null>(null);
   const [editSite, setEditSite] = useState<Site | null>(null);
-  const [editDr, setEditDr] = useState('');
-  const [editTraffic, setEditTraffic] = useState('');
-  const [editLocation, setEditLocation] = useState('');
-  const [editPriceUsd, setEditPriceUsd] = useState('');
-  const [editPriceCasino, setEditPriceCasino] = useState('');
-  const [editPriceCrypto, setEditPriceCrypto] = useState('');
-  const [editPriceLinkInsert, setEditPriceLinkInsert] = useState('');
-  const [editNiche, setEditNiche] = useState('');
-  const [editCategories, setEditCategories] = useState('');
-  const [editIsQuarantined, setEditIsQuarantined] = useState(false);
-  const [editReason, setEditReason] = useState('');
-  const [editSaving, setEditSaving] = useState(false);
-  const [editFieldErrors, setEditFieldErrors] = useState<Record<string, string[]>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -274,108 +253,20 @@ export function Sites() {
 
   const handleOpenEdit = (site: Site) => {
     setEditSite(site);
-    setEditDr(String(site.dr));
-    setEditTraffic(String(site.traffic));
-    setEditLocation(site.location);
-    setEditPriceUsd(site.priceUsd != null ? String(site.priceUsd) : '');
-    setEditPriceCasino(site.priceCasino != null ? String(site.priceCasino) : '');
-    setEditPriceCrypto(site.priceCrypto != null ? String(site.priceCrypto) : '');
-    setEditPriceLinkInsert(site.priceLinkInsert != null ? String(site.priceLinkInsert) : '');
-    setEditNiche(site.niche ?? '');
-    setEditCategories(site.categories ?? '');
-    setEditIsQuarantined(site.isQuarantined);
-    setEditReason(site.quarantineReason ?? '');
-    setEditFieldErrors({});
   };
 
   const handleCloseEdit = () => {
     setEditSite(null);
-    setEditFieldErrors({});
   };
 
-  const parseNum = (s: string): number | null => {
-    const t = s.trim();
-    if (t === '') return null;
-    const n = Number(t);
-    return Number.isFinite(n) ? n : null;
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editSite) return;
-    setEditFieldErrors({});
-    const priceUsd = parseNum(editPriceUsd);
-    if (priceUsd === null || priceUsd < 0) {
-      setEditFieldErrors({ priceUsd: ['Price USD is required and must be 0 or greater.'] });
-      return;
-    }
-    const dr = parseNum(editDr);
-    if (dr === null || dr < 0 || dr > 100) {
-      setEditFieldErrors({ dr: ['DR must be between 0 and 100.'] });
-      return;
-    }
-    const traffic = parseNum(editTraffic);
-    if (traffic === null || traffic < 0) {
-      setEditFieldErrors({ traffic: ['Traffic must be 0 or greater.'] });
-      return;
-    }
-    const location = editLocation.trim();
-    if (!location) {
-      setEditFieldErrors({ location: ['Location is required.'] });
-      return;
-    }
-    const priceCasino = parseNum(editPriceCasino);
-    const priceCrypto = parseNum(editPriceCrypto);
-    const priceLinkInsert = parseNum(editPriceLinkInsert);
-    const priceErrors: Record<string, string[]> = {};
-    if (priceCasino != null && priceCasino < 0) priceErrors.priceCasino = ['Must be 0 or greater.'];
-    if (priceCrypto != null && priceCrypto < 0) priceErrors.priceCrypto = ['Must be 0 or greater.'];
-    if (priceLinkInsert != null && priceLinkInsert < 0) priceErrors.priceLinkInsert = ['Must be 0 or greater.'];
-    if (Object.keys(priceErrors).length > 0) {
-      setEditFieldErrors(priceErrors);
-      return;
-    }
-    try {
-      const payload = {
-        dr,
-        traffic: Math.floor(traffic),
-        location,
-        priceUsd,
-        priceCasino: priceCasino ?? null,
-        priceCrypto: priceCrypto ?? null,
-        priceLinkInsert: priceLinkInsert ?? null,
-        niche: editNiche.trim() || null,
-        categories: editCategories.trim() || null,
-        isQuarantined: editIsQuarantined,
-        quarantineReason: editIsQuarantined ? (editReason.trim() || null) : null,
-      };
-      const updated = await sitesService.updateSite(editSite.domain, payload);
-      setEditSite(null);
-      setSnackbar({ open: true, message: 'Site updated', severity: 'success' });
-      if (multiSearchResult) {
-        const newFound = multiSearchResult.found.map((s) =>
-          s.domain === editSite.domain ? updated : s
-        );
-        setMultiSearchResult({ ...multiSearchResult, found: newFound });
-      } else {
-        loadSites();
-      }
-    } catch (err) {
-      if (err instanceof ApiClientError && err.fieldErrors) {
-        setEditFieldErrors(err.fieldErrors);
-        setSnackbar({
-          open: true,
-          message: err.message,
-          severity: 'error',
-        });
-      } else {
-        setSnackbar({
-          open: true,
-          message: err instanceof Error ? err.message : 'Update failed',
-          severity: 'error',
-        });
-      }
-    } finally {
-      setEditSaving(false);
+  const handleEditSaved = (updated: Site) => {
+    setEditSite(null);
+    setSnackbar({ open: true, message: 'Site updated', severity: 'success' });
+    if (multiSearchResult) {
+      const newFound = multiSearchResult.found.map((s) => (s.domain === updated.domain ? updated : s));
+      setMultiSearchResult({ ...multiSearchResult, found: newFound });
+    } else {
+      loadSites();
     }
   };
 
@@ -665,135 +556,12 @@ export function Sites() {
           </Alert>
         </Snackbar>
 
-        <Dialog open={Boolean(editSite)} onClose={handleCloseEdit} maxWidth="sm" fullWidth>
-          <DialogTitle>Edit site</DialogTitle>
-          <DialogContent>
-            {editSite && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-                <TextField label="Domain" value={editSite.domain} disabled size="small" fullWidth />
-                <TextField
-                  label="DR"
-                  type="number"
-                  inputProps={{ min: 0, max: 100 }}
-                  value={editDr}
-                  onChange={(e) => setEditDr(e.target.value)}
-                  size="small"
-                  fullWidth
-                  error={Boolean(editFieldErrors.dr?.length)}
-                  helperText={editFieldErrors.dr?.[0]}
-                />
-                <TextField
-                  label="Traffic"
-                  type="number"
-                  inputProps={{ min: 0 }}
-                  value={editTraffic}
-                  onChange={(e) => setEditTraffic(e.target.value)}
-                  size="small"
-                  fullWidth
-                  error={Boolean(editFieldErrors.traffic?.length)}
-                  helperText={editFieldErrors.traffic?.[0]}
-                />
-                <TextField
-                  label="Location"
-                  value={editLocation}
-                  onChange={(e) => setEditLocation(e.target.value)}
-                  size="small"
-                  fullWidth
-                  error={Boolean(editFieldErrors.location?.length)}
-                  helperText={editFieldErrors.location?.[0]}
-                />
-                <TextField
-                  label="Price USD"
-                  type="number"
-                  inputProps={{ min: 0, step: '0.01' }}
-                  value={editPriceUsd}
-                  onChange={(e) => setEditPriceUsd(e.target.value)}
-                  size="small"
-                  fullWidth
-                  error={Boolean(editFieldErrors.priceUsd?.length)}
-                  helperText={editFieldErrors.priceUsd?.[0]}
-                />
-                <TextField
-                  label="Price Casino (empty = not allowed)"
-                  type="number"
-                  inputProps={{ min: 0, step: '0.01' }}
-                  value={editPriceCasino}
-                  onChange={(e) => setEditPriceCasino(e.target.value)}
-                  size="small"
-                  fullWidth
-                  error={Boolean(editFieldErrors.priceCasino?.length)}
-                  helperText={editFieldErrors.priceCasino?.[0]}
-                />
-                <TextField
-                  label="Price Crypto (empty = not allowed)"
-                  type="number"
-                  inputProps={{ min: 0, step: '0.01' }}
-                  value={editPriceCrypto}
-                  onChange={(e) => setEditPriceCrypto(e.target.value)}
-                  size="small"
-                  fullWidth
-                  error={Boolean(editFieldErrors.priceCrypto?.length)}
-                  helperText={editFieldErrors.priceCrypto?.[0]}
-                />
-                <TextField
-                  label="Price Link Insert (empty = not allowed)"
-                  type="number"
-                  inputProps={{ min: 0, step: '0.01' }}
-                  value={editPriceLinkInsert}
-                  onChange={(e) => setEditPriceLinkInsert(e.target.value)}
-                  size="small"
-                  fullWidth
-                  error={Boolean(editFieldErrors.priceLinkInsert?.length)}
-                  helperText={editFieldErrors.priceLinkInsert?.[0]}
-                />
-                <TextField
-                  label="Niche"
-                  value={editNiche}
-                  onChange={(e) => setEditNiche(e.target.value)}
-                  size="small"
-                  fullWidth
-                />
-                <TextField
-                  label="Categories"
-                  value={editCategories}
-                  onChange={(e) => setEditCategories(e.target.value)}
-                  size="small"
-                  fullWidth
-                  multiline
-                  minRows={2}
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={editIsQuarantined}
-                      onChange={(e) => setEditIsQuarantined(e.target.checked)}
-                    />
-                  }
-                  label="Unavailable (quarantined)"
-                />
-                {editIsQuarantined && (
-                  <TextField
-                    label="Reason (optional)"
-                    value={editReason}
-                    onChange={(e) => setEditReason(e.target.value)}
-                    size="small"
-                    fullWidth
-                    multiline
-                    minRows={2}
-                    error={Boolean(editFieldErrors.quarantineReason?.length)}
-                    helperText={editFieldErrors.quarantineReason?.[0]}
-                  />
-                )}
-              </Box>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseEdit}>Cancel</Button>
-            <Button onClick={handleSaveEdit} variant="contained" disabled={editSaving}>
-              {editSaving ? 'Saving…' : 'Save'}
-            </Button>
-          </DialogActions>
-        </Dialog>
+        <EditSiteDialog
+          open={Boolean(editSite)}
+          site={editSite}
+          onClose={handleCloseEdit}
+          onSaved={handleEditSaved}
+        />
       </Box>
     </PageShell>
   );
