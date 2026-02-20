@@ -8,11 +8,12 @@ import {
   IconButton,
   Menu,
   MenuItem,
+  Button,
   styled,
   Tabs,
   Tab,
 } from '@mui/material';
-import { AccountCircle } from '@mui/icons-material';
+import { AccountCircle, ArrowDropDown } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -40,6 +41,7 @@ export const PageShell: React.FC<PageShellProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [adminMenuAnchor, setAdminMenuAnchor] = React.useState<null | HTMLElement>(null);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -64,14 +66,31 @@ export const PageShell: React.FC<PageShellProps> = ({
     if (location.pathname === '/sites') return '/sites';
     if (location.pathname === '/dashboard') return '/dashboard';
     if (location.pathname.startsWith('/imports')) return '/imports';
-    if (location.pathname.startsWith('/admin/users')) return '/admin/users';
+    if (location.pathname.startsWith('/admin')) return '/admin';
     return false;
   };
 
   const isAdmin = user?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
+  const isAdminPath = location.pathname.startsWith('/admin');
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
+    if (newValue === '/admin') {
+      return;
+    }
     navigate(newValue);
+  };
+
+  const handleAdminMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAdminMenuAnchor(event.currentTarget);
+  };
+
+  const handleAdminMenuClose = () => {
+    setAdminMenuAnchor(null);
+  };
+
+  const handleAdminNav = (path: string) => {
+    handleAdminMenuClose();
+    navigate(path);
   };
 
   return (
@@ -84,24 +103,53 @@ export const PageShell: React.FC<PageShellProps> = ({
           
           {user && (
             <>
-              <Tabs
-                value={getCurrentTab()}
-                onChange={handleTabChange}
-                sx={{
-                  flexGrow: 1,
-                  '& .MuiTab-root': {
-                    color: 'text.secondary',
-                    '&.Mui-selected': {
-                      color: 'primary.main',
+              <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+                <Tabs
+                  value={getCurrentTab()}
+                  onChange={handleTabChange}
+                  sx={{
+                    '& .MuiTab-root': {
+                      color: 'text.secondary',
+                      '&.Mui-selected': {
+                        color: 'primary.main',
+                      },
                     },
-                  },
-                }}
-              >
-                <Tab label="Sites" value="/sites" />
-                <Tab label="Dashboard" value="/dashboard" />
-                {isAdmin && <Tab label="Imports" value="/imports" />}
-                {isAdmin && <Tab label="Users" value="/admin/users" />}
-              </Tabs>
+                  }}
+                >
+                  <Tab label="Sites" value="/sites" />
+                  <Tab label="Dashboard" value="/dashboard" />
+                  {isAdmin && <Tab label="Imports" value="/imports" />}
+                </Tabs>
+                {isAdmin && (
+                  <>
+                    <Button
+                      color="inherit"
+                      onClick={handleAdminMenuOpen}
+                      endIcon={<ArrowDropDown />}
+                      sx={{
+                        minHeight: 48,
+                        color: isAdminPath ? 'primary.main' : 'text.secondary',
+                        textTransform: 'none',
+                        fontSize: '0.875rem',
+                      }}
+                    >
+                      Admin
+                    </Button>
+                    <Menu
+                      anchorEl={adminMenuAnchor}
+                      open={Boolean(adminMenuAnchor)}
+                      onClose={handleAdminMenuClose}
+                      anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                      transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                    >
+                      <MenuItem onClick={() => handleAdminNav('/admin/users')}>Users</MenuItem>
+                      <MenuItem onClick={() => handleAdminNav('/admin/role-settings')}>
+                        Role Settings
+                      </MenuItem>
+                    </Menu>
+                  </>
+                )}
+              </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Typography variant="body2" color="text.secondary">

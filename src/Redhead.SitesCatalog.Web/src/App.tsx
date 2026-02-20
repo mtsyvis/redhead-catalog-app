@@ -11,6 +11,7 @@ import { Home } from './pages/Home';
 import { Sites } from './pages/Sites';
 import { Imports } from './pages/Imports';
 import { AdminUsers } from './pages/AdminUsers';
+import { RoleSettings } from './pages/RoleSettings';
 
 /**
  * Main App component
@@ -70,6 +71,17 @@ const App: React.FC = () => {
                 <ProtectedRoute>
                   <MustChangePasswordRoute>
                     <AdminUsers />
+                  </MustChangePasswordRoute>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/admin/role-settings"
+              element={
+                <ProtectedRoute>
+                  <MustChangePasswordRoute>
+                    <RoleSettings />
                   </MustChangePasswordRoute>
                 </ProtectedRoute>
               }
