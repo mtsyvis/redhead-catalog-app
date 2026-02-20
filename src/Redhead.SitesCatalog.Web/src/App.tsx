@@ -10,6 +10,7 @@ import { ChangePassword } from './pages/ChangePassword';
 import { Home } from './pages/Home';
 import { Sites } from './pages/Sites';
 import { Imports } from './pages/Imports';
+import { AdminUsers } from './pages/AdminUsers';
 
 /**
  * Main App component
@@ -58,6 +59,17 @@ const App: React.FC = () => {
                 <ProtectedRoute>
                   <MustChangePasswordRoute>
                     <Imports />
+                  </MustChangePasswordRoute>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute>
+                  <MustChangePasswordRoute>
+                    <AdminUsers />
                   </MustChangePasswordRoute>
                 </ProtectedRoute>
               }

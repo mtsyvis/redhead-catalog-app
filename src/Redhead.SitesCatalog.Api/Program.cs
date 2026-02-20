@@ -107,11 +107,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Seed database (only in development to avoid blocking production deployments)
-if (app.Environment.IsDevelopment())
-{
-    await SeedData.InitializeAsync(app.Services);
-}
+// Seed database: roles and SuperAdmin (if not present) from configuration
+await SeedData.InitializeAsync(app.Services);
 
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
@@ -126,6 +123,7 @@ app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
+app.UseMiddleware<RejectDisabledUserMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

@@ -106,25 +106,25 @@ export const ChangePassword: React.FC = () => {
     <PageShell title={user?.mustChangePassword ? 'Password Change Required' : 'Change Password'} maxWidth="sm">
       <Card>
         <CardContent sx={{ p: 4 }}>
-          {user?.mustChangePassword && (
-            <Alert severity="warning" sx={{ mb: 3 }}>
-              You must change your password before continuing.
-            </Alert>
-          )}
-
-          {success && (
+          {success ? (
             <Alert severity="success" sx={{ mb: 3 }}>
               Password changed successfully! Redirecting...
             </Alert>
-          )}
+          ) : (
+            <>
+              {user?.mustChangePassword && (
+                <Alert severity="warning" sx={{ mb: 3 }}>
+                  You must change your password before continuing.
+                </Alert>
+              )}
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {error}
-            </Alert>
-          )}
+              {error && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  {error}
+                </Alert>
+              )}
 
-          <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit}>
             <TextField
               label="Current Password"
               type="password"
@@ -206,7 +206,9 @@ export const ChangePassword: React.FC = () => {
                 'Change Password'
               )}
             </BrandButton>
-          </form>
+              </form>
+            </>
+          )}
         </CardContent>
       </Card>
     </PageShell>

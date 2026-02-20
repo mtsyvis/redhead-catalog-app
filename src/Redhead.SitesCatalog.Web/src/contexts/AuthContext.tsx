@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { authService } from '../services/auth.service';
 import type { UserInfo, LoginRequest } from '../types/auth.types';
 import { ApiClientError } from '../services/api.client';
@@ -7,7 +7,7 @@ interface AuthContextValue {
   user: UserInfo | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (credentials: LoginRequest) => Promise<void>;
+  login: (credentials: LoginRequest) => Promise<UserInfo>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -47,14 +47,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchCurrentUser]);
 
   /**
-   * Login user
+   * Login user. Returns user info so caller can redirect (e.g. to change-password when required).
    */
-  const login = useCallback(async (credentials: LoginRequest) => {
+  const login = useCallback(async (credentials: LoginRequest): Promise<UserInfo> => {
     await authService.login(credentials);
-    
-    // Fetch full user data after login
     const userData = await authService.getCurrentUser();
     setUser(userData);
+    return userData;
   }, []);
 
   /**
@@ -75,14 +74,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await fetchCurrentUser();
   }, [fetchCurrentUser]);
 
-  const value: AuthContextValue = {
-    user,
-    isLoading,
-    isAuthenticated: !!user,
-    login,
-    logout,
-    refreshUser,
-  };
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      isLoading,
+      isAuthenticated: !!user,
+      login,
+      logout,
+      refreshUser,
+    }),
+    [user, isLoading, login, logout, refreshUser]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

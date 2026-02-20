@@ -37,10 +37,12 @@ export const Login: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await login({ email, password, rememberMe });
-      
-      // Navigate to the page they tried to visit or home
-      navigate(from, { replace: true });
+      const userData = await login({ email, password, rememberMe });
+      if (userData.mustChangePassword) {
+        navigate('/change-password', { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
     } catch (err) {
       if (err instanceof ApiClientError) {
         setError(err.message);
