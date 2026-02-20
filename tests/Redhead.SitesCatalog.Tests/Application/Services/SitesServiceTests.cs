@@ -916,42 +916,69 @@ public class SitesServiceTests : IDisposable
 
     #endregion
 
-    #region UpdateQuarantineAsync Tests
+    #region UpdateSiteAsync Tests
+
+    private static UpdateSiteRequest RequestFrom(Site site, bool isQuarantined = false, string? quarantineReason = null)
+    {
+        return new UpdateSiteRequest
+        {
+            DR = site.DR,
+            Traffic = site.Traffic,
+            Location = site.Location,
+            PriceUsd = site.PriceUsd,
+            PriceCasino = site.PriceCasino,
+            PriceCrypto = site.PriceCrypto,
+            PriceLinkInsert = site.PriceLinkInsert,
+            Niche = site.Niche,
+            Categories = site.Categories,
+            IsQuarantined = isQuarantined,
+            QuarantineReason = quarantineReason
+        };
+    }
 
     [Fact]
-    public async Task UpdateQuarantineAsync_ExistingDomain_TurnOn_SetsQuarantineAndReason()
+    public async Task UpdateSiteAsync_ExistingDomain_TurnOnQuarantine_SetsQuarantineAndReason()
     {
-        var updated = await _service.UpdateQuarantineAsync("example.com", isQuarantined: true, "Policy violation", CancellationToken.None);
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site, isQuarantined: true, "Policy violation");
+
+        var updated = await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
 
         Assert.NotNull(updated);
         Assert.True(updated.IsQuarantined);
         Assert.Equal("Policy violation", updated.QuarantineReason);
         Assert.NotNull(updated.QuarantineUpdatedAtUtc);
 
-        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
-        Assert.True(site.IsQuarantined);
-        Assert.Equal("Policy violation", site.QuarantineReason);
+        var dbSite = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        Assert.True(dbSite.IsQuarantined);
+        Assert.Equal("Policy violation", dbSite.QuarantineReason);
     }
 
     [Fact]
-    public async Task UpdateQuarantineAsync_ExistingDomain_TurnOff_ClearsReason()
+    public async Task UpdateSiteAsync_ExistingDomain_TurnOffQuarantine_ClearsReason()
     {
-        var updated = await _service.UpdateQuarantineAsync("gambling.com", isQuarantined: false, null, CancellationToken.None);
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "gambling.com");
+        var request = RequestFrom(site, isQuarantined: false, null);
+
+        var updated = await _service.UpdateSiteAsync("gambling.com", request, CancellationToken.None);
 
         Assert.NotNull(updated);
         Assert.False(updated.IsQuarantined);
         Assert.Null(updated.QuarantineReason);
         Assert.Null(updated.QuarantineUpdatedAtUtc);
 
-        var site = await _context.Sites.FirstAsync(s => s.Domain == "gambling.com");
-        Assert.False(site.IsQuarantined);
-        Assert.Null(site.QuarantineReason);
+        var dbSite = await _context.Sites.FirstAsync(s => s.Domain == "gambling.com");
+        Assert.False(dbSite.IsQuarantined);
+        Assert.Null(dbSite.QuarantineReason);
     }
 
     [Fact]
-    public async Task UpdateQuarantineAsync_NormalizesDomain_MatchesExistingSite()
+    public async Task UpdateSiteAsync_NormalizesDomain_MatchesExistingSite()
     {
-        var updated = await _service.UpdateQuarantineAsync("HTTPS://www.Example.COM/", isQuarantined: true, "Test", CancellationToken.None);
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site, isQuarantined: true, "Test");
+
+        var updated = await _service.UpdateSiteAsync("HTTPS://www.Example.COM/", request, CancellationToken.None);
 
         Assert.NotNull(updated);
         Assert.Equal("example.com", updated.Domain);
@@ -959,19 +986,76 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateQuarantineAsync_UnknownDomain_ReturnsNull()
+    public async Task UpdateSiteAsync_UnknownDomain_ReturnsNull()
     {
-        var updated = await _service.UpdateQuarantineAsync("nonexistent.org", isQuarantined: true, "X", CancellationToken.None);
+        var request = new UpdateSiteRequest
+        {
+            DR = 50,
+            Traffic = 1000,
+            Location = "US",
+            PriceUsd = 100m,
+            IsQuarantined = true,
+            QuarantineReason = "X"
+        };
+
+        var updated = await _service.UpdateSiteAsync("nonexistent.org", request, CancellationToken.None);
 
         Assert.Null(updated);
     }
 
     [Fact]
-    public async Task UpdateQuarantineAsync_EmptyDomainAfterNormalize_ReturnsNull()
+    public async Task UpdateSiteAsync_EmptyDomainAfterNormalize_ReturnsNull()
     {
-        var updated = await _service.UpdateQuarantineAsync("  ", isQuarantined: true, "X", CancellationToken.None);
+        var request = new UpdateSiteRequest
+        {
+            DR = 50,
+            Traffic = 1000,
+            Location = "US",
+            PriceUsd = 100m,
+            IsQuarantined = true,
+            QuarantineReason = "X"
+        };
+
+        var updated = await _service.UpdateSiteAsync("  ", request, CancellationToken.None);
 
         Assert.Null(updated);
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_UpdatesEditableFields()
+    {
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = new UpdateSiteRequest
+        {
+            DR = 60,
+            Traffic = 20000,
+            Location = "CA",
+            PriceUsd = 150m,
+            PriceCasino = 200m,
+            PriceCrypto = null,
+            PriceLinkInsert = 90m,
+            Niche = "Updated niche",
+            Categories = "Updated categories",
+            IsQuarantined = site.IsQuarantined,
+            QuarantineReason = site.QuarantineReason
+        };
+
+        var updated = await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Equal(60, updated.DR);
+        Assert.Equal(20000L, updated.Traffic);
+        Assert.Equal("CA", updated.Location);
+        Assert.Equal(150m, updated.PriceUsd);
+        Assert.Equal(200m, updated.PriceCasino);
+        Assert.Null(updated.PriceCrypto);
+        Assert.Equal(90m, updated.PriceLinkInsert);
+        Assert.Equal("Updated niche", updated.Niche);
+        Assert.Equal("Updated categories", updated.Categories);
+
+        var dbSite = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        Assert.Equal(60, dbSite.DR);
+        Assert.Equal("CA", dbSite.Location);
     }
 
     #endregion

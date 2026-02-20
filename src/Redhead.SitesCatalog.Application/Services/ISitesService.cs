@@ -29,16 +29,11 @@ public interface ISitesService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Update site quarantine status. When IsQuarantined is false, QuarantineReason is cleared.
+    /// Update site fields (editable fields + quarantine). Only updates provided fields; sets UpdatedAtUtc.
     /// </summary>
     /// <param name="domain">Normalized domain (exact match)</param>
-    /// <param name="isQuarantined">New quarantine flag</param>
-    /// <param name="quarantineReason">Reason when quarantined; ignored when not quarantined</param>
+    /// <param name="request">Validated update request (all required fields present)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated site DTO or null if not found</returns>
-    Task<SiteDto?> UpdateQuarantineAsync(
-        string domain,
-        bool isQuarantined,
-        string? quarantineReason,
-        CancellationToken cancellationToken = default);
+    Task<SiteDto?> UpdateSiteAsync(string domain, UpdateSiteRequest request, CancellationToken cancellationToken = default);
 }

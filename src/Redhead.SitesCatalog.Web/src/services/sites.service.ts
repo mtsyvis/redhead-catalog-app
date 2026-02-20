@@ -6,6 +6,7 @@ import type {
   LocationsResponse,
   MultiSearchResponse,
   ExportMultiSearchPayload,
+  UpdateSitePayload,
 } from '../types/sites.types';
 
 /**
@@ -92,13 +93,10 @@ class SitesService {
   }
 
   /**
-   * Update site quarantine status (Admin only). When turning off quarantine, reason is cleared.
+   * Update site fields (Admin/SuperAdmin). Includes all editable fields + quarantine.
    */
-  async updateSiteQuarantine(
-    domain: string,
-    payload: { isQuarantined: boolean; quarantineReason?: string | null }
-  ): Promise<Site> {
-    return apiClient.put<Site, { isQuarantined: boolean; quarantineReason?: string | null }>(
+  async updateSite(domain: string, payload: UpdateSitePayload): Promise<Site> {
+    return apiClient.put<Site, UpdateSitePayload>(
       `${this.baseUrl}/${encodeURIComponent(domain)}`,
       payload
     );

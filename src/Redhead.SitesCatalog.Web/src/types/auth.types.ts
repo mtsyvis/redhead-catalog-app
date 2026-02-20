@@ -41,4 +41,5 @@ export interface ChangePasswordRequest {
 export interface ApiError {
   message: string;
   errors?: string[];
+  fieldErrors?: Record<string, string[]>;
 }

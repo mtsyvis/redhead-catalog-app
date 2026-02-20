@@ -91,3 +91,20 @@ export interface ExportMultiSearchPayload {
   sortBy?: string;
   sortDir?: string;
 }
+
+/**
+ * Payload for PUT /api/sites/{domain} (Admin/SuperAdmin). Empty price = null (not allowed).
+ */
+export interface UpdateSitePayload {
+  dr: number;
+  traffic: number;
+  location: string;
+  priceUsd: number;
+  priceCasino: number | null;
+  priceCrypto: number | null;
+  priceLinkInsert: number | null;
+  niche: string | null;
+  categories: string | null;
+  isQuarantined: boolean;
+  quarantineReason: string | null;
+}

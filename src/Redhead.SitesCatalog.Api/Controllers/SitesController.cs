@@ -88,22 +88,39 @@ public class SitesController : ControllerBase
     }
 
     /// <summary>
-    /// Update site quarantine status (Admin/SuperAdmin). When IsQuarantined is false, reason is cleared.
+    /// Update site fields (Admin/SuperAdmin). Editable: DR, Traffic, Location, prices, Niche, Categories, quarantine.
+    /// Domain is read-only (route parameter). When IsQuarantined is false, reason is cleared.
     /// </summary>
     [HttpPut("{domain}")]
     [Authorize(Policy = AppPolicies.AdminAccess)]
-    public async Task<ActionResult<SiteResponse>> UpdateSite(string domain, [FromBody] UpdateSiteRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<SiteResponse>> UpdateSite(string domain, [FromBody] Models.Sites.UpdateSiteRequest request, CancellationToken cancellationToken)
     {
-        if (request == null)
+        var validationErrors = UpdateSiteRequestValidator.Validate(request);
+        if (validationErrors != null)
         {
-            return BadRequest(ProblemDetailsValidation("Request body is required."));
+            return BadRequest(new
+            {
+                message = "Validation failed",
+                fieldErrors = validationErrors
+            });
         }
 
-        var updated = await _sitesService.UpdateQuarantineAsync(
-            domain,
-            request.IsQuarantined,
-            request.QuarantineReason,
-            cancellationToken);
+        var appRequest = new Redhead.SitesCatalog.Application.Models.UpdateSiteRequest
+        {
+            DR = request.DR!.Value,
+            Traffic = request.Traffic!.Value,
+            Location = request.Location!.Trim(),
+            PriceUsd = request.PriceUsd!.Value,
+            PriceCasino = request.PriceCasino,
+            PriceCrypto = request.PriceCrypto,
+            PriceLinkInsert = request.PriceLinkInsert,
+            Niche = string.IsNullOrWhiteSpace(request.Niche) ? null : request.Niche.Trim(),
+            Categories = string.IsNullOrWhiteSpace(request.Categories) ? null : request.Categories.Trim(),
+            IsQuarantined = request.IsQuarantined,
+            QuarantineReason = string.IsNullOrWhiteSpace(request.QuarantineReason) ? null : request.QuarantineReason.Trim()
+        };
+
+        var updated = await _sitesService.UpdateSiteAsync(domain, appRequest, cancellationToken);
 
         if (updated == null)
         {

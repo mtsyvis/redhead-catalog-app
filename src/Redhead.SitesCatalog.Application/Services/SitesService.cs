@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
-using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Application.Services;
@@ -122,11 +121,7 @@ public class SitesService : ISitesService
         };
     }
 
-    public async Task<SiteDto?> UpdateQuarantineAsync(
-        string domain,
-        bool isQuarantined,
-        string? quarantineReason,
-        CancellationToken cancellationToken = default)
+    public async Task<SiteDto?> UpdateSiteAsync(string domain, UpdateSiteRequest request, CancellationToken cancellationToken = default)
     {
         var normalized = DomainNormalizer.Normalize(domain);
         if (string.IsNullOrEmpty(normalized))
@@ -141,9 +136,18 @@ public class SitesService : ISitesService
         }
 
         var now = DateTime.UtcNow;
-        site.IsQuarantined = isQuarantined;
-        site.QuarantineReason = isQuarantined ? (string.IsNullOrWhiteSpace(quarantineReason) ? null : quarantineReason.Trim()) : null;
-        site.QuarantineUpdatedAtUtc = isQuarantined ? now : null;
+        site.DR = request.DR;
+        site.Traffic = request.Traffic;
+        site.Location = request.Location.Trim();
+        site.PriceUsd = request.PriceUsd;
+        site.PriceCasino = request.PriceCasino;
+        site.PriceCrypto = request.PriceCrypto;
+        site.PriceLinkInsert = request.PriceLinkInsert;
+        site.Niche = string.IsNullOrWhiteSpace(request.Niche) ? null : request.Niche.Trim();
+        site.Categories = string.IsNullOrWhiteSpace(request.Categories) ? null : request.Categories.Trim();
+        site.IsQuarantined = request.IsQuarantined;
+        site.QuarantineReason = request.IsQuarantined ? (string.IsNullOrWhiteSpace(request.QuarantineReason) ? null : request.QuarantineReason.Trim()) : null;
+        site.QuarantineUpdatedAtUtc = request.IsQuarantined ? now : null;
         site.UpdatedAtUtc = now;
         await _context.SaveChangesAsync(cancellationToken);
 

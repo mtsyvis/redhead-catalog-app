@@ -14,16 +14,19 @@ const API_BASE_URL =
 export class ApiClientError extends Error {
   statusCode: number;
   errors?: string[];
-  
+  fieldErrors?: Record<string, string[]>;
+
   constructor(
     message: string,
     statusCode: number,
-    errors?: string[]
+    errors?: string[],
+    fieldErrors?: Record<string, string[]>
   ) {
     super(message);
     this.name = 'ApiClientError';
     this.statusCode = statusCode;
     this.errors = errors;
+    this.fieldErrors = fieldErrors;
   }
 }
 
@@ -43,8 +46,9 @@ export class ApiClient {
 
       const message = errorData?.message || response.statusText || 'An error occurred';
       const errors = errorData?.errors;
+      const fieldErrors = errorData?.fieldErrors;
 
-      throw new ApiClientError(message, response.status, errors);
+      throw new ApiClientError(message, response.status, errors, fieldErrors);
     }
 
     // Handle 204 No Content
