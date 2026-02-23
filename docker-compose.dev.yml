@@ -1,7 +1,3 @@
-# LOCAL DEVELOPMENT ONLY
-# PostgreSQL for local development (port 5433 to avoid conflict with Windows PostgreSQL)
-# Production docker-compose.yml will be created in Commit 14 and will include both app + postgres
-
 services:
   postgres:
     image: postgres:16-alpine
