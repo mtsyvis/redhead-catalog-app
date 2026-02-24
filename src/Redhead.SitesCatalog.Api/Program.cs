@@ -120,8 +120,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseStaticFiles();
-
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
@@ -130,9 +128,9 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// SPA fallback: serve index.html for /app and /app/* so client-side routing works
-var spaIndexPath = Path.Combine(app.Environment.ContentRootPath ?? ".", "wwwroot", "app", "index.html");
-app.MapGet("/app", () => File.Exists(spaIndexPath) ? Results.File(spaIndexPath, "text/html") : Results.NotFound());
-app.MapGet("/app/{*path}", (string path) => File.Exists(spaIndexPath) ? Results.File(spaIndexPath, "text/html") : Results.NotFound());
+app.UseStaticFiles();
+
+// SPA fallback только для client-side routes, не для файлов (.js/.css/.woff и т.п.)
+app.MapFallbackToFile("/app/{*path:nonfile}", "app/index.html");
 
 app.Run();
