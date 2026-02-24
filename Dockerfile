@@ -15,6 +15,7 @@ RUN dotnet publish src/Redhead.SitesCatalog.Api/Redhead.SitesCatalog.Api.csproj 
 
 # Stage 3: runtime
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
+RUN apk add --no-cache krb5-libs
 WORKDIR /app
 COPY --from=backend /app/publish .
 ENV ASPNETCORE_ENVIRONMENT=Production

@@ -9,6 +9,8 @@ services:
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=redhead_sites_catalog;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       SeedData__SuperAdmin__Email: ${SEED_SUPERADMIN_EMAIL:-superadmin@redhead.com}
       SeedData__SuperAdmin__Password: ${SEED_SUPERADMIN_PASSWORD:-SuperAdmin123!}
+    volumes:
+      - dataprotection_keys:/root/.aspnet/DataProtection-Keys
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,5 +46,6 @@ services:
 
 volumes:
   postgres_data:
+  dataprotection_keys:
   caddy_data:
   caddy_config:
