@@ -202,3 +202,28 @@ Commit 14 — Production packaging (Option 1A)
 AC:
 - single-deploy works on VPS
 Commit: chore: production packaging and deployment templates
+
+## Commit 15 — LastPublishedDate + import (Domain, LastPublishedDate)
+**Scope**
+- Backend:
+  - Add nullable field `LastPublishedDate` to Site
+  - Add a flag/enum to represent precision (day vs month) OR store an additional boolean `LastPublishedDateIsMonthOnly`
+  - Create migration
+  - Add import endpoint (CSV only): Domain + LastPublishedDate
+    - normalize domain, exact match
+    - parse date (DD.MM.YYYY) or month+year
+    - update existing sites only
+    - return matched/unmatched/errors summary
+    - write ImportLog
+- Frontend:
+  - Sites grid: add column "Last Published"
+    - if null => "Last publication before January 2026"
+    - else show formatted date (DD.MM.YYYY or MMMM YYYY)
+  - Imports Hub: add tab "Last Published Import" with CSV upload + results
+
+**Acceptance criteria**
+- Migration applied successfully
+- Import updates existing sites by domain
+- Invalid dates produce row errors, unknown domains go to unmatched
+- Last Published column renders correctly for null vs date
+- `dotnet build` and `npm run lint` pass

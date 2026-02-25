@@ -109,12 +109,12 @@ User entity fields (to be implemented in Identity commit):
 ============================================================
 5) Data Model
 ============================================================
-5.1 Sites (from Sites.xlsx)
+5.1 Sites
 Fields:
 - Id (GUID or long)
 - Domain (normalized host, unique)
 - DR (number)
-- Traffic (number)              // from “Traf 11/12/25”
+- Traffic (number)
 - Location (string)
 - PriceUsd (decimal)
 - PriceCasino (decimal? nullable)     // null => NOT allowed
@@ -126,6 +126,7 @@ Fields:
 - QuarantineReason (string, nullable)
 - QuarantineUpdatedAtUtc (datetime?, nullable)
 - CreatedAtUtc, UpdatedAtUtc
+- LastPublishedDate (datetime?, nullable)
 
 Indexes:
 - Unique on Domain
@@ -152,6 +153,8 @@ Default limits per role:
 - ImportLog:
   - Id, UserId, UserEmail, Type(Sites/Quarantine), TimestampUtc,
     Inserted, Duplicates, Matched, Unmatched, ErrorsCount
+
+5.4
 
 ============================================================
 6) Domain Normalization (must be consistent everywhere)
@@ -191,6 +194,7 @@ Use normalization in:
 - Categories
 - Status: Available / Unavailable (from IsQuarantined)
 - QuarantineReason (only visible if quarantined)
+- LastPublishedDate
 
 7.2 Filters (MVP)
 - DR range (min/max)
@@ -508,6 +512,31 @@ B) Global mass price adjustment tool:
 ============================================================
 - Optional Location normalization strategy (aliases) if data is messy
 
+## Commit 15 — LastPublishedDate + import (Domain, LastPublishedDate)
+**Scope**
+- Backend:
+  - Add nullable field `LastPublishedDate` to Site
+  - Add a flag/enum to represent precision (day vs month) OR store an additional boolean `LastPublishedDateIsMonthOnly`
+  - Create migration
+  - Add import endpoint (CSV only): Domain + LastPublishedDate
+    - normalize domain, exact match
+    - parse date (DD.MM.YYYY) or month+year
+    - update existing sites only
+    - return matched/unmatched/errors summary
+    - write ImportLog
+- Frontend:
+  - Sites grid: add column "Last Published"
+    - if null => "Last publication before January 2026"
+    - else show formatted date (DD.MM.YYYY or MMMM YYYY)
+  - Imports Hub: add tab "Last Published Import" with CSV upload + results
+
+**Acceptance criteria**
+- Migration applied successfully
+- Import updates existing sites by domain
+- Invalid dates produce row errors, unknown domains go to unmatched
+- Last Published column renders correctly for null vs date
+- `dotnet build` and `npm run lint` pass
+
 
 
 UI / Frontend (must follow)
@@ -636,6 +665,7 @@ UI:
 - Tabs:
   1) "Sites Import" (existing ADD-ONLY CSV import)
   2) "Quarantine Import" (new in Commit 11)
+  3) "Last Published Date Import" (new in Commit 15)
 
 Common behavior for all import tabs:
 - File picker (CSV only)
@@ -649,3 +679,27 @@ Common behavior for all import tabs:
 Future scope (NOT MVP, but UI structure must allow):
 - Tab: "Vendor Price Update Import" (upsert for existing domains, update selected columns)
 - Tab: "Mass Price Adjustment" (apply multiplier/additive with preview + confirm + audit)
+
+
+LastPublishedDate:
+- Add nullable field on Site: LastPublishedDate (date or month-level date)
+- Visible to ALL users in Sites grid
+- Not editable via UI (read-only)
+- Updated ONLY via import
+
+Import: LastPublishedDate import (CSV)
+- Columns: Domain (required), LastPublishedDate (required)
+- Domain is normalized and matched by exact equality to Site.Domain
+- Date formats accepted:
+  - DD.MM.YYYY (exact date)
+  - Month + Year (e.g. "January 2026" / "Jan 2026" / "01.2026")
+- If a row domain is not found => record as unmatched
+- If date is invalid/unparseable => record as row error (row + message)
+- Updates existing sites only (no inserts)
+
+UI display:
+- Add column “Last Published”
+- If LastPublishedDate is null => display text: "Last publication before January 2026"
+- Otherwise display:
+  - if exact day known: format as DD.MM.YYYY
+  - if only month/year known: format as "MMMM YYYY"
