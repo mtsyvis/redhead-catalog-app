@@ -16,6 +16,11 @@ public static class ImportConstants
     public const string ImportTypeQuarantine = "Quarantine";
 
     /// <summary>
+    /// ImportLog Type value for Last Published Date import (Commit 15)
+    /// </summary>
+    public const string ImportTypeLastPublished = "LastPublished";
+
+    /// <summary>
     /// Default batch size for site inserts
     /// </summary>
     public const int SitesImportBatchSize = 1000;

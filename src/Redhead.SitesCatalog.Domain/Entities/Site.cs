@@ -17,4 +17,6 @@ public class Site
     public DateTime? QuarantineUpdatedAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
+    public DateTime? LastPublishedDate { get; set; }
+    public bool LastPublishedDateIsMonthOnly { get; set; }
 }

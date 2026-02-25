@@ -16,6 +16,8 @@ export interface Site {
   quarantineReason: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
+  lastPublishedDate: string | null;
+  lastPublishedDateIsMonthOnly: boolean;
 }
 
 /**

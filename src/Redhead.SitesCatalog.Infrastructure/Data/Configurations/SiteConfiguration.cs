@@ -63,6 +63,13 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(s => s.UpdatedAtUtc)
             .IsRequired();
 
+        builder.Property(s => s.LastPublishedDate)
+            .HasColumnType("date");
+
+        builder.Property(s => s.LastPublishedDateIsMonthOnly)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         // Optional: Create indexes for performance
         builder.HasIndex(s => s.DR);
         builder.HasIndex(s => s.Traffic);

@@ -53,7 +53,9 @@ public class SitesService : ISitesService
                 QuarantineReason = s.QuarantineReason,
                 QuarantineUpdatedAtUtc = s.QuarantineUpdatedAtUtc,
                 CreatedAtUtc = s.CreatedAtUtc,
-                UpdatedAtUtc = s.UpdatedAtUtc
+                UpdatedAtUtc = s.UpdatedAtUtc,
+                LastPublishedDate = s.LastPublishedDate,
+                LastPublishedDateIsMonthOnly = s.LastPublishedDateIsMonthOnly
             })
             .ToListAsync(cancellationToken);
 
@@ -106,7 +108,9 @@ public class SitesService : ISitesService
                 QuarantineReason = s.QuarantineReason,
                 QuarantineUpdatedAtUtc = s.QuarantineUpdatedAtUtc,
                 CreatedAtUtc = s.CreatedAtUtc,
-                UpdatedAtUtc = s.UpdatedAtUtc
+                UpdatedAtUtc = s.UpdatedAtUtc,
+                LastPublishedDate = s.LastPublishedDate,
+                LastPublishedDateIsMonthOnly = s.LastPublishedDateIsMonthOnly
             })
             .ToListAsync(cancellationToken);
 
@@ -167,7 +171,9 @@ public class SitesService : ISitesService
             QuarantineReason = site.QuarantineReason,
             QuarantineUpdatedAtUtc = site.QuarantineUpdatedAtUtc,
             CreatedAtUtc = site.CreatedAtUtc,
-            UpdatedAtUtc = site.UpdatedAtUtc
+            UpdatedAtUtc = site.UpdatedAtUtc,
+            LastPublishedDate = site.LastPublishedDate,
+            LastPublishedDateIsMonthOnly = site.LastPublishedDateIsMonthOnly
         };
     }
 }

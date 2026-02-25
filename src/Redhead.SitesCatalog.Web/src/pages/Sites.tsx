@@ -404,6 +404,26 @@ export function Sites() {
         return site.isQuarantined ? (site.quarantineReason || '—') : '—';
       },
     },
+    {
+      field: 'lastPublishedDate',
+      headerName: 'Last Published',
+      width: 200,
+      valueFormatter: (_value, row) => {
+        if (isNotFoundRow(row)) return '—';
+        const site = row as Site;
+        if (site.lastPublishedDate == null) {
+          return 'Last publication before January 2026';
+        }
+        const d = new Date(site.lastPublishedDate);
+        if (site.lastPublishedDateIsMonthOnly) {
+          return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+        }
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const year = d.getUTCFullYear();
+        return `${day}.${month}.${year}`;
+      },
+    },
     ...(isAdmin
       ? [
           {

@@ -67,7 +67,9 @@ public static class SitesMapper
             QuarantineReason = dto.QuarantineReason,
             QuarantineUpdatedAtUtc = dto.QuarantineUpdatedAtUtc,
             CreatedAtUtc = dto.CreatedAtUtc,
-            UpdatedAtUtc = dto.UpdatedAtUtc
+            UpdatedAtUtc = dto.UpdatedAtUtc,
+            LastPublishedDate = dto.LastPublishedDate,
+            LastPublishedDateIsMonthOnly = dto.LastPublishedDateIsMonthOnly
         };
     }
 }
