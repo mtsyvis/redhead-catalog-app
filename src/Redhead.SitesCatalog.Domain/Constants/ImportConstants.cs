@@ -26,6 +26,16 @@ public static class ImportConstants
     public const int SitesImportBatchSize = 1000;
 
     /// <summary>
+    /// Maximum number of error details to keep in memory and return in import result (avoids huge API responses for 60k+ rows).
+    /// </summary>
+    public const int SitesImportMaxDetailErrors = 200;
+
+    /// <summary>
+    /// Maximum number of duplicate domain details to keep in memory and return in import result (avoids huge API responses for 60k+ rows).
+    /// </summary>
+    public const int SitesImportMaxDetailDuplicates = 200;
+
+    /// <summary>
     /// CSV file extension
     /// </summary>
     public const string CsvExtension = ".csv";

@@ -49,42 +49,34 @@ public class ImportController : ControllerBase
             return StatusCode(413, new { error = ImportConstants.FileTooLargeMessage });
         }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var userEmail = User.FindFirstValue(ClaimTypes.Email);
-        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(userEmail))
+        if (!TryGetUserContext("Sites import", out var userId, out var userEmail, out var unauthorizedResult))
         {
-            _logger.LogWarning("Sites import: user claims missing (UserId or Email)");
-            return Unauthorized("User information not found");
+            return unauthorizedResult;
         }
 
-        await using var stream = new MemoryStream((int)file.Length);
-        await using (var source = file.OpenReadStream())
+        var (stream, fileReadError) = await ReadFileToMemoryStreamAsync("Sites import", file, cancellationToken);
+        if (fileReadError != null)
         {
-            if (source.CanSeek && source.Position != 0)
-            {
-                source.Seek(0, SeekOrigin.Begin);
-            }
-            await source.CopyToAsync(stream, cancellationToken);
+            stream.Dispose();
+            return fileReadError;
         }
-        stream.Position = 0;
-        if (stream.Length == 0)
+
+        await using (stream)
         {
-            _logger.LogWarning("Sites import: file stream is empty after read. FileName={FileName}, DeclaredLength={Length}", file.FileName, file.Length);
-            return BadRequest(new { error = "The file could not be read. Ensure the file is a valid CSV and try again." });
+            var result = await _sitesImportService.ImportAsync(
+                stream,
+                file.FileName,
+                file.ContentType,
+                userId,
+                userEmail,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Sites import succeeded. FileName={FileName}, Inserted={Inserted}, Duplicates={Duplicates}, Errors={Errors}",
+                file.FileName, result.Inserted, result.DuplicatesCount, result.ErrorsCount);
+
+            return Ok(result);
         }
-        var result = await _sitesImportService.ImportAsync(
-            stream,
-            file.FileName,
-            file.ContentType,
-            userId,
-            userEmail,
-            cancellationToken);
-
-        _logger.LogInformation(
-            "Sites import succeeded. FileName={FileName}, Inserted={Inserted}, Duplicates={Duplicates}, Errors={Errors}",
-            file.FileName, result.Inserted, result.DuplicatesCount, result.ErrorsCount);
-
-        return Ok(result);
     }
 
     /// <summary>
@@ -108,45 +100,34 @@ public class ImportController : ControllerBase
             return StatusCode(413, new { error = ImportConstants.FileTooLargeMessage });
         }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var userEmail = User.FindFirstValue(ClaimTypes.Email);
-        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(userEmail))
+        if (!TryGetUserContext("Quarantine import", out var userId, out var userEmail, out var unauthorizedResult))
         {
-            _logger.LogWarning("Quarantine import: user claims missing (UserId or Email)");
-            return Unauthorized("User information not found");
+            return unauthorizedResult;
         }
 
-        await using var stream = new MemoryStream((int)file.Length);
-        await using (var source = file.OpenReadStream())
+        var (stream, fileReadError) = await ReadFileToMemoryStreamAsync("Quarantine import", file, cancellationToken);
+        if (fileReadError != null)
         {
-            if (source.CanSeek && source.Position != 0)
-            {
-                source.Seek(0, SeekOrigin.Begin);
-            }
-            await source.CopyToAsync(stream, cancellationToken);
-        }
-        stream.Position = 0;
-        if (stream.Length == 0)
-        {
-            _logger.LogWarning(
-                "Quarantine import: file stream is empty after read. FileName={FileName}, DeclaredLength={Length}",
-                file.FileName, file.Length);
-            return BadRequest(new { error = "The file could not be read. Ensure the file is a valid CSV and try again." });
+            stream.Dispose();
+            return fileReadError;
         }
 
-        var result = await _quarantineImportService.ImportAsync(
-            stream,
-            file.FileName,
-            file.ContentType,
-            userId,
-            userEmail,
-            cancellationToken);
+        await using (stream)
+        {
+            var result = await _quarantineImportService.ImportAsync(
+                stream,
+                file.FileName,
+                file.ContentType,
+                userId,
+                userEmail,
+                cancellationToken);
 
-        _logger.LogInformation(
-            "Quarantine import succeeded. FileName={FileName}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}",
-            file.FileName, result.Matched, result.Unmatched.Count, result.ErrorsCount);
+            _logger.LogInformation(
+                "Quarantine import succeeded. FileName={FileName}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}",
+                file.FileName, result.Matched, result.Unmatched.Count, result.ErrorsCount);
 
-        return Ok(result);
+            return Ok(result);
+        }
     }
 
     /// <summary>
@@ -170,44 +151,79 @@ public class ImportController : ControllerBase
             return StatusCode(413, new { error = ImportConstants.FileTooLargeMessage });
         }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var userEmail = User.FindFirstValue(ClaimTypes.Email);
-        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(userEmail))
+        if (!TryGetUserContext("Last Published import", out var userId, out var userEmail, out var unauthorizedResult))
         {
-            _logger.LogWarning("Last Published import: user claims missing (UserId or Email)");
-            return Unauthorized("User information not found");
+            return unauthorizedResult;
         }
 
-        await using var stream = new MemoryStream((int)file.Length);
-        await using (var source = file.OpenReadStream())
+        var (stream, fileReadError) = await ReadFileToMemoryStreamAsync("Last Published import", file, cancellationToken);
+        if (fileReadError != null)
         {
-            if (source.CanSeek && source.Position != 0)
-            {
-                source.Seek(0, SeekOrigin.Begin);
-            }
-            await source.CopyToAsync(stream, cancellationToken);
+            stream.Dispose();
+            return fileReadError;
         }
+
+        await using (stream)
+        {
+            var result = await _lastPublishedImportService.ImportAsync(
+                stream,
+                file.FileName,
+                file.ContentType,
+                userId,
+                userEmail,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Last Published import succeeded. FileName={FileName}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}",
+                file.FileName, result.Matched, result.Unmatched.Count, result.ErrorsCount);
+
+            return Ok(result);
+        }
+    }
+
+    // We standardize error responses to a consistent { error = "..." } JSON shape
+    // so that clients can handle failures in a uniform and predictable way.
+    private bool TryGetUserContext(
+        string operationName,
+        out string userId,
+        out string userEmail,
+        out ActionResult unauthorizedResult)
+    {
+        userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+        userEmail = User.FindFirstValue(ClaimTypes.Email) ?? string.Empty;
+
+        if (!string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(userEmail))
+        {
+            unauthorizedResult = default!;
+            return true;
+        }
+
+        _logger.LogWarning("{Operation}: user claims missing (UserId or Email)", operationName);
+        unauthorizedResult = Unauthorized(new { error = "User information not found." });
+        return false;
+    }
+
+    private async Task<(MemoryStream Stream, ActionResult? ErrorResult)> ReadFileToMemoryStreamAsync(
+        string operationName,
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        var stream = new MemoryStream();
+
+        await file.CopyToAsync(stream, cancellationToken);
         stream.Position = 0;
+
         if (stream.Length == 0)
         {
             _logger.LogWarning(
-                "Last Published import: file stream is empty after read. FileName={FileName}, DeclaredLength={Length}",
-                file.FileName, file.Length);
-            return BadRequest(new { error = "The file could not be read. Ensure the file is a valid CSV and try again." });
+                "{Operation}: file stream is empty after read. FileName={FileName}, DeclaredLength={Length}",
+                operationName,
+                file.FileName,
+                file.Length);
+
+            return (stream, BadRequest(new { error = "The file could not be read. Ensure the file is a valid CSV and try again." }));
         }
 
-        var result = await _lastPublishedImportService.ImportAsync(
-            stream,
-            file.FileName,
-            file.ContentType,
-            userId,
-            userEmail,
-            cancellationToken);
-
-        _logger.LogInformation(
-            "Last Published import succeeded. FileName={FileName}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}",
-            file.FileName, result.Matched, result.Unmatched.Count, result.ErrorsCount);
-
-        return Ok(result);
+        return (stream, null);
     }
 }

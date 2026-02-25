@@ -9,10 +9,15 @@ using Redhead.SitesCatalog.Infrastructure.Data;
 namespace Redhead.SitesCatalog.Application.Services;
 
 /// <summary>
-/// Service for sites add-only import from CSV
+/// Service for sites add-only import from CSV.
+/// Designed to handle large files (e.g., 60k rows) efficiently.
 /// </summary>
 public class SitesImportService : ISitesImportService
 {
+    // Caps are important: returning tens of thousands of errors/duplicates will create huge JSON responses.
+    private const int MaxErrorDetails = 200;
+    private const int MaxDuplicateDetails = 200;
+
     private readonly ApplicationDbContext _context;
     private readonly IEnumerable<IImportFileParser> _parsers;
     private readonly ILogger<SitesImportService> _logger;
@@ -50,7 +55,8 @@ public class SitesImportService : ISitesImportService
 
         var result = new SitesImportResult();
         var batch = new List<Site>(ImportConstants.SitesImportBatchSize);
-        var existingDomains = await _context.Sites.Select(s => s.Domain).ToHashSetAsync(cancellationToken);
+
+        var existingDomains = await LoadExistingDomainsAsync(cancellationToken);
 
         await ProcessRowsAsync(parser, fileStream, result, existingDomains, batch, cancellationToken);
 
@@ -62,6 +68,19 @@ public class SitesImportService : ISitesImportService
             result.Inserted, result.DuplicatesCount, result.ErrorsCount, userId);
 
         return result;
+    }
+
+    private async Task<HashSet<string>> LoadExistingDomainsAsync(CancellationToken cancellationToken)
+    {
+        var rawDomains = await _context.Sites
+            .AsNoTracking()
+            .Select(s => s.Domain)
+            .ToListAsync(cancellationToken);
+
+        return rawDomains
+            .Select(DomainNormalizer.Normalize)
+            .Where(d => !string.IsNullOrEmpty(d))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task ProcessRowsAsync(
@@ -80,7 +99,13 @@ public class SitesImportService : ISitesImportService
             if (validation.Error is not null)
             {
                 result.ErrorsCount++;
-                result.Errors.Add(validation.Error);
+
+                // Keep only first N details to avoid huge responses.
+                if (result.Errors.Count < MaxErrorDetails)
+                {
+                    result.Errors.Add(validation.Error);
+                }
+
                 continue;
             }
 
@@ -93,7 +118,13 @@ public class SitesImportService : ISitesImportService
             if (existingDomains.Contains(domain))
             {
                 result.DuplicatesCount++;
-                result.Duplicates.Add(domain);
+
+                // Keep only first N details to avoid huge responses.
+                if (result.Duplicates.Count < MaxDuplicateDetails)
+                {
+                    result.Duplicates.Add(domain);
+                }
+
                 continue;
             }
 
@@ -125,10 +156,34 @@ public class SitesImportService : ISitesImportService
         SitesImportResult result,
         CancellationToken cancellationToken)
     {
-        await _context.Sites.AddRangeAsync(batch, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-        result.Inserted += batch.Count;
-        batch.Clear();
+        // Performance: disable AutoDetectChanges for bulk inserts.
+        var prevAutoDetect = _context.ChangeTracker.AutoDetectChangesEnabled;
+        _context.ChangeTracker.AutoDetectChangesEnabled = false;
+
+        try
+        {
+            await _context.Sites.AddRangeAsync(batch, cancellationToken);
+
+            try
+            {
+                // No retry by design. If this throws, investigate the DB error (e.g., invalid data or concurrent import).
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Sites import batch insert failed. BatchSize={BatchSize}", batch.Count);
+                throw;
+            }
+
+            result.Inserted += batch.Count;
+        }
+        finally
+        {
+            // Critical for large imports: prevent ChangeTracker from growing unbounded.
+            _context.ChangeTracker.Clear();
+            _context.ChangeTracker.AutoDetectChangesEnabled = prevAutoDetect;
+            batch.Clear();
+        }
     }
 
     private async Task SaveImportLogAsync(
@@ -150,8 +205,12 @@ public class SitesImportService : ISitesImportService
             Unmatched = 0,
             ErrorsCount = result.ErrorsCount
         };
+
         _context.ImportLogs.Add(log);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Keep the context clean for the next request.
+        _context.ChangeTracker.Clear();
     }
 
     private static RowValidationResult ValidateAndMapRow(SitesImportRowDto row)
@@ -209,15 +268,15 @@ public class SitesImportService : ISitesImportService
     private static bool IsEmptyRow(SitesImportRowDto row)
     {
         return string.IsNullOrWhiteSpace(row.Domain)
-            && row.DR is null
-            && row.Traffic is null
-            && string.IsNullOrWhiteSpace(row.Location)
-            && row.PriceUsd is null
-            && row.PriceCasino is null
-            && row.PriceCrypto is null
-            && row.PriceLinkInsert is null
-            && string.IsNullOrWhiteSpace(row.Niche)
-            && string.IsNullOrWhiteSpace(row.Categories);
+               && row.DR is null
+               && row.Traffic is null
+               && string.IsNullOrWhiteSpace(row.Location)
+               && row.PriceUsd is null
+               && row.PriceCasino is null
+               && row.PriceCrypto is null
+               && row.PriceLinkInsert is null
+               && string.IsNullOrWhiteSpace(row.Niche)
+               && string.IsNullOrWhiteSpace(row.Categories);
     }
 
     private static Site BuildSiteFromRow(SitesImportRowDto row, string domain)
