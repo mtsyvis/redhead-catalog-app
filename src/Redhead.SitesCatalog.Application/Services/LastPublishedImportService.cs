@@ -27,17 +27,13 @@ public class LastPublishedImportService : ILastPublishedImportService
 
     private static readonly string[] DayFormats =
     {
-        "dd.MM.yyyy", "d.M.yyyy", "d.MM.yyyy", "dd.M.yyyy",
-        "yyyy-MM-dd", "yyyy.MM.dd",
-        "dd/MM/yyyy", "d/M/yyyy", "dd/M/yyyy", "d/MM/yyyy",
-        "MM/dd/yyyy", "M/d/yyyy", "M/dd/yyyy", "MM/d/yyyy",
-        "dd-MM-yyyy", "d-M-yyyy", "yyyy-MM-d"
+        "dd.MM.yyyy"
     };
 
     private static readonly string[] MonthFormats =
     {
-        "MMMM yyyy", "MMM yyyy", "MM.yyyy", "M.yyyy",
-        "yyyy-MM", "yyyy.MM", "MM/yyyy", "M/yyyy"
+        "MMMM yyyy",
+        "MMM yyyy"
     };
 
     private sealed record ParsedUpdate(int RowNumber, DateTime? DateUtc, bool IsMonthOnly);
@@ -175,10 +171,12 @@ public class LastPublishedImportService : ILastPublishedImportService
     }
 
     /// <summary>
-    /// Tries to parse a date string.
-    /// Supports day precision (DD.MM.YYYY, yyyy-MM-dd, etc.) and month precision (January 2026, 01.2026, 2026-01, etc.).
+    /// Tries to parse a LastPublishedDate value.
+    /// Supported formats:
+    /// - Full date (day precision): "DD.MM.YYYY"
+    /// - Month + year (month precision, English, case-insensitive): "January 2026", "Jan 2026"
     /// For month precision we store the first day of the month (YYYY-MM-01) and return IsMonthOnly=true,
-    /// so the caller can persist the precision separately (recommended).
+    /// so the caller can persist the precision separately.
     /// </summary>
     internal static bool TryParseLastPublishedDate(
         string value,
@@ -190,37 +188,24 @@ public class LastPublishedImportService : ILastPublishedImportService
         isMonthOnly = false;
         errorMessage = string.Empty;
 
-        foreach (var fmt in DayFormats)
+        // Day precision: only DD.MM.YYYY.
+        if (DateTime.TryParseExact(value, DayFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dayDate))
         {
-            if (DateTime.TryParseExact(value, fmt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dayDate))
-            {
-                dateUtc = DateTime.SpecifyKind(dayDate.Date, DateTimeKind.Utc);
-                isMonthOnly = false;
-                return true;
-            }
-        }
-
-        foreach (var fmt in MonthFormats)
-        {
-            if (DateTime.TryParseExact(value, fmt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var monthDate))
-            {
-                dateUtc = DateTime.SpecifyKind(new DateTime(monthDate.Year, monthDate.Month, 1), DateTimeKind.Utc);
-                isMonthOnly = true;
-                return true;
-            }
-        }
-
-        // Fallback parser (treat as day precision to avoid incorrect "month-only" classification).
-        if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fallback))
-        {
-            dateUtc = DateTime.SpecifyKind(fallback.Date, DateTimeKind.Utc);
+            dateUtc = DateTime.SpecifyKind(dayDate.Date, DateTimeKind.Utc);
             isMonthOnly = false;
             return true;
         }
 
+        // Month precision: English month name + year, e.g. "January 2026", "Jan 2026" (case-insensitive).
+        if (DateTime.TryParseExact(value, MonthFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var monthDate))
+        {
+            dateUtc = DateTime.SpecifyKind(new DateTime(monthDate.Year, monthDate.Month, 1), DateTimeKind.Utc);
+            isMonthOnly = true;
+            return true;
+        }
+
         errorMessage =
-            "LastPublishedDate could not be parsed. Use a full date (e.g. DD.MM.YYYY, yyyy-MM-dd, MM/dd/yyyy) " +
-            "or month+year (e.g. January 2026, Jan 2026, 01.2026).";
+            "LastPublishedDate could not be parsed. Use a full date 'DD.MM.YYYY' or month+year like 'January 2026' or 'Jan 2026'.";
         return false;
     }
 

@@ -1,0 +1,30 @@
+Domain,LastPublishedDate,Note
+example.com,31.01.2026,Full date dd.MM.yyyy
+example.com,01.02.2026,Duplicate for example.com (last wins, duplicates=1)
+
+month-only.com,January 2026,Month name + year (MMMM yyyy)
+month-only.com,01.2026,Duplicate month-only (MM.yyyy, still month-only)
+
+short-month.com,Jan 2026,Short month name (MMM yyyy)
+dot-month.com,1.2026,M.yyyy month-only
+dash-year-month.com,2026-01,yyyy-MM month-only
+dot-year-month.com,2026.01,yyyy.MM month-only
+slash-month.com,01/2026,MM/yyyy month-only
+slash-short-month.com,1/2026,M/yyyy month-only
+
+euro-date.com,31/01/2026,Full date dd/MM/yyyy
+us-date.com,01/31/2026,Full date MM/dd/yyyy
+iso-date.com,2026-01-31,Full date yyyy-MM-dd
+dash-date.com,31-01-2026,Full date dd-MM-yyyy
+
+empty-date.com,,Existing site with empty date (should clear LastPublishedDate)
+
+normalized-url.com,31.03.2026,Domain will be normalized from https URL
+https://www.Normalized-URL.com/path,31.03.2026,Same domain as normalized-url.com (duplicate after normalization, last wins)
+
+unknown-site.com,31.01.2026,Unmatched domain (no Site row)
+
+bad-date.com,32.01.2026,Invalid day (should go to Errors)
+nonsense-date.com,not-a-date,Completely invalid date (should go to Errors)
+
+482jobs.com,01.02.2026

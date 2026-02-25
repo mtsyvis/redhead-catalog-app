@@ -19,8 +19,12 @@ public class QuarantineImportService : IQuarantineImportService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<QuarantineImportService> _logger;
 
+    private const int BatchSize = 1000;
+
     private const string HeaderDomain = "Domain";
     private const string HeaderReason = "Reason";
+
+    private sealed record ParsedUpdate(int RowNumber, string? Reason);
 
     public QuarantineImportService(ApplicationDbContext context, ILogger<QuarantineImportService> logger)
     {
@@ -54,7 +58,13 @@ public class QuarantineImportService : IQuarantineImportService
         var result = new QuarantineImportResult();
         var now = DateTime.UtcNow;
 
-        await foreach (var (rowNumber, domain, reason) in ReadQuarantineRowsAsync(fileStream, result, cancellationToken))
+        await using var seekableStream = await EnsureSeekableAsync(fileStream, cancellationToken);
+
+        // Phase 1: parse CSV rows and build a per-domain update map (last row wins).
+        var updates = new Dictionary<string, ParsedUpdate>(StringComparer.Ordinal);
+        var duplicates = 0;
+
+        await foreach (var (rowNumber, domain, reason) in ReadQuarantineRowsAsync(seekableStream, result, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -62,30 +72,66 @@ public class QuarantineImportService : IQuarantineImportService
             if (string.IsNullOrEmpty(normalized))
             {
                 result.ErrorsCount++;
-                result.Errors.Add(new QuarantineImportError { RowNumber = rowNumber, Message = "Domain is required and cannot be empty after normalization." });
+                result.Errors.Add(new QuarantineImportError
+                {
+                    RowNumber = rowNumber,
+                    Message = "Domain is required and cannot be empty after normalization."
+                });
                 continue;
             }
 
-            var site = await _context.Sites.FirstOrDefaultAsync(s => s.Domain == normalized, cancellationToken);
-            if (site == null)
+            var trimmedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+            var update = new ParsedUpdate(rowNumber, trimmedReason);
+
+            if (updates.ContainsKey(normalized))
             {
-                result.Unmatched.Add(normalized);
+                duplicates++;
+                updates[normalized] = update;
+            }
+            else
+            {
+                updates.Add(normalized, update);
+            }
+        }
+
+        // Phase 2: load Sites in batches to avoid N+1 queries.
+        var domains = updates.Keys.ToList();
+        var sitesByDomain = new Dictionary<string, Site>(StringComparer.Ordinal);
+
+        foreach (var chunk in Chunk(domains, BatchSize))
+        {
+            var sites = await _context.Sites
+                .Where(s => chunk.Contains(s.Domain))
+                .ToListAsync(cancellationToken);
+
+            foreach (var site in sites)
+            {
+                sitesByDomain[site.Domain] = site;
+            }
+        }
+
+        // Phase 3: apply updates and persist once.
+        foreach (var (domain, update) in updates)
+        {
+            if (!sitesByDomain.TryGetValue(domain, out var site))
+            {
+                result.Unmatched.Add(domain);
                 continue;
             }
 
             site.IsQuarantined = true;
-            site.QuarantineReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+            site.QuarantineReason = update.Reason;
             site.QuarantineUpdatedAtUtc = now;
             site.UpdatedAtUtc = now;
             result.Matched++;
         }
 
+        AddImportLog(result, userId, userEmail, duplicates);
         await _context.SaveChangesAsync(cancellationToken);
-        await SaveImportLogAsync(result, userId, userEmail, cancellationToken);
 
         _logger.LogInformation(
-            "Quarantine import completed. Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, UserId={UserId}",
-            result.Matched, result.Unmatched.Count, result.ErrorsCount, userId);
+            "Quarantine import completed. Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}, UserId={UserId}",
+            result.Matched, result.Unmatched.Count, result.ErrorsCount, duplicates, userId);
 
         return result;
     }
@@ -106,7 +152,6 @@ public class QuarantineImportService : IQuarantineImportService
         QuarantineImportResult result,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        stream.Position = 0;
         using var reader = new StreamReader(stream, leaveOpen: true);
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
         {
@@ -184,11 +229,29 @@ public class QuarantineImportService : IQuarantineImportService
         }
     }
 
-    private async Task SaveImportLogAsync(
-        QuarantineImportResult result,
-        string userId,
-        string userEmail,
-        CancellationToken cancellationToken)
+    private static async Task<Stream> EnsureSeekableAsync(Stream stream, CancellationToken ct)
+    {
+        if (stream.CanSeek)
+        {
+            stream.Position = 0;
+            return stream;
+        }
+
+        var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        ms.Position = 0;
+        return ms;
+    }
+
+    private static IEnumerable<List<T>> Chunk<T>(List<T> source, int size)
+    {
+        for (var i = 0; i < source.Count; i += size)
+        {
+            yield return source.GetRange(i, Math.Min(size, source.Count - i));
+        }
+    }
+
+    private void AddImportLog(QuarantineImportResult result, string userId, string userEmail, int duplicates)
     {
         var log = new ImportLog
         {
@@ -198,12 +261,11 @@ public class QuarantineImportService : IQuarantineImportService
             Type = ImportConstants.ImportTypeQuarantine,
             TimestampUtc = DateTime.UtcNow,
             Inserted = 0,
-            Duplicates = 0,
+            Duplicates = duplicates,
             Matched = result.Matched,
             Unmatched = result.Unmatched.Count,
             ErrorsCount = result.ErrorsCount
         };
         _context.ImportLogs.Add(log);
-        await _context.SaveChangesAsync(cancellationToken);
     }
 }
