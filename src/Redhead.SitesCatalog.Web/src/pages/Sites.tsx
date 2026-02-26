@@ -1,16 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Tooltip,
-  Button,
-  Alert,
-  Snackbar,
-  Popover,
-  List,
-  ListItem,
-  ListItemText,} from '@mui/material';
+import { Box, Paper, Typography, Tooltip, Alert, Snackbar, Popover, List, ListItem, ListItemText } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -25,6 +14,7 @@ import type {
   MultiSearchResponse,
 } from '../types/sites.types';
 import { sitesService } from '../services/sites.service';
+import { BrandButton } from '../components/common/BrandButton';
 
 /** Row type for grid: normal site or not-found placeholder (domain only). */
 type NotFoundRow = { domain: string; _isNotFound: true };
@@ -434,13 +424,13 @@ export function Sites() {
             renderCell: (params: { row: GridRow }) => {
               if (isNotFoundRow(params.row)) return null;
               return (
-                <Button
+                <BrandButton
+                  kind="outline"
                   size="small"
-                  variant="outlined"
                   onClick={() => handleOpenEdit(params.row as Site)}
                 >
                   Edit
-                </Button>
+                </BrandButton>
               );
             },
           } as GridColDef<GridRow>,
@@ -455,14 +445,14 @@ export function Sites() {
           <Typography variant="h4">
             Sites Catalog
           </Typography>
-          <Button
-            variant="contained"
+          <BrandButton
+            kind="outline"
             startIcon={<DownloadIcon />}
             onClick={handleExport}
             disabled={exporting || loading}
           >
             {exporting ? 'Exporting...' : 'Export CSV'}
-          </Button>
+          </BrandButton>
         </Box>
 
         <SitesFilters
@@ -478,13 +468,9 @@ export function Sites() {
             severity="warning"
             sx={{ mb: 2 }}
             action={
-              <Button
-                color="inherit"
-                size="small"
-                onClick={(e) => setDuplicatesAnchor(e.currentTarget)}
-              >
+              <BrandButton size="small" onClick={(e) => setDuplicatesAnchor(e.currentTarget)}>
                 View list
-              </Button>
+              </BrandButton>
             }
           >
             Duplicates removed: {multiSearchResult.duplicates.length}
@@ -498,9 +484,9 @@ export function Sites() {
               severity="info"
               sx={{ mb: 2 }}
               action={
-                <Button color="inherit" size="small" onClick={handleClearFilters}>
+                <BrandButton size="small" onClick={handleClearFilters}>
                   Clear filters
-                </Button>
+                </BrandButton>
               }
             >
               Not found ({multiSearchResult.notFound.length}) hidden while filters are active

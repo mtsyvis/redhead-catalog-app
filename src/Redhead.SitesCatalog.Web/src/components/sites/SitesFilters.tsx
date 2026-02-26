@@ -8,7 +8,6 @@ import {
   Radio,
   RadioGroup,
   FormLabel,
-  Button,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -21,6 +20,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import type { SitesFilters } from '../../types/sites.types';
 import { sitesService } from '../../services/sites.service';
+import { BrandButton } from '../common/BrandButton';
 
 interface SitesFiltersProps {
   filters: SitesFilters;
@@ -135,13 +135,9 @@ export function SitesFilters({
             />
           )}
         </Box>
-        <Button
-          variant="contained"
-          onClick={onApply}
-          sx={{ minWidth: 120 }}
-        >
+        <BrandButton kind="primary" onClick={onApply} sx={{ minWidth: 120 }}>
           Search
-        </Button>
+        </BrandButton>
       </Box>
 
       {/* Advanced Filters */}
@@ -323,17 +319,16 @@ export function SitesFilters({
 
             {/* Action Buttons */}
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-              <Button
-                variant="outlined"
+              <BrandButton
                 startIcon={<ClearIcon />}
                 onClick={handleClear}
                 disabled={!hasActiveFilters()}
               >
                 Clear All
-              </Button>
-              <Button variant="contained" onClick={onApply}>
+              </BrandButton>
+              <BrandButton kind="primary" onClick={onApply}>
                 Apply Filters
-              </Button>
+              </BrandButton>
             </Box>
           </Stack>
         </AccordionDetails>

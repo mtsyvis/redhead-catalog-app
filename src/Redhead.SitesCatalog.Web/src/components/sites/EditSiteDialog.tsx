@@ -1,19 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  Switch,
-  TextField,
-} from '@mui/material';
+import { Box, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Switch, TextField } from '@mui/material';
 
 import type { Site, UpdateSitePayload } from '../../types/sites.types';
 import { sitesService } from '../../services/sites.service';
 import { ApiClientError } from '../../services/api.client';
+import { BrandButton } from '../common/BrandButton';
 
 type Props = {
   open: boolean;
@@ -277,12 +268,12 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={saving}>
+        <BrandButton onClick={onClose} disabled={saving}>
           Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={!canSave} variant="contained">
+        </BrandButton>
+        <BrandButton kind="primary" onClick={handleSave} disabled={!canSave}>
           Save
-        </Button>
+        </BrandButton>
       </DialogActions>
     </Dialog>
   );

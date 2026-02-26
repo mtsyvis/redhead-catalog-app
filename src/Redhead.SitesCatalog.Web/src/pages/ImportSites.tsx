@@ -1,15 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Button,
-  Alert,
-  List,
-  ListItem,
-  ListItemText,
-  CircularProgress,
-} from '@mui/material';
+import { Box, Paper, Typography, Alert, List, ListItem, ListItemText, CircularProgress } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { PageShell } from '../components/layout/PageShell';
 import {
@@ -18,6 +8,7 @@ import {
   MAX_IMPORT_FILE_SIZE_BYTES,
   FILE_TOO_LARGE_MESSAGE,
 } from '../services/import.service';
+import { BrandButton } from '../components/common/BrandButton';
 
 const ACCEPT_FILES = '.csv';
 const MAX_DUPLICATES_SHOW = 50;
@@ -67,8 +58,7 @@ export function ImportSites() {
       <Paper sx={{ p: 3, mb: 3 }}>
         <form onSubmit={handleSubmit}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Button
-              variant="outlined"
+            <BrandButton
               component="label"
               startIcon={<UploadFileIcon />}
               disabled={loading}
@@ -80,15 +70,15 @@ export function ImportSites() {
                 accept={ACCEPT_FILES}
                 onChange={handleFileChange}
               />
-            </Button>
+            </BrandButton>
             {file && (
               <Typography variant="body2" color="text.secondary">
                 Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
               </Typography>
             )}
-            <Button
+            <BrandButton
               type="submit"
-              variant="contained"
+              kind="primary"
               disabled={
                 !file ||
                 loading ||
@@ -97,7 +87,7 @@ export function ImportSites() {
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
             >
               {loading ? 'Importing…' : 'Import'}
-            </Button>
+            </BrandButton>
           </Box>
         </form>
       </Paper>

@@ -1,17 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Tabs,
-  Tab,
-  Button,
-  Alert,
-  List,
-  ListItem,
-  ListItemText,
-  CircularProgress,
-} from '@mui/material';
+import { Box, Paper, Typography, Tabs, Tab, Alert, List, ListItem, ListItemText, CircularProgress } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { PageShell } from '../components/layout/PageShell';
 import {
@@ -24,6 +12,7 @@ import {
   MAX_IMPORT_FILE_SIZE_BYTES,
   FILE_TOO_LARGE_MESSAGE,
 } from '../services/import.service';
+import { BrandButton } from '../components/common/BrandButton';
 
 const ACCEPT_FILES = '.csv';
 const MAX_LIST_SHOW = 50;
@@ -68,28 +57,27 @@ function SitesImportTab() {
       <Paper sx={{ p: 3, mb: 3 }}>
         <form onSubmit={handleSubmit}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Button
-              variant="outlined"
+            <BrandButton
               component="label"
               startIcon={<UploadFileIcon />}
               disabled={loading}
             >
               Choose file (CSV)
               <input type="file" hidden accept={ACCEPT_FILES} onChange={handleFileChange} />
-            </Button>
+            </BrandButton>
             {file && (
               <Typography variant="body2" color="text.secondary">
                 Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
               </Typography>
             )}
-            <Button
+            <BrandButton
               type="submit"
-              variant="contained"
+              kind="primary"
               disabled={!file || loading || (file !== null && file.size > MAX_IMPORT_FILE_SIZE_BYTES)}
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
             >
               {loading ? 'Importing…' : 'Import'}
-            </Button>
+            </BrandButton>
           </Box>
         </form>
       </Paper>
@@ -176,28 +164,27 @@ function QuarantineImportTab() {
       <Paper sx={{ p: 3, mb: 3 }}>
         <form onSubmit={handleSubmit}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Button
-              variant="outlined"
+            <BrandButton
               component="label"
               startIcon={<UploadFileIcon />}
               disabled={loading}
             >
               Choose file (CSV)
               <input type="file" hidden accept={ACCEPT_FILES} onChange={handleFileChange} />
-            </Button>
+            </BrandButton>
             {file && (
               <Typography variant="body2" color="text.secondary">
                 Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
               </Typography>
             )}
-            <Button
+            <BrandButton
               type="submit"
-              variant="contained"
+              kind="primary"
               disabled={!file || loading || (file !== null && file.size > MAX_IMPORT_FILE_SIZE_BYTES)}
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
             >
               {loading ? 'Importing…' : 'Import'}
-            </Button>
+            </BrandButton>
           </Box>
         </form>
       </Paper>
@@ -284,28 +271,27 @@ function LastPublishedImportTab() {
       <Paper sx={{ p: 3, mb: 3 }}>
         <form onSubmit={handleSubmit}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Button
-              variant="outlined"
+            <BrandButton
               component="label"
               startIcon={<UploadFileIcon />}
               disabled={loading}
             >
               Choose file (CSV)
               <input type="file" hidden accept={ACCEPT_FILES} onChange={handleFileChange} />
-            </Button>
+            </BrandButton>
             {file && (
               <Typography variant="body2" color="text.secondary">
                 Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
               </Typography>
             )}
-            <Button
+            <BrandButton
               type="submit"
-              variant="contained"
+              kind="primary"
               disabled={!file || loading || (file !== null && file.size > MAX_IMPORT_FILE_SIZE_BYTES)}
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
             >
               {loading ? 'Importing…' : 'Import'}
-            </Button>
+            </BrandButton>
           </Box>
         </form>
       </Paper>

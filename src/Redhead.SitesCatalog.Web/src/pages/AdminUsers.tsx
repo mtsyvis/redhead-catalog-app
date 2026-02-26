@@ -5,7 +5,6 @@ import {
   Paper,
   Typography,
   TextField,
-  Button,
   Alert,
   Table,
   TableBody,
@@ -238,7 +237,8 @@ export const AdminUsers: React.FC = () => {
                     <TableCell align="right">
                       {u.isActive && canModifyUser(u.role) && (
                         <>
-                          <Button
+                          <BrandButton
+                            kind="outline"
                             size="small"
                             onClick={() => handleResetPasswordClick(u)}
                             disabled={actionLoadingId === u.id}
@@ -248,15 +248,15 @@ export const AdminUsers: React.FC = () => {
                             ) : (
                               'Reset password'
                             )}
-                          </Button>
-                          <Button
+                          </BrandButton>
+                          <BrandButton
+                            kind="outline"
                             size="small"
-                            color="error"
                             onClick={() => handleDisableClick(u)}
                             disabled={actionLoadingId === u.id}
                           >
                             Disable
-                          </Button>
+                          </BrandButton>
                         </>
                       )}
                     </TableCell>
@@ -289,13 +289,15 @@ export const AdminUsers: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button
+          <BrandButton
+            kind="outline"
             onClick={() => setResetPasswordConfirmUser(null)}
             disabled={!!actionLoadingId}
           >
             Cancel
-          </Button>
+          </BrandButton>
           <BrandButton
+            kind="primary"
             onClick={handleResetPasswordConfirm}
             disabled={!!actionLoadingId || !resetPasswordConfirmUser}
           >
@@ -329,10 +331,11 @@ export const AdminUsers: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDisableConfirmUser(null)} disabled={!!actionLoadingId}>
+          <BrandButton kind="outline" onClick={() => setDisableConfirmUser(null)} disabled={!!actionLoadingId}>
             Cancel
-          </Button>
+          </BrandButton>
           <BrandButton
+            kind="primary"
             onClick={handleDisableConfirm}
             disabled={!!actionLoadingId || !disableConfirmUser}
           >
@@ -372,7 +375,9 @@ export const AdminUsers: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={copyPassword}>Copy password</Button>
+          <BrandButton kind="outline" onClick={copyPassword}>
+            Copy password
+          </BrandButton>
           <BrandButton onClick={() => setTempPasswordDialog(null)}>Done</BrandButton>
         </DialogActions>
       </Dialog>
