@@ -112,20 +112,22 @@ export const Login: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
                 autoComplete="current-password"
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        size="small"
-                        onClick={() => setShowPassword((v) => !v)}
-                        edge="end"
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                        sx={{ color: 'rgba(38,38,38,0.55)' }}
-                      >
-                        {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          onClick={() => setShowPassword((v) => !v)}
+                          edge="end"
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          sx={{ color: 'rgba(38,38,38,0.55)' }}
+                        >
+                          {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
                 }}
               />
 
