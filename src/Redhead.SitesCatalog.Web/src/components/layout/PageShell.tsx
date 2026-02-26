@@ -231,7 +231,7 @@ export const PageShell: React.FC<PageShellProps> = ({
         }}
       >
         <Typography variant="body2" color="text.secondary">
-          © {new Date().getFullYear()} Redhead Sites Catalog
+          © {new Date().getFullYear()} Redhead Digital Agency
         </Typography>
       </Box>
     </Box>

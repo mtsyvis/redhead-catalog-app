@@ -7,7 +7,6 @@ import { ProtectedRoute } from './components/routing/ProtectedRoute';
 import { MustChangePasswordRoute } from './components/routing/MustChangePasswordRoute';
 import { Login } from './pages/Login';
 import { ChangePassword } from './pages/ChangePassword';
-import { Home } from './pages/Home';
 import { Sites } from './pages/Sites';
 import { Imports } from './pages/Imports';
 import { AdminUsers } from './pages/AdminUsers';
