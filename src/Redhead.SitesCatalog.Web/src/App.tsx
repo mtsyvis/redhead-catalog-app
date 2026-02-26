@@ -44,17 +44,6 @@ const App: React.FC = () => {
             />
 
             <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <MustChangePasswordRoute>
-                    <Home />
-                  </MustChangePasswordRoute>
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
               path="/imports"
               element={
                 <ProtectedRoute>
