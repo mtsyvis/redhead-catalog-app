@@ -16,6 +16,7 @@ import {
 import { AccountCircle, ArrowDropDown } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import logoLockup from '../../assets/brand/redhead-lockup.svg';
 
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   background: theme.palette.background.paper,
@@ -97,10 +98,25 @@ export const PageShell: React.FC<PageShellProps> = ({
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <StyledAppBar position="static">
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ fontWeight: 600, mr: 4 }}>
-            Redhead Sites Catalog
-          </Typography>
-          
+          <Box
+            onClick={() => navigate('/sites')}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              mr: 4,
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+            aria-label="Go to Sites"
+          >
+            <Box
+              component="img"
+              src={logoLockup}
+              alt="Redhead"
+              sx={{ height: 28, width: 'auto', display: 'block' }}
+            />
+          </Box>
+
           {user && (
             <>
               <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>

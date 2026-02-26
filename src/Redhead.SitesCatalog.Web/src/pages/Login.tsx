@@ -1,23 +1,28 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   Box,
   Card,
   CardContent,
-  TextField,
-  Typography,
-  Alert,
-  FormControlLabel,
   Checkbox,
   CircularProgress,
+  FormControlLabel,
+  IconButton,
+  InputAdornment,
+  Stack,
+  TextField,
+  Typography,
 } from '@mui/material';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { BrandButton } from '../components/common/BrandButton';
-import { ApiClientError } from '../services/api.client';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-/**
- * Login page component
- */
+import { useAuth } from '../contexts/AuthContext';
+import { ApiClientError } from '../services/api.client';
+import { BrandButton } from '../components/common/BrandButton';
+
+import mark from '../assets/brand/redhead-mark.svg';
+
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,6 +31,8 @@ export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,17 +45,11 @@ export const Login: React.FC = () => {
 
     try {
       const userData = await login({ email, password, rememberMe });
-      if (userData.mustChangePassword) {
-        navigate('/change-password', { replace: true });
-      } else {
-        navigate(from, { replace: true });
-      }
+      if (userData.mustChangePassword) navigate('/change-password', { replace: true });
+      else navigate(from, { replace: true });
     } catch (err) {
-      if (err instanceof ApiClientError) {
-        setError(err.message);
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
+      if (err instanceof ApiClientError) setError(err.message);
+      else setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -58,86 +59,93 @@ export const Login: React.FC = () => {
     <Box
       sx={{
         minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: (theme) => theme.custom.accentGradient,
-        p: 2,
+        display: 'grid',
+        placeItems: 'center',
+        p: 3,
+        background: `
+          radial-gradient(circle at 18% 12%, rgba(255,69,91,0.12), transparent 45%),
+          radial-gradient(circle at 82% 88%, rgba(255,124,50,0.10), transparent 50%),
+          linear-gradient(180deg, #ffffff 0%, #F6F7FB 100%)
+        `,
       }}
     >
-      <Card sx={{ maxWidth: 400, width: '100%' }}>
-        <CardContent sx={{ p: 4 }}>
-          <Typography
-            variant="h4"
-            component="h1"
-            align="center"
-            gutterBottom
-            sx={{ fontWeight: 600, mb: 3 }}
-          >
-            Sites Catalog
-          </Typography>
+      <Card sx={{ width: '100%', maxWidth: 560 }}>
+        <CardContent sx={{ p: 5 }}>
+          <Stack spacing={1.25} alignItems="center" sx={{ mb: 3 }}>
+            <Box component="img" src={mark} alt="Readhead" sx={{ height: 60, width: 60 }} />
 
-          <Typography variant="body2" align="center" color="text.secondary" sx={{ mb: 4 }}>
-            Sign in to access your account
-          </Typography>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: 900, lineHeight: 1.05 }}>
+              Redhead Catalog
+            </Typography>
+
+            <Typography variant="body2" align="center" color="text.secondary">
+              Sign in to access your account
+            </Typography>
+          </Stack>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
+            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
               {error}
             </Alert>
           )}
 
           <form onSubmit={handleSubmit}>
-            <TextField
-              label="Email"
-              type="email"
-              fullWidth
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
-              sx={{ mb: 2 }}
-              autoComplete="email"
-              autoFocus
-            />
+            <Stack spacing={2}>
+              <TextField
+                label="Email"
+                type="email"
+                fullWidth
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                autoComplete="email"
+                autoFocus
+              />
 
-            <TextField
-              label="Password"
-              type="password"
-              fullWidth
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
-              sx={{ mb: 2 }}
-              autoComplete="current-password"
-            />
+              <TextField
+                label="Password"
+                type={showPassword ? 'text' : 'password'}
+                fullWidth
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                autoComplete="current-password"
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setShowPassword((v) => !v)}
+                        edge="end"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        sx={{ color: 'rgba(38,38,38,0.55)' }}
+                      >
+                        {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
 
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  disabled={isLoading}
-                />
-              }
-              label="Remember me"
-              sx={{ mb: 3 }}
-            />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    disabled={isLoading}
+                    size="small"
+                  />
+                }
+                label={<Typography variant="body2">Remember me</Typography>}
+                sx={{ mt: 0.5 }}
+              />
 
-            <BrandButton
-              type="submit"
-              fullWidth
-              size="large"
-              disabled={isLoading}
-              sx={{ position: 'relative' }}
-            >
-              {isLoading ? (
-                <CircularProgress size={24} color="inherit" />
-              ) : (
-                'Sign In'
-              )}
-            </BrandButton>
+              <BrandButton kind="primary" type="submit" fullWidth size="large" disabled={isLoading} sx={{ height: 52 }}>
+                {isLoading ? <CircularProgress size={22} color="inherit" /> : 'Sign In'}
+              </BrandButton>
+            </Stack>
           </form>
         </CardContent>
       </Card>

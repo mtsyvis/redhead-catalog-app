@@ -2,49 +2,74 @@ import React from 'react';
 import { Button, styled } from '@mui/material';
 import type { ButtonProps } from '@mui/material';
 
-/**
- * Styled button with brand gradient on hover
- */
-const StyledBrandButton = styled(Button)(({ theme }) => ({
-  border: `1px solid ${theme.palette.primary.main}`,
-  color: theme.palette.primary.main,
-  background: 'transparent',
-  transition: 'all 0.3s ease',
-  
-  '&:hover': {
-    background: theme.custom.accentGradient,
-    color: '#ffffff',
-    border: `1px solid transparent`,
-    transform: 'translateY(-1px)',
-    boxShadow: theme.shadows[4],
-  },
-  
-  '&:active': {
-    transform: 'translateY(0)',
-    boxShadow: theme.shadows[2],
-  },
-  
-  '&:disabled': {
-    background: 'transparent',
-    color: theme.palette.action.disabled,
-    border: `1px solid ${theme.palette.action.disabled}`,
-  },
-}));
+type Kind = 'outline' | 'primary';
 
-export interface BrandButtonProps extends Omit<ButtonProps, 'variant'> {
-  children: React.ReactNode;
+const Root = styled(Button, {
+  shouldForwardProp: (prop) => prop !== 'kind',
+})<{ kind: Kind }>(({ theme, kind }) => {
+  const ink = theme.custom.ink;
+
+  const base = {
+    fontWeight: 500,
+    borderRadius: theme.custom.radius,
+    textTransform: 'none' as const,
+    position: 'relative' as const,
+    overflow: 'hidden' as const,
+    zIndex: 0,
+    '&::after': {
+      content: '""',
+      position: 'absolute' as const,
+      inset: 0,
+      backgroundImage: theme.custom.accentGradient,
+      opacity: 0,
+      transition: 'opacity 0.2s ease-in-out',
+      zIndex: -1,
+    },
+    '&:focus-visible::after': { opacity: 1 },
+  };
+
+  if (kind === 'primary') {
+    return {
+      ...base,
+      color: '#fff',
+      border: '1px solid transparent',
+      backgroundImage: theme.custom.accentGradient,
+      '&::after': { ...base['&::after'], opacity: 0 },
+      '&:hover': { filter: 'brightness(0.97)' },
+      '&:disabled': {
+        background: theme.palette.action.disabledBackground,
+        color: theme.palette.action.disabled,
+        border: `1px solid ${theme.palette.action.disabledBackground}`,
+        filter: 'none',
+      },
+    };
+  }
+
+  return {
+    ...base,
+    color: ink,
+    border: `1px solid ${ink}`,
+    background: 'transparent',
+    '&:hover::after': { opacity: 1 },
+    '&:hover': {
+      color: '#fff',
+      borderColor: '#fff',
+    },
+    '&:disabled': {
+      color: theme.palette.action.disabled,
+      border: `1px solid ${theme.palette.action.disabled}`,
+    },
+  };
+});
+
+export interface BrandButtonProps extends Omit<ButtonProps, 'variant' | 'color'> {
+  kind?: Kind;
 }
 
-/**
- * Branded button component
- * - Outlined by default
- * - Gradient background on hover
- * - White text on hover
- */
-export const BrandButton: React.FC<BrandButtonProps> = ({ children, ...props }) => {
+export const BrandButton: React.FC<BrandButtonProps> = ({ kind = 'outline', children, ...props }) => {
   return (
-    <StyledBrandButton variant="outlined" {...props}>
+    <Root kind={kind} variant={kind === 'primary' ? 'contained' : 'outlined'} disableElevation {...props}>
       {children}
-    </StyledBrandButton>
+    </Root>
   );
 };
