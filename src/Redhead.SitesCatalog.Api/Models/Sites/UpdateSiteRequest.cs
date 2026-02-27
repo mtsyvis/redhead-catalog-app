@@ -5,7 +5,7 @@ namespace Redhead.SitesCatalog.Api.Models.Sites;
 /// </summary>
 public class UpdateSiteRequest
 {
-    public int? DR { get; set; }
+    public double? DR { get; set; }
     public long? Traffic { get; set; }
     public string? Location { get; set; }
     public decimal? PriceUsd { get; set; }

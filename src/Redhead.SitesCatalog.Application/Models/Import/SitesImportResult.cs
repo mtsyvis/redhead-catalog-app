@@ -34,4 +34,7 @@ public class SitesImportError
 {
     public int RowNumber { get; set; }
     public string Message { get; set; } = string.Empty;
+    public string? Domain { get; set; }
+    public string? Field { get; set; }
+    public string? RawValue { get; set; }
 }

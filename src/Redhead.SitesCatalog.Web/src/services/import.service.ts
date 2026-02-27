@@ -1,6 +1,9 @@
 export interface SitesImportError {
   rowNumber: number;
   message: string;
+  domain?: string | null;
+  field?: string | null;
+  rawValue?: string | null;
 }
 
 export interface SitesImportResult {

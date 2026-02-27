@@ -6,7 +6,7 @@ namespace Redhead.SitesCatalog.Application.Models;
 public class SiteDto
 {
     public string Domain { get; set; } = string.Empty;
-    public int DR { get; set; }
+    public double DR { get; set; }
     public long Traffic { get; set; }
     public string Location { get; set; } = string.Empty;
     public decimal PriceUsd { get; set; }

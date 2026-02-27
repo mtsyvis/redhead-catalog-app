@@ -3,7 +3,7 @@ namespace Redhead.SitesCatalog.Domain.Entities;
 public class Site
 {
     public string Domain { get; set; } = string.Empty;
-    public int DR { get; set; }
+    public double DR { get; set; }
     public long Traffic { get; set; }
     public string Location { get; set; } = string.Empty;
     public decimal PriceUsd { get; set; }

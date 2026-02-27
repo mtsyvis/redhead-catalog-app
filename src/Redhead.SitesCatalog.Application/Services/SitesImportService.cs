@@ -236,9 +236,37 @@ public class SitesImportService : ISitesImportService
             return RowValidationResult.Fail(new SitesImportError { RowNumber = row.RowNumber, Message = "Price USD is required and must be >= 0." });
         }
 
-        if (row.DR is null || row.DR < 0)
+        if (string.IsNullOrWhiteSpace(row.DRRaw))
         {
-            return RowValidationResult.Fail(new SitesImportError { RowNumber = row.RowNumber, Message = "DR is required and must be >= 0." });
+            return RowValidationResult.Fail(new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Message = "DR is required and must be between 0 and 100."
+            });
+        }
+
+        if (row.DR is null)
+        {
+            return RowValidationResult.Fail(new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Domain = domain,
+                Field = "DR",
+                RawValue = row.DRRaw,
+                Message = "Invalid numeric format for DR."
+            });
+        }
+
+        if (row.DR is < 0 or > 100)
+        {
+            return RowValidationResult.Fail(new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Domain = domain,
+                Field = "DR",
+                RawValue = row.DRRaw,
+                Message = "DR must be between 0 and 100."
+            });
         }
 
         if (row.Traffic is null || row.Traffic < 0)
@@ -268,7 +296,7 @@ public class SitesImportService : ISitesImportService
     private static bool IsEmptyRow(SitesImportRowDto row)
     {
         return string.IsNullOrWhiteSpace(row.Domain)
-               && row.DR is null
+               && string.IsNullOrWhiteSpace(row.DRRaw)
                && row.Traffic is null
                && string.IsNullOrWhiteSpace(row.Location)
                && row.PriceUsd is null

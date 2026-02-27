@@ -31,8 +31,8 @@ public class SitesQueryRequest
     public string? Search { get; set; }
 
     // Range filters
-    public int? DrMin { get; set; }
-    public int? DrMax { get; set; }
+    public double? DrMin { get; set; }
+    public double? DrMax { get; set; }
     public long? TrafficMin { get; set; }
     public long? TrafficMax { get; set; }
     public decimal? PriceMin { get; set; }

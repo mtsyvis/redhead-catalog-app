@@ -23,43 +23,7 @@ public static class SitesImportRowMapper
                 return null;
             }
 
-            s = s.Trim();
-
-            // 1) Invariant (dot decimals)
-            if (decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var v1))
-            {
-                return v1;
-            }
-
-            // 2) Common CSV exports can use comma decimals
-            var ru = CultureInfo.GetCultureInfo("ru-RU");
-            if (decimal.TryParse(s, NumberStyles.Number, ru, out var v2))
-            {
-                return v2;
-            }
-
-            // 3) Last resort: replace a single comma with dot
-            if (s.Contains(',') && !s.Contains('.'))
-            {
-                var normalized = s.Replace(',', '.');
-                if (decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var v3))
-                {
-                    return v3;
-                }
-            }
-
-            return null;
-        }
-
-        static int? ParseInt(string? s)
-        {
-            if (string.IsNullOrWhiteSpace(s))
-            {
-                return null;
-            }
-
-            s = s.Trim();
-            return int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
+            return DecimalParsingHelper.TryParseDecimalFlexible(s, out var value) ? value : null;
         }
 
         static long? ParseLong(string? s)
@@ -89,7 +53,8 @@ public static class SitesImportRowMapper
         {
             RowNumber = rowNumber,
             Domain = Get(ImportConstants.SitesImportColumns.Domain),
-            DR = ParseInt(Get(ImportConstants.SitesImportColumns.DR)),
+            DRRaw = Get(ImportConstants.SitesImportColumns.DR),
+            DR = ParseDecimalFlexible(Get(ImportConstants.SitesImportColumns.DR)) is { } dr ? (double?)dr : null,
             Traffic = ParseLong(Get(ImportConstants.SitesImportColumns.Traffic)),
             Location = Get(ImportConstants.SitesImportColumns.Location),
             PriceUsd = ParseDecimalFlexible(Get(ImportConstants.SitesImportColumns.PriceUsd)),

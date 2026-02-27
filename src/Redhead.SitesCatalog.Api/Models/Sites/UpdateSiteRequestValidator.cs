@@ -5,8 +5,8 @@ namespace Redhead.SitesCatalog.Api.Models.Sites;
 /// </summary>
 public static class UpdateSiteRequestValidator
 {
-    public const int DrMin = 0;
-    public const int DrMax = 100;
+    public const double DrMin = 0;
+    public const double DrMax = 100;
     public const int LocationMaxLength = 100;
 
     /// <summary>
@@ -24,7 +24,7 @@ public static class UpdateSiteRequestValidator
 
         var errors = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-        if (request.DR is int dr)
+        if (request.DR is double dr)
         {
             if (dr < DrMin || dr > DrMax)
             {

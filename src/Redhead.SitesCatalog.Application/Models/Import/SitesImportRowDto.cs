@@ -7,7 +7,8 @@ public class SitesImportRowDto
 {
     public int RowNumber { get; set; }
     public string? Domain { get; set; }
-    public int? DR { get; set; }
+    public string? DRRaw { get; set; }
+    public double? DR { get; set; }
     public long? Traffic { get; set; }
     public string? Location { get; set; }
     public decimal? PriceUsd { get; set; }
