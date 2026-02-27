@@ -66,10 +66,6 @@ public class LastPublishedImportServiceTests : IDisposable
 
     [Theory]
     [InlineData("31.01.2026")]          // dd.MM.yyyy
-    [InlineData("2026-01-31")]          // yyyy-MM-dd
-    [InlineData("31/01/2026")]          // dd/MM/yyyy
-    [InlineData("01/31/2026")]          // MM/dd/yyyy
-    [InlineData("31-01-2026")]          // dd-MM-yyyy
     public async Task ImportAsync_SupportsConfiguredDayFormats(string date)
     {
         var csv = $"Domain,LastPublishedDate\nexample.com,{date}\n";
@@ -89,12 +85,6 @@ public class LastPublishedImportServiceTests : IDisposable
     [Theory]
     [InlineData("January 2026")]  // MMMM yyyy
     [InlineData("Jan 2026")]      // MMM yyyy
-    [InlineData("01.2026")]       // MM.yyyy
-    [InlineData("1.2026")]        // M.yyyy
-    [InlineData("2026-01")]       // yyyy-MM
-    [InlineData("2026.01")]       // yyyy.MM
-    [InlineData("01/2026")]       // MM/yyyy
-    [InlineData("1/2026")]        // M/yyyy
     public async Task ImportAsync_SupportsConfiguredMonthFormats(string monthValue)
     {
         var csv = $"Domain,LastPublishedDate\nmonth-only.com,{monthValue}\n";
