@@ -350,19 +350,21 @@ export function Sites() {
       field: 'niche',
       headerName: 'Niche',
       width: 150,
+      sortable: false,
       valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
     },
     {
       field: 'categories',
       headerName: 'Categories',
       width: 150,
+      sortable: false,
       valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
     },
     {
       field: 'isQuarantined',
       headerName: 'Status',
       width: 100,
-      sortable: !isMultiSearchView,
+      sortable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => {
@@ -388,6 +390,7 @@ export function Sites() {
       field: 'quarantineReason',
       headerName: 'Quarantine reason',
       width: 160,
+      sortable: false,
       valueFormatter: (_value, row) => {
         if (isNotFoundRow(row)) return '—';
         const site = row as Site;
@@ -398,6 +401,7 @@ export function Sites() {
       field: 'lastPublishedDate',
       headerName: 'Last Published',
       width: 200,
+      sortable: false,
       valueFormatter: (_value, row) => {
         if (isNotFoundRow(row)) return '—';
         const site = row as Site;
