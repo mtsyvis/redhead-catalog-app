@@ -236,7 +236,7 @@ export const AdminUsers: React.FC = () => {
                   {isSuperAdmin && (
                     <TableCell align="right">
                       {u.isActive && canModifyUser(u.role) && (
-                        <>
+                        <Box sx={{ display: 'inline-flex', gap: 1 }}>
                           <BrandButton
                             kind="outline"
                             size="small"
@@ -257,7 +257,7 @@ export const AdminUsers: React.FC = () => {
                           >
                             Disable
                           </BrandButton>
-                        </>
+                        </Box>
                       )}
                     </TableCell>
                   )}
