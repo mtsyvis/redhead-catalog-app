@@ -179,7 +179,6 @@ export function Sites() {
         .finally(() => setMultiSearchLoading(false));
       return;
     }
-    loadSites();
   };
 
   const handleMultiSearchModeChange = (enabled: boolean) => {
@@ -386,17 +385,6 @@ export function Sites() {
       },
     },
     {
-      field: 'quarantineReason',
-      headerName: 'Quarantine reason',
-      width: 160,
-      sortable: false,
-      valueFormatter: (_value, row) => {
-        if (isNotFoundRow(row)) return '—';
-        const site = row as Site;
-        return site.isQuarantined ? (site.quarantineReason || '—') : '—';
-      },
-    },
-    {
       field: 'lastPublishedDate',
       headerName: 'Last Published',
       width: 200,
@@ -417,6 +405,21 @@ export function Sites() {
         return `${day}.${month}.${year}`;
       },
     },
+    ...(!isClient
+      ? [
+          {
+            field: 'quarantineReason',
+            headerName: 'Quarantine reason',
+            width: 160,
+            sortable: false,
+            valueFormatter: (_value, row) => {
+              if (isNotFoundRow(row)) return '—';
+              const site = row as Site;
+              return site.isQuarantined ? (site.quarantineReason || '—') : '—';
+            },
+          } as GridColDef<GridRow>,
+        ]
+      : []),
     ...(isAdmin
       ? [
           {
