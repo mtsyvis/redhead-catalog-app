@@ -6,7 +6,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { PageShell } from '../components/layout/PageShell';
 import { SitesFilters } from '../components/sites/SitesFilters';
 import { EditSiteDialog } from '../components/sites/EditSiteDialog';
-import { useAuth } from '../contexts/AuthContext';
+import { useUserRoles } from '../hooks/useUserRoles';
 import type {
   Site,
   SitesFilters as FiltersType,
@@ -87,8 +87,7 @@ export function Sites() {
     severity: 'success',
   });
 
-  const { user } = useAuth();
-  const isAdmin = user?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin') ?? false;
+  const { isAdmin, isClient } = useUserRoles();
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -465,6 +464,7 @@ export function Sites() {
           onApply={handleFiltersApply}
           multiSearchMode={multiSearchMode}
           onMultiSearchModeChange={handleMultiSearchModeChange}
+          canFilterQuarantine={!isClient}
         />
 
         {multiSearchResult && multiSearchResult.duplicates.length > 0 && (

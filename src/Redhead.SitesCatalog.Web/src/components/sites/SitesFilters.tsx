@@ -28,6 +28,7 @@ interface SitesFiltersProps {
   onApply: () => void;
   multiSearchMode?: boolean;
   onMultiSearchModeChange?: (enabled: boolean) => void;
+  canFilterQuarantine?: boolean;
 }
 
 const INITIAL_FILTERS: SitesFilters = {
@@ -51,6 +52,7 @@ export function SitesFilters({
   onApply,
   multiSearchMode = false,
   onMultiSearchModeChange,
+  canFilterQuarantine = true,
 }: SitesFiltersProps) {
   const [locations, setLocations] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -301,20 +303,24 @@ export function SitesFilters({
               </Box>
 
               {/* Quarantine Filter */}
-              <Box sx={{ flex: '1 1 400px' }}>
-                <FormControl component="fieldset">
-                  <FormLabel component="legend">Quarantine Status</FormLabel>
-                  <RadioGroup
-                    row
-                    value={filters.quarantine}
-                    onChange={(e) => handleChange('quarantine', e.target.value as 'all' | 'only' | 'exclude')}
-                  >
-                    <FormControlLabel value="all" control={<Radio />} label="All Sites" />
-                    <FormControlLabel value="exclude" control={<Radio />} label="Available Only" />
-                    <FormControlLabel value="only" control={<Radio />} label="Unavailable Only" />
-                  </RadioGroup>
-                </FormControl>
-              </Box>
+              {canFilterQuarantine && (
+                <Box sx={{ flex: '1 1 400px' }}>
+                  <FormControl component="fieldset">
+                    <FormLabel component="legend">Quarantine Status</FormLabel>
+                    <RadioGroup
+                      row
+                      value={filters.quarantine}
+                      onChange={(e) =>
+                        handleChange('quarantine', e.target.value as 'all' | 'only' | 'exclude')
+                      }
+                    >
+                      <FormControlLabel value="all" control={<Radio />} label="All Sites" />
+                      <FormControlLabel value="exclude" control={<Radio />} label="Available Only" />
+                      <FormControlLabel value="only" control={<Radio />} label="Unavailable Only" />
+                    </RadioGroup>
+                  </FormControl>
+                </Box>
+              )}
             </Box>
 
             {/* Action Buttons */}
