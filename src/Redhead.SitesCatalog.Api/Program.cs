@@ -55,17 +55,24 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 // Configure cookie authentication
 builder.Services.ConfigureApplicationCookie(options =>
 {
+    // Base lifetimes
+    var regularSessionLifetime = TimeSpan.FromHours(8);
+    var rememberMeSessionLifetime = TimeSpan.FromDays(7);
+
     options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() 
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
         ? CookieSecurePolicy.SameAsRequest  // Allow HTTP in development
         : CookieSecurePolicy.Always;        // Require HTTPS in production
     options.Cookie.SameSite = SameSiteMode.Lax;
-    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+
+    // Default lifetime for non-persistent cookies (no "Remember me")
+    options.ExpireTimeSpan = regularSessionLifetime;
     options.SlidingExpiration = true;
     options.LoginPath = "/api/auth/login";
     options.LogoutPath = "/api/auth/logout";
     options.AccessDeniedPath = "/api/auth/access-denied";
-    
+
+    // Ensure API returns proper status codes instead of redirects
     options.Events.OnRedirectToLogin = context =>
     {
         context.Response.StatusCode = 401;
@@ -74,6 +81,19 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Events.OnRedirectToAccessDenied = context =>
     {
         context.Response.StatusCode = 403;
+        return Task.CompletedTask;
+    };
+
+    // Extend cookie lifetime when "Remember me" is used (IsPersistent = true)
+    options.Events.OnSigningIn = context =>
+    {
+        if (context.Properties.IsPersistent)
+        {
+            var issuedUtc = context.Properties.IssuedUtc ?? DateTimeOffset.UtcNow;
+            context.Properties.IssuedUtc = issuedUtc;
+            context.Properties.ExpiresUtc = issuedUtc.Add(rememberMeSessionLifetime);
+        }
+
         return Task.CompletedTask;
     };
 });
