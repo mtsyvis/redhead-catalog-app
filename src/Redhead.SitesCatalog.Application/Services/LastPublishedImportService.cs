@@ -1,9 +1,10 @@
 using System.Globalization;
+using System.Text;
 using CsvHelper;
-using CsvHelper.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Application.Models.Import;
+using Redhead.SitesCatalog.Application.Services.Parsers;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -211,14 +212,8 @@ public class LastPublishedImportService : ILastPublishedImportService
 
     private static bool IsCsvFile(string fileName, string? contentType)
     {
-        var ext = Path.GetExtension(fileName ?? "").ToLowerInvariant();
-        if (ext == ImportConstants.CsvExtension)
-        {
-            return true;
-        }
-
-        return !string.IsNullOrEmpty(contentType) &&
-               contentType.StartsWith(ImportConstants.CsvContentType, StringComparison.OrdinalIgnoreCase);
+        return CsvImportHelper.IsCsvExtension(fileName)
+            || CsvImportHelper.IsCsvContentType(contentType);
     }
 
     private static async Task<Stream> EnsureSeekableAsync(Stream stream, CancellationToken ct)
@@ -248,22 +243,18 @@ public class LastPublishedImportService : ILastPublishedImportService
         LastPublishedImportResult result,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var reader = new StreamReader(stream, leaveOpen: true);
-        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            HasHeaderRecord = true,
-            MissingFieldFound = null,
-            BadDataFound = null,
-            TrimOptions = TrimOptions.Trim,
-        });
+        var delimiter = CsvImportHelper.GetDelimiter(stream, new[] { HeaderDomain, HeaderLastPublishedDate });
 
-        if (!await csv.ReadAsync())
+        using var streamReader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+        using var csvReader = new CsvReader(streamReader, CsvImportHelper.CreateConfiguration(delimiter));
+
+        if (!await csvReader.ReadAsync())
         {
             yield break;
         }
 
-        csv.ReadHeader();
-        var header = csv.HeaderRecord;
+        csvReader.ReadHeader();
+        var header = csvReader.HeaderRecord;
         if (header == null)
         {
             result.ErrorsCount++;
@@ -301,13 +292,13 @@ public class LastPublishedImportService : ILastPublishedImportService
         }
 
         var rowNumber = 1;
-        while (await csv.ReadAsync())
+        while (await csvReader.ReadAsync())
         {
             cancellationToken.ThrowIfCancellationRequested();
             rowNumber++;
 
-            var domain = GetField(csv, domainIndex);
-            var dateRaw = GetField(csv, dateIndex);
+            var domain = GetField(csvReader, domainIndex);
+            var dateRaw = GetField(csvReader, dateIndex);
 
             // Skip completely empty rows.
             if (string.IsNullOrWhiteSpace(domain) && string.IsNullOrWhiteSpace(dateRaw))

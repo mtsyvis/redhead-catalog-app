@@ -1,6 +1,5 @@
-using System.Globalization;
+using System.Text;
 using CsvHelper;
-using CsvHelper.Configuration;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Exceptions;
@@ -14,12 +13,7 @@ public class CsvSitesParser : IImportFileParser
 {
     public bool CanParse(string fileName, string? contentType)
     {
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            return false;
-        }
-
-        return IsCsvExtension(fileName) || IsCsvContentType(contentType);
+        return CsvImportHelper.IsCsvExtension(fileName) || CsvImportHelper.IsCsvContentType(contentType);
     }
 
     public async IAsyncEnumerable<SitesImportRowDto> ReadRowsAsync(
@@ -28,11 +22,10 @@ public class CsvSitesParser : IImportFileParser
     {
         EnsureStreamReadyForRead(stream);
 
-        // Excel / regional CSV exports often use ';' instead of ','
-        var delimiter = DetectDelimiter(stream);
+        var delimiter = CsvImportHelper.GetDelimiter(stream, ImportConstants.SitesImportRequiredColumnOrder);
 
-        using var reader = new StreamReader(stream, leaveOpen: true);
-        using var csv = CreateCsvReader(reader, delimiter);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+        using var csv = new CsvReader(reader, CsvImportHelper.CreateConfiguration(delimiter));
 
         var columnIndex = await ReadAndValidateHeaderAsync(csv, cancellationToken);
 
@@ -47,34 +40,6 @@ public class CsvSitesParser : IImportFileParser
                 name => GetFieldByColumn(csv, columnIndex, name),
                 rowNumber);
         }
-    }
-
-    private static bool IsCsvExtension(string fileName)
-    {
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        return ext == ImportConstants.CsvExtension;
-    }
-
-    private static bool IsCsvContentType(string? contentType)
-    {
-        // Browsers/OS can send different CSV content-types; we primarily rely on extension.
-        return !string.IsNullOrEmpty(contentType)
-            && contentType.StartsWith(ImportConstants.CsvContentType, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static CsvReader CreateCsvReader(StreamReader reader, string delimiter)
-    {
-        var config = new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            Delimiter = delimiter,
-            HasHeaderRecord = true,
-            MissingFieldFound = null,
-            BadDataFound = null,
-            HeaderValidated = null,
-            TrimOptions = TrimOptions.Trim,
-        };
-
-        return new CsvReader(reader, config);
     }
 
     private static async Task<IReadOnlyDictionary<string, int>> ReadAndValidateHeaderAsync(CsvReader csv, CancellationToken cancellationToken)
@@ -148,68 +113,5 @@ public class CsvSitesParser : IImportFileParser
     private static string? GetFieldByColumn(CsvReader csv, IReadOnlyDictionary<string, int> columnIndex, string columnName)
     {
         return columnIndex.TryGetValue(columnName, out var i) ? csv.GetField(i)?.Trim() : null;
-    }
-
-    private static string DetectDelimiter(Stream stream)
-    {
-        if (!stream.CanSeek)
-        {
-            return ",";
-        }
-
-        var pos = stream.Position;
-        try
-        {
-            using var reader = new StreamReader(stream, leaveOpen: true);
-            var headerLine = reader.ReadLine();
-            if (string.IsNullOrWhiteSpace(headerLine))
-            {
-                return ",";
-            }
-
-            // Prefer ';' if it matches the required header better
-            if (LooksLikeHeader(headerLine, ";"))
-            {
-                return ";";
-            }
-
-            if (LooksLikeHeader(headerLine, ","))
-            {
-                return ",";
-            }
-
-            // Fallback: choose the delimiter that appears more.
-            var commaCount = headerLine.Count(c => c == ',');
-            var semicolonCount = headerLine.Count(c => c == ';');
-            return semicolonCount > commaCount ? ";" : ",";
-        }
-        finally
-        {
-            stream.Seek(pos, SeekOrigin.Begin);
-        }
-    }
-
-    private static bool LooksLikeHeader(string headerLine, string delimiter)
-    {
-        var required = ImportConstants.SitesImportRequiredColumnOrder;
-        var parts = headerLine
-            .Split(delimiter)
-            .Select(p => p.Trim().Trim('"'))
-            .ToArray();
-
-        if (parts.Length < required.Length)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < required.Length; i++)
-        {
-            if (!string.Equals(parts[i], required[i], StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 }
