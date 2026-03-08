@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -39,14 +41,15 @@ public class ImportController : ControllerBase
         if (file == null || file.Length == 0)
         {
             _logger.LogWarning("Sites import: no file or empty file");
-            return BadRequest(new { error = "No file or empty file." });
+            return BadRequest(new ApiErrorResponse("No file or empty file.", StatusCodes.Status400BadRequest));
         }
 
         if (file.Length > ImportConstants.MaxSitesImportFileSizeBytes)
         {
             _logger.LogWarning("Sites import: file too large. FileName={FileName}, Length={Length}, MaxBytes={MaxBytes}",
                 file.FileName, file.Length, ImportConstants.MaxSitesImportFileSizeBytes);
-            return StatusCode(413, new { error = ImportConstants.FileTooLargeMessage });
+            return StatusCode(StatusCodes.Status413PayloadTooLarge,
+                new ApiErrorResponse(ImportConstants.FileTooLargeMessage, StatusCodes.Status413PayloadTooLarge));
         }
 
         if (!TryGetUserContext("Sites import", out var userId, out var userEmail, out var unauthorizedResult))
@@ -89,7 +92,7 @@ public class ImportController : ControllerBase
         if (file == null || file.Length == 0)
         {
             _logger.LogWarning("Quarantine import: no file or empty file");
-            return BadRequest(new { error = "No file or empty file." });
+            return BadRequest(new ApiErrorResponse("No file or empty file.", StatusCodes.Status400BadRequest));
         }
 
         if (file.Length > ImportConstants.MaxSitesImportFileSizeBytes)
@@ -97,7 +100,8 @@ public class ImportController : ControllerBase
             _logger.LogWarning(
                 "Quarantine import: file too large. FileName={FileName}, Length={Length}, MaxBytes={MaxBytes}",
                 file.FileName, file.Length, ImportConstants.MaxSitesImportFileSizeBytes);
-            return StatusCode(413, new { error = ImportConstants.FileTooLargeMessage });
+            return StatusCode(StatusCodes.Status413PayloadTooLarge,
+                new ApiErrorResponse(ImportConstants.FileTooLargeMessage, StatusCodes.Status413PayloadTooLarge));
         }
 
         if (!TryGetUserContext("Quarantine import", out var userId, out var userEmail, out var unauthorizedResult))
@@ -140,7 +144,7 @@ public class ImportController : ControllerBase
         if (file == null || file.Length == 0)
         {
             _logger.LogWarning("Last Published import: no file or empty file");
-            return BadRequest(new { error = "No file or empty file." });
+            return BadRequest(new ApiErrorResponse("No file or empty file.", StatusCodes.Status400BadRequest));
         }
 
         if (file.Length > ImportConstants.MaxSitesImportFileSizeBytes)
@@ -148,7 +152,8 @@ public class ImportController : ControllerBase
             _logger.LogWarning(
                 "Last Published import: file too large. FileName={FileName}, Length={Length}, MaxBytes={MaxBytes}",
                 file.FileName, file.Length, ImportConstants.MaxSitesImportFileSizeBytes);
-            return StatusCode(413, new { error = ImportConstants.FileTooLargeMessage });
+            return StatusCode(StatusCodes.Status413PayloadTooLarge,
+                new ApiErrorResponse(ImportConstants.FileTooLargeMessage, StatusCodes.Status413PayloadTooLarge));
         }
 
         if (!TryGetUserContext("Last Published import", out var userId, out var userEmail, out var unauthorizedResult))
@@ -199,7 +204,7 @@ public class ImportController : ControllerBase
         }
 
         _logger.LogWarning("{Operation}: user claims missing (UserId or Email)", operationName);
-        unauthorizedResult = Unauthorized(new { error = "User information not found." });
+        unauthorizedResult = Unauthorized(new ApiErrorResponse("User information not found.", StatusCodes.Status401Unauthorized));
         return false;
     }
 
@@ -221,7 +226,7 @@ public class ImportController : ControllerBase
                 file.FileName,
                 file.Length);
 
-            return (stream, BadRequest(new { error = "The file could not be read. Ensure the file is a valid CSV and try again." }));
+            return (stream, BadRequest(new ApiErrorResponse("The file could not be read. Ensure the file is a valid CSV and try again.", StatusCodes.Status400BadRequest)));
         }
 
         return (stream, null);

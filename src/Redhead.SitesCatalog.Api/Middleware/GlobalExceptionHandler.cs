@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Http;
+using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Exceptions;
 
@@ -12,6 +12,8 @@ namespace Redhead.SitesCatalog.Api.Middleware;
 /// </summary>
 public class GlobalExceptionHandler : IExceptionHandler
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly ILogger<GlobalExceptionHandler> _logger;
 
     public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
@@ -35,6 +37,7 @@ public class GlobalExceptionHandler : IExceptionHandler
             BadHttpRequestException badReq when badReq.StatusCode == StatusCodes.Status413PayloadTooLarge
                 => HttpStatusCode.RequestEntityTooLarge,
             ImportHeaderValidationException => HttpStatusCode.BadRequest,
+            ImportConcurrencyException => HttpStatusCode.Conflict,
             ExportDisabledException => HttpStatusCode.Forbidden,
             RoleSettingsNotFoundException => HttpStatusCode.InternalServerError,
             ArgumentException => HttpStatusCode.BadRequest,
@@ -44,24 +47,22 @@ public class GlobalExceptionHandler : IExceptionHandler
             _ => HttpStatusCode.InternalServerError
         };
 
-        var message = statusCode switch
+        var error = statusCode switch
         {
             HttpStatusCode.InternalServerError => "An unexpected error occurred. Please try again later.",
             HttpStatusCode.RequestEntityTooLarge => ImportConstants.FileTooLargeMessage,
             _ => exception.Message
         };
 
-        var response = new
-        {
-            message,
-            statusCode = (int)statusCode
-        };
+        var code = (int)statusCode;
+        var traceId = statusCode == HttpStatusCode.InternalServerError ? httpContext.TraceIdentifier : null;
+        var response = new ApiErrorResponse(error, code, traceId);
 
-        httpContext.Response.StatusCode = (int)statusCode;
+        httpContext.Response.StatusCode = code;
         httpContext.Response.ContentType = "application/json";
 
         await httpContext.Response.WriteAsync(
-            JsonSerializer.Serialize(response),
+            JsonSerializer.Serialize(response, JsonOptions),
             cancellationToken);
 
         return true;
