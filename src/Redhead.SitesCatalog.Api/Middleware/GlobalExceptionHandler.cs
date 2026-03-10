@@ -1,9 +1,11 @@
-using System.Net;
-using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Exceptions;
+using Redhead.SitesCatalog.Infrastructure.Exceptions;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 
 namespace Redhead.SitesCatalog.Api.Middleware;
 
@@ -32,27 +34,7 @@ public class GlobalExceptionHandler : IExceptionHandler
             httpContext.Request.Path,
             httpContext.Request.Method);
 
-        var statusCode = exception switch
-        {
-            BadHttpRequestException badReq when badReq.StatusCode == StatusCodes.Status413PayloadTooLarge
-                => HttpStatusCode.RequestEntityTooLarge,
-            ImportHeaderValidationException => HttpStatusCode.BadRequest,
-            ImportConcurrencyException => HttpStatusCode.Conflict,
-            ExportDisabledException => HttpStatusCode.Forbidden,
-            RoleSettingsNotFoundException => HttpStatusCode.InternalServerError,
-            ArgumentException => HttpStatusCode.BadRequest,
-            UnauthorizedAccessException => HttpStatusCode.Unauthorized,
-            KeyNotFoundException => HttpStatusCode.NotFound,
-            InvalidOperationException => HttpStatusCode.BadRequest,
-            _ => HttpStatusCode.InternalServerError
-        };
-
-        var error = statusCode switch
-        {
-            HttpStatusCode.InternalServerError => "An unexpected error occurred. Please try again later.",
-            HttpStatusCode.RequestEntityTooLarge => ImportConstants.FileTooLargeMessage,
-            _ => exception.Message
-        };
+        var (statusCode, error) = MapException(exception);
 
         var code = (int)statusCode;
         var traceId = statusCode == HttpStatusCode.InternalServerError ? httpContext.TraceIdentifier : null;
@@ -66,5 +48,42 @@ public class GlobalExceptionHandler : IExceptionHandler
             cancellationToken);
 
         return true;
+    }
+    private static (HttpStatusCode StatusCode, string Error) MapException(Exception exception)
+    {
+        return exception switch
+        {
+            BadHttpRequestException badReq when badReq.StatusCode == StatusCodes.Status413PayloadTooLarge
+                => (HttpStatusCode.RequestEntityTooLarge, ImportConstants.FileTooLargeMessage),
+
+            ImportHeaderValidationException ex
+                => (HttpStatusCode.BadRequest, ex.Message),
+
+            DecoderFallbackException
+                => (HttpStatusCode.BadRequest, "CSV must be UTF-8 encoded."),
+
+            ImportConcurrencyException ex
+                => (HttpStatusCode.Conflict, ex.Message),
+
+            ExportDisabledException ex
+                => (HttpStatusCode.Forbidden, ex.Message),
+
+            RoleSettingsNotFoundException
+                => (HttpStatusCode.InternalServerError, "An unexpected error occurred. Please try again later."),
+
+            ArgumentException ex
+                => (HttpStatusCode.BadRequest, ex.Message),
+
+            UnauthorizedAccessException ex
+                => (HttpStatusCode.Unauthorized, ex.Message),
+
+            KeyNotFoundException ex
+                => (HttpStatusCode.NotFound, ex.Message),
+
+            SeedDataException ex 
+                => (HttpStatusCode.InternalServerError, ex.Message),
+
+            _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred. Please try again later.")
+        };
     }
 }

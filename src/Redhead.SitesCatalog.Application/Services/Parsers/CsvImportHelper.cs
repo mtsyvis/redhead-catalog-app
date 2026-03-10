@@ -1,97 +1,22 @@
-using System.Text;
 using System.Globalization;
 using CsvHelper.Configuration;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Exceptions;
 
 namespace Redhead.SitesCatalog.Application.Services.Parsers;
 
 /// <summary>
-/// Shared helper for CSV imports: delimiter detection and CsvConfiguration.
+/// Shared helper for CSV imports (NO Stream logic here):
+/// - CSV content checks (filename/content-type)
+/// - delimiter detection from HEADER LINE string
+/// - CsvConfiguration factory
+/// - header normalization + strict ordered header validation
 /// </summary>
 public static class CsvImportHelper
 {
-    private const string CommaDelimiter = ",";
-    private const string SemicolonDelimiter = ";";
+    public const char CommaDelimiter = ',';
+    public const char SemicolonDelimiter = ';';
 
-    /// <summary>
-    /// Detects the CSV delimiter from the first line of the stream ("," or ";").
-    /// Stream position is restored to its original value on exit.
-    /// </summary>
-    public static string GetDelimiter(Stream stream, string[]? expectedHeaderColumns = null)
-    {
-        if (!stream.CanSeek)
-        {
-            return CommaDelimiter;
-        }
-
-        var originalPosition = stream.Position;
-
-        try
-        {
-            return DetectDelimiterFromFirstLine(stream, expectedHeaderColumns);
-        }
-        finally
-        {
-            if (stream.CanSeek)
-            {
-                stream.Position = originalPosition;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Creates a CsvConfiguration with shared options and the specified delimiter.
-    /// </summary>
-    public static CsvConfiguration CreateConfiguration(string delimiter)
-    {
-        return new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            Delimiter = delimiter,
-            HasHeaderRecord = true,
-            MissingFieldFound = null,
-            BadDataFound = null,
-            HeaderValidated = null,
-            TrimOptions = TrimOptions.Trim,
-        };
-    }
-
-    private static string DetectDelimiterFromFirstLine(Stream stream, string[]? expectedHeaderColumns)
-    {
-        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 1024, leaveOpen: true);
-        var headerLine = reader.ReadLine();
-
-        if (string.IsNullOrWhiteSpace(headerLine))
-        {
-            return CommaDelimiter;
-        }
-
-        if (expectedHeaderColumns is { Length: > 0 })
-        {
-            if (LooksLikeHeader(headerLine, SemicolonDelimiter, expectedHeaderColumns))
-            {
-                return SemicolonDelimiter;
-            }
-
-            if (LooksLikeHeader(headerLine, CommaDelimiter, expectedHeaderColumns))
-            {
-                return CommaDelimiter;
-            }
-        }
-
-        var commaCount = headerLine.Count(c => c == CommaDelimiter[0]);
-        var semicolonCount = headerLine.Count(c => c == SemicolonDelimiter[0]);
-
-        if (semicolonCount > commaCount)
-        {
-            return SemicolonDelimiter;
-        }
-
-        return CommaDelimiter;
-    }
-
-    /// <summary>
-    /// Returns true when the file name has the configured CSV extension.
-    /// </summary>
     public static bool IsCsvExtension(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))
@@ -103,30 +28,138 @@ public static class CsvImportHelper
         return ext == ImportConstants.CsvExtension;
     }
 
-    /// <summary>
-    /// Returns true when the content-type looks like a CSV content-type.
-    /// </summary>
     public static bool IsCsvContentType(string? contentType)
     {
         return !string.IsNullOrEmpty(contentType)
-            && contentType.StartsWith(ImportConstants.CsvContentType, StringComparison.OrdinalIgnoreCase);
+               && contentType.StartsWith(ImportConstants.CsvContentType, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool LooksLikeHeader(string headerLine, string delimiter, string[] requiredColumns)
+    public static CsvConfiguration CreateConfiguration(char delimiter)
     {
-        var parts = headerLine
-            .Split(delimiter)
-            .Select(p => p.Trim().Trim('"'))
-            .ToArray();
+        return new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            Delimiter = delimiter.ToString(),
+            HasHeaderRecord = true,
 
-        if (parts.Length < requiredColumns.Length)
+            // We validate header/rows ourselves with user-facing messages.
+            HeaderValidated = null,
+            MissingFieldFound = null,
+            BadDataFound = null,
+
+            TrimOptions = TrimOptions.Trim,
+
+            // Make header matching resilient to whitespace/quotes/BOM.
+            PrepareHeaderForMatch = args => NormalizeHeader(args.Header)
+        };
+    }
+
+    /// <summary>
+    /// Detect delimiter from the header line string (only ',' or ';').
+    /// Prefer strict match to the expected header order; otherwise fallback by counting separators.
+    /// </summary>
+    public static char DetectDelimiterFromHeaderLine(string headerLine, string[] expectedHeaderColumnsInOrder)
+    {
+        if (string.IsNullOrWhiteSpace(headerLine))
+        {
+            return CommaDelimiter;
+        }
+
+        if (expectedHeaderColumnsInOrder is { Length: > 0 })
+        {
+            if (LooksLikeHeader(headerLine, SemicolonDelimiter, expectedHeaderColumnsInOrder))
+            {
+                return SemicolonDelimiter;
+            }
+
+            if (LooksLikeHeader(headerLine, CommaDelimiter, expectedHeaderColumnsInOrder))
+            {
+                return CommaDelimiter;
+            }
+        }
+
+        // Fallback: pick the most frequent delimiter in the header line.
+        var commaCount = 0;
+        var semicolonCount = 0;
+
+        foreach (var ch in headerLine)
+        {
+            if (ch == CommaDelimiter)
+            {
+                commaCount++;
+            }
+            else if (ch == SemicolonDelimiter)
+            {
+                semicolonCount++;
+            }
+        }
+
+        return semicolonCount > commaCount ? SemicolonDelimiter : CommaDelimiter;
+    }
+
+    /// <summary>
+    /// Strict ordered header validation: required columns must exist in EXACT order in the first N columns.
+    /// Extra columns after required are allowed.
+    /// </summary>
+    public static void ValidateHeaderStrictOrThrow(string[] actualHeader, string[] requiredHeaderOrder)
+    {
+        if (requiredHeaderOrder is null || requiredHeaderOrder.Length == 0)
+        {
+            throw new ArgumentException("Required header order must be provided.", nameof(requiredHeaderOrder));
+        }
+
+        actualHeader ??= Array.Empty<string>();
+
+        if (actualHeader.Length < requiredHeaderOrder.Length)
+        {
+            throw new ImportHeaderValidationException(
+                $"CSV header is invalid. Missing required columns. Expected in order: {string.Join(", ", requiredHeaderOrder)}. " +
+                $"Found {actualHeader.Length} column(s).");
+        }
+
+        for (var i = 0; i < requiredHeaderOrder.Length; i++)
+        {
+            var expected = requiredHeaderOrder[i];
+            var actual = NormalizeHeader(actualHeader[i]);
+
+            if (string.IsNullOrEmpty(actual))
+            {
+                throw new ImportHeaderValidationException(
+                    $"CSV header is invalid. Column {i + 1} must be '{expected}'. Found empty.");
+            }
+
+            if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ImportHeaderValidationException(
+                    $"CSV header is invalid. Column {i + 1} must be '{expected}'. Found: '{actual}'.");
+            }
+        }
+    }
+
+    public static string NormalizeHeader(string? value)
+    {
+        // Also trims UTF-8 BOM char if it appears as the first character in the first header cell.
+        return (value ?? string.Empty)
+            .Trim()
+            .Trim('"')
+            .Trim()
+            .TrimStart('\uFEFF');
+    }
+
+    private static bool LooksLikeHeader(string headerLine, char delimiter, string[] expectedColumnsInOrder)
+    {
+        var parts = headerLine.Split(delimiter);
+
+        if (parts.Length < expectedColumnsInOrder.Length)
         {
             return false;
         }
 
-        for (var i = 0; i < requiredColumns.Length; i++)
+        for (var i = 0; i < expectedColumnsInOrder.Length; i++)
         {
-            if (!string.Equals(parts[i], requiredColumns[i], StringComparison.OrdinalIgnoreCase))
+            var actual = NormalizeHeader(parts[i]);
+            var expected = NormalizeHeader(expectedColumnsInOrder[i]);
+
+            if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }

@@ -5,64 +5,84 @@ using Redhead.SitesCatalog.Domain.Constants;
 namespace Redhead.SitesCatalog.Application.Services.Parsers;
 
 /// <summary>
-/// Maps a row of column values to SitesImportRowDto. Shared by CSV and (future) XLSX parsers.
+/// Provides functionality to map imported site data rows to strongly typed data transfer objects for further
+/// processing.
 /// </summary>
+/// <remarks>This class is intended for use when importing site data from external sources, such as CSV or
+/// spreadsheet files. It extracts and parses column values using provided delegates and maps them to a structured
+/// format. All members are static and thread safe.</remarks>
 public static class SitesImportRowMapper
 {
-    /// <summary>
-    /// Builds a DTO from a getter that returns the raw string value for a column name.
-    /// </summary>
     public static SitesImportRowDto Map(Func<string, string?> getValue, int rowNumber)
     {
-        string? Get(string name) => getValue(name);
-
-        static decimal? ParseDecimalFlexible(string? s)
-        {
-            if (string.IsNullOrWhiteSpace(s))
-            {
-                return null;
-            }
-
-            return DecimalParsingHelper.TryParseDecimalFlexible(s, out var value) ? value : null;
-        }
-
-        static long? ParseLong(string? s)
-        {
-            if (string.IsNullOrWhiteSpace(s))
-            {
-                return null;
-            }
-
-            s = s.Trim();
-
-            if (long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
-            {
-                return v;
-            }
-
-            // Some exports may format integers as "123.0". Try double then cast.
-            if (double.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var d))
-            {
-                return (long)d;
-            }
-
-            return null;
-        }
+        var domain = getValue(ImportConstants.SitesImportColumns.Domain);
+        var drRaw = getValue(ImportConstants.SitesImportColumns.DR);
+        var trafficRaw = getValue(ImportConstants.SitesImportColumns.Traffic);
+        var location = getValue(ImportConstants.SitesImportColumns.Location);
+        var priceUsdRaw = getValue(ImportConstants.SitesImportColumns.PriceUsd);
+        var priceCasinoRaw = getValue(ImportConstants.SitesImportColumns.PriceCasino);
+        var priceCryptoRaw = getValue(ImportConstants.SitesImportColumns.PriceCrypto);
+        var priceLinkInsertRaw = getValue(ImportConstants.SitesImportColumns.PriceLinkInsert);
+        var niche = getValue(ImportConstants.SitesImportColumns.Niche);
+        var categories = getValue(ImportConstants.SitesImportColumns.Categories);
 
         return new SitesImportRowDto
         {
             RowNumber = rowNumber,
-            Domain = Get(ImportConstants.SitesImportColumns.Domain),
-            DRRaw = Get(ImportConstants.SitesImportColumns.DR),
-            DR = ParseDecimalFlexible(Get(ImportConstants.SitesImportColumns.DR)) is { } dr ? (double?)dr : null,
-            Traffic = ParseLong(Get(ImportConstants.SitesImportColumns.Traffic)),
-            Location = Get(ImportConstants.SitesImportColumns.Location),
-            PriceUsd = ParseDecimalFlexible(Get(ImportConstants.SitesImportColumns.PriceUsd)),
-            PriceCasino = ParseDecimalFlexible(Get(ImportConstants.SitesImportColumns.PriceCasino)),
-            PriceCrypto = ParseDecimalFlexible(Get(ImportConstants.SitesImportColumns.PriceCrypto)),
-            PriceLinkInsert = ParseDecimalFlexible(Get(ImportConstants.SitesImportColumns.PriceLinkInsert)),
-            Niche = Get(ImportConstants.SitesImportColumns.Niche),
-            Categories = Get(ImportConstants.SitesImportColumns.Categories),
+            Domain = domain,
+            DRRaw = drRaw,
+            DR = ParseNullableDouble(drRaw),
+            Traffic = ParseNullableLong(trafficRaw),
+            Location = location,
+            PriceUsd = ParseNullableDecimal(priceUsdRaw),
+            PriceCasino = ParseNullableDecimal(priceCasinoRaw),
+            PriceCrypto = ParseNullableDecimal(priceCryptoRaw),
+            PriceLinkInsert = ParseNullableDecimal(priceLinkInsertRaw),
+            Niche = niche,
+            Categories = categories
         };
+    }
+
+    private static decimal? ParseNullableDecimal(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return DecimalParsingHelper.TryParseDecimalFlexible(value, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static double? ParseNullableDouble(string? value)
+    {
+        var parsed = ParseNullableDecimal(value);
+        return parsed is null ? null : (double)parsed.Value;
+    }
+
+    private static long? ParseNullableLong(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+
+        if (long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var longValue))
+        {
+            return longValue;
+        }
+
+        if (decimal.TryParse(trimmed, NumberStyles.Number, CultureInfo.InvariantCulture, out var decimalValue)
+            && decimalValue % 1 == 0
+            && decimalValue >= long.MinValue
+            && decimalValue <= long.MaxValue)
+        {
+            return (long)decimalValue;
+        }
+
+        return null;
     }
 }

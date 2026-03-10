@@ -1,34 +1,41 @@
+using CsvHelper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Application.Models.Import;
+using Redhead.SitesCatalog.Application.Services.Parsers;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
 /// <summary>
-/// Service for sites add-only import from CSV.
-/// Designed to handle large files (e.g., 60k rows) efficiently.
+/// Add-only sites import from CSV with strict header order.
+/// Processing model:
+/// 1) Parse rows and build per-domain site map (last valid row wins)
+/// 2) Load existing sites only for domains present in the file
+/// 3) Insert only new sites in batches inside a single transaction
 /// </summary>
-public class SitesImportService : ISitesImportService
+public sealed class SitesImportService : ISitesImportService
 {
-    // Caps are important: returning tens of thousands of errors/duplicates will create huge JSON responses.
     private const int MaxErrorDetails = 200;
     private const int MaxDuplicateDetails = 200;
 
+    private static readonly IReadOnlyDictionary<string, int> ColumnIndexes =
+        ImportConstants.SitesImportRequiredColumnOrder
+            .Select((name, index) => new { name, index })
+            .ToDictionary(x => x.name, x => x.index, StringComparer.Ordinal);
+
     private readonly ApplicationDbContext _context;
-    private readonly IEnumerable<IImportFileParser> _parsers;
     private readonly ILogger<SitesImportService> _logger;
 
     public SitesImportService(
         ApplicationDbContext context,
-        IEnumerable<IImportFileParser> parsers,
         ILogger<SitesImportService> logger)
     {
         _context = context;
-        _parsers = parsers;
         _logger = logger;
     }
 
@@ -42,155 +49,210 @@ public class SitesImportService : ISitesImportService
     {
         _logger.LogInformation(
             "Sites import started. FileName={FileName}, UserId={UserId}, UserEmail={UserEmail}",
-            fileName, userId, userEmail);
+            fileName,
+            userId,
+            userEmail);
 
-        var parser = _parsers.FirstOrDefault(p => p.CanParse(fileName, contentType));
-        if (parser == null)
+        if (!IsCsvFile(fileName, contentType))
         {
             _logger.LogWarning(
                 "Sites import rejected: unsupported file type. FileName={FileName}, ContentType={ContentType}",
-                fileName, contentType);
+                fileName,
+                contentType);
+
             return SitesImportResult.UnsupportedFileType();
         }
 
         var result = new SitesImportResult();
-        var batch = new List<Site>(ImportConstants.SitesImportBatchSize);
 
-        var existingDomains = await LoadExistingDomainsAsync(cancellationToken);
+        // Phase 1: parse CSV rows and build per-domain map (last valid row wins)
+        var parsedSitesByDomain = new Dictionary<string, Site>(StringComparer.Ordinal);
 
-        await ProcessRowsAsync(parser, fileStream, result, existingDomains, batch, cancellationToken);
+        await using (var session = await CsvImportSession.OpenAsync(
+                         fileStream,
+                         expectedHeaderColumnsForDelimiterDetection: ImportConstants.SitesImportRequiredColumnOrder,
+                         requiredHeadersInStrictOrder: ImportConstants.SitesImportRequiredColumnOrder,
+                         ct: cancellationToken))
+        {
+            await foreach (var row in ReadRowsAsync(session.Csv, cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-        await FlushRemainingBatchAsync(batch, result, cancellationToken);
-        await SaveImportLogAsync(result, userId, userEmail, cancellationToken);
+                var validation = ValidateAndMapRow(row);
+                if (validation.Error is not null)
+                {
+                    AddError(result, validation.Error);
+                    continue;
+                }
+
+                if (validation.Site is null)
+                {
+                    continue;
+                }
+
+                var domain = validation.Site.Domain;
+
+                if (parsedSitesByDomain.ContainsKey(domain))
+                {
+                    AddDuplicate(result, domain);
+                }
+
+                parsedSitesByDomain[domain] = validation.Site;
+            }
+        }
+
+        // Nothing to insert, but still persist import log for traceability.
+        if (parsedSitesByDomain.Count == 0)
+        {
+            await SaveImportLogOnlyAsync(result, userId, userEmail, cancellationToken);
+
+            _logger.LogInformation(
+                "Sites import completed with no valid rows. Inserted={Inserted}, Duplicates={Duplicates}, Errors={Errors}, UserId={UserId}",
+                result.Inserted,
+                result.DuplicatesCount,
+                result.ErrorsCount,
+                userId);
+
+            return result;
+        }
+
+        // Phase 2: load existing domains only for domains present in the file
+        var inputDomains = parsedSitesByDomain.Keys.ToList();
+        var existingDomainsInDb = await LoadExistingDomainsAsync(inputDomains, cancellationToken);
+
+        var sitesToInsert = new List<Site>(parsedSitesByDomain.Count);
+
+        foreach (var (domain, site) in parsedSitesByDomain)
+        {
+            if (existingDomainsInDb.Contains(domain))
+            {
+                AddDuplicate(result, domain);
+                continue;
+            }
+
+            sitesToInsert.Add(site);
+        }
+
+        // Phase 3: insert new sites in batches inside a single transaction
+        try
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+            await InsertSitesInBatchesAsync(sitesToInsert, result, cancellationToken);
+            AddImportLog(result, userId, userEmail);
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "Sites import failed due to DB update error. FileName={FileName}, UserId={UserId}", fileName, userId);
+
+            // This is the clean behavior for rare concurrent imports / unique constraint races.
+            throw new ImportConcurrencyException("Sites import could not be completed because the data was modified concurrently. Please try again later.");
+        }
 
         _logger.LogInformation(
             "Sites import completed. Inserted={Inserted}, Duplicates={Duplicates}, Errors={Errors}, UserId={UserId}",
-            result.Inserted, result.DuplicatesCount, result.ErrorsCount, userId);
+            result.Inserted,
+            result.DuplicatesCount,
+            result.ErrorsCount,
+            userId);
 
         return result;
     }
 
-    private async Task<HashSet<string>> LoadExistingDomainsAsync(CancellationToken cancellationToken)
-    {
-        var rawDomains = await _context.Sites
-            .AsNoTracking()
-            .Select(s => s.Domain)
-            .ToListAsync(cancellationToken);
+    private static bool IsCsvFile(string fileName, string? contentType)
+        => CsvImportHelper.IsCsvExtension(fileName) || CsvImportHelper.IsCsvContentType(contentType);
 
-        return rawDomains
-            .Select(DomainNormalizer.Normalize)
-            .Where(d => !string.IsNullOrEmpty(d))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private async Task ProcessRowsAsync(
-        IImportFileParser parser,
-        Stream fileStream,
-        SitesImportResult result,
-        HashSet<string> existingDomains,
-        List<Site> batch,
-        CancellationToken cancellationToken)
+    private static async IAsyncEnumerable<SitesImportRowDto> ReadRowsAsync(
+        CsvReader csv,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var row in parser.ReadRowsAsync(fileStream, cancellationToken))
+        // Row 1 = header
+        var rowNumber = 1;
+
+        while (await csv.ReadAsync().ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            rowNumber++;
 
-            var validation = ValidateAndMapRow(row);
-            if (validation.Error is not null)
-            {
-                result.ErrorsCount++;
-
-                // Keep only first N details to avoid huge responses.
-                if (result.Errors.Count < MaxErrorDetails)
-                {
-                    result.Errors.Add(validation.Error);
-                }
-
-                continue;
-            }
-
-            if (validation.Site is null)
-            {
-                continue;
-            }
-
-            var domain = validation.Site.Domain;
-            if (existingDomains.Contains(domain))
-            {
-                result.DuplicatesCount++;
-
-                // Keep only first N details to avoid huge responses.
-                if (result.Duplicates.Count < MaxDuplicateDetails)
-                {
-                    result.Duplicates.Add(domain);
-                }
-
-                continue;
-            }
-
-            existingDomains.Add(domain);
-            batch.Add(validation.Site);
-
-            if (batch.Count >= ImportConstants.SitesImportBatchSize)
-            {
-                await FlushBatchAndAccumulateAsync(batch, result, cancellationToken);
-            }
+            yield return SitesImportRowMapper.Map(
+                columnName => csv.GetField(ColumnIndexes[columnName])?.Trim(),
+                rowNumber);
         }
     }
 
-    private async Task FlushRemainingBatchAsync(
-        List<Site> batch,
+    private async Task<HashSet<string>> LoadExistingDomainsAsync(
+        List<string> domains,
+        CancellationToken cancellationToken)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var chunk in Chunk(domains, ImportConstants.SitesImportBatchSize))
+        {
+            var existing = await _context.Sites
+                .AsNoTracking()
+                .Where(s => chunk.Contains(s.Domain))
+                .Select(s => s.Domain)
+                .ToListAsync(cancellationToken);
+
+            foreach (var domain in existing)
+            {
+                result.Add(domain);
+            }
+        }
+
+        return result;
+    }
+
+    private async Task InsertSitesInBatchesAsync(
+        List<Site> sitesToInsert,
         SitesImportResult result,
         CancellationToken cancellationToken)
     {
-        if (batch.Count == 0)
+        if (sitesToInsert.Count == 0)
         {
             return;
         }
 
-        await FlushBatchAndAccumulateAsync(batch, result, cancellationToken);
-    }
-
-    private async Task FlushBatchAndAccumulateAsync(
-        List<Site> batch,
-        SitesImportResult result,
-        CancellationToken cancellationToken)
-    {
-        // Performance: disable AutoDetectChanges for bulk inserts.
-        var prevAutoDetect = _context.ChangeTracker.AutoDetectChangesEnabled;
+        var previousAutoDetectChanges = _context.ChangeTracker.AutoDetectChangesEnabled;
         _context.ChangeTracker.AutoDetectChangesEnabled = false;
 
         try
         {
-            await _context.Sites.AddRangeAsync(batch, cancellationToken);
-
-            try
+            foreach (var chunk in Chunk(sitesToInsert, ImportConstants.SitesImportBatchSize))
             {
-                // No retry by design. If this throws, investigate the DB error (e.g., invalid data or concurrent import).
+                await _context.Sites.AddRangeAsync(chunk, cancellationToken);
                 await _context.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "Sites import batch insert failed. BatchSize={BatchSize}", batch.Count);
-                throw;
-            }
 
-            result.Inserted += batch.Count;
+                result.Inserted += chunk.Count;
+
+                // Important for large imports to avoid growing the tracker across batches.
+                _context.ChangeTracker.Clear();
+            }
         }
         finally
         {
-            // Critical for large imports: prevent ChangeTracker from growing unbounded.
-            _context.ChangeTracker.Clear();
-            _context.ChangeTracker.AutoDetectChangesEnabled = prevAutoDetect;
-            batch.Clear();
+            _context.ChangeTracker.AutoDetectChangesEnabled = previousAutoDetectChanges;
         }
     }
 
-    private async Task SaveImportLogAsync(
+    private async Task SaveImportLogOnlyAsync(
         SitesImportResult result,
         string userId,
         string userEmail,
         CancellationToken cancellationToken)
+    {
+        AddImportLog(result, userId, userEmail);
+        await _context.SaveChangesAsync(cancellationToken);
+        _context.ChangeTracker.Clear();
+    }
+
+    private void AddImportLog(
+        SitesImportResult result,
+        string userId,
+        string userEmail)
     {
         var log = new ImportLog
         {
@@ -207,10 +269,6 @@ public class SitesImportService : ISitesImportService
         };
 
         _context.ImportLogs.Add(log);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // Keep the context clean for the next request.
-        _context.ChangeTracker.Clear();
     }
 
     private static RowValidationResult ValidateAndMapRow(SitesImportRowDto row)
@@ -222,18 +280,30 @@ public class SitesImportService : ISitesImportService
 
         if (string.IsNullOrWhiteSpace(row.Domain))
         {
-            return RowValidationResult.Fail(new SitesImportError { RowNumber = row.RowNumber, Message = "Domain is required." });
+            return RowValidationResult.Fail(new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Message = "Domain is required."
+            });
         }
 
         var domain = DomainNormalizer.Normalize(row.Domain);
         if (string.IsNullOrEmpty(domain))
         {
-            return RowValidationResult.Fail(new SitesImportError { RowNumber = row.RowNumber, Message = "Domain could not be normalized." });
+            return RowValidationResult.Fail(new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Message = "Domain could not be normalized."
+            });
         }
 
         if (row.PriceUsd is null || row.PriceUsd < 0)
         {
-            return RowValidationResult.Fail(new SitesImportError { RowNumber = row.RowNumber, Message = "Price USD is required and must be >= 0." });
+            return RowValidationResult.Fail(new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Message = "Price USD is required and must be >= 0."
+            });
         }
 
         if (string.IsNullOrWhiteSpace(row.DRRaw))
@@ -271,22 +341,38 @@ public class SitesImportService : ISitesImportService
 
         if (row.Traffic is null || row.Traffic < 0)
         {
-            return RowValidationResult.Fail(new SitesImportError { RowNumber = row.RowNumber, Message = "Traffic is required and must be >= 0." });
+            return RowValidationResult.Fail(new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Message = "Traffic is required and must be >= 0."
+            });
         }
 
         if (row.PriceCasino is not null && row.PriceCasino < 0)
         {
-            return RowValidationResult.Fail(new SitesImportError { RowNumber = row.RowNumber, Message = "PriceCasino must be >= 0 or empty." });
+            return RowValidationResult.Fail(new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Message = "PriceCasino must be >= 0 or empty."
+            });
         }
 
         if (row.PriceCrypto is not null && row.PriceCrypto < 0)
         {
-            return RowValidationResult.Fail(new SitesImportError { RowNumber = row.RowNumber, Message = "PriceCrypto must be >= 0 or empty." });
+            return RowValidationResult.Fail(new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Message = "PriceCrypto must be >= 0 or empty."
+            });
         }
 
         if (row.PriceLinkInsert is not null && row.PriceLinkInsert < 0)
         {
-            return RowValidationResult.Fail(new SitesImportError { RowNumber = row.RowNumber, Message = "PriceLinkInsert must be >= 0 or empty." });
+            return RowValidationResult.Fail(new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Message = "PriceLinkInsert must be >= 0 or empty."
+            });
         }
 
         var site = BuildSiteFromRow(row, domain);
@@ -310,6 +396,7 @@ public class SitesImportService : ISitesImportService
     private static Site BuildSiteFromRow(SitesImportRowDto row, string domain)
     {
         var now = DateTime.UtcNow;
+
         return new Site
         {
             Domain = domain,
@@ -328,5 +415,40 @@ public class SitesImportService : ISitesImportService
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
+    }
+
+    private static IEnumerable<List<T>> Chunk<T>(List<T> source, int size)
+    {
+        for (var i = 0; i < source.Count; i += size)
+        {
+            yield return source.GetRange(i, Math.Min(size, source.Count - i));
+        }
+    }
+
+    private static void AddError(SitesImportResult result, SitesImportError error)
+    {
+        result.ErrorsCount++;
+
+        if (result.Errors.Count < MaxErrorDetails)
+        {
+            result.Errors.Add(error);
+        }
+    }
+
+    private static void AddDuplicate(SitesImportResult result, string domain)
+    {
+        result.DuplicatesCount++;
+
+        if (result.Duplicates.Count < MaxDuplicateDetails)
+        {
+            result.Duplicates.Add(domain);
+        }
+    }
+
+    private sealed record RowValidationResult(Site? Site, SitesImportError? Error)
+    {
+        public static RowValidationResult Ok(Site site) => new(site, null);
+        public static RowValidationResult Fail(SitesImportError error) => new(null, error);
+        public static RowValidationResult Skip() => new(null, null);
     }
 }

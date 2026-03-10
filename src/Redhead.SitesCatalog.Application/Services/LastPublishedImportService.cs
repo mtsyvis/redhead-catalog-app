@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Text;
-using CsvHelper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Application.Models.Import;
@@ -13,33 +11,38 @@ using Redhead.SitesCatalog.Infrastructure.Data;
 namespace Redhead.SitesCatalog.Application.Services;
 
 /// <summary>
-/// Implements Last Published Date import from CSV (Domain, LastPublishedDate).
-/// Matching rule: exact match by normalized domain string.
+/// Imports LastPublishedDate updates from CSV with strict header order:
+/// Domain, LastPublishedDate
+/// Matching rule: exact match by normalized domain.
+/// Processing model:
+/// 1) Parse rows and build per-domain update map (last row wins)
+/// 2) Load Sites in batches
+/// 3) Apply updates and persist once
 /// </summary>
-public class LastPublishedImportService : ILastPublishedImportService
+public sealed class LastPublishedImportService : ILastPublishedImportService
 {
     private const int BatchSize = 1000;
-
-    private readonly ApplicationDbContext _context;
-    private readonly ILogger<LastPublishedImportService> _logger;
 
     private const string HeaderDomain = "Domain";
     private const string HeaderLastPublishedDate = "LastPublishedDate";
 
-    private static readonly string[] DayFormats =
+    private static readonly string[] RequiredHeaderOrder =
     {
-        "dd.MM.yyyy"
+        HeaderDomain,
+        HeaderLastPublishedDate
     };
 
-    private static readonly string[] MonthFormats =
-    {
-        "MMMM yyyy",
-        "MMM yyyy"
-    };
+    private static readonly string[] DayFormats = { "dd.MM.yyyy" };
+    private static readonly string[] MonthFormats = { "MMMM yyyy", "MMM yyyy" };
 
-    private sealed record ParsedUpdate(int RowNumber, DateTime? DateUtc, bool IsMonthOnly);
+    private readonly ApplicationDbContext _context;
+    private readonly ILogger<LastPublishedImportService> _logger;
 
-    public LastPublishedImportService(ApplicationDbContext context, ILogger<LastPublishedImportService> logger)
+    private sealed record ParsedUpdate(DateTime DateUtc, bool IsMonthOnly);
+
+    public LastPublishedImportService(
+        ApplicationDbContext context,
+        ILogger<LastPublishedImportService> logger)
     {
         _context = context;
         _logger = logger;
@@ -54,21 +57,28 @@ public class LastPublishedImportService : ILastPublishedImportService
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Last Published import started. FileName={FileName}, UserId={UserId}, UserEmail={UserEmail}",
-            fileName, userId, userEmail);
+            "LastPublished import started. FileName={FileName}, UserId={UserId}, UserEmail={UserEmail}",
+            fileName,
+            userId,
+            userEmail);
 
         if (!IsCsvFile(fileName, contentType))
         {
             _logger.LogWarning(
-                "Last Published import rejected: not CSV. FileName={FileName}, ContentType={ContentType}",
-                fileName, contentType);
+                "LastPublished import rejected: not CSV. FileName={FileName}, ContentType={ContentType}",
+                fileName,
+                contentType);
 
             return new LastPublishedImportResult
             {
                 ErrorsCount = 1,
-                Errors = new List<LastPublishedImportError>
+                Errors =
                 {
-                    new() { RowNumber = 0, Message = "Unsupported file type. Use CSV." }
+                    new LastPublishedImportError
+                    {
+                        RowNumber = 0,
+                        Message = "Unsupported file type. Use CSV."
+                    }
                 }
             };
         }
@@ -76,64 +86,77 @@ public class LastPublishedImportService : ILastPublishedImportService
         var result = new LastPublishedImportResult();
         var now = DateTime.UtcNow;
 
-        // Make sure we can read the stream from the beginning (some streams are not seekable).
-        await using var seekableStream = await EnsureSeekableAsync(fileStream, cancellationToken);
-
-        // Phase 1: parse the CSV into memory (also lets us detect duplicates).
+        // Phase 1: parse CSV rows and build per-domain update map (last row wins)
         var updates = new Dictionary<string, ParsedUpdate>(StringComparer.Ordinal);
         var duplicates = 0;
 
-        await foreach (var (rowNumber, domain, dateRaw) in ReadRowsAsync(seekableStream, result, cancellationToken))
+        await using (var session = await CsvImportSession.OpenAsync(
+                         fileStream,
+                         expectedHeaderColumnsForDelimiterDetection: RequiredHeaderOrder,
+                         requiredHeadersInStrictOrder: RequiredHeaderOrder,
+                         ct: cancellationToken))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var normalized = DomainNormalizer.Normalize(domain);
-            if (string.IsNullOrEmpty(normalized))
+            await foreach (var (rowNumber, domain, rawDate) in ReadRowsAsync(session.Csv, cancellationToken))
             {
-                result.ErrorsCount++;
-                result.Errors.Add(new LastPublishedImportError
-                {
-                    RowNumber = rowNumber,
-                    Message = "Domain is required and cannot be empty after normalization."
-                });
-                continue;
-            }
+                cancellationToken.ThrowIfCancellationRequested();
 
-            DateTime? parsedDate = null;
-            bool isMonthOnly = false;
-
-            if (!string.IsNullOrWhiteSpace(dateRaw))
-            {
-                if (!TryParseLastPublishedDate(dateRaw.Trim(), out var parsedValue, out var parsedIsMonthOnly, out var parseError))
+                var normalizedDomain = DomainNormalizer.Normalize(domain);
+                if (string.IsNullOrEmpty(normalizedDomain))
                 {
                     result.ErrorsCount++;
-                    result.Errors.Add(new LastPublishedImportError { RowNumber = rowNumber, Message = parseError });
+                    result.Errors.Add(new LastPublishedImportError
+                    {
+                        RowNumber = rowNumber,
+                        Message = "Domain is required and cannot be empty after normalization."
+                    });
                     continue;
                 }
 
-                parsedDate = parsedValue;
-                isMonthOnly = parsedIsMonthOnly;
-            }
+                if (string.IsNullOrEmpty(rawDate))
+                {
+                    result.ErrorsCount++;
+                    result.Errors.Add(new LastPublishedImportError
+                    {
+                        RowNumber = rowNumber,
+                        Message = "LastPublishedDate is required and cannot be empty."
+                    });
+                    continue;
+                }
 
-            var update = new ParsedUpdate(rowNumber, parsedDate, isMonthOnly);
+                if (!TryParseLastPublishedDate(
+                        rawDate.Trim(),
+                        out var parsedValue,
+                        out var parsedIsMonthOnly,
+                        out var parseError))
+                {
+                    result.ErrorsCount++;
+                    result.Errors.Add(new LastPublishedImportError
+                    {
+                        RowNumber = rowNumber,
+                        Message = parseError
+                    });
+                    continue;
+                }
 
-            // If the same domain appears multiple times, keep the last occurrence.
-            if (updates.ContainsKey(normalized))
-            {
-                duplicates++;
-                updates[normalized] = update;
-            }
-            else
-            {
-                updates.Add(normalized, update);
+                var update = new ParsedUpdate(parsedValue, parsedIsMonthOnly);
+
+                if (updates.ContainsKey(normalizedDomain))
+                {
+                    duplicates++;
+                    updates[normalizedDomain] = update;
+                }
+                else
+                {
+                    updates.Add(normalizedDomain, update);
+                }
             }
         }
 
-        // Phase 2: load Sites in batches (avoid N+1 queries).
-        var domains = updates.Keys.ToList();
+        // Phase 2: load sites in batches
+        var domainsForUpdate = updates.Keys.ToList();
         var sitesByDomain = new Dictionary<string, Site>(StringComparer.Ordinal);
 
-        foreach (var chunk in Chunk(domains, BatchSize))
+        foreach (var chunk in Chunk(domainsForUpdate, BatchSize))
         {
             var sites = await _context.Sites
                 .Where(s => chunk.Contains(s.Domain))
@@ -145,7 +168,7 @@ public class LastPublishedImportService : ILastPublishedImportService
             }
         }
 
-        // Phase 3: apply updates in memory and persist once.
+        // Phase 3: apply updates and persist once
         foreach (var (domain, update) in updates)
         {
             if (!sitesByDomain.TryGetValue(domain, out var site))
@@ -155,31 +178,28 @@ public class LastPublishedImportService : ILastPublishedImportService
             }
 
             site.LastPublishedDate = update.DateUtc;
-            site.LastPublishedDateIsMonthOnly = update.DateUtc.HasValue && update.IsMonthOnly;
+            site.LastPublishedDateIsMonthOnly = update.IsMonthOnly;
             site.UpdatedAtUtc = now;
 
             result.Matched++;
         }
 
         AddImportLog(result, userId, userEmail, duplicates);
+
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Last Published import completed. Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}, UserId={UserId}",
-            result.Matched, result.Unmatched.Count, result.ErrorsCount, duplicates, userId);
+            "LastPublished import completed. Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}, UserId={UserId}",
+            result.Matched,
+            result.Unmatched.Count,
+            result.ErrorsCount,
+            duplicates,
+            userId);
 
         return result;
     }
 
-    /// <summary>
-    /// Tries to parse a LastPublishedDate value.
-    /// Supported formats:
-    /// - Full date (day precision): "DD.MM.YYYY"
-    /// - Month + year (month precision, English, case-insensitive): "January 2026", "Jan 2026"
-    /// For month precision we store the first day of the month (YYYY-MM-01) and return IsMonthOnly=true,
-    /// so the caller can persist the precision separately.
-    /// </summary>
-    internal static bool TryParseLastPublishedDate(
+    public static bool TryParseLastPublishedDate(
         string value,
         out DateTime dateUtc,
         out bool isMonthOnly,
@@ -189,46 +209,64 @@ public class LastPublishedImportService : ILastPublishedImportService
         isMonthOnly = false;
         errorMessage = string.Empty;
 
-        // Day precision: only DD.MM.YYYY.
-        if (DateTime.TryParseExact(value, DayFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dayDate))
+        if (DateTime.TryParseExact(
+                value,
+                DayFormats,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var fullDate))
         {
-            dateUtc = DateTime.SpecifyKind(dayDate.Date, DateTimeKind.Utc);
+            dateUtc = DateTime.SpecifyKind(fullDate.Date, DateTimeKind.Utc);
             isMonthOnly = false;
             return true;
         }
 
-        // Month precision: English month name + year, e.g. "January 2026", "Jan 2026" (case-insensitive).
-        if (DateTime.TryParseExact(value, MonthFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var monthDate))
+        if (DateTime.TryParseExact(
+                value,
+                MonthFormats,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var monthDate))
         {
-            dateUtc = DateTime.SpecifyKind(new DateTime(monthDate.Year, monthDate.Month, 1), DateTimeKind.Utc);
+            dateUtc = DateTime.SpecifyKind(
+                new DateTime(monthDate.Year, monthDate.Month, 1),
+                DateTimeKind.Utc);
+
             isMonthOnly = true;
             return true;
         }
 
-        errorMessage =
-            "LastPublishedDate could not be parsed. Use a full date 'DD.MM.YYYY' or month+year like 'January 2026' or 'Jan 2026'.";
+        errorMessage = "LastPublishedDate could not be parsed. Use a full date 'DD.MM.YYYY' or month+year like 'January 2026' or 'Jan 2026'.";
         return false;
     }
 
-    private static bool IsCsvFile(string fileName, string? contentType)
+    private static async IAsyncEnumerable<(int RowNumber, string Domain, string RawDate)> ReadRowsAsync(
+        CsvHelper.CsvReader csv,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        return CsvImportHelper.IsCsvExtension(fileName)
-            || CsvImportHelper.IsCsvContentType(contentType);
-    }
+        // Row 1 = header
+        var rowNumber = 1;
 
-    private static async Task<Stream> EnsureSeekableAsync(Stream stream, CancellationToken ct)
-    {
-        if (stream.CanSeek)
+        while (await csv.ReadAsync().ConfigureAwait(false))
         {
-            stream.Position = 0;
-            return stream;
-        }
+            cancellationToken.ThrowIfCancellationRequested();
+            rowNumber++;
 
-        var ms = new MemoryStream();
-        await stream.CopyToAsync(ms, ct);
-        ms.Position = 0;
-        return ms;
+            var domain = csv.GetField(0)?.Trim();
+            var rawDate = csv.GetField(1)?.Trim();
+
+            // Skip fully empty rows
+            if (string.IsNullOrWhiteSpace(domain) && string.IsNullOrWhiteSpace(rawDate))
+            {
+                continue;
+            }
+
+            yield return (rowNumber, domain ?? string.Empty, rawDate ?? string.Empty);
+        }
     }
+
+    private static bool IsCsvFile(string fileName, string? contentType)
+        => CsvImportHelper.IsCsvExtension(fileName) || CsvImportHelper.IsCsvContentType(contentType);
 
     private static IEnumerable<List<T>> Chunk<T>(List<T> source, int size)
     {
@@ -238,108 +276,11 @@ public class LastPublishedImportService : ILastPublishedImportService
         }
     }
 
-    private static async IAsyncEnumerable<(int RowNumber, string Domain, string? LastPublishedDate)> ReadRowsAsync(
-        Stream stream,
+    private void AddImportLog(
         LastPublishedImportResult result,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        var delimiter = CsvImportHelper.GetDelimiter(stream, new[] { HeaderDomain, HeaderLastPublishedDate });
-
-        using var streamReader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
-        using var csvReader = new CsvReader(streamReader, CsvImportHelper.CreateConfiguration(delimiter));
-
-        if (!await csvReader.ReadAsync())
-        {
-            yield break;
-        }
-
-        csvReader.ReadHeader();
-        var header = csvReader.HeaderRecord;
-        if (header == null)
-        {
-            result.ErrorsCount++;
-            result.Errors.Add(new LastPublishedImportError
-            {
-                RowNumber = 1,
-                Message = "CSV must have a header row."
-            });
-            yield break;
-        }
-
-        var domainIndex = FindHeaderIndex(header, HeaderDomain);
-        var dateIndex = FindHeaderIndex(header, HeaderLastPublishedDate);
-
-        if (domainIndex < 0)
-        {
-            result.ErrorsCount++;
-            result.Errors.Add(new LastPublishedImportError
-            {
-                RowNumber = 1,
-                Message = "Required header 'Domain' not found. Expected headers: Domain, LastPublishedDate."
-            });
-            yield break;
-        }
-
-        if (dateIndex < 0)
-        {
-            result.ErrorsCount++;
-            result.Errors.Add(new LastPublishedImportError
-            {
-                RowNumber = 1,
-                Message = "Required header 'LastPublishedDate' not found. Expected headers: Domain, LastPublishedDate."
-            });
-            yield break;
-        }
-
-        var rowNumber = 1;
-        while (await csvReader.ReadAsync())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            rowNumber++;
-
-            var domain = GetField(csvReader, domainIndex);
-            var dateRaw = GetField(csvReader, dateIndex);
-
-            // Skip completely empty rows.
-            if (string.IsNullOrWhiteSpace(domain) && string.IsNullOrWhiteSpace(dateRaw))
-            {
-                continue;
-            }
-
-            yield return (rowNumber, domain ?? string.Empty, string.IsNullOrWhiteSpace(dateRaw) ? null : dateRaw);
-        }
-    }
-
-    private static int FindHeaderIndex(string[] header, string name)
-    {
-        for (var i = 0; i < header.Length; i++)
-        {
-            if (string.Equals(header[i], name, StringComparison.OrdinalIgnoreCase))
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private static string? GetField(CsvReader csv, int index)
-    {
-        if (index < 0 || csv.HeaderRecord == null || index >= csv.HeaderRecord.Length)
-        {
-            return null;
-        }
-
-        try
-        {
-            return csv.GetField(index);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private void AddImportLog(LastPublishedImportResult result, string userId, string userEmail, int duplicates)
+        string userId,
+        string userEmail,
+        int duplicates)
     {
         var log = new ImportLog
         {

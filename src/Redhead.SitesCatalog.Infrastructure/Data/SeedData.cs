@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Infrastructure.Exceptions;
 
 namespace Redhead.SitesCatalog.Infrastructure.Data;
 
@@ -56,7 +57,7 @@ public static class SeedData
                 {
                     var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                     logger.LogError("Failed to create role {RoleName}: {Errors}", roleName, errors);
-                    throw new InvalidOperationException($"Failed to create role {roleName}: {errors}");
+                    throw new SeedDataException($"Failed to create role {roleName}: {errors}");
                 }
             }
             else
@@ -106,7 +107,7 @@ public static class SeedData
             {
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                 logger.LogError("Failed to create SuperAdmin user: {Errors}", errors);
-                throw new InvalidOperationException($"Failed to create SuperAdmin user: {errors}");
+                throw new SeedDataException($"Failed to create SuperAdmin user: {errors}");
             }
 
             result = await userManager.AddToRoleAsync(superAdmin, AppRoles.SuperAdmin);
@@ -115,7 +116,7 @@ public static class SeedData
             {
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                 logger.LogError("Failed to assign SuperAdmin role: {Errors}", errors);
-                throw new InvalidOperationException($"Failed to assign SuperAdmin role: {errors}");
+                throw new SeedDataException($"Failed to assign SuperAdmin role: {errors}");
             }
 
             logger.LogInformation("SuperAdmin user created successfully");
