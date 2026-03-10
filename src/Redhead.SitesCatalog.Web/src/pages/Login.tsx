@@ -21,7 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ApiClientError } from '../services/api.client';
 import { BrandButton } from '../components/common/BrandButton';
 
-import mark from '../assets/brand/redhead-mark.svg';
+import mark from '../assets/brand/redhead-lockup.svg';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -72,15 +72,19 @@ export const Login: React.FC = () => {
       <Card sx={{ width: '100%', maxWidth: 560 }}>
         <CardContent sx={{ p: 5 }}>
           <Stack spacing={1.25} alignItems="center" sx={{ mb: 3 }}>
-            <Box component="img" src={mark} alt="Readhead" sx={{ height: 60, width: 60 }} />
+            <Box component="img" src={mark} alt="Readhead" sx={{ height: 44 }} />
 
-            <Typography variant="h4" component="h1" sx={{ fontWeight: 900, lineHeight: 1.05 }}>
-              Redhead Catalog
-            </Typography>
+            <Box sx={{paddingTop: 1.5}}>
+              <Typography
+                variant="h6"
+                component="h1"
+                align="center"
+                sx={{ fontWeight: 400, color: 'text.primary' }}
+              >
+                Sign in to the Websites Catalog
+              </Typography>
+            </Box>
 
-            <Typography variant="body2" align="center" color="text.secondary">
-              Sign in to access your account
-            </Typography>
           </Stack>
 
           {error && (
