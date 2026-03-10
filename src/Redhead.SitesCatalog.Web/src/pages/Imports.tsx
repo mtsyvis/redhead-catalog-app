@@ -13,6 +13,12 @@ import {
   FILE_TOO_LARGE_MESSAGE,
 } from '../services/import.service';
 import { BrandButton } from '../components/common/BrandButton';
+import { ImportInstructionsCard } from '../components/imports/ImportInstructionsCard';
+import {
+  LAST_PUBLISHED_IMPORT_INSTRUCTIONS,
+  QUARANTINE_IMPORT_INSTRUCTIONS,
+  SITES_IMPORT_INSTRUCTIONS,
+} from '../constants/imports.constants';
 
 const ACCEPT_FILES = '.csv';
 const MAX_LIST_SHOW = 50;
@@ -51,9 +57,11 @@ function SitesImportTab() {
 
   return (
     <Box>
-      <Typography color="text.secondary" sx={{ mb: 2 }}>
-        Upload a CSV file. The first row must be a header with all columns in this order: <strong>Domain, DR, Traffic, Location, PriceUsd, PriceCasino, PriceCrypto, PriceLinkInsert, Niche, Categories</strong>. Values for PriceCasino, PriceCrypto, PriceLinkInsert, Niche, and Categories may be empty. Duplicates are skipped; row errors are reported.
-      </Typography>
+      <ImportInstructionsCard
+        description={SITES_IMPORT_INSTRUCTIONS.description}
+        requiredColumns={SITES_IMPORT_INSTRUCTIONS.requiredColumns}
+        optionalNote={SITES_IMPORT_INSTRUCTIONS.optionalNote}
+      />
       <Paper sx={{ p: 3, mb: 3 }}>
         <form onSubmit={handleSubmit}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -158,9 +166,11 @@ function QuarantineImportTab() {
 
   return (
     <Box>
-      <Typography color="text.secondary" sx={{ mb: 2 }}>
-        Upload a CSV with headers <strong>Domain</strong> and <strong>Reason</strong> (Reason optional). Existing sites matched by normalized domain will be marked Unavailable with the given reason. Unmatched domains are listed below.
-      </Typography>
+      <ImportInstructionsCard
+        description={QUARANTINE_IMPORT_INSTRUCTIONS.description}
+        requiredColumns={QUARANTINE_IMPORT_INSTRUCTIONS.requiredColumns}
+        optionalNote={QUARANTINE_IMPORT_INSTRUCTIONS.optionalNote}
+      />
       <Paper sx={{ p: 3, mb: 3 }}>
         <form onSubmit={handleSubmit}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -265,9 +275,11 @@ function LastPublishedImportTab() {
 
   return (
     <Box>
-      <Typography color="text.secondary" sx={{ mb: 2 }}>
-        Upload a CSV with headers <strong>Domain</strong> and <strong>LastPublishedDate</strong>. Dates: DD.MM.YYYY (day precision) or month+year (e.g. January 2026, Jan 2026, 01.2026). Existing sites matched by normalized domain will be updated. Unmatched domains and errors are listed below.
-      </Typography>
+      <ImportInstructionsCard
+        description={LAST_PUBLISHED_IMPORT_INSTRUCTIONS.description}
+        requiredColumns={LAST_PUBLISHED_IMPORT_INSTRUCTIONS.requiredColumns}
+        optionalNote={LAST_PUBLISHED_IMPORT_INSTRUCTIONS.optionalNote}
+      />
       <Paper sx={{ p: 3, mb: 3 }}>
         <form onSubmit={handleSubmit}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
