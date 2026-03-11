@@ -2,6 +2,8 @@ Domain,Reason
 482jobs.com,Matched - existing site
 ,Error - empty domain
 absolutearmenia.com,Matched - will update
+absolutearmenia.com,Matched - will update
+
 not-in-catalog.com,Unmatched - not in system
    ,Error - whitespace only
 phantom-site.org,Unmatched - fake domain
