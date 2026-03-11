@@ -90,7 +90,7 @@ public class ImportController : ControllerBase
     /// </summary>
     [HttpPost("quarantine")]
     [RequestSizeLimit((int)ImportConstants.MaxSitesImportFileSizeBytes)]
-    public async Task<ActionResult<QuarantineImportResult>> ImportQuarantine(IFormFile? file, CancellationToken cancellationToken)
+    public async Task<ActionResult<SitesUpdateImportResult>> ImportQuarantine(IFormFile? file, CancellationToken cancellationToken)
     {
         if (file == null || file.Length == 0)
         {
@@ -142,7 +142,7 @@ public class ImportController : ControllerBase
     /// </summary>
     [HttpPost("last-published")]
     [RequestSizeLimit((int)ImportConstants.MaxSitesImportFileSizeBytes)]
-    public async Task<ActionResult<LastPublishedImportResult>> ImportLastPublished(IFormFile? file, CancellationToken cancellationToken)
+    public async Task<ActionResult<SitesUpdateImportResult>> ImportLastPublished(IFormFile? file, CancellationToken cancellationToken)
     {
         if (file == null || file.Length == 0)
         {

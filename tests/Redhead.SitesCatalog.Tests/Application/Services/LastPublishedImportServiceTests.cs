@@ -200,6 +200,9 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         Assert.Equal(1, result.Matched);
         Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.DuplicatesCount);
+        Assert.Single(result.Duplicates);
+        Assert.Equal("example.com", result.Duplicates[0]);
 
         var site = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
@@ -229,6 +232,58 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var site = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidFirstRow_ValidDuplicateSecondRow_UsesValidRowAndDoesNotCountDuplicate()
+    {
+        using var stream = Utf8Csv(
+            "Domain,LastPublishedDate\n" +
+            "example.com,invalid\n" +
+            "example.com,31.01.2026\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.Matched);
+        Assert.Equal(1, result.ErrorsCount);
+        Assert.Equal(0, result.DuplicatesCount);
+        Assert.Empty(result.Duplicates);
+
+        var site = await GetSiteAsync("example.com");
+        Assert.Equal(new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
+        Assert.False(site.LastPublishedDateIsMonthOnly);
+
+        var log = await GetLastPublishedImportLogAsync();
+        Assert.NotNull(log);
+        Assert.Equal(0, log!.Duplicates);
+        Assert.Equal(1, log.Matched);
+        Assert.Equal(1, log.ErrorsCount);
+    }
+
+    [Fact]
+    public async Task ImportAsync_ValidFirstRow_InvalidDuplicateSecondRow_KeepsFirstRowAndDoesNotCountDuplicate()
+    {
+        using var stream = Utf8Csv(
+            "Domain,LastPublishedDate\n" +
+            "example.com,31.01.2026\n" +
+            "example.com,invalid\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.Matched);
+        Assert.Equal(1, result.ErrorsCount);
+        Assert.Equal(0, result.DuplicatesCount);
+        Assert.Empty(result.Duplicates);
+
+        var site = await GetSiteAsync("example.com");
+        Assert.Equal(new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
+        Assert.False(site.LastPublishedDateIsMonthOnly);
+
+        var log = await GetLastPublishedImportLogAsync();
+        Assert.NotNull(log);
+        Assert.Equal(0, log!.Duplicates);
+        Assert.Equal(1, log.Matched);
+        Assert.Equal(1, log.ErrorsCount);
     }
 
     [Fact]
@@ -365,7 +420,7 @@ public sealed class LastPublishedImportServiceTests : IDisposable
             errorMessage);
     }
 
-    private async Task<LastPublishedImportResult> ImportAsync(Stream stream)
+    private async Task<SitesUpdateImportResult> ImportAsync(Stream stream)
     {
         return await _sut.ImportAsync(
             stream,

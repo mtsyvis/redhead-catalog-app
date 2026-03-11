@@ -10,9 +10,9 @@ public interface IQuarantineImportService
     /// <summary>
     /// Import quarantine from CSV. Headers: Domain (required), Reason (optional).
     /// Matched sites: IsQuarantined=true, QuarantineReason=trim(Reason), QuarantineUpdatedAtUtc=now.
-    /// Returns matched count, unmatched domain list, and row-level errors.
+    /// Returns matched count, unmatched domain list, row-level errors, and duplicate domains in the uploaded file.
     /// </summary>
-    Task<QuarantineImportResult> ImportAsync(
+    Task<SitesUpdateImportResult> ImportAsync(
         Stream fileStream,
         string fileName,
         string? contentType,

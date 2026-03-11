@@ -199,6 +199,9 @@ public sealed class QuarantineImportServiceTests : IDisposable
         // Assert
         Assert.Equal(1, result.Matched);
         Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.DuplicatesCount);
+        Assert.Single(result.Duplicates);
+        Assert.Equal("example.com", result.Duplicates[0]);
 
         var site = await GetSiteAsync("example.com");
         Assert.True(site.IsQuarantined);
@@ -358,7 +361,7 @@ public sealed class QuarantineImportServiceTests : IDisposable
         Assert.Equal(0, log.Duplicates);
     }
 
-    private async Task<QuarantineImportResult> ImportAsync(Stream stream)
+    private async Task<SitesUpdateImportResult> ImportAsync(Stream stream)
     {
         return await _sut.ImportAsync(
             stream,

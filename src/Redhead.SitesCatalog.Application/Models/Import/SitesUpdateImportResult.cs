@@ -1,7 +1,7 @@
 namespace Redhead.SitesCatalog.Application.Models.Import;
 
 /// <summary>
-/// Result of a sites update import (mass update of existing sites by Domain).
+/// Shared result model for update-style imports that update existing sites by Domain
 /// </summary>
 public class SitesUpdateImportResult
 {

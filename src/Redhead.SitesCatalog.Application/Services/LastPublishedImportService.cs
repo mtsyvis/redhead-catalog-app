@@ -48,7 +48,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
         _logger = logger;
     }
 
-    public async Task<LastPublishedImportResult> ImportAsync(
+    public async Task<SitesUpdateImportResult> ImportAsync(
         Stream fileStream,
         string fileName,
         string? contentType,
@@ -69,12 +69,12 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                 fileName,
                 contentType);
 
-            return new LastPublishedImportResult
+            return new SitesUpdateImportResult
             {
                 ErrorsCount = 1,
                 Errors =
                 {
-                    new LastPublishedImportError
+                    new SitesUpdateImportError
                     {
                         RowNumber = 0,
                         Message = "Unsupported file type. Use CSV."
@@ -83,12 +83,11 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
             };
         }
 
-        var result = new LastPublishedImportResult();
+        var result = new SitesUpdateImportResult();
         var now = DateTime.UtcNow;
 
         // Phase 1: parse CSV rows and build per-domain update map (last row wins)
         var updates = new Dictionary<string, ParsedUpdate>(StringComparer.Ordinal);
-        var duplicates = 0;
 
         await using (var session = await CsvImportSession.OpenAsync(
                          fileStream,
@@ -104,7 +103,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                 if (string.IsNullOrEmpty(normalizedDomain))
                 {
                     result.ErrorsCount++;
-                    result.Errors.Add(new LastPublishedImportError
+                    result.Errors.Add(new SitesUpdateImportError
                     {
                         RowNumber = rowNumber,
                         Message = "Domain is required and cannot be empty after normalization."
@@ -115,7 +114,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                 if (string.IsNullOrEmpty(rawDate))
                 {
                     result.ErrorsCount++;
-                    result.Errors.Add(new LastPublishedImportError
+                    result.Errors.Add(new SitesUpdateImportError
                     {
                         RowNumber = rowNumber,
                         Message = "LastPublishedDate is required and cannot be empty."
@@ -130,7 +129,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                         out var parseError))
                 {
                     result.ErrorsCount++;
-                    result.Errors.Add(new LastPublishedImportError
+                    result.Errors.Add(new SitesUpdateImportError
                     {
                         RowNumber = rowNumber,
                         Message = parseError
@@ -142,7 +141,12 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
 
                 if (updates.ContainsKey(normalizedDomain))
                 {
-                    duplicates++;
+                    result.DuplicatesCount++;
+                    if (result.Duplicates.Count < ImportConstants.SitesImportMaxDetailDuplicates)
+                    {
+                        result.Duplicates.Add(normalizedDomain);
+                    }
+
                     updates[normalizedDomain] = update;
                 }
                 else
@@ -184,7 +188,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
             result.Matched++;
         }
 
-        AddImportLog(result, userId, userEmail, duplicates);
+        AddImportLog(result, userId, userEmail);
 
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -193,7 +197,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
             result.Matched,
             result.Unmatched.Count,
             result.ErrorsCount,
-            duplicates,
+            result.DuplicatesCount,
             userId);
 
         return result;
@@ -277,10 +281,9 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
     }
 
     private void AddImportLog(
-        LastPublishedImportResult result,
+        SitesUpdateImportResult result,
         string userId,
-        string userEmail,
-        int duplicates)
+        string userEmail)
     {
         var log = new ImportLog
         {
@@ -290,7 +293,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
             Type = ImportConstants.ImportTypeLastPublished,
             TimestampUtc = DateTime.UtcNow,
             Inserted = 0,
-            Duplicates = duplicates,
+            Duplicates = result.DuplicatesCount,
             Matched = result.Matched,
             Unmatched = result.Unmatched.Count,
             ErrorsCount = result.ErrorsCount
