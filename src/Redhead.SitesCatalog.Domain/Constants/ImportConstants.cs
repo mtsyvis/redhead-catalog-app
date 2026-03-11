@@ -21,6 +21,11 @@ public static class ImportConstants
     public const string ImportTypeLastPublished = "LastPublished";
 
     /// <summary>
+    /// ImportLog Type value for sites mass-update import (update existing sites by Domain).
+    /// </summary>
+    public const string ImportTypeSitesUpdate = "SitesUpdate";
+
+    /// <summary>
     /// Default batch size for site inserts
     /// </summary>
     public const int SitesImportBatchSize = 1000;

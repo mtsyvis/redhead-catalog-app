@@ -25,6 +25,23 @@ export const SITES_IMPORT_INSTRUCTIONS = {
   optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, Niche, and Categories may be empty.',
 };
 
+export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
+  description: 'Upload a CSV file to update existing sites.',
+  requiredColumns: [
+    'Domain',
+    'DR',
+    'Traffic',
+    'Location',
+    'PriceUsd',
+    'PriceCasino',
+    'PriceCrypto',
+    'PriceLinkInsert',
+    'Niche',
+    'Categories',
+  ],
+  optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, Niche, and Categories may be empty.',
+};
+
 export const QUARANTINE_IMPORT_INSTRUCTIONS = {
   description: 'Upload a CSV file to update quarantine status for existing sites.',
   requiredColumns: ['Domain', 'Reason'],

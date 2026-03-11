@@ -14,6 +14,20 @@ export interface SitesImportResult {
   errors: SitesImportError[];
 }
 
+export interface SitesUpdateImportError {
+  rowNumber: number;
+  message: string;
+}
+
+export interface SitesUpdateImportResult {
+  matched: number;
+  unmatched: string[];
+  errorsCount: number;
+  errors: SitesUpdateImportError[];
+  duplicatesCount: number;
+  duplicates: string[];
+}
+
 export interface QuarantineImportError {
   rowNumber: number;
   message: string;
@@ -56,6 +70,32 @@ export async function importSites(file: File): Promise<SitesImportResult> {
 
   const baseUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
   const response = await fetch(`${baseUrl}/api/import/sites`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ message: 'Import failed' }));
+    throw new Error(err.message || err.error || 'Import failed');
+  }
+
+  return response.json();
+}
+
+/**
+ * Mass-update existing sites from CSV (same columns as sites import). Domain is lookup key only.
+ */
+export async function importSitesUpdate(file: File): Promise<SitesUpdateImportResult> {
+  if (file.size > MAX_IMPORT_FILE_SIZE_BYTES) {
+    throw new Error(FILE_TOO_LARGE_MESSAGE);
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const baseUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
+  const response = await fetch(`${baseUrl}/api/import/sites-update`, {
     method: 'POST',
     credentials: 'include',
     body: formData,

@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services.Parsers;
-using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Exceptions;
@@ -78,26 +77,26 @@ public sealed class SitesImportService : ISitesImportService
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var validation = ValidateAndMapRow(row);
-                if (validation.Error is not null)
+                var (isEmpty, error, validatedData) = SitesImportRowValidationHelper.Validate(row);
+                if (error is not null)
                 {
-                    AddError(result, validation.Error);
+                    AddError(result, error);
                     continue;
                 }
 
-                if (validation.Site is null)
+                if (isEmpty || validatedData is null)
                 {
                     continue;
                 }
 
-                var domain = validation.Site.Domain;
+                var domain = validatedData.NormalizedDomain;
 
                 if (parsedSitesByDomain.ContainsKey(domain))
                 {
                     AddDuplicate(result, domain);
                 }
 
-                parsedSitesByDomain[domain] = validation.Site;
+                parsedSitesByDomain[domain] = BuildSiteFromValidatedRow(validatedData);
             }
         }
 
@@ -271,144 +270,22 @@ public sealed class SitesImportService : ISitesImportService
         _context.ImportLogs.Add(log);
     }
 
-    private static RowValidationResult ValidateAndMapRow(SitesImportRowDto row)
-    {
-        if (IsEmptyRow(row))
-        {
-            return RowValidationResult.Skip();
-        }
-
-        if (string.IsNullOrWhiteSpace(row.Domain))
-        {
-            return RowValidationResult.Fail(new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "Domain is required."
-            });
-        }
-
-        var domain = DomainNormalizer.Normalize(row.Domain);
-        if (string.IsNullOrEmpty(domain))
-        {
-            return RowValidationResult.Fail(new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "Domain could not be normalized."
-            });
-        }
-
-        if (row.PriceUsd is null || row.PriceUsd < 0)
-        {
-            return RowValidationResult.Fail(new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "Price USD is required and must be >= 0."
-            });
-        }
-
-        if (string.IsNullOrWhiteSpace(row.DRRaw))
-        {
-            return RowValidationResult.Fail(new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "DR is required and must be between 0 and 100."
-            });
-        }
-
-        if (row.DR is null)
-        {
-            return RowValidationResult.Fail(new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Domain = domain,
-                Field = "DR",
-                RawValue = row.DRRaw,
-                Message = "Invalid numeric format for DR."
-            });
-        }
-
-        if (row.DR is < 0 or > 100)
-        {
-            return RowValidationResult.Fail(new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Domain = domain,
-                Field = "DR",
-                RawValue = row.DRRaw,
-                Message = "DR must be between 0 and 100."
-            });
-        }
-
-        if (row.Traffic is null || row.Traffic < 0)
-        {
-            return RowValidationResult.Fail(new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "Traffic is required and must be >= 0."
-            });
-        }
-
-        if (row.PriceCasino is not null && row.PriceCasino < 0)
-        {
-            return RowValidationResult.Fail(new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "PriceCasino must be >= 0 or empty."
-            });
-        }
-
-        if (row.PriceCrypto is not null && row.PriceCrypto < 0)
-        {
-            return RowValidationResult.Fail(new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "PriceCrypto must be >= 0 or empty."
-            });
-        }
-
-        if (row.PriceLinkInsert is not null && row.PriceLinkInsert < 0)
-        {
-            return RowValidationResult.Fail(new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "PriceLinkInsert must be >= 0 or empty."
-            });
-        }
-
-        var site = BuildSiteFromRow(row, domain);
-        return RowValidationResult.Ok(site);
-    }
-
-    private static bool IsEmptyRow(SitesImportRowDto row)
-    {
-        return string.IsNullOrWhiteSpace(row.Domain)
-               && string.IsNullOrWhiteSpace(row.DRRaw)
-               && row.Traffic is null
-               && string.IsNullOrWhiteSpace(row.Location)
-               && row.PriceUsd is null
-               && row.PriceCasino is null
-               && row.PriceCrypto is null
-               && row.PriceLinkInsert is null
-               && string.IsNullOrWhiteSpace(row.Niche)
-               && string.IsNullOrWhiteSpace(row.Categories);
-    }
-
-    private static Site BuildSiteFromRow(SitesImportRowDto row, string domain)
+    private static Site BuildSiteFromValidatedRow(SitesImportRowValidationHelper.ValidatedSitesRow data)
     {
         var now = DateTime.UtcNow;
 
         return new Site
         {
-            Domain = domain,
-            DR = row.DR ?? 0,
-            Traffic = row.Traffic ?? 0,
-            Location = (row.Location ?? string.Empty).Trim(),
-            PriceUsd = row.PriceUsd ?? 0,
-            PriceCasino = row.PriceCasino,
-            PriceCrypto = row.PriceCrypto,
-            PriceLinkInsert = row.PriceLinkInsert,
-            Niche = string.IsNullOrWhiteSpace(row.Niche) ? null : row.Niche.Trim(),
-            Categories = string.IsNullOrWhiteSpace(row.Categories) ? null : row.Categories.Trim(),
+            Domain = data.NormalizedDomain,
+            DR = data.DR,
+            Traffic = data.Traffic,
+            Location = data.Location,
+            PriceUsd = data.PriceUsd,
+            PriceCasino = data.PriceCasino,
+            PriceCrypto = data.PriceCrypto,
+            PriceLinkInsert = data.PriceLinkInsert,
+            Niche = data.Niche,
+            Categories = data.Categories,
             IsQuarantined = false,
             QuarantineReason = null,
             QuarantineUpdatedAtUtc = null,
@@ -443,12 +320,5 @@ public sealed class SitesImportService : ISitesImportService
         {
             result.Duplicates.Add(domain);
         }
-    }
-
-    private sealed record RowValidationResult(Site? Site, SitesImportError? Error)
-    {
-        public static RowValidationResult Ok(Site site) => new(site, null);
-        public static RowValidationResult Fail(SitesImportError error) => new(null, error);
-        public static RowValidationResult Skip() => new(null, null);
     }
 }

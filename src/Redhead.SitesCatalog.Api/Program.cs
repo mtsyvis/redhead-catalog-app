@@ -24,6 +24,7 @@ builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<ISitesImportService, SitesImportService>();
 builder.Services.AddScoped<IQuarantineImportService, QuarantineImportService>();
 builder.Services.AddScoped<ILastPublishedImportService, LastPublishedImportService>();
+builder.Services.AddScoped<ISitesUpdateImportService, SitesUpdateImportService>();
 
 // Add Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>

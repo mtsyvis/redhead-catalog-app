@@ -17,17 +17,20 @@ public class ImportController : ControllerBase
     private readonly ISitesImportService _sitesImportService;
     private readonly IQuarantineImportService _quarantineImportService;
     private readonly ILastPublishedImportService _lastPublishedImportService;
+    private readonly ISitesUpdateImportService _sitesUpdateImportService;
     private readonly ILogger<ImportController> _logger;
 
     public ImportController(
         ISitesImportService sitesImportService,
         IQuarantineImportService quarantineImportService,
         ILastPublishedImportService lastPublishedImportService,
+        ISitesUpdateImportService sitesUpdateImportService,
         ILogger<ImportController> logger)
     {
         _sitesImportService = sitesImportService;
         _quarantineImportService = quarantineImportService;
         _lastPublishedImportService = lastPublishedImportService;
+        _sitesUpdateImportService = sitesUpdateImportService;
         _logger = logger;
     }
 
@@ -181,6 +184,58 @@ public class ImportController : ControllerBase
             _logger.LogInformation(
                 "Last Published import succeeded. FileName={FileName}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}",
                 file.FileName, result.Matched, result.Unmatched.Count, result.ErrorsCount);
+
+            return Ok(result);
+        }
+    }
+
+    /// <summary>
+    /// Mass-update existing sites from CSV (same columns as sites import). Domain is lookup key only.
+    /// </summary>
+    [HttpPost("sites-update")]
+    [RequestSizeLimit((int)ImportConstants.MaxSitesImportFileSizeBytes)]
+    public async Task<ActionResult<SitesUpdateImportResult>> ImportSitesUpdate(IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length == 0)
+        {
+            _logger.LogWarning("Sites update import: no file or empty file");
+            return BadRequest(new ApiErrorResponse("No file or empty file.", StatusCodes.Status400BadRequest));
+        }
+
+        if (file.Length > ImportConstants.MaxSitesImportFileSizeBytes)
+        {
+            _logger.LogWarning(
+                "Sites update import: file too large. FileName={FileName}, Length={Length}, MaxBytes={MaxBytes}",
+                file.FileName, file.Length, ImportConstants.MaxSitesImportFileSizeBytes);
+            return StatusCode(StatusCodes.Status413PayloadTooLarge,
+                new ApiErrorResponse(ImportConstants.FileTooLargeMessage, StatusCodes.Status413PayloadTooLarge));
+        }
+
+        if (!TryGetUserContext("Sites update import", out var userId, out var userEmail, out var unauthorizedResult))
+        {
+            return unauthorizedResult;
+        }
+
+        var (stream, fileReadError) = await ReadFileToMemoryStreamAsync("Sites update import", file, cancellationToken);
+        if (fileReadError != null)
+        {
+            stream.Dispose();
+            return fileReadError;
+        }
+
+        await using (stream)
+        {
+            var result = await _sitesUpdateImportService.ImportAsync(
+                stream,
+                file.FileName,
+                file.ContentType,
+                userId,
+                userEmail,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Sites update import succeeded. FileName={FileName}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}",
+                file.FileName, result.Matched, result.Unmatched.Count, result.ErrorsCount, result.DuplicatesCount);
 
             return Ok(result);
         }
