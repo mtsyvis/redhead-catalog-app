@@ -74,5 +74,6 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.HasIndex(s => s.DR);
         builder.HasIndex(s => s.Traffic);
         builder.HasIndex(s => s.PriceUsd);
+        builder.HasIndex(s => new { s.LastPublishedDate, s.LastPublishedDateIsMonthOnly, s.Domain });
     }
 }

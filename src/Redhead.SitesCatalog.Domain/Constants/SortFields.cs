@@ -15,4 +15,5 @@ public static class SortFields
     public const string PriceLinkInsert = "pricelinkinsert";
     public const string CreatedAt = "createdat";
     public const string UpdatedAt = "updatedat";
+    public const string LastPublishedDate = "lastpublisheddate";
 }

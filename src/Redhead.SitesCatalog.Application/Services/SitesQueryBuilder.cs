@@ -144,6 +144,17 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             SortFields.UpdatedAt => direction == SortingDefaults.Descending
                 ? query.OrderByDescending(s => s.UpdatedAtUtc)
                 : query.OrderBy(s => s.UpdatedAtUtc),
+            SortFields.LastPublishedDate => direction == SortingDefaults.Descending
+                ? query
+                    .OrderBy(s => s.LastPublishedDate == null ? 1 : 0)
+                    .ThenByDescending(s => s.LastPublishedDate)
+                    .ThenBy(s => s.LastPublishedDateIsMonthOnly ? 1 : 0)
+                    .ThenBy(s => s.Domain)
+                : query
+                    .OrderBy(s => s.LastPublishedDate == null ? 1 : 0)
+                    .ThenBy(s => s.LastPublishedDate)
+                    .ThenBy(s => s.LastPublishedDateIsMonthOnly ? 0 : 1)
+                    .ThenBy(s => s.Domain),
             _ => query.OrderBy(s => s.Domain)
         };
     }

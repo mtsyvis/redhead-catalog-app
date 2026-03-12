@@ -388,7 +388,6 @@ export function Sites() {
       field: 'lastPublishedDate',
       headerName: 'Last Published',
       width: 200,
-      sortable: false,
       valueFormatter: (_value, row) => {
         if (isNotFoundRow(row)) return '—';
         const site = row as Site;
