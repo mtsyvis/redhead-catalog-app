@@ -282,6 +282,83 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportSitesAsCsvAsync_WithClientRole_UsesExpectedHeaderOrder()
+    {
+        var query = new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var stream = await _service.ExportSitesAsCsvAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        var headers = await ReadCsvHeaderFromStream(stream);
+        Assert.Equal(
+            [
+                "Domain",
+                "DR",
+                "Traffic",
+                "Location",
+                "PriceUsd",
+                "PriceCasino",
+                "PriceCrypto",
+                "PriceLinkInsert",
+                "Niche",
+                "Categories"
+            ],
+            headers);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_WithAdminRole_UsesExpectedHeaderOrder()
+    {
+        var query = new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var stream = await _service.ExportSitesAsCsvAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var headers = await ReadCsvHeaderFromStream(stream);
+        Assert.Equal(
+            [
+                "Domain",
+                "DR",
+                "Traffic",
+                "Location",
+                "PriceUsd",
+                "PriceCasino",
+                "PriceCrypto",
+                "PriceLinkInsert",
+                "Niche",
+                "Categories",
+                "IsQuarantined",
+                "QuarantineReason",
+                "LastPublishedDate",
+                "CreatedAtUtc",
+                "UpdatedAtUtc"
+            ],
+            headers);
+    }
+
+    [Fact]
     public async Task ExportSitesAsCsvAsync_NotAvailableAndUnknown_AreExportedAsNoAndEmpty()
     {
         _context.Sites.Add(new Site
@@ -542,6 +619,22 @@ public class ExportServiceTests : IDisposable
         return rows;
     }
 
+    private static async Task<List<string>> ReadCsvHeaderFromStream(Stream stream)
+    {
+        stream.Position = 0;
+        using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
+        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            HasHeaderRecord = true
+        });
+
+        var hasRow = await csv.ReadAsync();
+        Assert.True(hasRow);
+        csv.ReadHeader();
+
+        return (csv.HeaderRecord ?? []).ToList();
+    }
+
     private sealed class ExportedSiteRow
     {
         public string Domain { get; set; } = string.Empty;
@@ -556,11 +649,9 @@ public class ExportServiceTests : IDisposable
         public string? Categories { get; set; }
         public bool IsQuarantined { get; set; }
         public string? QuarantineReason { get; set; }
-        public DateTime? QuarantineUpdatedAtUtc { get; set; }
         public DateTime CreatedAtUtc { get; set; }
         public DateTime UpdatedAtUtc { get; set; }
         public DateTime? LastPublishedDate { get; set; }
-        public bool LastPublishedDateIsMonthOnly { get; set; }
     }
 
     #endregion

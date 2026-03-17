@@ -18,8 +18,38 @@ namespace Redhead.SitesCatalog.Application.Services;
 /// </summary>
 public class ExportService : IExportService
 {
-    /// <summary>Number of CSV columns after Domain for not-found rows (placeholder "-").</summary>
-    private const int NotFoundPlaceholderColumnCount = 16;
+    private static readonly string[] ClientExportHeaders =
+    [
+        "Domain",
+        "DR",
+        "Traffic",
+        "Location",
+        "PriceUsd",
+        "PriceCasino",
+        "PriceCrypto",
+        "PriceLinkInsert",
+        "Niche",
+        "Categories"
+    ];
+
+    private static readonly string[] NonClientExportHeaders =
+    [
+        "Domain",
+        "DR",
+        "Traffic",
+        "Location",
+        "PriceUsd",
+        "PriceCasino",
+        "PriceCrypto",
+        "PriceLinkInsert",
+        "Niche",
+        "Categories",
+        "IsQuarantined",
+        "QuarantineReason",
+        "LastPublishedDate",
+        "CreatedAtUtc",
+        "UpdatedAtUtc"
+    ];
 
     private readonly ApplicationDbContext _context;
     private readonly ISitesQueryBuilder _queryBuilder;
@@ -69,12 +99,12 @@ public class ExportService : IExportService
             HasHeaderRecord = true
         });
 
-        // Write CSV headers and data with user-facing optional service semantics.
-        csvWriter.WriteHeader<SiteExportRow>();
+        var isClientRole = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
+        WriteHeaders(csvWriter, isClientRole);
         csvWriter.NextRecord();
-        foreach (var row in sites.Select(MapToExportRow))
+        foreach (var site in sites)
         {
-            csvWriter.WriteRecord(row);
+            WriteSiteRow(csvWriter, site, isClientRole);
             csvWriter.NextRecord();
         }
         await csvWriter.FlushAsync();
@@ -138,21 +168,23 @@ public class ExportService : IExportService
         var writer = new StreamWriter(stream, Encoding.UTF8);
         var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
         var csvWriter = new CsvWriter(writer, csvConfig);
+        var isClientRole = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
 
-        csvWriter.WriteHeader<SiteExportRow>();
+        WriteHeaders(csvWriter, isClientRole);
         csvWriter.NextRecord();
-        foreach (var row in sites.Select(MapToExportRow))
+        foreach (var site in sites)
         {
-            csvWriter.WriteRecord(row);
+            WriteSiteRow(csvWriter, site, isClientRole);
             csvWriter.NextRecord();
         }
 
         if (includeNotFound)
         {
+            var placeholderColumnCount = GetHeaders(isClientRole).Length - 1;
             foreach (var domain in notFound)
             {
                 csvWriter.WriteField(domain);
-                for (var i = 0; i < NotFoundPlaceholderColumnCount; i++)
+                for (var i = 0; i < placeholderColumnCount; i++)
                 {
                     csvWriter.WriteField("-");
                 }
@@ -256,28 +288,42 @@ public class ExportService : IExportService
         return false;
     }
 
-    private static SiteExportRow MapToExportRow(Site site)
+    private static string[] GetHeaders(bool isClientRole)
     {
-        return new SiteExportRow
+        return isClientRole ? ClientExportHeaders : NonClientExportHeaders;
+    }
+
+    private static void WriteHeaders(CsvWriter csvWriter, bool isClientRole)
+    {
+        foreach (var header in GetHeaders(isClientRole))
         {
-            Domain = site.Domain,
-            DR = site.DR,
-            Traffic = site.Traffic,
-            Location = site.Location,
-            PriceUsd = site.PriceUsd,
-            PriceCasino = FormatOptionalService(site.PriceCasino, site.PriceCasinoStatus),
-            PriceCrypto = FormatOptionalService(site.PriceCrypto, site.PriceCryptoStatus),
-            PriceLinkInsert = FormatOptionalService(site.PriceLinkInsert, site.PriceLinkInsertStatus),
-            Niche = site.Niche,
-            Categories = site.Categories,
-            IsQuarantined = site.IsQuarantined,
-            QuarantineReason = site.QuarantineReason,
-            QuarantineUpdatedAtUtc = site.QuarantineUpdatedAtUtc,
-            CreatedAtUtc = site.CreatedAtUtc,
-            UpdatedAtUtc = site.UpdatedAtUtc,
-            LastPublishedDate = site.LastPublishedDate,
-            LastPublishedDateIsMonthOnly = site.LastPublishedDateIsMonthOnly
-        };
+            csvWriter.WriteField(header);
+        }
+    }
+
+    private static void WriteSiteRow(CsvWriter csvWriter, Site site, bool isClientRole)
+    {
+        csvWriter.WriteField(site.Domain);
+        csvWriter.WriteField(site.DR);
+        csvWriter.WriteField(site.Traffic);
+        csvWriter.WriteField(site.Location);
+        csvWriter.WriteField(site.PriceUsd);
+        csvWriter.WriteField(FormatOptionalService(site.PriceCasino, site.PriceCasinoStatus));
+        csvWriter.WriteField(FormatOptionalService(site.PriceCrypto, site.PriceCryptoStatus));
+        csvWriter.WriteField(FormatOptionalService(site.PriceLinkInsert, site.PriceLinkInsertStatus));
+        csvWriter.WriteField(site.Niche);
+        csvWriter.WriteField(site.Categories);
+
+        if (isClientRole)
+        {
+            return;
+        }
+
+        csvWriter.WriteField(site.IsQuarantined);
+        csvWriter.WriteField(site.QuarantineReason);
+        csvWriter.WriteField(site.LastPublishedDate);
+        csvWriter.WriteField(site.CreatedAtUtc);
+        csvWriter.WriteField(site.UpdatedAtUtc);
     }
 
     private static string FormatOptionalService(decimal? price, ServiceAvailabilityStatus status)
@@ -290,24 +336,4 @@ public class ExportService : IExportService
         };
     }
 
-    private sealed class SiteExportRow
-    {
-        public string Domain { get; set; } = string.Empty;
-        public double DR { get; set; }
-        public long Traffic { get; set; }
-        public string Location { get; set; } = string.Empty;
-        public decimal PriceUsd { get; set; }
-        public string PriceCasino { get; set; } = string.Empty;
-        public string PriceCrypto { get; set; } = string.Empty;
-        public string PriceLinkInsert { get; set; } = string.Empty;
-        public string? Niche { get; set; }
-        public string? Categories { get; set; }
-        public bool IsQuarantined { get; set; }
-        public string? QuarantineReason { get; set; }
-        public DateTime? QuarantineUpdatedAtUtc { get; set; }
-        public DateTime CreatedAtUtc { get; set; }
-        public DateTime UpdatedAtUtc { get; set; }
-        public DateTime? LastPublishedDate { get; set; }
-        public bool LastPublishedDateIsMonthOnly { get; set; }
-    }
 }
