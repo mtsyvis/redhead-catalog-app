@@ -2,6 +2,8 @@ using Redhead.SitesCatalog.Api.Mappers;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Domain.Exceptions;
 
 namespace Redhead.SitesCatalog.Tests;
 
@@ -28,6 +30,9 @@ public class SitesMapperTests
             CasinoAllowed = true,
             CryptoAllowed = false,
             LinkInsertAllowed = true,
+            CasinoAvailability = "notAvailable",
+            CryptoAvailability = "unknown",
+            LinkInsertAvailability = "available",
             Quarantine = QuarantineFilterValues.Exclude
         };
 
@@ -52,6 +57,9 @@ public class SitesMapperTests
         Assert.True(query.CasinoAllowed);
         Assert.False(query.CryptoAllowed);
         Assert.True(query.LinkInsertAllowed);
+        Assert.Equal(ServiceAvailabilityFilter.NotAvailable, query.CasinoAvailability);
+        Assert.Equal(ServiceAvailabilityFilter.Unknown, query.CryptoAvailability);
+        Assert.Equal(ServiceAvailabilityFilter.Available, query.LinkInsertAvailability);
         Assert.Equal(QuarantineFilterValues.Exclude, query.Quarantine);
     }
 
@@ -99,8 +107,11 @@ public class SitesMapperTests
             Location = "US",
             PriceUsd = 200m,
             PriceCasino = 250m,
+            PriceCasinoStatus = ServiceAvailabilityStatus.Available,
             PriceCrypto = 220m,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Available,
             PriceLinkInsert = 180m,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
             Niche = "Tech",
             Categories = "Technology, News",
             IsQuarantined = true,
@@ -120,8 +131,11 @@ public class SitesMapperTests
         Assert.Equal("US", response.Location);
         Assert.Equal(200m, response.PriceUsd);
         Assert.Equal(250m, response.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceCasinoStatus);
         Assert.Equal(220m, response.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceCryptoStatus);
         Assert.Equal(180m, response.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceLinkInsertStatus);
         Assert.Equal("Tech", response.Niche);
         Assert.Equal("Technology, News", response.Categories);
         Assert.True(response.IsQuarantined);
@@ -143,8 +157,11 @@ public class SitesMapperTests
             Location = "UK",
             PriceUsd = 100m,
             PriceCasino = null,
+            PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
             PriceCrypto = null,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
             PriceLinkInsert = null,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
             Niche = null,
             Categories = null,
             IsQuarantined = false,
@@ -160,13 +177,32 @@ public class SitesMapperTests
         // Assert
         Assert.Equal("basic.com", response.Domain);
         Assert.Null(response.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceCasinoStatus);
         Assert.Null(response.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceCryptoStatus);
         Assert.Null(response.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceLinkInsertStatus);
         Assert.Null(response.Niche);
         Assert.Null(response.Categories);
         Assert.False(response.IsQuarantined);
         Assert.Null(response.QuarantineReason);
         Assert.Null(response.QuarantineUpdatedAtUtc);
+    }
+
+    [Fact]
+    public void ToQuery_WithInvalidAvailability_ThrowsRequestValidationException()
+    {
+        // Arrange
+        var request = new SitesQueryRequest
+        {
+            CasinoAvailability = "badValue"
+        };
+
+        // Act
+        var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
+
+        // Assert
+        Assert.Contains("Invalid availability filter value", ex.Message);
     }
 
     [Fact]

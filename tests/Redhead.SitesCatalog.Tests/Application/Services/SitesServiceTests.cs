@@ -3,6 +3,7 @@ using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Tests;
@@ -43,8 +44,11 @@ public class SitesServiceTests : IDisposable
                 Location = "US",
                 PriceUsd = 100m,
                 PriceCasino = 150m,
+                PriceCasinoStatus = ServiceAvailabilityStatus.Available,
                 PriceCrypto = 120m,
+                PriceCryptoStatus = ServiceAvailabilityStatus.Available,
                 PriceLinkInsert = 80m,
+                PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
                 Niche = "Tech",
                 Categories = "Technology",
                 IsQuarantined = false,
@@ -59,8 +63,11 @@ public class SitesServiceTests : IDisposable
                 Location = "UK",
                 PriceUsd = 200m,
                 PriceCasino = null,
+                PriceCasinoStatus = ServiceAvailabilityStatus.NotAvailable,
                 PriceCrypto = 180m,
+                PriceCryptoStatus = ServiceAvailabilityStatus.Available,
                 PriceLinkInsert = null,
+                PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
                 Niche = "News",
                 Categories = "News",
                 IsQuarantined = false,
@@ -75,8 +82,11 @@ public class SitesServiceTests : IDisposable
                 Location = "US",
                 PriceUsd = 500m,
                 PriceCasino = 600m,
+                PriceCasinoStatus = ServiceAvailabilityStatus.Available,
                 PriceCrypto = null,
+                PriceCryptoStatus = ServiceAvailabilityStatus.NotAvailable,
                 PriceLinkInsert = 400m,
+                PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
                 Niche = "Casino",
                 Categories = "Gambling",
                 IsQuarantined = true,
@@ -93,8 +103,11 @@ public class SitesServiceTests : IDisposable
                 Location = "CA",
                 PriceUsd = 150m,
                 PriceCasino = null,
+                PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceCrypto = 170m,
+                PriceCryptoStatus = ServiceAvailabilityStatus.Available,
                 PriceLinkInsert = null,
+                PriceLinkInsertStatus = ServiceAvailabilityStatus.NotAvailable,
                 Niche = "Crypto",
                 Categories = "Cryptocurrency",
                 IsQuarantined = false,
@@ -109,8 +122,11 @@ public class SitesServiceTests : IDisposable
                 Location = "US",
                 PriceUsd = 50m,
                 PriceCasino = null,
+                PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceCrypto = null,
+                PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceLinkInsert = 30m,
+                PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
                 Niche = "General",
                 Categories = "General",
                 IsQuarantined = false,
@@ -380,7 +396,7 @@ public class SitesServiceTests : IDisposable
 
         // Assert
         Assert.Equal(2, result.Total); // example.com, gambling.com
-        Assert.All(result.Items, site => Assert.NotNull(site.PriceCasino));
+        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Available, site.PriceCasinoStatus));
     }
 
     [Fact]
@@ -402,7 +418,7 @@ public class SitesServiceTests : IDisposable
 
         // Assert
         Assert.Equal(3, result.Total); // example.com, test.com, crypto.com
-        Assert.All(result.Items, site => Assert.NotNull(site.PriceCrypto));
+        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Available, site.PriceCryptoStatus));
     }
 
     [Fact]
@@ -424,7 +440,84 @@ public class SitesServiceTests : IDisposable
 
         // Assert
         Assert.Equal(3, result.Total); // example.com, gambling.com, lowdr.com
-        Assert.All(result.Items, site => Assert.NotNull(site.PriceLinkInsert));
+        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Available, site.PriceLinkInsertStatus));
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithCasinoAvailabilityNotAvailable_ReturnsOnlyNotAvailableSites()
+    {
+        var query = new SitesQuery
+        {
+            CasinoAvailability = ServiceAvailabilityFilter.NotAvailable,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Single(result.Items);
+        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceCasinoStatus));
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithCryptoAvailabilityUnknown_ReturnsOnlyUnknownSites()
+    {
+        var query = new SitesQuery
+        {
+            CryptoAvailability = ServiceAvailabilityFilter.Unknown,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Single(result.Items);
+        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Unknown, site.PriceCryptoStatus));
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithLinkInsertAvailabilityNotAvailable_ReturnsOnlyNotAvailableSites()
+    {
+        var query = new SitesQuery
+        {
+            LinkInsertAvailability = ServiceAvailabilityFilter.NotAvailable,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Single(result.Items);
+        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceLinkInsertStatus));
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WhenBothLegacyAndNewFiltersProvided_NewAvailabilityWins()
+    {
+        var query = new SitesQuery
+        {
+            CasinoAllowed = true,
+            CasinoAvailability = ServiceAvailabilityFilter.NotAvailable,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Single(result.Items);
+        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceCasinoStatus));
     }
 
     [Fact]
@@ -927,8 +1020,11 @@ public class SitesServiceTests : IDisposable
             Location = site.Location,
             PriceUsd = site.PriceUsd,
             PriceCasino = site.PriceCasino,
+            PriceCasinoStatus = site.PriceCasinoStatus,
             PriceCrypto = site.PriceCrypto,
+            PriceCryptoStatus = site.PriceCryptoStatus,
             PriceLinkInsert = site.PriceLinkInsert,
+            PriceLinkInsertStatus = site.PriceLinkInsertStatus,
             Niche = site.Niche,
             Categories = site.Categories,
             IsQuarantined = isQuarantined,
@@ -994,6 +1090,9 @@ public class SitesServiceTests : IDisposable
             Traffic = 1000,
             Location = "US",
             PriceUsd = 100m,
+            PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
             IsQuarantined = true,
             QuarantineReason = "X"
         };
@@ -1012,6 +1111,9 @@ public class SitesServiceTests : IDisposable
             Traffic = 1000,
             Location = "US",
             PriceUsd = 100m,
+            PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
             IsQuarantined = true,
             QuarantineReason = "X"
         };
@@ -1032,8 +1134,11 @@ public class SitesServiceTests : IDisposable
             Location = "CA",
             PriceUsd = 150m,
             PriceCasino = 200m,
+            PriceCasinoStatus = ServiceAvailabilityStatus.Available,
             PriceCrypto = null,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
             PriceLinkInsert = 90m,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
             Niche = "Updated niche",
             Categories = "Updated categories",
             IsQuarantined = site.IsQuarantined,

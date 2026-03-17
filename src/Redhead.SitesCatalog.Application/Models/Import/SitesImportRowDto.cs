@@ -12,9 +12,9 @@ public class SitesImportRowDto
     public long? Traffic { get; set; }
     public string? Location { get; set; }
     public decimal? PriceUsd { get; set; }
-    public decimal? PriceCasino { get; set; }
-    public decimal? PriceCrypto { get; set; }
-    public decimal? PriceLinkInsert { get; set; }
+    public string? PriceCasinoRaw { get; set; }
+    public string? PriceCryptoRaw { get; set; }
+    public string? PriceLinkInsertRaw { get; set; }
     public string? Niche { get; set; }
     public string? Categories { get; set; }
 }

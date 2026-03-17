@@ -1,5 +1,6 @@
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Domain;
+using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Application.Services.Parsers;
 
@@ -19,8 +20,11 @@ public static class SitesImportRowValidationHelper
         string Location,
         decimal PriceUsd,
         decimal? PriceCasino,
+        ServiceAvailabilityStatus PriceCasinoStatus,
         decimal? PriceCrypto,
+        ServiceAvailabilityStatus PriceCryptoStatus,
         decimal? PriceLinkInsert,
+        ServiceAvailabilityStatus PriceLinkInsertStatus,
         string? Niche,
         string? Categories);
 
@@ -104,30 +108,42 @@ public static class SitesImportRowValidationHelper
             }, null);
         }
 
-        if (row.PriceCasino is not null && row.PriceCasino < 0)
+        var casinoParseResult = OptionalServiceValueParser.Parse(row.PriceCasinoRaw);
+        if (!casinoParseResult.IsValid)
         {
             return (false, new SitesImportError
             {
                 RowNumber = row.RowNumber,
-                Message = "PriceCasino must be >= 0 or empty."
+                Domain = domain,
+                Field = "PriceCasino",
+                RawValue = row.PriceCasinoRaw,
+                Message = casinoParseResult.ErrorMessage ?? "Invalid PriceCasino value."
             }, null);
         }
 
-        if (row.PriceCrypto is not null && row.PriceCrypto < 0)
+        var cryptoParseResult = OptionalServiceValueParser.Parse(row.PriceCryptoRaw);
+        if (!cryptoParseResult.IsValid)
         {
             return (false, new SitesImportError
             {
                 RowNumber = row.RowNumber,
-                Message = "PriceCrypto must be >= 0 or empty."
+                Domain = domain,
+                Field = "PriceCrypto",
+                RawValue = row.PriceCryptoRaw,
+                Message = cryptoParseResult.ErrorMessage ?? "Invalid PriceCrypto value."
             }, null);
         }
 
-        if (row.PriceLinkInsert is not null && row.PriceLinkInsert < 0)
+        var linkInsertParseResult = OptionalServiceValueParser.Parse(row.PriceLinkInsertRaw);
+        if (!linkInsertParseResult.IsValid)
         {
             return (false, new SitesImportError
             {
                 RowNumber = row.RowNumber,
-                Message = "PriceLinkInsert must be >= 0 or empty."
+                Domain = domain,
+                Field = "PriceLinkInsert",
+                RawValue = row.PriceLinkInsertRaw,
+                Message = linkInsertParseResult.ErrorMessage ?? "Invalid PriceLinkInsert value."
             }, null);
         }
 
@@ -137,9 +153,12 @@ public static class SitesImportRowValidationHelper
             row.Traffic ?? 0,
             (row.Location ?? string.Empty).Trim(),
             row.PriceUsd ?? 0,
-            row.PriceCasino,
-            row.PriceCrypto,
-            row.PriceLinkInsert,
+            casinoParseResult.Price,
+            casinoParseResult.Status,
+            cryptoParseResult.Price,
+            cryptoParseResult.Status,
+            linkInsertParseResult.Price,
+            linkInsertParseResult.Status,
             string.IsNullOrWhiteSpace(row.Niche) ? null : row.Niche.Trim(),
             string.IsNullOrWhiteSpace(row.Categories) ? null : row.Categories.Trim());
 
@@ -153,9 +172,9 @@ public static class SitesImportRowValidationHelper
                && row.Traffic is null
                && string.IsNullOrWhiteSpace(row.Location)
                && row.PriceUsd is null
-               && row.PriceCasino is null
-               && row.PriceCrypto is null
-               && row.PriceLinkInsert is null
+               && string.IsNullOrWhiteSpace(row.PriceCasinoRaw)
+               && string.IsNullOrWhiteSpace(row.PriceCryptoRaw)
+               && string.IsNullOrWhiteSpace(row.PriceLinkInsertRaw)
                && string.IsNullOrWhiteSpace(row.Niche)
                && string.IsNullOrWhiteSpace(row.Categories);
     }

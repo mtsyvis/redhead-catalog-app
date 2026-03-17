@@ -29,6 +29,7 @@ public class SitesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var query = SitesMapper.ToQuery(request);
+
         var result = await _sitesService.GetSitesAsync(query, cancellationToken);
         var response = SitesMapper.ToResponse(result);
 
@@ -45,18 +46,10 @@ public class SitesController : ControllerBase
     {
         if (request == null)
         {
-            return BadRequest(ProblemDetailsValidation("Request body is required."));
+            return BadRequest("Request body is required.");
         }
 
-        MultiSearchParseResult parseResult;
-        try
-        {
-            parseResult = MultiSearchParser.Parse(request.QueryText);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ProblemDetailsValidation(ex.Message));
-        }
+        var parseResult = MultiSearchParser.Parse(request.QueryText);
 
         var result = await _sitesService.MultiSearchSitesAsync(
             parseResult.UniqueDomains,
@@ -112,8 +105,11 @@ public class SitesController : ControllerBase
             Location = request.Location!.Trim(),
             PriceUsd = request.PriceUsd!.Value,
             PriceCasino = request.PriceCasino,
+            PriceCasinoStatus = UpdateSiteRequestValidator.ResolveStatusOrInfer(request.PriceCasino, request.PriceCasinoStatus),
             PriceCrypto = request.PriceCrypto,
+            PriceCryptoStatus = UpdateSiteRequestValidator.ResolveStatusOrInfer(request.PriceCrypto, request.PriceCryptoStatus),
             PriceLinkInsert = request.PriceLinkInsert,
+            PriceLinkInsertStatus = UpdateSiteRequestValidator.ResolveStatusOrInfer(request.PriceLinkInsert, request.PriceLinkInsertStatus),
             Niche = string.IsNullOrWhiteSpace(request.Niche) ? null : request.Niche.Trim(),
             Categories = string.IsNullOrWhiteSpace(request.Categories) ? null : request.Categories.Trim(),
             IsQuarantined = request.IsQuarantined,
@@ -128,16 +124,5 @@ public class SitesController : ControllerBase
         }
 
         return Ok(SitesMapper.ToSiteResponse(updated));
-    }
-
-    private static Microsoft.AspNetCore.Mvc.ProblemDetails ProblemDetailsValidation(string detail)
-    {
-        return new Microsoft.AspNetCore.Mvc.ProblemDetails
-        {
-            Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
-            Title = "Validation Error",
-            Status = StatusCodes.Status400BadRequest,
-            Detail = detail
-        };
     }
 }

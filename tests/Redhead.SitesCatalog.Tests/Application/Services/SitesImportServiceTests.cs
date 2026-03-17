@@ -5,6 +5,7 @@ using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using System.Text;
@@ -65,8 +66,11 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal("US", newSite.Location);
         Assert.Equal(100m, newSite.PriceUsd);
         Assert.Equal(150m, newSite.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, newSite.PriceCasinoStatus);
         Assert.Equal(200m, newSite.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.Available, newSite.PriceCryptoStatus);
         Assert.Equal(250m, newSite.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.Available, newSite.PriceLinkInsertStatus);
         Assert.Equal("Tech", newSite.Niche);
         Assert.Equal("News", newSite.Categories);
         Assert.False(newSite.IsQuarantined);
@@ -77,8 +81,11 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal("UK", secondSite.Location);
         Assert.Equal(80m, secondSite.PriceUsd);
         Assert.Null(secondSite.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, secondSite.PriceCasinoStatus);
         Assert.Null(secondSite.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, secondSite.PriceCryptoStatus);
         Assert.Null(secondSite.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, secondSite.PriceLinkInsertStatus);
         Assert.Equal("Business", secondSite.Niche);
         Assert.Null(secondSite.Categories);
 
@@ -112,8 +119,11 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal("DE", site.Location);
         Assert.Equal(90m, site.PriceUsd);
         Assert.Equal(120m, site.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, site.PriceCasinoStatus);
         Assert.Null(site.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, site.PriceCryptoStatus);
         Assert.Null(site.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, site.PriceLinkInsertStatus);
         Assert.Equal("Finance", site.Niche);
         Assert.Equal("Blog", site.Categories);
     }
@@ -335,9 +345,9 @@ public sealed class SitesImportServiceTests : IDisposable
     [InlineData("bad-dr-range.com,101,12000,US,100,150,200,250,Tech,News", "DR must be between 0 and 100.")]
     [InlineData("bad-traffic.com,55,,US,100,150,200,250,Tech,News", "Traffic is required and must be >= 0.")]
     [InlineData("bad-price.com,55,12000,US,,150,200,250,Tech,News", "Price USD is required and must be >= 0.")]
-    [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,Tech,News", "PriceCasino must be >= 0 or empty.")]
-    [InlineData("bad-crypto.com,55,12000,US,100,150,-1,250,Tech,News", "PriceCrypto must be >= 0 or empty.")]
-    [InlineData("bad-link-insert.com,55,12000,US,100,150,200,-1,Tech,News", "PriceLinkInsert must be >= 0 or empty.")]
+    [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,Tech,News", "Price must be >= 0.")]
+    [InlineData("bad-crypto.com,55,12000,US,100,150,-1,250,Tech,News", "Price must be >= 0.")]
+    [InlineData("bad-link-insert.com,55,12000,US,100,150,200,-1,Tech,News", "Price must be >= 0.")]
     public async Task ImportAsync_InvalidRow_AddsError_AndSkipsRow(string csvRow, string expectedMessage)
     {
         // Arrange
@@ -352,6 +362,75 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Single(result.Errors);
         Assert.Equal(2, result.Errors[0].RowNumber);
         Assert.Equal(expectedMessage, result.Errors[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportAsync_NotAvailableMarkers_AreParsedToNotAvailableStatus()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "marker.com,55,12000,US,100,NO,n/a,-,Tech,News\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.Inserted);
+        Assert.Equal(0, result.ErrorsCount);
+
+        var site = await GetSiteAsync("marker.com");
+        Assert.Null(site.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceCasinoStatus);
+        Assert.Null(site.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceCryptoStatus);
+        Assert.Null(site.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceLinkInsertStatus);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidOptionalServiceValue_ReturnsFieldError()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "bad-optional.com,55,12000,US,100,abc,,,Tech,News\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.Inserted);
+        Assert.Equal(1, result.ErrorsCount);
+        Assert.Single(result.Errors);
+        Assert.Equal("PriceCasino", result.Errors[0].Field);
+        Assert.Equal("abc", result.Errors[0].RawValue);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidCryptoOptionalServiceValue_ReturnsFieldError()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "bad-optional-crypto.com,55,12000,US,100,,abc,,Tech,News\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.Inserted);
+        Assert.Equal(1, result.ErrorsCount);
+        Assert.Single(result.Errors);
+        Assert.Equal("PriceCrypto", result.Errors[0].Field);
+        Assert.Equal("abc", result.Errors[0].RawValue);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidLinkInsertOptionalServiceValue_ReturnsFieldError()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "bad-optional-link.com,55,12000,US,100,,,abc,Tech,News\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.Inserted);
+        Assert.Equal(1, result.ErrorsCount);
+        Assert.Single(result.Errors);
+        Assert.Equal("PriceLinkInsert", result.Errors[0].Field);
+        Assert.Equal("abc", result.Errors[0].RawValue);
     }
 
     [Fact]
@@ -610,8 +689,11 @@ public sealed class SitesImportServiceTests : IDisposable
                 Location = "US",
                 PriceUsd = 50m,
                 PriceCasino = null,
+                PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceCrypto = null,
+                PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceLinkInsert = null,
+                PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
                 Niche = "General",
                 Categories = "Blog",
                 IsQuarantined = false,

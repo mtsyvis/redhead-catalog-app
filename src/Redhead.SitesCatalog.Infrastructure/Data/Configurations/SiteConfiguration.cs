@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Infrastructure.Data.Configurations;
 
@@ -8,7 +9,18 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
 {
     public void Configure(EntityTypeBuilder<Site> builder)
     {
-        builder.ToTable("Sites");
+        builder.ToTable("Sites", tableBuilder =>
+        {
+            tableBuilder.HasCheckConstraint(
+                "CK_Sites_PriceCasino_StatusConsistency",
+                "(\"PriceCasinoStatus\" = 1 AND \"PriceCasino\" IS NOT NULL AND \"PriceCasino\" >= 0) OR (\"PriceCasinoStatus\" IN (0, 2) AND \"PriceCasino\" IS NULL)");
+            tableBuilder.HasCheckConstraint(
+                "CK_Sites_PriceCrypto_StatusConsistency",
+                "(\"PriceCryptoStatus\" = 1 AND \"PriceCrypto\" IS NOT NULL AND \"PriceCrypto\" >= 0) OR (\"PriceCryptoStatus\" IN (0, 2) AND \"PriceCrypto\" IS NULL)");
+            tableBuilder.HasCheckConstraint(
+                "CK_Sites_PriceLinkInsert_StatusConsistency",
+                "(\"PriceLinkInsertStatus\" = 1 AND \"PriceLinkInsert\" IS NOT NULL AND \"PriceLinkInsert\" >= 0) OR (\"PriceLinkInsertStatus\" IN (0, 2) AND \"PriceLinkInsert\" IS NULL)");
+        });
 
         builder.HasKey(s => s.Domain);
 
@@ -35,11 +47,29 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(s => s.PriceCasino)
             .HasPrecision(18, 2);
 
+        builder.Property(s => s.PriceCasinoStatus)
+            .IsRequired()
+            .HasConversion<short>()
+            .HasColumnType("smallint")
+            .HasDefaultValue(ServiceAvailabilityStatus.Unknown);
+
         builder.Property(s => s.PriceCrypto)
             .HasPrecision(18, 2);
 
+        builder.Property(s => s.PriceCryptoStatus)
+            .IsRequired()
+            .HasConversion<short>()
+            .HasColumnType("smallint")
+            .HasDefaultValue(ServiceAvailabilityStatus.Unknown);
+
         builder.Property(s => s.PriceLinkInsert)
             .HasPrecision(18, 2);
+
+        builder.Property(s => s.PriceLinkInsertStatus)
+            .IsRequired()
+            .HasConversion<short>()
+            .HasColumnType("smallint")
+            .HasDefaultValue(ServiceAvailabilityStatus.Unknown);
 
         builder.Property(s => s.Niche)
             .HasColumnType("text");

@@ -1,3 +1,5 @@
+using Redhead.SitesCatalog.Domain.Enums;
+
 namespace Redhead.SitesCatalog.Api.Models.Sites;
 
 /// <summary>
@@ -85,6 +87,28 @@ public static class UpdateSiteRequestValidator
             Add(errors, "priceLinkInsert", "Price Link Insert must be 0 or greater.");
         }
 
+        ValidateOptionalServicePair(
+            errors,
+            "priceCasino",
+            "priceCasinoStatus",
+            request.PriceCasino,
+            request.PriceCasinoStatus,
+            "Price Casino");
+        ValidateOptionalServicePair(
+            errors,
+            "priceCrypto",
+            "priceCryptoStatus",
+            request.PriceCrypto,
+            request.PriceCryptoStatus,
+            "Price Crypto");
+        ValidateOptionalServicePair(
+            errors,
+            "priceLinkInsert",
+            "priceLinkInsertStatus",
+            request.PriceLinkInsert,
+            request.PriceLinkInsertStatus,
+            "Price Link Insert");
+
         if (request.QuarantineReason != null && request.QuarantineReason.Trim().Length > 1000)
         {
             Add(errors, "quarantineReason", "Quarantine reason must be at most 1000 characters.");
@@ -96,6 +120,54 @@ public static class UpdateSiteRequestValidator
         }
 
         return errors.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    public static ServiceAvailabilityStatus ResolveStatusOrInfer(decimal? price, ServiceAvailabilityStatus? providedStatus)
+    {
+        if (providedStatus.HasValue)
+        {
+            return providedStatus.Value;
+        }
+
+        return price.HasValue
+            ? ServiceAvailabilityStatus.Available
+            : ServiceAvailabilityStatus.Unknown;
+    }
+
+    private static void ValidateOptionalServicePair(
+        Dictionary<string, List<string>> errors,
+        string priceFieldKey,
+        string statusFieldKey,
+        decimal? price,
+        ServiceAvailabilityStatus? providedStatus,
+        string displayName)
+    {
+        var status = ResolveStatusOrInfer(price, providedStatus);
+
+        if (status == ServiceAvailabilityStatus.Available)
+        {
+            if (!price.HasValue)
+            {
+                Add(errors, priceFieldKey, $"{displayName} is required when status is Available.");
+            }
+            else if (price.Value < 0)
+            {
+                Add(errors, priceFieldKey, $"{displayName} must be 0 or greater when status is Available.");
+            }
+
+            return;
+        }
+
+        if (status != ServiceAvailabilityStatus.Unknown && status != ServiceAvailabilityStatus.NotAvailable)
+        {
+            Add(errors, statusFieldKey, "Invalid availability status value.");
+            return;
+        }
+
+        if (price.HasValue)
+        {
+            Add(errors, priceFieldKey, $"{displayName} must be empty when status is {status}.");
+        }
     }
 
     private static void Add(Dictionary<string, List<string>> dict, string key, string message)

@@ -4,6 +4,7 @@ using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using System.Text;
@@ -62,8 +63,11 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal("US", first.Location);
         Assert.Equal(100m, first.PriceUsd);
         Assert.Equal(150m, first.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, first.PriceCasinoStatus);
         Assert.Equal(200m, first.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.Available, first.PriceCryptoStatus);
         Assert.Equal(250m, first.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.Available, first.PriceLinkInsertStatus);
         Assert.Equal("Tech", first.Niche);
         Assert.Equal("News", first.Categories);
 
@@ -73,8 +77,11 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal("UK", second.Location);
         Assert.Equal(80m, second.PriceUsd);
         Assert.Null(second.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, second.PriceCasinoStatus);
         Assert.Null(second.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, second.PriceCryptoStatus);
         Assert.Null(second.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, second.PriceLinkInsertStatus);
         Assert.Null(second.Niche);
         Assert.Null(second.Categories);
 
@@ -104,8 +111,11 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal("DE", site.Location);
         Assert.Equal(90m, site.PriceUsd);
         Assert.Equal(120m, site.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, site.PriceCasinoStatus);
         Assert.Null(site.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, site.PriceCryptoStatus);
         Assert.Null(site.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, site.PriceLinkInsertStatus);
         Assert.Equal("Finance", site.Niche);
         Assert.Equal("Blog", site.Categories);
     }
@@ -238,8 +248,11 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(55, updated.DR);
         Assert.Equal(100m, updated.PriceUsd);
         Assert.Null(updated.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, updated.PriceCasinoStatus);
         Assert.Null(updated.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, updated.PriceCryptoStatus);
         Assert.Null(updated.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, updated.PriceLinkInsertStatus);
         Assert.Null(updated.Niche);
         Assert.Null(updated.Categories);
     }
@@ -433,7 +446,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     [InlineData("bad-dr.com,101,12000,US,100,150,200,250,Tech,News", "DR must be between 0 and 100")]
     [InlineData("bad-traffic.com,55,,US,100,150,200,250,Tech,News", "Traffic is required")]
     [InlineData("bad-price.com,55,12000,US,,150,200,250,Tech,News", "Price USD is required")]
-    [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,Tech,News", "PriceCasino must be >= 0")]
+    [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,Tech,News", "Price must be >= 0")]
     public async Task ImportAsync_InvalidRow_AddsError(string csvRow, string expectedMessageFragment)
     {
         using var stream = Utf8Csv(HeaderLine() + csvRow + "\n");
@@ -445,6 +458,66 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Single(result.Errors);
         Assert.Equal(2, result.Errors[0].RowNumber);
         Assert.Contains(expectedMessageFragment, result.Errors[0].Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ImportAsync_NoMarker_OverPricedRow_SetsNotAvailable()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.PriceCasino = 111m;
+        site.PriceCasinoStatus = ServiceAvailabilityStatus.Available;
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "existing.com,55,12000,US,100,NO,,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.Matched);
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Null(updated.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.NotAvailable, updated.PriceCasinoStatus);
+    }
+
+    [Fact]
+    public async Task ImportAsync_EmptyOptionalValue_OverPricedRow_SetsUnknown()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.PriceCasino = 222m;
+        site.PriceCasinoStatus = ServiceAvailabilityStatus.Available;
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "existing.com,55,12000,US,100,, ,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.Matched);
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Null(updated.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, updated.PriceCasinoStatus);
+    }
+
+    [Fact]
+    public async Task ImportAsync_NumericOptionalValue_OverUnknownRow_SetsAvailable()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.PriceLinkInsert = null;
+        site.PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown;
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "existing.com,55,12000,US,100,,,55,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.Matched);
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal(55m, updated.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.Available, updated.PriceLinkInsertStatus);
     }
 
     private async Task<SitesUpdateImportResult> ImportAsync(Stream stream)
@@ -498,8 +571,11 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
                 Location = "US",
                 PriceUsd = 50m,
                 PriceCasino = null,
+                PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceCrypto = null,
+                PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceLinkInsert = null,
+                PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
                 Niche = "General",
                 Categories = "Blog",
                 IsQuarantined = false,

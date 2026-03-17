@@ -35,9 +35,9 @@ public static class SitesImportRowMapper
             Traffic = ParseNullableLong(trafficRaw),
             Location = location,
             PriceUsd = ParseNullableDecimal(priceUsdRaw),
-            PriceCasino = ParseNullableDecimal(priceCasinoRaw),
-            PriceCrypto = ParseNullableDecimal(priceCryptoRaw),
-            PriceLinkInsert = ParseNullableDecimal(priceLinkInsertRaw),
+            PriceCasinoRaw = priceCasinoRaw,
+            PriceCryptoRaw = priceCryptoRaw,
+            PriceLinkInsertRaw = priceLinkInsertRaw,
             Niche = niche,
             Categories = categories
         };

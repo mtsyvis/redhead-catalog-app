@@ -48,6 +48,27 @@ public class SitesQueryRequest
     public bool? LinkInsertAllowed { get; set; }
 
     /// <summary>
+    /// Optional availability filter for PriceCasino status.
+    /// Allowed values: all, available, notAvailable, unknown.
+    /// If set, takes precedence over CasinoAllowed.
+    /// </summary>
+    public string? CasinoAvailability { get; set; }
+
+    /// <summary>
+    /// Optional availability filter for PriceCrypto status.
+    /// Allowed values: all, available, notAvailable, unknown.
+    /// If set, takes precedence over CryptoAllowed.
+    /// </summary>
+    public string? CryptoAvailability { get; set; }
+
+    /// <summary>
+    /// Optional availability filter for PriceLinkInsert status.
+    /// Allowed values: all, available, notAvailable, unknown.
+    /// If set, takes precedence over LinkInsertAllowed.
+    /// </summary>
+    public string? LinkInsertAvailability { get; set; }
+
+    /// <summary>
     /// Quarantine filter. Valid values: all (default - returns all sites), only (returns only quarantined sites), exclude (excludes quarantined sites)
     /// </summary>
     public string Quarantine { get; set; } = QuarantineFilterValues.All;

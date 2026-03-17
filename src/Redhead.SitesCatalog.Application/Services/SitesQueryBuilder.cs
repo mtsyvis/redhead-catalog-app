@@ -2,6 +2,7 @@ using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
@@ -79,17 +80,53 @@ public class SitesQueryBuilder : ISitesQueryBuilder
 
     private static IQueryable<Site> ApplyAllowedFilters(IQueryable<Site> query, SitesQuery filters)
     {
-        if (filters.CasinoAllowed == true)
+        // New explicit availability filters take precedence over legacy boolean flags.
+        if (filters.CasinoAvailability.HasValue)
         {
-            query = query.Where(s => s.PriceCasino != null);
+            query = filters.CasinoAvailability.Value switch
+            {
+                ServiceAvailabilityFilter.All => query,
+                ServiceAvailabilityFilter.Available => query.Where(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Available),
+                ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.NotAvailable),
+                ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Unknown),
+                _ => query
+            };
         }
-        if (filters.CryptoAllowed == true)
+        else if (filters.CasinoAllowed == true)
         {
-            query = query.Where(s => s.PriceCrypto != null);
+            query = query.Where(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Available);
         }
-        if (filters.LinkInsertAllowed == true)
+
+        if (filters.CryptoAvailability.HasValue)
         {
-            query = query.Where(s => s.PriceLinkInsert != null);
+            query = filters.CryptoAvailability.Value switch
+            {
+                ServiceAvailabilityFilter.All => query,
+                ServiceAvailabilityFilter.Available => query.Where(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Available),
+                ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.NotAvailable),
+                ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Unknown),
+                _ => query
+            };
+        }
+        else if (filters.CryptoAllowed == true)
+        {
+            query = query.Where(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Available);
+        }
+
+        if (filters.LinkInsertAvailability.HasValue)
+        {
+            query = filters.LinkInsertAvailability.Value switch
+            {
+                ServiceAvailabilityFilter.All => query,
+                ServiceAvailabilityFilter.Available => query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available),
+                ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.NotAvailable),
+                ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Unknown),
+                _ => query
+            };
+        }
+        else if (filters.LinkInsertAllowed == true)
+        {
+            query = query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available);
         }
 
         return query;

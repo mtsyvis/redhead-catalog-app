@@ -1,5 +1,7 @@
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Domain.Exceptions;
 
 namespace Redhead.SitesCatalog.Api.Mappers;
 
@@ -30,6 +32,9 @@ public static class SitesMapper
             CasinoAllowed = request.CasinoAllowed,
             CryptoAllowed = request.CryptoAllowed,
             LinkInsertAllowed = request.LinkInsertAllowed,
+            CasinoAvailability = ParseAvailabilityFilter(request.CasinoAvailability),
+            CryptoAvailability = ParseAvailabilityFilter(request.CryptoAvailability),
+            LinkInsertAvailability = ParseAvailabilityFilter(request.LinkInsertAvailability),
             Quarantine = request.Quarantine
         };
     }
@@ -59,8 +64,11 @@ public static class SitesMapper
             Location = dto.Location,
             PriceUsd = dto.PriceUsd,
             PriceCasino = dto.PriceCasino,
+            PriceCasinoStatus = dto.PriceCasinoStatus,
             PriceCrypto = dto.PriceCrypto,
+            PriceCryptoStatus = dto.PriceCryptoStatus,
             PriceLinkInsert = dto.PriceLinkInsert,
+            PriceLinkInsertStatus = dto.PriceLinkInsertStatus,
             Niche = dto.Niche,
             Categories = dto.Categories,
             IsQuarantined = dto.IsQuarantined,
@@ -70,6 +78,25 @@ public static class SitesMapper
             UpdatedAtUtc = dto.UpdatedAtUtc,
             LastPublishedDate = dto.LastPublishedDate,
             LastPublishedDateIsMonthOnly = dto.LastPublishedDateIsMonthOnly
+        };
+    }
+
+    private static ServiceAvailabilityFilter? ParseAvailabilityFilter(string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return null;
+        }
+
+        var normalized = rawValue.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "all" => ServiceAvailabilityFilter.All,
+            "available" => ServiceAvailabilityFilter.Available,
+            "notavailable" => ServiceAvailabilityFilter.NotAvailable,
+            "unknown" => ServiceAvailabilityFilter.Unknown,
+            _ => throw new RequestValidationException(
+                $"Invalid availability filter value '{rawValue}'. Allowed values: all, available, notAvailable, unknown.")
         };
     }
 }

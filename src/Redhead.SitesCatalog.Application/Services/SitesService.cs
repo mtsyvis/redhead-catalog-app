@@ -45,8 +45,11 @@ public class SitesService : ISitesService
                 Location = s.Location,
                 PriceUsd = s.PriceUsd,
                 PriceCasino = s.PriceCasino,
+                PriceCasinoStatus = s.PriceCasinoStatus,
                 PriceCrypto = s.PriceCrypto,
+                PriceCryptoStatus = s.PriceCryptoStatus,
                 PriceLinkInsert = s.PriceLinkInsert,
+                PriceLinkInsertStatus = s.PriceLinkInsertStatus,
                 Niche = s.Niche,
                 Categories = s.Categories,
                 IsQuarantined = s.IsQuarantined,
@@ -100,8 +103,11 @@ public class SitesService : ISitesService
                 Location = s.Location,
                 PriceUsd = s.PriceUsd,
                 PriceCasino = s.PriceCasino,
+                PriceCasinoStatus = s.PriceCasinoStatus,
                 PriceCrypto = s.PriceCrypto,
+                PriceCryptoStatus = s.PriceCryptoStatus,
                 PriceLinkInsert = s.PriceLinkInsert,
+                PriceLinkInsertStatus = s.PriceLinkInsertStatus,
                 Niche = s.Niche,
                 Categories = s.Categories,
                 IsQuarantined = s.IsQuarantined,
@@ -145,8 +151,11 @@ public class SitesService : ISitesService
         site.Location = request.Location.Trim();
         site.PriceUsd = request.PriceUsd;
         site.PriceCasino = request.PriceCasino;
+        site.PriceCasinoStatus = request.PriceCasinoStatus;
         site.PriceCrypto = request.PriceCrypto;
+        site.PriceCryptoStatus = request.PriceCryptoStatus;
         site.PriceLinkInsert = request.PriceLinkInsert;
+        site.PriceLinkInsertStatus = request.PriceLinkInsertStatus;
         site.Niche = string.IsNullOrWhiteSpace(request.Niche) ? null : request.Niche.Trim();
         site.Categories = string.IsNullOrWhiteSpace(request.Categories) ? null : request.Categories.Trim();
         site.IsQuarantined = request.IsQuarantined;
@@ -163,8 +172,11 @@ public class SitesService : ISitesService
             Location = site.Location,
             PriceUsd = site.PriceUsd,
             PriceCasino = site.PriceCasino,
+            PriceCasinoStatus = site.PriceCasinoStatus,
             PriceCrypto = site.PriceCrypto,
+            PriceCryptoStatus = site.PriceCryptoStatus,
             PriceLinkInsert = site.PriceLinkInsert,
+            PriceLinkInsertStatus = site.PriceLinkInsertStatus,
             Niche = site.Niche,
             Categories = site.Categories,
             IsQuarantined = site.IsQuarantined,

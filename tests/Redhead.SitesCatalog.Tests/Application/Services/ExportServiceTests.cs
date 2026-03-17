@@ -7,6 +7,7 @@ using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
@@ -62,8 +63,11 @@ public class ExportServiceTests : IDisposable
                 Location = "US",
                 PriceUsd = 100m,
                 PriceCasino = 150m,
+                PriceCasinoStatus = ServiceAvailabilityStatus.Available,
                 PriceCrypto = 120m,
+                PriceCryptoStatus = ServiceAvailabilityStatus.Available,
                 PriceLinkInsert = 80m,
+                PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
                 Niche = "Tech",
                 Categories = "Technology",
                 IsQuarantined = false,
@@ -78,8 +82,11 @@ public class ExportServiceTests : IDisposable
                 Location = "UK",
                 PriceUsd = 200m,
                 PriceCasino = null,
+                PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceCrypto = 180m,
+                PriceCryptoStatus = ServiceAvailabilityStatus.Available,
                 PriceLinkInsert = null,
+                PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
                 Niche = "News",
                 Categories = "News",
                 IsQuarantined = false,
@@ -94,8 +101,11 @@ public class ExportServiceTests : IDisposable
                 Location = "US",
                 PriceUsd = 500m,
                 PriceCasino = 600m,
+                PriceCasinoStatus = ServiceAvailabilityStatus.Available,
                 PriceCrypto = null,
+                PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceLinkInsert = 400m,
+                PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
                 Niche = "Casino",
                 Categories = "Gambling",
                 IsQuarantined = true,
@@ -172,6 +182,50 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportSitesAsCsvAsync_WithCasinoAvailabilityNotAvailable_FiltersByStatus()
+    {
+        _context.Sites.Add(new Site
+        {
+            Domain = "no-casino.com",
+            DR = 20,
+            Traffic = 1000,
+            Location = "US",
+            PriceUsd = 25m,
+            PriceCasino = null,
+            PriceCasinoStatus = ServiceAvailabilityStatus.NotAvailable,
+            PriceCrypto = null,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsert = null,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+            IsQuarantined = false,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        var query = new SitesQuery
+        {
+            CasinoAvailability = ServiceAvailabilityFilter.NotAvailable,
+            Page = 1,
+            PageSize = 100,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var stream = await _service.ExportSitesAsCsvAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var sites = await ReadCsvFromStream(stream);
+        Assert.Single(sites);
+        Assert.Equal("no-casino.com", sites[0].Domain);
+    }
+
+    [Fact]
     public async Task ExportSitesAsCsvAsync_WithQuarantineExclude_ExcludesQuarantinedSites()
     {
         // Arrange
@@ -225,6 +279,52 @@ public class ExportServiceTests : IDisposable
         Assert.Equal(90, sites[0].DR); // gambling.com
         Assert.Equal(70, sites[1].DR); // test.com
         Assert.Equal(50, sites[2].DR); // example.com
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_NotAvailableAndUnknown_AreExportedAsNoAndEmpty()
+    {
+        _context.Sites.Add(new Site
+        {
+            Domain = "status-export.com",
+            DR = 10,
+            Traffic = 100,
+            Location = "US",
+            PriceUsd = 5m,
+            PriceCasino = null,
+            PriceCasinoStatus = ServiceAvailabilityStatus.NotAvailable,
+            PriceCrypto = null,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsert = 12m,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
+            IsQuarantined = false,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        var query = new SitesQuery
+        {
+            Search = "status-export.com",
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var stream = await _service.ExportSitesAsCsvAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var rows = await ReadCsvRowsFromStream(stream);
+        Assert.Single(rows);
+        Assert.Equal("NO", rows[0]["PriceCasino"]);
+        Assert.Equal(string.Empty, rows[0]["PriceCrypto"]);
+        Assert.Equal("12", rows[0]["PriceLinkInsert"]);
     }
 
     #endregion
@@ -398,21 +498,69 @@ public class ExportServiceTests : IDisposable
 
     #region Helper Methods
 
-    private static async Task<List<Site>> ReadCsvFromStream(Stream stream)
+    private static async Task<List<ExportedSiteRow>> ReadCsvFromStream(Stream stream)
     {
+        stream.Position = 0;
         using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             HasHeaderRecord = true
         });
 
-        var sites = new List<Site>();
-        await foreach (var record in csv.GetRecordsAsync<Site>())
+        var sites = new List<ExportedSiteRow>();
+        await foreach (var record in csv.GetRecordsAsync<ExportedSiteRow>())
         {
             sites.Add(record);
         }
 
         return sites;
+    }
+
+    private static async Task<List<Dictionary<string, string>>> ReadCsvRowsFromStream(Stream stream)
+    {
+        stream.Position = 0;
+        using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
+        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            HasHeaderRecord = true
+        });
+
+        var rows = new List<Dictionary<string, string>>();
+        await csv.ReadAsync();
+        csv.ReadHeader();
+
+        while (await csv.ReadAsync())
+        {
+            var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var header in csv.HeaderRecord ?? [])
+            {
+                row[header] = csv.GetField(header) ?? string.Empty;
+            }
+            rows.Add(row);
+        }
+
+        return rows;
+    }
+
+    private sealed class ExportedSiteRow
+    {
+        public string Domain { get; set; } = string.Empty;
+        public double DR { get; set; }
+        public long Traffic { get; set; }
+        public string Location { get; set; } = string.Empty;
+        public decimal PriceUsd { get; set; }
+        public string PriceCasino { get; set; } = string.Empty;
+        public string PriceCrypto { get; set; } = string.Empty;
+        public string PriceLinkInsert { get; set; } = string.Empty;
+        public string? Niche { get; set; }
+        public string? Categories { get; set; }
+        public bool IsQuarantined { get; set; }
+        public string? QuarantineReason { get; set; }
+        public DateTime? QuarantineUpdatedAtUtc { get; set; }
+        public DateTime CreatedAtUtc { get; set; }
+        public DateTime UpdatedAtUtc { get; set; }
+        public DateTime? LastPublishedDate { get; set; }
+        public bool LastPublishedDateIsMonthOnly { get; set; }
     }
 
     #endregion

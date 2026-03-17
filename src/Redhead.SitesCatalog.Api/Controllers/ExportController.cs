@@ -7,6 +7,7 @@ using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Exceptions;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -39,7 +40,21 @@ public class ExportController : ControllerBase
             return Unauthorized("User information not found");
         }
 
-        var query = SitesMapper.ToQuery(request);
+        SitesQuery query;
+        try
+        {
+            query = SitesMapper.ToQuery(request);
+        }
+        catch (RequestValidationException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Validation Error",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = ex.Message
+            });
+        }
+
         var stream = await _exportService.ExportSitesAsCsvAsync(
             query,
             userId,
@@ -72,7 +87,21 @@ public class ExportController : ControllerBase
             return BadRequest();
         }
 
-        var query = request.Filters != null ? SitesMapper.ToQuery(request.Filters) : new SitesQuery();
+        SitesQuery query;
+        try
+        {
+            query = request.Filters != null ? SitesMapper.ToQuery(request.Filters) : new SitesQuery();
+        }
+        catch (RequestValidationException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Validation Error",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = ex.Message
+            });
+        }
+
         query.Search = null;
         query.SortBy = request.SortBy ?? query.SortBy;
         query.SortDir = request.SortDir ?? query.SortDir;
@@ -88,7 +117,7 @@ public class ExportController : ControllerBase
                 userRole,
                 cancellationToken);
         }
-        catch (ArgumentException ex)
+        catch (RequestValidationException ex)
         {
             return BadRequest(new ProblemDetails
             {

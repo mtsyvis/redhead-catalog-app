@@ -8,6 +8,7 @@ using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Exceptions;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Application.Services;
@@ -18,7 +19,7 @@ namespace Redhead.SitesCatalog.Application.Services;
 public class ExportService : IExportService
 {
     /// <summary>Number of CSV columns after Domain for not-found rows (placeholder "-").</summary>
-    private const int NotFoundPlaceholderColumnCount = 14;
+    private const int NotFoundPlaceholderColumnCount = 16;
 
     private readonly ApplicationDbContext _context;
     private readonly ISitesQueryBuilder _queryBuilder;
@@ -68,8 +69,14 @@ public class ExportService : IExportService
             HasHeaderRecord = true
         });
 
-        // Write CSV headers and data
-        csvWriter.WriteRecords(sites);
+        // Write CSV headers and data with user-facing optional service semantics.
+        csvWriter.WriteHeader<SiteExportRow>();
+        csvWriter.NextRecord();
+        foreach (var row in sites.Select(MapToExportRow))
+        {
+            csvWriter.WriteRecord(row);
+            csvWriter.NextRecord();
+        }
         await csvWriter.FlushAsync();
         await writer.FlushAsync();
         stream.Position = 0;
@@ -132,7 +139,13 @@ public class ExportService : IExportService
         var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
         var csvWriter = new CsvWriter(writer, csvConfig);
 
-        csvWriter.WriteRecords(sites);
+        csvWriter.WriteHeader<SiteExportRow>();
+        csvWriter.NextRecord();
+        foreach (var row in sites.Select(MapToExportRow))
+        {
+            csvWriter.WriteRecord(row);
+            csvWriter.NextRecord();
+        }
 
         if (includeNotFound)
         {
@@ -178,6 +191,9 @@ public class ExportService : IExportService
             query.CasinoAllowed,
             query.CryptoAllowed,
             query.LinkInsertAllowed,
+            query.CasinoAvailability,
+            query.CryptoAvailability,
+            query.LinkInsertAvailability,
             query.Quarantine
         };
 
@@ -205,7 +221,32 @@ public class ExportService : IExportService
         if (query.TrafficMin.HasValue || query.TrafficMax.HasValue) { return true; }
         if (query.PriceMin.HasValue || query.PriceMax.HasValue) { return true; }
         if (query.Locations is { Count: > 0 }) { return true; }
-        if (query.CasinoAllowed == true || query.CryptoAllowed == true || query.LinkInsertAllowed == true) { return true; }
+        if (query.CasinoAvailability.HasValue)
+        {
+            if (query.CasinoAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
+        }
+        else if (query.CasinoAllowed == true)
+        {
+            return true;
+        }
+
+        if (query.CryptoAvailability.HasValue)
+        {
+            if (query.CryptoAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
+        }
+        else if (query.CryptoAllowed == true)
+        {
+            return true;
+        }
+
+        if (query.LinkInsertAvailability.HasValue)
+        {
+            if (query.LinkInsertAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
+        }
+        else if (query.LinkInsertAllowed == true)
+        {
+            return true;
+        }
         if (!string.IsNullOrEmpty(query.Quarantine) &&
             !string.Equals(query.Quarantine, QuarantineFilterValues.All, StringComparison.OrdinalIgnoreCase))
         {
@@ -213,5 +254,60 @@ public class ExportService : IExportService
         }
 
         return false;
+    }
+
+    private static SiteExportRow MapToExportRow(Site site)
+    {
+        return new SiteExportRow
+        {
+            Domain = site.Domain,
+            DR = site.DR,
+            Traffic = site.Traffic,
+            Location = site.Location,
+            PriceUsd = site.PriceUsd,
+            PriceCasino = FormatOptionalService(site.PriceCasino, site.PriceCasinoStatus),
+            PriceCrypto = FormatOptionalService(site.PriceCrypto, site.PriceCryptoStatus),
+            PriceLinkInsert = FormatOptionalService(site.PriceLinkInsert, site.PriceLinkInsertStatus),
+            Niche = site.Niche,
+            Categories = site.Categories,
+            IsQuarantined = site.IsQuarantined,
+            QuarantineReason = site.QuarantineReason,
+            QuarantineUpdatedAtUtc = site.QuarantineUpdatedAtUtc,
+            CreatedAtUtc = site.CreatedAtUtc,
+            UpdatedAtUtc = site.UpdatedAtUtc,
+            LastPublishedDate = site.LastPublishedDate,
+            LastPublishedDateIsMonthOnly = site.LastPublishedDateIsMonthOnly
+        };
+    }
+
+    private static string FormatOptionalService(decimal? price, ServiceAvailabilityStatus status)
+    {
+        return status switch
+        {
+            ServiceAvailabilityStatus.Available when price.HasValue => price.Value.ToString(CultureInfo.InvariantCulture),
+            ServiceAvailabilityStatus.NotAvailable => "NO",
+            _ => string.Empty
+        };
+    }
+
+    private sealed class SiteExportRow
+    {
+        public string Domain { get; set; } = string.Empty;
+        public double DR { get; set; }
+        public long Traffic { get; set; }
+        public string Location { get; set; } = string.Empty;
+        public decimal PriceUsd { get; set; }
+        public string PriceCasino { get; set; } = string.Empty;
+        public string PriceCrypto { get; set; } = string.Empty;
+        public string PriceLinkInsert { get; set; } = string.Empty;
+        public string? Niche { get; set; }
+        public string? Categories { get; set; }
+        public bool IsQuarantined { get; set; }
+        public string? QuarantineReason { get; set; }
+        public DateTime? QuarantineUpdatedAtUtc { get; set; }
+        public DateTime CreatedAtUtc { get; set; }
+        public DateTime UpdatedAtUtc { get; set; }
+        public DateTime? LastPublishedDate { get; set; }
+        public bool LastPublishedDateIsMonthOnly { get; set; }
     }
 }

@@ -195,20 +195,42 @@ public class LastPublishedDateSortingTests : IDisposable
         Assert.Equal("d.com", domains[4]);
     }
 
-    private static async Task<List<Site>> ReadCsvFromStream(Stream stream)
+    private static async Task<List<ExportedSiteRow>> ReadCsvFromStream(Stream stream)
     {
+        stream.Position = 0;
         using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             HasHeaderRecord = true
         });
 
-        var list = new List<Site>();
-        await foreach (var record in csv.GetRecordsAsync<Site>())
+        var list = new List<ExportedSiteRow>();
+        await foreach (var record in csv.GetRecordsAsync<ExportedSiteRow>())
         {
             list.Add(record);
         }
 
         return list;
+    }
+
+    private sealed class ExportedSiteRow
+    {
+        public string Domain { get; set; } = string.Empty;
+        public double DR { get; set; }
+        public long Traffic { get; set; }
+        public string Location { get; set; } = string.Empty;
+        public decimal PriceUsd { get; set; }
+        public string PriceCasino { get; set; } = string.Empty;
+        public string PriceCrypto { get; set; } = string.Empty;
+        public string PriceLinkInsert { get; set; } = string.Empty;
+        public string? Niche { get; set; }
+        public string? Categories { get; set; }
+        public bool IsQuarantined { get; set; }
+        public string? QuarantineReason { get; set; }
+        public DateTime? QuarantineUpdatedAtUtc { get; set; }
+        public DateTime CreatedAtUtc { get; set; }
+        public DateTime UpdatedAtUtc { get; set; }
+        public DateTime? LastPublishedDate { get; set; }
+        public bool LastPublishedDateIsMonthOnly { get; set; }
     }
 }

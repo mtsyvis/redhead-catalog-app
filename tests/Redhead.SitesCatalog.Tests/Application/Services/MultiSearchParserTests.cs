@@ -1,5 +1,6 @@
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Exceptions;
 
 namespace Redhead.SitesCatalog.Tests;
 
@@ -53,12 +54,12 @@ public class MultiSearchParserTests
     }
 
     [Fact]
-    public void Parse_MoreThan500Inputs_ThrowsArgumentException()
+    public void Parse_MoreThan500Inputs_ThrowsRequestValidationException()
     {
         var tokens = Enumerable.Range(0, 501).Select(i => $"domain{i}.com").ToArray();
         var queryText = string.Join(' ', tokens);
 
-        var ex = Assert.Throws<ArgumentException>(() => MultiSearchParser.Parse(queryText));
+        var ex = Assert.Throws<RequestValidationException>(() => MultiSearchParser.Parse(queryText));
 
         Assert.Contains(MultiSearchConstants.MaxInputs.ToString(), ex.Message);
         Assert.Contains("501", ex.Message);

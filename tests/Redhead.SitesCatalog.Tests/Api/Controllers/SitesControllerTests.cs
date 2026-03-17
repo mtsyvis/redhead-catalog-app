@@ -28,6 +28,9 @@ public class SitesControllerTests
         Assert.Null(query.CasinoAllowed);
         Assert.Null(query.CryptoAllowed);
         Assert.Null(query.LinkInsertAllowed);
+        Assert.Null(query.CasinoAvailability);
+        Assert.Null(query.CryptoAvailability);
+        Assert.Null(query.LinkInsertAvailability);
     }
 
     [Fact]

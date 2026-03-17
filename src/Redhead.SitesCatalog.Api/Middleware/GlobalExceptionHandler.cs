@@ -71,7 +71,7 @@ public class GlobalExceptionHandler : IExceptionHandler
             RoleSettingsNotFoundException
                 => (HttpStatusCode.InternalServerError, "An unexpected error occurred. Please try again later."),
 
-            ArgumentException ex
+            RequestValidationException ex
                 => (HttpStatusCode.BadRequest, ex.Message),
 
             UnauthorizedAccessException ex

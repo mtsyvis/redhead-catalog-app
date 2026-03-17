@@ -5,6 +5,7 @@ using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services.Parsers;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Application.Services;
@@ -39,8 +40,11 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         string Location,
         decimal PriceUsd,
         decimal? PriceCasino,
+        ServiceAvailabilityStatus PriceCasinoStatus,
         decimal? PriceCrypto,
+        ServiceAvailabilityStatus PriceCryptoStatus,
         decimal? PriceLinkInsert,
+        ServiceAvailabilityStatus PriceLinkInsertStatus,
         string? Niche,
         string? Categories);
 
@@ -158,8 +162,11 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             site.Location = update.Location;
             site.PriceUsd = update.PriceUsd;
             site.PriceCasino = update.PriceCasino;
+            site.PriceCasinoStatus = update.PriceCasinoStatus;
             site.PriceCrypto = update.PriceCrypto;
+            site.PriceCryptoStatus = update.PriceCryptoStatus;
             site.PriceLinkInsert = update.PriceLinkInsert;
+            site.PriceLinkInsertStatus = update.PriceLinkInsertStatus;
             site.Niche = update.Niche;
             site.Categories = update.Categories;
             site.UpdatedAtUtc = now;
@@ -207,8 +214,11 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             data.Location,
             data.PriceUsd,
             data.PriceCasino,
+            data.PriceCasinoStatus,
             data.PriceCrypto,
+            data.PriceCryptoStatus,
             data.PriceLinkInsert,
+            data.PriceLinkInsertStatus,
             data.Niche,
             data.Categories);
     }
@@ -229,7 +239,10 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             result.Errors.Add(new SitesUpdateImportError
             {
                 RowNumber = error.RowNumber,
-                Message = error.Message
+                Message = error.Message,
+                Domain = error.Domain,
+                Field = error.Field,
+                RawValue = error.RawValue
             });
         }
     }

@@ -1,3 +1,5 @@
+using Redhead.SitesCatalog.Domain.Enums;
+
 namespace Redhead.SitesCatalog.Application.Models;
 
 /// <summary>
@@ -11,8 +13,11 @@ public class SiteDto
     public string Location { get; set; } = string.Empty;
     public decimal PriceUsd { get; set; }
     public decimal? PriceCasino { get; set; }
+    public ServiceAvailabilityStatus PriceCasinoStatus { get; set; }
     public decimal? PriceCrypto { get; set; }
+    public ServiceAvailabilityStatus PriceCryptoStatus { get; set; }
     public decimal? PriceLinkInsert { get; set; }
+    public ServiceAvailabilityStatus PriceLinkInsertStatus { get; set; }
     public string? Niche { get; set; }
     public string? Categories { get; set; }
     public bool IsQuarantined { get; set; }

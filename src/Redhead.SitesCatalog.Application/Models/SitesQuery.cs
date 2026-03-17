@@ -1,3 +1,5 @@
+using Redhead.SitesCatalog.Domain.Enums;
+
 namespace Redhead.SitesCatalog.Application.Models;
 
 /// <summary>
@@ -31,6 +33,9 @@ public class SitesQuery
     public bool? CasinoAllowed { get; set; }
     public bool? CryptoAllowed { get; set; }
     public bool? LinkInsertAllowed { get; set; }
+    public ServiceAvailabilityFilter? CasinoAvailability { get; set; }
+    public ServiceAvailabilityFilter? CryptoAvailability { get; set; }
+    public ServiceAvailabilityFilter? LinkInsertAvailability { get; set; }
 
     // Quarantine filter
     public string Quarantine { get; set; } = string.Empty;

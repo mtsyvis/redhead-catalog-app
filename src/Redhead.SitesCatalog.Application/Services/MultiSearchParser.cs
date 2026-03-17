@@ -1,6 +1,7 @@
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Exceptions;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
@@ -17,7 +18,7 @@ public static class MultiSearchParser
     /// </summary>
     /// <param name="queryText">Raw input (domains/URLs separated by whitespace)</param>
     /// <returns>Unique domains to search and list of domains that appeared more than once</returns>
-    /// <exception cref="ArgumentException">Thrown when input count exceeds MaxInputs (500)</exception>
+    /// <exception cref="RequestValidationException">Thrown when input count exceeds MaxInputs (500)</exception>
     public static MultiSearchParseResult Parse(string? queryText)
     {
         if (string.IsNullOrWhiteSpace(queryText))
@@ -34,7 +35,7 @@ public static class MultiSearchParser
 
         if (rawTokens.Length > MultiSearchConstants.MaxInputs)
         {
-            throw new ArgumentException(
+            throw new RequestValidationException(
                 $"Multi-search accepts at most {MultiSearchConstants.MaxInputs} inputs. Received {rawTokens.Length}.");
         }
 
