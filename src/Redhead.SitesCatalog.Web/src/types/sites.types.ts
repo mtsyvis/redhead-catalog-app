@@ -8,8 +8,11 @@ export interface Site {
   location: string;
   priceUsd: number | null;
   priceCasino: number | null;
+  priceCasinoStatus: ServiceAvailabilityStatus;
   priceCrypto: number | null;
+  priceCryptoStatus: ServiceAvailabilityStatus;
   priceLinkInsert: number | null;
+  priceLinkInsertStatus: ServiceAvailabilityStatus;
   niche: string | null;
   categories: string | null;
   isQuarantined: boolean;
@@ -44,9 +47,9 @@ export interface SitesQueryParams {
   priceMin?: number;
   priceMax?: number;
   location?: string[];
-  casinoAllowed?: boolean;
-  cryptoAllowed?: boolean;
-  linkInsertAllowed?: boolean;
+  casinoAvailability?: ServiceAvailabilityFilter;
+  cryptoAvailability?: ServiceAvailabilityFilter;
+  linkInsertAvailability?: ServiceAvailabilityFilter;
   quarantine?: 'all' | 'only' | 'exclude';
 }
 
@@ -69,9 +72,9 @@ export interface SitesFilters {
   priceMin: string;
   priceMax: string;
   location: string[];
-  casinoAllowed: boolean;
-  cryptoAllowed: boolean;
-  linkInsertAllowed: boolean;
+  casinoAvailability: ServiceAvailabilityFilter;
+  cryptoAvailability: ServiceAvailabilityFilter;
+  linkInsertAvailability: ServiceAvailabilityFilter;
   quarantine: 'all' | 'only' | 'exclude';
 }
 
@@ -103,10 +106,17 @@ export interface UpdateSitePayload {
   location: string;
   priceUsd: number;
   priceCasino: number | null;
+  priceCasinoStatus: ServiceAvailabilityStatusValue;
   priceCrypto: number | null;
+  priceCryptoStatus: ServiceAvailabilityStatusValue;
   priceLinkInsert: number | null;
+  priceLinkInsertStatus: ServiceAvailabilityStatusValue;
   niche: string | null;
   categories: string | null;
   isQuarantined: boolean;
   quarantineReason: string | null;
 }
+
+export type ServiceAvailabilityStatus = 'Unknown' | 'Available' | 'NotAvailable' | 0 | 1 | 2;
+export type ServiceAvailabilityStatusValue = 0 | 1 | 2;
+export type ServiceAvailabilityFilter = 'all' | 'available' | 'notAvailable' | 'unknown';

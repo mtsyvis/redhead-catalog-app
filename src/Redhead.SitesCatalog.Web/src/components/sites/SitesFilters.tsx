@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Box,
   TextField,
+  MenuItem,
   FormControl,
   FormControlLabel,
   Checkbox,
@@ -21,6 +22,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import type { SitesFilters } from '../../types/sites.types';
 import { sitesService } from '../../services/sites.service';
 import { BrandButton } from '../common/BrandButton';
+import { SERVICE_AVAILABILITY_FILTER_OPTIONS } from '../../utils/serviceAvailability';
 
 interface SitesFiltersProps {
   filters: SitesFilters;
@@ -40,9 +42,9 @@ const INITIAL_FILTERS: SitesFilters = {
   priceMin: '',
   priceMax: '',
   location: [],
-  casinoAllowed: false,
-  cryptoAllowed: false,
-  linkInsertAllowed: false,
+  casinoAvailability: 'all',
+  cryptoAvailability: 'all',
+  linkInsertAvailability: 'all',
   quarantine: 'all',
 };
 
@@ -92,9 +94,9 @@ export function SitesFilters({
       filters.priceMin !== '' ||
       filters.priceMax !== '' ||
       filters.location.length > 0 ||
-      filters.casinoAllowed ||
-      filters.cryptoAllowed ||
-      filters.linkInsertAllowed ||
+      filters.casinoAvailability !== 'all' ||
+      filters.cryptoAvailability !== 'all' ||
+      filters.linkInsertAvailability !== 'all' ||
       filters.quarantine !== 'all'
     );
   };
@@ -264,41 +266,58 @@ export function SitesFilters({
                 /></Box>
             </Box>
 
-            {/* Checkboxes and Radio Row */}
+            {/* Availability and Quarantine Row */}
             <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              {/* Allowed Flags */}
+              {/* Availability Filters */}
               <Box sx={{ flex: '1 1 300px' }}>
                 <Typography variant="subtitle2" gutterBottom>
-                  Allowed Types
+                  Optional Service Availability
                 </Typography>
-                <Box>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.casinoAllowed}
-                        onChange={(e) => handleChange('casinoAllowed', e.target.checked)}
-                      />
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <TextField
+                    select
+                    size="small"
+                    label="Casino"
+                    value={filters.casinoAvailability}
+                    onChange={(e) => handleChange('casinoAvailability', e.target.value as SitesFilters['casinoAvailability'])}
+                    sx={{ minWidth: 160 }}
+                  >
+                    {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    select
+                    size="small"
+                    label="Crypto"
+                    value={filters.cryptoAvailability}
+                    onChange={(e) => handleChange('cryptoAvailability', e.target.value as SitesFilters['cryptoAvailability'])}
+                    sx={{ minWidth: 160 }}
+                  >
+                    {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    select
+                    size="small"
+                    label="Link Insert"
+                    value={filters.linkInsertAvailability}
+                    onChange={(e) =>
+                      handleChange('linkInsertAvailability', e.target.value as SitesFilters['linkInsertAvailability'])
                     }
-                    label="Casino Allowed"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.cryptoAllowed}
-                        onChange={(e) => handleChange('cryptoAllowed', e.target.checked)}
-                      />
-                    }
-                    label="Crypto Allowed"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={filters.linkInsertAllowed}
-                        onChange={(e) => handleChange('linkInsertAllowed', e.target.checked)}
-                      />
-                    }
-                    label="Link Insert Allowed"
-                  />
+                    sx={{ minWidth: 160 }}
+                  >
+                    {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 </Box>
               </Box>
 

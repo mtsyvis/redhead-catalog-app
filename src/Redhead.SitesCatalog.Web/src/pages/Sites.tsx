@@ -15,6 +15,7 @@ import type {
 } from '../types/sites.types';
 import { sitesService } from '../services/sites.service';
 import { BrandButton } from '../components/common/BrandButton';
+import { formatOptionalServicePrice, matchesAvailabilityFilter } from '../utils/serviceAvailability';
 
 /** Row type for grid: normal site or not-found placeholder (domain only). */
 type NotFoundRow = { domain: string; _isNotFound: true };
@@ -36,6 +37,14 @@ function formatPrice(row: GridRow, value: number | null): string {
   return formatCell(row, value, (v) => (v == null ? '—' : `$${v}`));
 }
 
+function formatOptionalServiceCell(
+  row: GridRow,
+  price: number | null,
+  status: Site['priceCasinoStatus']
+): string {
+  return formatCell(row, price, (v) => formatOptionalServicePrice(status, v));
+}
+
 /** Client-side filter for multi-search found rows (same logic as server filters, excluding search). */
 function filterSites(sites: Site[], f: FiltersType): Site[] {
   return sites.filter((s) => {
@@ -46,9 +55,9 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
     if (f.priceMin !== '' && (s.priceUsd ?? 0) < Number(f.priceMin)) return false;
     if (f.priceMax !== '' && (s.priceUsd ?? 0) > Number(f.priceMax)) return false;
     if (f.location.length > 0 && !f.location.includes(s.location)) return false;
-    if (f.casinoAllowed && s.priceCasino == null) return false;
-    if (f.cryptoAllowed && s.priceCrypto == null) return false;
-    if (f.linkInsertAllowed && s.priceLinkInsert == null) return false;
+    if (!matchesAvailabilityFilter(s.priceCasinoStatus, f.casinoAvailability)) return false;
+    if (!matchesAvailabilityFilter(s.priceCryptoStatus, f.cryptoAvailability)) return false;
+    if (!matchesAvailabilityFilter(s.priceLinkInsertStatus, f.linkInsertAvailability)) return false;
     if (f.quarantine === 'only' && !s.isQuarantined) return false;
     if (f.quarantine === 'exclude' && s.isQuarantined) return false;
     return true;
@@ -64,9 +73,9 @@ const INITIAL_FILTERS: FiltersType = {
   priceMin: '',
   priceMax: '',
   location: [],
-  casinoAllowed: false,
-  cryptoAllowed: false,
-  linkInsertAllowed: false,
+  casinoAvailability: 'all',
+  cryptoAvailability: 'all',
+  linkInsertAvailability: 'all',
   quarantine: 'all',
 };
 
@@ -109,34 +118,42 @@ export function Sites() {
       filters.priceMin !== INITIAL_FILTERS.priceMin ||
       filters.priceMax !== INITIAL_FILTERS.priceMax ||
       filters.location.length !== 0 ||
-      filters.casinoAllowed !== INITIAL_FILTERS.casinoAllowed ||
-      filters.cryptoAllowed !== INITIAL_FILTERS.cryptoAllowed ||
-      filters.linkInsertAllowed !== INITIAL_FILTERS.linkInsertAllowed ||
+      filters.casinoAvailability !== INITIAL_FILTERS.casinoAvailability ||
+      filters.cryptoAvailability !== INITIAL_FILTERS.cryptoAvailability ||
+      filters.linkInsertAvailability !== INITIAL_FILTERS.linkInsertAvailability ||
       filters.quarantine !== INITIAL_FILTERS.quarantine,
     [filters]
+  );
+
+  const buildSitesQueryParams = useCallback(
+    (page: number, pageSize: number): SitesQueryParams => ({
+      page,
+      pageSize,
+      sortBy: sortModel[0]?.field || 'domain',
+      sortDir: sortModel[0]?.sort || 'asc',
+      search: filters.search || undefined,
+      drMin: filters.drMin ? Number(filters.drMin) : undefined,
+      drMax: filters.drMax ? Number(filters.drMax) : undefined,
+      trafficMin: filters.trafficMin ? Number(filters.trafficMin) : undefined,
+      trafficMax: filters.trafficMax ? Number(filters.trafficMax) : undefined,
+      priceMin: filters.priceMin ? Number(filters.priceMin) : undefined,
+      priceMax: filters.priceMax ? Number(filters.priceMax) : undefined,
+      location: filters.location.length > 0 ? filters.location : undefined,
+      casinoAvailability: filters.casinoAvailability,
+      cryptoAvailability: filters.cryptoAvailability,
+      linkInsertAvailability: filters.linkInsertAvailability,
+      quarantine: filters.quarantine,
+    }),
+    [filters, sortModel]
   );
 
   const loadSites = useCallback(async () => {
     setLoading(true);
     try {
-      const params: SitesQueryParams = {
-        page: paginationModel.page + 1, // API uses 1-based pagination
-        pageSize: paginationModel.pageSize,
-        sortBy: sortModel[0]?.field || 'domain',
-        sortDir: sortModel[0]?.sort || 'asc',
-        search: filters.search || undefined,
-        drMin: filters.drMin ? Number(filters.drMin) : undefined,
-        drMax: filters.drMax ? Number(filters.drMax) : undefined,
-        trafficMin: filters.trafficMin ? Number(filters.trafficMin) : undefined,
-        trafficMax: filters.trafficMax ? Number(filters.trafficMax) : undefined,
-        priceMin: filters.priceMin ? Number(filters.priceMin) : undefined,
-        priceMax: filters.priceMax ? Number(filters.priceMax) : undefined,
-        location: filters.location.length > 0 ? filters.location : undefined,
-        casinoAllowed: filters.casinoAllowed || undefined,
-        cryptoAllowed: filters.cryptoAllowed || undefined,
-        linkInsertAllowed: filters.linkInsertAllowed || undefined,
-        quarantine: filters.quarantine,
-      };
+      const params = buildSitesQueryParams(
+        paginationModel.page + 1, // API uses 1-based pagination
+        paginationModel.pageSize
+      );
 
       const response = await sitesService.getSites(params);
       setSites(response.items);
@@ -148,7 +165,7 @@ export function Sites() {
     } finally {
       setLoading(false);
     }
-  }, [paginationModel, sortModel, filters]);
+  }, [paginationModel, buildSitesQueryParams]);
 
   useEffect(() => {
     if (multiSearchMode) return;
@@ -197,24 +214,7 @@ export function Sites() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const params: SitesQueryParams = {
-        page: 1,
-        pageSize: 1000000,
-        sortBy: sortModel[0]?.field || 'domain',
-        sortDir: sortModel[0]?.sort || 'asc',
-        search: filters.search || undefined,
-        drMin: filters.drMin ? Number(filters.drMin) : undefined,
-        drMax: filters.drMax ? Number(filters.drMax) : undefined,
-        trafficMin: filters.trafficMin ? Number(filters.trafficMin) : undefined,
-        trafficMax: filters.trafficMax ? Number(filters.trafficMax) : undefined,
-        priceMin: filters.priceMin ? Number(filters.priceMin) : undefined,
-        priceMax: filters.priceMax ? Number(filters.priceMax) : undefined,
-        location: filters.location.length > 0 ? filters.location : undefined,
-        casinoAllowed: filters.casinoAllowed || undefined,
-        cryptoAllowed: filters.cryptoAllowed || undefined,
-        linkInsertAllowed: filters.linkInsertAllowed || undefined,
-        quarantine: filters.quarantine,
-      };
+      const params = buildSitesQueryParams(1, 1000000);
 
       if (multiSearchResult !== null) {
         await sitesService.exportSitesMultiSearch({
@@ -328,21 +328,24 @@ export function Sites() {
       headerName: 'Casino',
       width: 100,
       type: 'number',
-      valueFormatter: (value, row) => formatPrice(row, value as number | null),
+      valueFormatter: (value, row) =>
+        formatOptionalServiceCell(row, value as number | null, (row as Site).priceCasinoStatus),
     },
     {
       field: 'priceCrypto',
       headerName: 'Crypto',
       width: 100,
       type: 'number',
-      valueFormatter: (value, row) => formatPrice(row, value as number | null),
+      valueFormatter: (value, row) =>
+        formatOptionalServiceCell(row, value as number | null, (row as Site).priceCryptoStatus),
     },
     {
       field: 'priceLinkInsert',
       headerName: 'Link Insert',
       width: 120,
       type: 'number',
-      valueFormatter: (value, row) => formatPrice(row, value as number | null),
+      valueFormatter: (value, row) =>
+        formatOptionalServiceCell(row, value as number | null, (row as Site).priceLinkInsertStatus),
     },
     {
       field: 'niche',

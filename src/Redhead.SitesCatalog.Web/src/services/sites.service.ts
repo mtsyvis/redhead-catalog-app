@@ -63,15 +63,15 @@ class SitesService {
       params.location.forEach(loc => queryParams.append('locations', loc));
     }
 
-    // Allowed flags
-    if (params.casinoAllowed !== undefined) {
-      queryParams.append('casinoAllowed', params.casinoAllowed.toString());
+    // Availability filters
+    if (params.casinoAvailability) {
+      queryParams.append('casinoAvailability', params.casinoAvailability);
     }
-    if (params.cryptoAllowed !== undefined) {
-      queryParams.append('cryptoAllowed', params.cryptoAllowed.toString());
+    if (params.cryptoAvailability) {
+      queryParams.append('cryptoAvailability', params.cryptoAvailability);
     }
-    if (params.linkInsertAllowed !== undefined) {
-      queryParams.append('linkInsertAllowed', params.linkInsertAllowed.toString());
+    if (params.linkInsertAvailability) {
+      queryParams.append('linkInsertAvailability', params.linkInsertAvailability);
     }
 
     // Quarantine filter
@@ -158,15 +158,15 @@ class SitesService {
       params.location.forEach(loc => queryParams.append('locations', loc));
     }
 
-    // Allowed flags
-    if (params.casinoAllowed !== undefined) {
-      queryParams.append('casinoAllowed', params.casinoAllowed.toString());
+    // Availability filters
+    if (params.casinoAvailability) {
+      queryParams.append('casinoAvailability', params.casinoAvailability);
     }
-    if (params.cryptoAllowed !== undefined) {
-      queryParams.append('cryptoAllowed', params.cryptoAllowed.toString());
+    if (params.cryptoAvailability) {
+      queryParams.append('cryptoAvailability', params.cryptoAvailability);
     }
-    if (params.linkInsertAllowed !== undefined) {
-      queryParams.append('linkInsertAllowed', params.linkInsertAllowed.toString());
+    if (params.linkInsertAvailability) {
+      queryParams.append('linkInsertAvailability', params.linkInsertAvailability);
     }
 
     // Quarantine filter
