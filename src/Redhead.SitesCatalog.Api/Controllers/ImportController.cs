@@ -18,6 +18,7 @@ public class ImportController : ControllerBase
     private readonly IQuarantineImportService _quarantineImportService;
     private readonly ILastPublishedImportService _lastPublishedImportService;
     private readonly ISitesUpdateImportService _sitesUpdateImportService;
+    private readonly IImportArtifactStorageService _importArtifactStorageService;
     private readonly ILogger<ImportController> _logger;
 
     public ImportController(
@@ -25,13 +26,27 @@ public class ImportController : ControllerBase
         IQuarantineImportService quarantineImportService,
         ILastPublishedImportService lastPublishedImportService,
         ISitesUpdateImportService sitesUpdateImportService,
+        IImportArtifactStorageService importArtifactStorageService,
         ILogger<ImportController> logger)
     {
         _sitesImportService = sitesImportService;
         _quarantineImportService = quarantineImportService;
         _lastPublishedImportService = lastPublishedImportService;
         _sitesUpdateImportService = sitesUpdateImportService;
+        _importArtifactStorageService = importArtifactStorageService;
         _logger = logger;
+    }
+
+    [HttpGet("/api/imports/downloads/{token}")]
+    public ActionResult DownloadImportArtifact(string token)
+    {
+        var download = _importArtifactStorageService.GetCsvDownload(token);
+        if (download is null)
+        {
+            return NotFound(new ApiErrorResponse("Import download artifact was not found or has expired.", StatusCodes.Status404NotFound));
+        }
+
+        return File(download.Content, download.ContentType, download.FileName);
     }
 
     /// <summary>

@@ -29,6 +29,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SitesUpdateImportService> _logger;
+    private readonly IImportArtifactStorageService _importArtifactStorageService;
 
     /// <summary>
     /// Parsed update for one domain. Domain is lookup key only.
@@ -50,10 +51,12 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
     public SitesUpdateImportService(
         ApplicationDbContext context,
-        ILogger<SitesUpdateImportService> logger)
+        ILogger<SitesUpdateImportService> logger,
+        IImportArtifactStorageService importArtifactStorageService)
     {
         _context = context;
         _logger = logger;
+        _importArtifactStorageService = importArtifactStorageService;
     }
 
     public async Task<SitesUpdateImportResult> ImportAsync(
@@ -91,6 +94,8 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
         // Phase 1: parse CSV, validate, build per-domain map (only valid rows enter; last valid wins)
         var updatesByDomain = new Dictionary<string, ParsedSiteUpdate>(StringComparer.Ordinal);
+        var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
+        var duplicateInputRowsCount = 0;
 
         await using (var session = await CsvImportSession.OpenAsync(
                          fileStream,
@@ -98,7 +103,9 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                          requiredHeadersInStrictOrder: ImportConstants.SitesImportRequiredColumnOrder,
                          ct: cancellationToken))
         {
-            await foreach (var row in ReadRowsAsync(session.Csv, cancellationToken))
+            invalidRowsPayload.Headers = session.Header.ToArray();
+
+            await foreach (var (row, rawValues) in ReadRowsAsync(session.Csv, session.Header.Length, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -106,6 +113,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                 if (error is not null)
                 {
                     AddError(result, error);
+                    AddInvalidRow(invalidRowsPayload, row.RowNumber, rawValues, error.Message);
                     continue;
                 }
 
@@ -119,6 +127,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
                 if (updatesByDomain.ContainsKey(domain))
                 {
+                    duplicateInputRowsCount++;
                     result.DuplicatesCount++;
                     if (result.Duplicates.Count < ImportConstants.SitesImportMaxDetailDuplicates)
                     {
@@ -185,11 +194,13 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             result.DuplicatesCount,
             userId);
 
+        AttachSummaryAndDownloads(result, invalidRowsPayload, ImportConstants.ImportArtifactSlugSitesUpdate, duplicateInputRowsCount);
         return result;
     }
 
-    private static async IAsyncEnumerable<SitesImportRowDto> ReadRowsAsync(
+    private static async IAsyncEnumerable<(SitesImportRowDto Row, List<string> RawValues)> ReadRowsAsync(
         CsvReader csv,
+        int headerCount,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var rowNumber = 1;
@@ -199,9 +210,18 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             cancellationToken.ThrowIfCancellationRequested();
             rowNumber++;
 
-            yield return SitesImportRowMapper.Map(
+            var rawRecord = csv.Parser.Record ?? Array.Empty<string>();
+            var rawValues = new List<string>(headerCount);
+            for (var i = 0; i < headerCount; i++)
+            {
+                rawValues.Add(i < rawRecord.Length ? rawRecord[i] ?? string.Empty : string.Empty);
+            }
+
+            var mappedRow = SitesImportRowMapper.Map(
                 columnName => csv.GetField(ColumnIndexes[columnName])?.Trim(),
                 rowNumber);
+
+            yield return (mappedRow, rawValues);
         }
     }
 
@@ -264,5 +284,49 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         };
 
         _context.ImportLogs.Add(log);
+    }
+
+    private static void AddInvalidRow(
+        InvalidRowsImportArtifactPayload payload,
+        int sourceRowNumber,
+        IReadOnlyCollection<string> rawValues,
+        string errorMessage)
+    {
+        payload.Rows.Add(new InvalidImportRowRecord
+        {
+            SourceRowNumber = sourceRowNumber,
+            RawValues = rawValues.ToList(),
+            Errors = new List<string> { errorMessage }
+        });
+    }
+
+    private void AttachSummaryAndDownloads(
+        SitesUpdateImportResult result,
+        InvalidRowsImportArtifactPayload invalidRowsPayload,
+        string importType,
+        int duplicateInputRowsCount)
+    {
+        result.UpdatedCount = result.Matched;
+        result.SkippedExistingCount = 0;
+        result.DuplicateInputRowsCount = duplicateInputRowsCount;
+        result.InvalidRowsCount = result.ErrorsCount;
+
+        ImportDownloadItem? invalidRowsDownload = null;
+        if (invalidRowsPayload.Rows.Count > 0)
+        {
+            var handle = _importArtifactStorageService.StoreInvalidRows(importType, invalidRowsPayload);
+            invalidRowsDownload = new ImportDownloadItem
+            {
+                Available = true,
+                Token = handle.Token,
+                FileName = handle.FileName
+            };
+        }
+
+        result.Downloads = new ImportDownloadsInfo
+        {
+            InvalidRows = invalidRowsDownload,
+            DuplicateInputRows = null
+        };
     }
 }

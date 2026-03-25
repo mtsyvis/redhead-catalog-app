@@ -29,13 +29,16 @@ public sealed class SitesImportService : ISitesImportService
 
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SitesImportService> _logger;
+    private readonly IImportArtifactStorageService _importArtifactStorageService;
 
     public SitesImportService(
         ApplicationDbContext context,
-        ILogger<SitesImportService> logger)
+        ILogger<SitesImportService> logger,
+        IImportArtifactStorageService importArtifactStorageService)
     {
         _context = context;
         _logger = logger;
+        _importArtifactStorageService = importArtifactStorageService;
     }
 
     public async Task<SitesImportResult> ImportAsync(
@@ -66,6 +69,9 @@ public sealed class SitesImportService : ISitesImportService
 
         // Phase 1: parse CSV rows and build per-domain map (last valid row wins)
         var parsedSitesByDomain = new Dictionary<string, Site>(StringComparer.Ordinal);
+        var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
+        var duplicateInputRowsCount = 0;
+        var skippedExistingCount = 0;
 
         await using (var session = await CsvImportSession.OpenAsync(
                          fileStream,
@@ -73,7 +79,9 @@ public sealed class SitesImportService : ISitesImportService
                          requiredHeadersInStrictOrder: ImportConstants.SitesImportRequiredColumnOrder,
                          ct: cancellationToken))
         {
-            await foreach (var row in ReadRowsAsync(session.Csv, cancellationToken))
+            invalidRowsPayload.Headers = session.Header.ToArray();
+
+            await foreach (var (row, rawValues) in ReadRowsAsync(session.Csv, session.Header.Length, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -81,6 +89,7 @@ public sealed class SitesImportService : ISitesImportService
                 if (error is not null)
                 {
                     AddError(result, error);
+                    AddInvalidRow(invalidRowsPayload, row.RowNumber, rawValues, error.Message);
                     continue;
                 }
 
@@ -93,6 +102,7 @@ public sealed class SitesImportService : ISitesImportService
 
                 if (parsedSitesByDomain.ContainsKey(domain))
                 {
+                    duplicateInputRowsCount++;
                     AddDuplicate(result, domain);
                 }
 
@@ -103,6 +113,7 @@ public sealed class SitesImportService : ISitesImportService
         // Nothing to insert, but still persist import log for traceability.
         if (parsedSitesByDomain.Count == 0)
         {
+            AttachSummaryAndDownloads(result, invalidRowsPayload, ImportConstants.ImportArtifactSlugSites, duplicateInputRowsCount, skippedExistingCount);
             await SaveImportLogOnlyAsync(result, userId, userEmail, cancellationToken);
 
             _logger.LogInformation(
@@ -125,6 +136,7 @@ public sealed class SitesImportService : ISitesImportService
         {
             if (existingDomainsInDb.Contains(domain))
             {
+                skippedExistingCount++;
                 AddDuplicate(result, domain);
                 continue;
             }
@@ -158,14 +170,16 @@ public sealed class SitesImportService : ISitesImportService
             result.ErrorsCount,
             userId);
 
+        AttachSummaryAndDownloads(result, invalidRowsPayload, ImportConstants.ImportArtifactSlugSites, duplicateInputRowsCount, skippedExistingCount);
         return result;
     }
 
     private static bool IsCsvFile(string fileName, string? contentType)
         => CsvImportHelper.IsCsvExtension(fileName) || CsvImportHelper.IsCsvContentType(contentType);
 
-    private static async IAsyncEnumerable<SitesImportRowDto> ReadRowsAsync(
+    private static async IAsyncEnumerable<(SitesImportRowDto Row, List<string> RawValues)> ReadRowsAsync(
         CsvReader csv,
+        int headerCount,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // Row 1 = header
@@ -176,9 +190,18 @@ public sealed class SitesImportService : ISitesImportService
             cancellationToken.ThrowIfCancellationRequested();
             rowNumber++;
 
-            yield return SitesImportRowMapper.Map(
+            var rawRecord = csv.Parser.Record ?? Array.Empty<string>();
+            var rawValues = new List<string>(headerCount);
+            for (var i = 0; i < headerCount; i++)
+            {
+                rawValues.Add(i < rawRecord.Length ? rawRecord[i] ?? string.Empty : string.Empty);
+            }
+
+            var mappedRow = SitesImportRowMapper.Map(
                 columnName => csv.GetField(ColumnIndexes[columnName])?.Trim(),
                 rowNumber);
+
+            yield return (mappedRow, rawValues);
         }
     }
 
@@ -323,5 +346,50 @@ public sealed class SitesImportService : ISitesImportService
         {
             result.Duplicates.Add(domain);
         }
+    }
+
+    private static void AddInvalidRow(
+        InvalidRowsImportArtifactPayload payload,
+        int sourceRowNumber,
+        IReadOnlyCollection<string> rawValues,
+        string errorMessage)
+    {
+        payload.Rows.Add(new InvalidImportRowRecord
+        {
+            SourceRowNumber = sourceRowNumber,
+            RawValues = rawValues.ToList(),
+            Errors = new List<string> { errorMessage }
+        });
+    }
+
+    private void AttachSummaryAndDownloads(
+        SitesImportResult result,
+        InvalidRowsImportArtifactPayload invalidRowsPayload,
+        string importType,
+        int duplicateInputRowsCount,
+        int skippedExistingCount)
+    {
+        result.InsertedCount = result.Inserted;
+        result.SkippedExistingCount = skippedExistingCount;
+        result.DuplicateInputRowsCount = duplicateInputRowsCount;
+        result.InvalidRowsCount = result.ErrorsCount;
+
+        ImportDownloadItem? invalidRowsDownload = null;
+        if (invalidRowsPayload.Rows.Count > 0)
+        {
+            var handle = _importArtifactStorageService.StoreInvalidRows(importType, invalidRowsPayload);
+            invalidRowsDownload = new ImportDownloadItem
+            {
+                Available = true,
+                Token = handle.Token,
+                FileName = handle.FileName
+            };
+        }
+
+        result.Downloads = new ImportDownloadsInfo
+        {
+            InvalidRows = invalidRowsDownload,
+            DuplicateInputRows = null
+        };
     }
 }

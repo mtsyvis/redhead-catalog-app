@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Api.Middleware;
+using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -12,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddMemoryCache();
 
 // Add global exception handler
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -25,6 +27,7 @@ builder.Services.AddScoped<ISitesImportService, SitesImportService>();
 builder.Services.AddScoped<IQuarantineImportService, QuarantineImportService>();
 builder.Services.AddScoped<ILastPublishedImportService, LastPublishedImportService>();
 builder.Services.AddScoped<ISitesUpdateImportService, SitesUpdateImportService>();
+builder.Services.AddSingleton<IImportArtifactStorageService, ImportArtifactStorageService>();
 
 // Add Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>

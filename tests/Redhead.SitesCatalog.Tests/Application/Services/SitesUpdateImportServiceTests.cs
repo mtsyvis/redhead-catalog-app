@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
+using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -28,7 +30,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        _sut = new SitesUpdateImportService(_context, NullLogger<SitesUpdateImportService>.Instance);
+        var artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
+        _sut = new SitesUpdateImportService(_context, NullLogger<SitesUpdateImportService>.Instance, artifactStorageService);
 
         SeedSites();
     }
@@ -55,6 +58,13 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Empty(result.Errors);
         Assert.Equal(0, result.DuplicatesCount);
         Assert.Empty(result.Duplicates);
+        Assert.Equal(2, result.UpdatedCount);
+        Assert.Equal(0, result.SkippedExistingCount);
+        Assert.Equal(0, result.DuplicateInputRowsCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.Null(result.Downloads!.InvalidRows);
+        Assert.Null(result.Downloads.DuplicateInputRows);
 
         var first = await GetSiteAsync("existing.com");
         Assert.Equal("existing.com", first.Domain);

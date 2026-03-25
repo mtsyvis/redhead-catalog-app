@@ -37,15 +37,18 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
 
     private readonly ApplicationDbContext _context;
     private readonly ILogger<LastPublishedImportService> _logger;
+    private readonly IImportArtifactStorageService _importArtifactStorageService;
 
     private sealed record ParsedUpdate(DateTime DateUtc, bool IsMonthOnly);
 
     public LastPublishedImportService(
         ApplicationDbContext context,
-        ILogger<LastPublishedImportService> logger)
+        ILogger<LastPublishedImportService> logger,
+        IImportArtifactStorageService importArtifactStorageService)
     {
         _context = context;
         _logger = logger;
+        _importArtifactStorageService = importArtifactStorageService;
     }
 
     public async Task<SitesUpdateImportResult> ImportAsync(
@@ -85,6 +88,8 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
 
         var result = new SitesUpdateImportResult();
         var now = DateTime.UtcNow;
+        var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
+        var duplicateInputRowsCount = 0;
 
         // Phase 1: parse CSV rows and build per-domain update map (last row wins)
         var updates = new Dictionary<string, ParsedUpdate>(StringComparer.Ordinal);
@@ -95,7 +100,12 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                          requiredHeadersInStrictOrder: RequiredHeaderOrder,
                          ct: cancellationToken))
         {
-            await foreach (var (rowNumber, domain, rawDate) in ReadRowsAsync(session.Csv, cancellationToken))
+            invalidRowsPayload.Headers = session.Header.ToArray();
+
+            await foreach (var (rowNumber, domain, rawDate, rawValues) in ReadRowsAsync(
+                               session.Csv,
+                               session.Header.Length,
+                               cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -108,6 +118,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                         RowNumber = rowNumber,
                         Message = "Domain is required and cannot be empty after normalization."
                     });
+                    AddInvalidRow(invalidRowsPayload, rowNumber, rawValues, "Domain is required and cannot be empty after normalization.");
                     continue;
                 }
 
@@ -119,6 +130,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                         RowNumber = rowNumber,
                         Message = "LastPublishedDate is required and cannot be empty."
                     });
+                    AddInvalidRow(invalidRowsPayload, rowNumber, rawValues, "LastPublishedDate is required and cannot be empty.");
                     continue;
                 }
 
@@ -134,6 +146,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                         RowNumber = rowNumber,
                         Message = parseError
                     });
+                    AddInvalidRow(invalidRowsPayload, rowNumber, rawValues, parseError);
                     continue;
                 }
 
@@ -141,6 +154,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
 
                 if (updates.ContainsKey(normalizedDomain))
                 {
+                    duplicateInputRowsCount++;
                     result.DuplicatesCount++;
                     if (result.Duplicates.Count < ImportConstants.SitesImportMaxDetailDuplicates)
                     {
@@ -200,6 +214,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
             result.DuplicatesCount,
             userId);
 
+        AttachSummaryAndDownloads(result, invalidRowsPayload, ImportConstants.ImportArtifactSlugLastPublished, duplicateInputRowsCount);
         return result;
     }
 
@@ -244,8 +259,9 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
         return false;
     }
 
-    private static async IAsyncEnumerable<(int RowNumber, string Domain, string RawDate)> ReadRowsAsync(
+    private static async IAsyncEnumerable<(int RowNumber, string Domain, string RawDate, List<string> RawValues)> ReadRowsAsync(
         CsvHelper.CsvReader csv,
+        int headerCount,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // Row 1 = header
@@ -256,6 +272,13 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
             cancellationToken.ThrowIfCancellationRequested();
             rowNumber++;
 
+            var rawRecord = csv.Parser.Record ?? Array.Empty<string>();
+            var rawValues = new List<string>(headerCount);
+            for (var i = 0; i < headerCount; i++)
+            {
+                rawValues.Add(i < rawRecord.Length ? rawRecord[i] ?? string.Empty : string.Empty);
+            }
+
             var domain = csv.GetField(0)?.Trim();
             var rawDate = csv.GetField(1)?.Trim();
 
@@ -265,7 +288,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                 continue;
             }
 
-            yield return (rowNumber, domain ?? string.Empty, rawDate ?? string.Empty);
+            yield return (rowNumber, domain ?? string.Empty, rawDate ?? string.Empty, rawValues);
         }
     }
 
@@ -300,5 +323,49 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
         };
 
         _context.ImportLogs.Add(log);
+    }
+
+    private static void AddInvalidRow(
+        InvalidRowsImportArtifactPayload payload,
+        int sourceRowNumber,
+        IReadOnlyCollection<string> rawValues,
+        string errorMessage)
+    {
+        payload.Rows.Add(new InvalidImportRowRecord
+        {
+            SourceRowNumber = sourceRowNumber,
+            RawValues = rawValues.ToList(),
+            Errors = new List<string> { errorMessage }
+        });
+    }
+
+    private void AttachSummaryAndDownloads(
+        SitesUpdateImportResult result,
+        InvalidRowsImportArtifactPayload invalidRowsPayload,
+        string importType,
+        int duplicateInputRowsCount)
+    {
+        result.UpdatedCount = result.Matched;
+        result.SkippedExistingCount = 0;
+        result.DuplicateInputRowsCount = duplicateInputRowsCount;
+        result.InvalidRowsCount = result.ErrorsCount;
+
+        ImportDownloadItem? invalidRowsDownload = null;
+        if (invalidRowsPayload.Rows.Count > 0)
+        {
+            var handle = _importArtifactStorageService.StoreInvalidRows(importType, invalidRowsPayload);
+            invalidRowsDownload = new ImportDownloadItem
+            {
+                Available = true,
+                Token = handle.Token,
+                FileName = handle.FileName
+            };
+        }
+
+        result.Downloads = new ImportDownloadsInfo
+        {
+            InvalidRows = invalidRowsDownload,
+            DuplicateInputRows = null
+        };
     }
 }

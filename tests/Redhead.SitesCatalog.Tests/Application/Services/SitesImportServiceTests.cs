@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
+using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -30,7 +32,8 @@ public sealed class SitesImportServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        _sut = new SitesImportService(_context, NullLogger<SitesImportService>.Instance);
+        var artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
+        _sut = new SitesImportService(_context, NullLogger<SitesImportService>.Instance, artifactStorageService);
 
         SeedSites();
     }
@@ -57,6 +60,13 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal(2, result.Inserted);
         Assert.Equal(0, result.DuplicatesCount);
         Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(2, result.InsertedCount);
+        Assert.Equal(0, result.SkippedExistingCount);
+        Assert.Equal(0, result.DuplicateInputRowsCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.Null(result.Downloads!.InvalidRows);
+        Assert.Null(result.Downloads.DuplicateInputRows);
         Assert.Empty(result.Duplicates);
         Assert.Empty(result.Errors);
 
@@ -245,6 +255,9 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal(0, result.Inserted);
         Assert.Equal(1, result.DuplicatesCount);
         Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.SkippedExistingCount);
+        Assert.Equal(0, result.DuplicateInputRowsCount);
+        Assert.Equal(0, result.InvalidRowsCount);
         Assert.Single(result.Duplicates);
         Assert.Equal("existing.com", result.Duplicates[0]);
 
@@ -359,6 +372,14 @@ public sealed class SitesImportServiceTests : IDisposable
         // Assert
         Assert.Equal(0, result.Inserted);
         Assert.Equal(1, result.ErrorsCount);
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads.InvalidRows);
+        Assert.True(result.Downloads.InvalidRows.Available);
+        Assert.NotEmpty(result.Downloads.InvalidRows.Token);
+        Assert.EndsWith(".csv", result.Downloads.InvalidRows.FileName);
+        Assert.Null(result.Downloads.DuplicateInputRows);
         Assert.Single(result.Errors);
         Assert.Equal(2, result.Errors[0].RowNumber);
         Assert.Equal(expectedMessage, result.Errors[0].Message);

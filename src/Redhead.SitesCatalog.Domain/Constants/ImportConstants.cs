@@ -11,9 +11,19 @@ public static class ImportConstants
     public const string ImportTypeSites = "Sites";
 
     /// <summary>
+    /// Slug used in generated invalid-rows download filenames for Sites import.
+    /// </summary>
+    public const string ImportArtifactSlugSites = "sites";
+
+    /// <summary>
     /// ImportLog Type value for quarantine import (Commit 11)
     /// </summary>
     public const string ImportTypeQuarantine = "Quarantine";
+
+    /// <summary>
+    /// Slug used in generated invalid-rows download filenames for Quarantine import.
+    /// </summary>
+    public const string ImportArtifactSlugQuarantine = "quarantine";
 
     /// <summary>
     /// ImportLog Type value for Last Published Date import (Commit 15)
@@ -21,9 +31,19 @@ public static class ImportConstants
     public const string ImportTypeLastPublished = "LastPublished";
 
     /// <summary>
+    /// Slug used in generated invalid-rows download filenames for Last Published import.
+    /// </summary>
+    public const string ImportArtifactSlugLastPublished = "last-published";
+
+    /// <summary>
     /// ImportLog Type value for sites mass-update import (update existing sites by Domain).
     /// </summary>
     public const string ImportTypeSitesUpdate = "SitesUpdate";
+
+    /// <summary>
+    /// Slug used in generated invalid-rows download filenames for Sites update import.
+    /// </summary>
+    public const string ImportArtifactSlugSitesUpdate = "sites-update";
 
     /// <summary>
     /// Default batch size for site inserts

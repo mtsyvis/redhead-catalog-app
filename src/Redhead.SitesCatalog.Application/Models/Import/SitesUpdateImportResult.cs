@@ -11,6 +11,11 @@ public class SitesUpdateImportResult
     public List<SitesUpdateImportError> Errors { get; set; } = new();
     public int DuplicatesCount { get; set; }
     public List<string> Duplicates { get; set; } = new();
+    public int UpdatedCount { get; set; }
+    public int SkippedExistingCount { get; set; }
+    public int DuplicateInputRowsCount { get; set; }
+    public int InvalidRowsCount { get; set; }
+    public ImportDownloadsInfo? Downloads { get; set; }
 }
 
 /// <summary>

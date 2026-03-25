@@ -10,6 +10,11 @@ public class SitesImportResult
     public List<string> Duplicates { get; set; } = new();
     public int ErrorsCount { get; set; }
     public List<SitesImportError> Errors { get; set; } = new();
+    public int InsertedCount { get; set; }
+    public int SkippedExistingCount { get; set; }
+    public int DuplicateInputRowsCount { get; set; }
+    public int InvalidRowsCount { get; set; }
+    public ImportDownloadsInfo? Downloads { get; set; }
 
     /// <summary>
     /// Creates a result for unsupported file type (single error, no rows processed).
@@ -19,6 +24,11 @@ public class SitesImportResult
         return new SitesImportResult
         {
             ErrorsCount = 1,
+            Downloads = new ImportDownloadsInfo
+            {
+                InvalidRows = null,
+                DuplicateInputRows = null
+            },
             Errors = new List<SitesImportError>
             {
                 new() { RowNumber = 0, Message = "Unsupported file type. Use CSV." }

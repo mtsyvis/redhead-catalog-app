@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
+using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -27,7 +29,8 @@ public sealed class QuarantineImportServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        _sut = new QuarantineImportService(_context, NullLogger<QuarantineImportService>.Instance);
+        var artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
+        _sut = new QuarantineImportService(_context, NullLogger<QuarantineImportService>.Instance, artifactStorageService);
 
         SeedSites();
     }
