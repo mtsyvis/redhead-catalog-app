@@ -395,7 +395,7 @@ export function Sites() {
         if (isNotFoundRow(row)) return '—';
         const site = row as Site;
         if (site.lastPublishedDate == null) {
-          return 'Last publication before January 2026';
+          return 'Before January 2026';
         }
         const d = new Date(site.lastPublishedDate);
         if (site.lastPublishedDateIsMonthOnly) {
