@@ -1,9 +1,9 @@
 using System.Text;
 using Microsoft.Extensions.Caching.Memory;
-using Redhead.SitesCatalog.Api.Services;
+using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Application.Models.Import;
 
-namespace Redhead.SitesCatalog.Tests.Api.Services;
+namespace Redhead.SitesCatalog.Tests.Application.Services;
 
 public sealed class ImportArtifactStorageServiceTests
 {

@@ -20,6 +20,7 @@ public sealed class QuarantineImportServiceTests : IDisposable
     private const string CsvContentType = "text/csv";
 
     private readonly ApplicationDbContext _context;
+    private readonly ImportArtifactStorageService _artifactStorageService;
     private readonly QuarantineImportService _sut;
 
     public QuarantineImportServiceTests()
@@ -29,8 +30,8 @@ public sealed class QuarantineImportServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        var artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
-        _sut = new QuarantineImportService(_context, NullLogger<QuarantineImportService>.Instance, artifactStorageService);
+        _artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
+        _sut = new QuarantineImportService(_context, NullLogger<QuarantineImportService>.Instance, _artifactStorageService);
 
         SeedSites();
     }
@@ -185,6 +186,36 @@ public sealed class QuarantineImportServiceTests : IDisposable
         var test = await GetSiteAsync("test.com");
         Assert.True(test.IsQuarantined);
         Assert.Equal("OK", test.QuarantineReason);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidRow_InvalidRowsDownloadContainsSourceRowNumber()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain,Reason\n" +
+            ",Some reason\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var token = result.Downloads.InvalidRows!.Token;
+        Assert.False(string.IsNullOrWhiteSpace(token));
+
+        var download = _artifactStorageService.GetCsvDownload(token);
+        Assert.NotNull(download);
+
+        var csv = Encoding.UTF8.GetString(download!.Content);
+        var lines = csv
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
+
+        Assert.Equal("Domain,Reason,Source Row Number,Error Details", lines[0]);
+        Assert.Equal(",Some reason,2,Domain is required and cannot be empty after normalization.", lines[1]);
     }
 
     [Fact]

@@ -20,6 +20,7 @@ public sealed class LastPublishedImportServiceTests : IDisposable
     private const string CsvContentType = "text/csv";
 
     private readonly ApplicationDbContext _context;
+    private readonly ImportArtifactStorageService _artifactStorageService;
     private readonly LastPublishedImportService _sut;
 
     public LastPublishedImportServiceTests()
@@ -29,8 +30,8 @@ public sealed class LastPublishedImportServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        var artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
-        _sut = new LastPublishedImportService(_context, NullLogger<LastPublishedImportService>.Instance, artifactStorageService);
+        _artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
+        _sut = new LastPublishedImportService(_context, NullLogger<LastPublishedImportService>.Instance, _artifactStorageService);
 
         SeedSites();
     }
@@ -170,6 +171,33 @@ public sealed class LastPublishedImportServiceTests : IDisposable
         Assert.Single(result.Errors);
         Assert.Equal(2, result.Errors[0].RowNumber);
         Assert.Equal("Domain is required and cannot be empty after normalization.", result.Errors[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidRow_InvalidRowsDownloadContainsSourceRowNumber()
+    {
+        using var stream = Utf8Csv(
+            "Domain,LastPublishedDate\n" +
+            ",31.01.2026\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var token = result.Downloads.InvalidRows!.Token;
+        Assert.False(string.IsNullOrWhiteSpace(token));
+
+        var download = _artifactStorageService.GetCsvDownload(token);
+        Assert.NotNull(download);
+
+        var csv = Encoding.UTF8.GetString(download!.Content);
+        var lines = csv
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
+
+        Assert.Equal("Domain,LastPublishedDate,Source Row Number,Error Details", lines[0]);
+        Assert.Equal(",31.01.2026,2,Domain is required and cannot be empty after normalization.", lines[1]);
     }
 
     [Fact]

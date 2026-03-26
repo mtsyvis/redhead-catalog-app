@@ -22,6 +22,7 @@ public sealed class SitesImportServiceTests : IDisposable
     private const string CsvContentType = "text/csv";
 
     private readonly ApplicationDbContext _context;
+    private readonly ImportArtifactStorageService _artifactStorageService;
     private readonly SitesImportService _sut;
 
     public SitesImportServiceTests()
@@ -32,8 +33,8 @@ public sealed class SitesImportServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        var artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
-        _sut = new SitesImportService(_context, NullLogger<SitesImportService>.Instance, artifactStorageService);
+        _artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
+        _sut = new SitesImportService(_context, NullLogger<SitesImportService>.Instance, _artifactStorageService);
 
         SeedSites();
     }
@@ -383,6 +384,36 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Single(result.Errors);
         Assert.Equal(2, result.Errors[0].RowNumber);
         Assert.Equal(expectedMessage, result.Errors[0].Message);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidRow_InvalidRowsDownloadContainsSourceRowNumber()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            ",55,12000,US,100,150,200,250,Tech,News\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var token = result.Downloads.InvalidRows!.Token;
+        Assert.False(string.IsNullOrWhiteSpace(token));
+
+        var download = _artifactStorageService.GetCsvDownload(token);
+        Assert.NotNull(download);
+
+        var csv = Encoding.UTF8.GetString(download!.Content);
+        var lines = csv
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
+
+        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,Source Row Number,Error Details", lines[0]);
+        Assert.Equal(",55,12000,US,100,150,200,250,Tech,News,2,Domain is required.", lines[1]);
     }
 
     [Fact]
