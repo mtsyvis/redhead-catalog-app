@@ -7,13 +7,13 @@ import { UpdateImportResultCard } from "./UpdateImportResultCard";
 import { MAX_IMPORT_FILE_SIZE_BYTES, FILE_TOO_LARGE_MESSAGE, ACCEPT_FILES } from "../../services/import.service";
 
 type UpdateImportTabProps = {
-  runImport: (file: File) => Promise<UpdateImportResult>;
-  instructions: {
-    description: React.ReactNode;
-    requiredColumns: readonly string[];
-    optionalNote?: React.ReactNode;
+  readonly runImport: (file: File) => Promise<UpdateImportResult>;
+  readonly instructions: {
+    readonly description: React.ReactNode;
+    readonly requiredColumns: readonly string[];
+    readonly optionalNote?: React.ReactNode;
   };
-  resultTitle: string;
+  readonly resultTitle: string;
 };
 
 export function UpdateImportTab({ runImport, instructions, resultTitle }: UpdateImportTabProps) {
@@ -55,7 +55,6 @@ export function UpdateImportTab({ runImport, instructions, resultTitle }: Update
         result ? (
           <UpdateImportResultCard
             title={resultTitle}
-            unmatchedTitle="Unmatched domains"
             result={result}
           />
         ) : null
