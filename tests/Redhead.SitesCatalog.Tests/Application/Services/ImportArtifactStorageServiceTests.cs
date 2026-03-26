@@ -51,4 +51,39 @@ public sealed class ImportArtifactStorageServiceTests
         Assert.Equal("Domain,Reason,Source Row Number,Error Details", lines[0]);
         Assert.Equal("example.com,raw reason,7,Domain is invalid; Reason is too long", lines[1]);
     }
+
+    [Fact]
+    public void StoreUnmatchedRows_ThenGetCsvDownload_ReturnsCsvWithoutErrorDetails()
+    {
+        var sut = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
+        var payload = new UnmatchedRowsImportArtifactPayload
+        {
+            Headers = ["Domain", "DR", "Traffic"],
+            Rows =
+            {
+                new UnmatchedImportRowRecord
+                {
+                    SourceRowNumber = 3,
+                    RawValues = ["missing.com", "55", "1000"]
+                }
+            }
+        };
+
+        var handle = sut.StoreUnmatchedRows("sites-update", payload);
+        var download = sut.GetCsvDownload(handle.Token);
+
+        Assert.NotNull(download);
+        Assert.Equal("text/csv", download!.ContentType);
+        Assert.Equal(handle.FileName, download.FileName);
+        Assert.Contains("-unmatched-rows-", handle.FileName, StringComparison.Ordinal);
+
+        var csv = Encoding.UTF8.GetString(download.Content);
+        var lines = csv
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
+
+        Assert.Equal("Domain,DR,Traffic,Source Row Number", lines[0]);
+        Assert.Equal("missing.com,55,1000,3", lines[1]);
+    }
 }

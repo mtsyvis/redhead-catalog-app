@@ -136,6 +136,20 @@ public sealed class QuarantineImportServiceTests : IDisposable
         Assert.Equal(0, result.ErrorsCount);
         Assert.Single(result.Unmatched);
         Assert.Equal("missing-site.com", result.Unmatched[0]);
+        Assert.Equal(1, result.UnmatchedRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.UnmatchedRows);
+        Assert.Null(result.Downloads.InvalidRows);
+
+        var download = _artifactStorageService.GetCsvDownload(result.Downloads.UnmatchedRows!.Token);
+        Assert.NotNull(download);
+        var csv = Encoding.UTF8.GetString(download!.Content);
+        var lines = csv
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
+        Assert.Equal("Domain,Reason,Source Row Number", lines[0]);
+        Assert.Equal("missing-site.com,Why,3", lines[1]);
 
         var log = await GetQuarantineImportLogAsync();
         Assert.NotNull(log);
@@ -236,6 +250,9 @@ public sealed class QuarantineImportServiceTests : IDisposable
         Assert.Equal(1, result.DuplicatesCount);
         Assert.Single(result.Duplicates);
         Assert.Equal("example.com", result.Duplicates[0]);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+        Assert.Single(result.DuplicateDomainsPreview);
+        Assert.Equal("example.com", result.DuplicateDomainsPreview[0]);
 
         var site = await GetSiteAsync("example.com");
         Assert.True(site.IsQuarantined);
@@ -245,6 +262,49 @@ public sealed class QuarantineImportServiceTests : IDisposable
         Assert.NotNull(log);
         Assert.Equal(1, log!.Duplicates);
         Assert.Equal(1, log.Matched);
+    }
+
+    [Fact]
+    public async Task ImportAsync_DuplicateDomainsPreview_CountsUniqueDomains_AndLimitsTo100()
+    {
+        var sb = new StringBuilder();
+        sb.Append("Domain,Reason\n");
+        for (var i = 0; i < ImportConstants.DuplicateDomainsPreviewLimit + 1; i++)
+        {
+            sb.Append($"dupe-{i}.com,First\n");
+            sb.Append($"dupe-{i}.com,Second\n");
+        }
+        sb.Append("example.com,Final\n");
+
+        using var stream = Utf8Csv(sb.ToString());
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.Matched);
+        Assert.Equal(101, result.DuplicateDomainsCount);
+        Assert.Equal(100, result.DuplicateDomainsPreview.Count);
+        Assert.Equal("dupe-0.com", result.DuplicateDomainsPreview[0]);
+        Assert.Equal("dupe-99.com", result.DuplicateDomainsPreview[99]);
+        Assert.DoesNotContain("dupe-100.com", result.DuplicateDomainsPreview);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidRows_RemainSeparate_FromUnmatchedRows()
+    {
+        using var stream = Utf8Csv(
+            "Domain,Reason\n" +
+            ",Invalid\n" +
+            "missing-site.com,Why\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.Matched);
+        Assert.Equal(1, result.ErrorsCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.Equal(1, result.UnmatchedRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        Assert.NotNull(result.Downloads.UnmatchedRows);
     }
 
     [Fact]

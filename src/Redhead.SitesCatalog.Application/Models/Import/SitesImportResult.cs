@@ -8,6 +8,8 @@ public class SitesImportResult
     public int Inserted { get; set; }
     public int DuplicatesCount { get; set; }
     public List<string> Duplicates { get; set; } = new();
+    public int DuplicateDomainsCount { get; set; }
+    public List<string> DuplicateDomainsPreview { get; set; } = new();
     public int ErrorsCount { get; set; }
     public List<SitesImportError> Errors { get; set; } = new();
     public int InsertedCount { get; set; }
@@ -24,11 +26,6 @@ public class SitesImportResult
         return new SitesImportResult
         {
             ErrorsCount = 1,
-            Downloads = new ImportDownloadsInfo
-            {
-                InvalidRows = null,
-                DuplicateInputRows = null
-            },
             Errors = new List<SitesImportError>
             {
                 new() { RowNumber = 0, Message = "Unsupported file type. Use CSV." }

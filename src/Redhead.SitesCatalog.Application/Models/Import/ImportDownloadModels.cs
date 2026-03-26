@@ -4,6 +4,7 @@ public static class ImportArtifactKinds
 {
     public const string InvalidRows = "invalidRows";
     public const string DuplicateInputRows = "duplicateInputRows";
+    public const string UnmatchedRows = "unmatchedRows";
 }
 
 public sealed class ImportDownloadItem
@@ -16,7 +17,7 @@ public sealed class ImportDownloadItem
 public sealed class ImportDownloadsInfo
 {
     public ImportDownloadItem? InvalidRows { get; set; }
-    public ImportDownloadItem? DuplicateInputRows { get; set; }
+    public ImportDownloadItem? UnmatchedRows { get; set; }
 }
 
 public sealed class ImportArtifactHandle
@@ -43,4 +44,16 @@ public sealed class InvalidRowsImportArtifactPayload
 {
     public string[] Headers { get; set; } = Array.Empty<string>();
     public List<InvalidImportRowRecord> Rows { get; set; } = new();
+}
+
+public sealed class UnmatchedImportRowRecord
+{
+    public int SourceRowNumber { get; set; }
+    public List<string> RawValues { get; set; } = new();
+}
+
+public sealed class UnmatchedRowsImportArtifactPayload
+{
+    public string[] Headers { get; set; } = Array.Empty<string>();
+    public List<UnmatchedImportRowRecord> Rows { get; set; } = new();
 }

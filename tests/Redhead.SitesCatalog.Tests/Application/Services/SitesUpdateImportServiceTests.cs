@@ -63,9 +63,12 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(0, result.SkippedExistingCount);
         Assert.Equal(0, result.DuplicateInputRowsCount);
         Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Equal(0, result.UnmatchedRowsCount);
+        Assert.Equal(0, result.DuplicateDomainsCount);
+        Assert.Empty(result.DuplicateDomainsPreview);
         Assert.NotNull(result.Downloads);
         Assert.Null(result.Downloads!.InvalidRows);
-        Assert.Null(result.Downloads.DuplicateInputRows);
+        Assert.Null(result.Downloads.UnmatchedRows);
 
         var first = await GetSiteAsync("existing.com");
         Assert.Equal("existing.com", first.Domain);
@@ -229,6 +232,9 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(0, result.ErrorsCount);
         Assert.Single(result.Unmatched);
         Assert.Equal("missing-site.com", result.Unmatched[0]);
+        Assert.Equal(1, result.UnmatchedRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.UnmatchedRows);
 
         var log = await GetSitesUpdateImportLogAsync();
         Assert.NotNull(log);
@@ -283,6 +289,9 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(0, result.ErrorsCount);
         Assert.Single(result.Duplicates);
         Assert.Equal("existing.com", result.Duplicates[0]);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+        Assert.Single(result.DuplicateDomainsPreview);
+        Assert.Equal("existing.com", result.DuplicateDomainsPreview[0]);
 
         var site = await GetSiteAsync("existing.com");
         Assert.Equal(75, site.DR);
@@ -496,6 +505,81 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
 
         Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,Source Row Number,Error Details", lines[0]);
         Assert.Equal(",55,12000,US,100,150,200,250,Tech,News,2,Domain is required.", lines[1]);
+    }
+
+    [Fact]
+    public async Task ImportAsync_UnmatchedRows_UnmatchedRowsDownloadContainsOriginalHeadersAndSourceRowNumber()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "missing-site.com,42,5000,UK,50,,,,,\n" +
+            "existing.com,55,12000,US,100,,,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.Matched);
+        Assert.Equal(1, result.UnmatchedRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.UnmatchedRows);
+        Assert.Null(result.Downloads.InvalidRows);
+
+        var token = result.Downloads.UnmatchedRows!.Token;
+        var download = _artifactStorageService.GetCsvDownload(token);
+        Assert.NotNull(download);
+
+        var csv = Encoding.UTF8.GetString(download!.Content);
+        var lines = csv
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
+
+        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,Source Row Number", lines[0]);
+        Assert.Equal("missing-site.com,42,5000,UK,50,,,,,,2", lines[1]);
+    }
+
+    [Fact]
+    public async Task ImportAsync_DuplicateDomainsPreview_CountsUniqueDomains_IncludingInvalidRows_AndLimitsTo100()
+    {
+        var sb = new StringBuilder();
+        sb.Append(HeaderLine());
+        for (var i = 0; i < 101; i++)
+        {
+            sb.Append($"dupe-{i}.com,invalid,5000,US,10,,,,,\n");
+            sb.Append($"dupe-{i}.com,55,5000,US,10,,,,,\n");
+        }
+        sb.Append("existing.com,60,9000,CA,20,,,,,\n");
+
+        using var stream = Utf8Csv(sb.ToString());
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.Matched);
+        Assert.Equal(101, result.DuplicateDomainsCount);
+        Assert.Equal(100, result.DuplicateDomainsPreview.Count);
+        Assert.Equal("dupe-0.com", result.DuplicateDomainsPreview[0]);
+        Assert.Equal("dupe-99.com", result.DuplicateDomainsPreview[99]);
+        Assert.DoesNotContain("dupe-100.com", result.DuplicateDomainsPreview);
+    }
+
+    [Fact]
+    public async Task ImportAsync_DuplicateDomain_WithInvalidAndValidRow_IsInDuplicatePreview_InvalidRowRemainsSeparate()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "missing-site.com,invalid,5000,US,10,,,,,\n" +
+            "missing-site.com,55,5000,US,10,,,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.Matched);
+        Assert.Equal(1, result.ErrorsCount);
+        Assert.Equal(1, result.UnmatchedRowsCount);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+        Assert.Single(result.DuplicateDomainsPreview);
+        Assert.Equal("missing-site.com", result.DuplicateDomainsPreview[0]);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        Assert.NotNull(result.Downloads.UnmatchedRows);
     }
 
     [Fact]

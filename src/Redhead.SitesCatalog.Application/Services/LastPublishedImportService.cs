@@ -89,7 +89,11 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
         var result = new SitesUpdateImportResult();
         var now = DateTime.UtcNow;
         var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
+        var unmatchedRowsPayload = new UnmatchedRowsImportArtifactPayload();
+        var validRowsByDomain = new Dictionary<string, List<UnmatchedImportRowRecord>>(StringComparer.Ordinal);
         var duplicateInputRowsCount = 0;
+        var duplicateDomainOccurrences = new Dictionary<string, int>(StringComparer.Ordinal);
+        var duplicateDomainsInOrder = new List<string>();
 
         // Phase 1: parse CSV rows and build per-domain update map (last row wins)
         var updates = new Dictionary<string, ParsedUpdate>(StringComparer.Ordinal);
@@ -101,6 +105,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                          ct: cancellationToken))
         {
             invalidRowsPayload.Headers = session.Header.ToArray();
+            unmatchedRowsPayload.Headers = session.Header.ToArray();
 
             await foreach (var (rowNumber, domain, rawDate, rawValues) in ReadRowsAsync(
                                session.Csv,
@@ -121,6 +126,8 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                     AddInvalidRow(invalidRowsPayload, rowNumber, rawValues, "Domain is required and cannot be empty after normalization.");
                     continue;
                 }
+
+                TrackDuplicateDomain(normalizedDomain, duplicateDomainOccurrences, duplicateDomainsInOrder);
 
                 if (string.IsNullOrEmpty(rawDate))
                 {
@@ -167,6 +174,18 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
                 {
                     updates.Add(normalizedDomain, update);
                 }
+
+                if (!validRowsByDomain.TryGetValue(normalizedDomain, out var rows))
+                {
+                    rows = new List<UnmatchedImportRowRecord>();
+                    validRowsByDomain[normalizedDomain] = rows;
+                }
+
+                rows.Add(new UnmatchedImportRowRecord
+                {
+                    SourceRowNumber = rowNumber,
+                    RawValues = rawValues.ToList()
+                });
             }
         }
 
@@ -192,6 +211,11 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
             if (!sitesByDomain.TryGetValue(domain, out var site))
             {
                 result.Unmatched.Add(domain);
+                if (validRowsByDomain.TryGetValue(domain, out var unmatchedRowsForDomain))
+                {
+                    unmatchedRowsPayload.Rows.AddRange(unmatchedRowsForDomain);
+                }
+
                 continue;
             }
 
@@ -214,7 +238,13 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
             result.DuplicatesCount,
             userId);
 
-        AttachSummaryAndDownloads(result, invalidRowsPayload, ImportConstants.ImportArtifactSlugLastPublished, duplicateInputRowsCount);
+        AttachSummaryAndDownloads(
+            result,
+            invalidRowsPayload,
+            unmatchedRowsPayload,
+            ImportConstants.ImportArtifactSlugLastPublished,
+            duplicateInputRowsCount,
+            duplicateDomainsInOrder);
         return result;
     }
 
@@ -339,16 +369,43 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
         });
     }
 
+    private static void TrackDuplicateDomain(
+        string normalizedDomain,
+        IDictionary<string, int> occurrences,
+        ICollection<string> duplicateDomainsInOrder)
+    {
+        if (occurrences.TryGetValue(normalizedDomain, out var count))
+        {
+            var nextCount = count + 1;
+            occurrences[normalizedDomain] = nextCount;
+            if (nextCount == 2)
+            {
+                duplicateDomainsInOrder.Add(normalizedDomain);
+            }
+
+            return;
+        }
+
+        occurrences[normalizedDomain] = 1;
+    }
+
     private void AttachSummaryAndDownloads(
         SitesUpdateImportResult result,
         InvalidRowsImportArtifactPayload invalidRowsPayload,
+        UnmatchedRowsImportArtifactPayload unmatchedRowsPayload,
         string importType,
-        int duplicateInputRowsCount)
+        int duplicateInputRowsCount,
+        IReadOnlyCollection<string> duplicateDomainsInOrder)
     {
         result.UpdatedCount = result.Matched;
         result.SkippedExistingCount = 0;
         result.DuplicateInputRowsCount = duplicateInputRowsCount;
         result.InvalidRowsCount = result.ErrorsCount;
+        result.UnmatchedRowsCount = unmatchedRowsPayload.Rows.Count;
+        result.DuplicateDomainsCount = duplicateDomainsInOrder.Count;
+        result.DuplicateDomainsPreview = duplicateDomainsInOrder
+            .Take(ImportConstants.DuplicateDomainsPreviewLimit)
+            .ToList();
 
         ImportDownloadItem? invalidRowsDownload = null;
         if (invalidRowsPayload.Rows.Count > 0)
@@ -362,10 +419,22 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
             };
         }
 
+        ImportDownloadItem? unmatchedRowsDownload = null;
+        if (unmatchedRowsPayload.Rows.Count > 0)
+        {
+            var handle = _importArtifactStorageService.StoreUnmatchedRows(importType, unmatchedRowsPayload);
+            unmatchedRowsDownload = new ImportDownloadItem
+            {
+                Available = true,
+                Token = handle.Token,
+                FileName = handle.FileName
+            };
+        }
+
         result.Downloads = new ImportDownloadsInfo
         {
             InvalidRows = invalidRowsDownload,
-            DuplicateInputRows = null
+            UnmatchedRows = unmatchedRowsDownload
         };
     }
 }

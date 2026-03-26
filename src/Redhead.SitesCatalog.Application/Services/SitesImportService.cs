@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services.Parsers;
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Exceptions;
@@ -72,6 +73,8 @@ public sealed class SitesImportService : ISitesImportService
         var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
         var duplicateInputRowsCount = 0;
         var skippedExistingCount = 0;
+        var duplicateDomainOccurrences = new Dictionary<string, int>(StringComparer.Ordinal);
+        var duplicateDomainsInOrder = new List<string>();
 
         await using (var session = await CsvImportSession.OpenAsync(
                          fileStream,
@@ -86,6 +89,13 @@ public sealed class SitesImportService : ISitesImportService
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var (isEmpty, error, validatedData) = SitesImportRowValidationHelper.Validate(row);
+                if (isEmpty)
+                {
+                    continue;
+                }
+
+                TrackDuplicateDomain(row.Domain, duplicateDomainOccurrences, duplicateDomainsInOrder);
+
                 if (error is not null)
                 {
                     AddError(result, error);
@@ -93,7 +103,7 @@ public sealed class SitesImportService : ISitesImportService
                     continue;
                 }
 
-                if (isEmpty || validatedData is null)
+                if (validatedData is null)
                 {
                     continue;
                 }
@@ -113,7 +123,13 @@ public sealed class SitesImportService : ISitesImportService
         // Nothing to insert, but still persist import log for traceability.
         if (parsedSitesByDomain.Count == 0)
         {
-            AttachSummaryAndDownloads(result, invalidRowsPayload, ImportConstants.ImportArtifactSlugSites, duplicateInputRowsCount, skippedExistingCount);
+            AttachSummaryAndDownloads(
+                result,
+                invalidRowsPayload,
+                ImportConstants.ImportArtifactSlugSites,
+                duplicateInputRowsCount,
+                skippedExistingCount,
+                duplicateDomainsInOrder);
             await SaveImportLogOnlyAsync(result, userId, userEmail, cancellationToken);
 
             _logger.LogInformation(
@@ -170,7 +186,13 @@ public sealed class SitesImportService : ISitesImportService
             result.ErrorsCount,
             userId);
 
-        AttachSummaryAndDownloads(result, invalidRowsPayload, ImportConstants.ImportArtifactSlugSites, duplicateInputRowsCount, skippedExistingCount);
+        AttachSummaryAndDownloads(
+            result,
+            invalidRowsPayload,
+            ImportConstants.ImportArtifactSlugSites,
+            duplicateInputRowsCount,
+            skippedExistingCount,
+            duplicateDomainsInOrder);
         return result;
     }
 
@@ -362,17 +384,48 @@ public sealed class SitesImportService : ISitesImportService
         });
     }
 
+    private static void TrackDuplicateDomain(
+        string? rawDomain,
+        IDictionary<string, int> occurrences,
+        ICollection<string> duplicateDomainsInOrder)
+    {
+        var normalizedDomain = DomainNormalizer.Normalize(rawDomain);
+        if (string.IsNullOrEmpty(normalizedDomain))
+        {
+            return;
+        }
+
+        if (occurrences.TryGetValue(normalizedDomain, out var count))
+        {
+            var nextCount = count + 1;
+            occurrences[normalizedDomain] = nextCount;
+            if (nextCount == 2)
+            {
+                duplicateDomainsInOrder.Add(normalizedDomain);
+            }
+
+            return;
+        }
+
+        occurrences[normalizedDomain] = 1;
+    }
+
     private void AttachSummaryAndDownloads(
         SitesImportResult result,
         InvalidRowsImportArtifactPayload invalidRowsPayload,
         string importType,
         int duplicateInputRowsCount,
-        int skippedExistingCount)
+        int skippedExistingCount,
+        IReadOnlyCollection<string> duplicateDomainsInOrder)
     {
         result.InsertedCount = result.Inserted;
         result.SkippedExistingCount = skippedExistingCount;
         result.DuplicateInputRowsCount = duplicateInputRowsCount;
         result.InvalidRowsCount = result.ErrorsCount;
+        result.DuplicateDomainsCount = duplicateDomainsInOrder.Count;
+        result.DuplicateDomainsPreview = duplicateDomainsInOrder
+            .Take(ImportConstants.DuplicateDomainsPreviewLimit)
+            .ToList();
 
         ImportDownloadItem? invalidRowsDownload = null;
         if (invalidRowsPayload.Rows.Count > 0)
@@ -389,7 +442,6 @@ public sealed class SitesImportService : ISitesImportService
         result.Downloads = new ImportDownloadsInfo
         {
             InvalidRows = invalidRowsDownload,
-            DuplicateInputRows = null
         };
     }
 }

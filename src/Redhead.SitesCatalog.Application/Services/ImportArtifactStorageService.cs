@@ -18,11 +18,31 @@ public sealed class ImportArtifactStorageService : IImportArtifactStorageService
     public ImportArtifactHandle StoreInvalidRows(string importType, InvalidRowsImportArtifactPayload payload)
     {
         var token = Guid.NewGuid().ToString("N");
-        var fileName = BuildFileName(importType);
+        var fileName = BuildFileName(importType, "invalid-rows");
         var artifact = new CachedImportArtifact
         {
             Kind = ImportArtifactKinds.InvalidRows,
             InvalidRowsPayload = payload,
+            FileName = fileName
+        };
+
+        _cache.Set(token, artifact, DefaultTtl);
+
+        return new ImportArtifactHandle
+        {
+            Token = token,
+            FileName = fileName
+        };
+    }
+
+    public ImportArtifactHandle StoreUnmatchedRows(string importType, UnmatchedRowsImportArtifactPayload payload)
+    {
+        var token = Guid.NewGuid().ToString("N");
+        var fileName = BuildFileName(importType, "unmatched-rows");
+        var artifact = new CachedImportArtifact
+        {
+            Kind = ImportArtifactKinds.UnmatchedRows,
+            UnmatchedRowsPayload = payload,
             FileName = fileName
         };
 
@@ -47,12 +67,14 @@ public sealed class ImportArtifactStorageService : IImportArtifactStorageService
             return null;
         }
 
-        if (!string.Equals(artifact.Kind, ImportArtifactKinds.InvalidRows, StringComparison.Ordinal))
+        byte[]? csvContent = artifact.Kind switch
         {
-            return null;
-        }
+            ImportArtifactKinds.InvalidRows when artifact.InvalidRowsPayload is not null => BuildInvalidRowsCsv(artifact.InvalidRowsPayload),
+            ImportArtifactKinds.UnmatchedRows when artifact.UnmatchedRowsPayload is not null => BuildUnmatchedRowsCsv(artifact.UnmatchedRowsPayload),
+            _ => null
+        };
 
-        if (artifact.InvalidRowsPayload is null)
+        if (csvContent is null)
         {
             return null;
         }
@@ -61,18 +83,18 @@ public sealed class ImportArtifactStorageService : IImportArtifactStorageService
         {
             FileName = artifact.FileName,
             ContentType = "text/csv",
-            Content = BuildInvalidRowsCsv(artifact.InvalidRowsPayload)
+            Content = csvContent
         };
     }
 
-    private static string BuildFileName(string importType)
+    private static string BuildFileName(string importType, string suffix)
     {
         var normalizedImportType = string.IsNullOrWhiteSpace(importType)
             ? "import"
             : importType.Trim().ToLowerInvariant();
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
-        return $"{normalizedImportType}-invalid-rows-{timestamp}.csv";
+        return $"{normalizedImportType}-{suffix}-{timestamp}.csv";
     }
 
     private static byte[] BuildInvalidRowsCsv(InvalidRowsImportArtifactPayload payload)
@@ -90,6 +112,26 @@ public sealed class ImportArtifactStorageService : IImportArtifactStorageService
             values.AddRange(row.RawValues);
             values.Add(row.SourceRowNumber.ToString());
             values.Add(string.Join("; ", row.Errors));
+            AppendCsvRow(sb, values);
+        }
+
+        return Encoding.UTF8.GetBytes(sb.ToString());
+    }
+
+    private static byte[] BuildUnmatchedRowsCsv(UnmatchedRowsImportArtifactPayload payload)
+    {
+        var sb = new StringBuilder();
+        var exportHeaders = payload.Headers
+            .Concat(["Source Row Number"])
+            .ToArray();
+
+        AppendCsvRow(sb, exportHeaders);
+
+        foreach (var row in payload.Rows)
+        {
+            var values = new List<string>(payload.Headers.Length + 1);
+            values.AddRange(row.RawValues);
+            values.Add(row.SourceRowNumber.ToString());
             AppendCsvRow(sb, values);
         }
 
@@ -128,5 +170,6 @@ public sealed class ImportArtifactStorageService : IImportArtifactStorageService
         public string Kind { get; init; } = string.Empty;
         public string FileName { get; init; } = string.Empty;
         public InvalidRowsImportArtifactPayload? InvalidRowsPayload { get; init; }
+        public UnmatchedRowsImportArtifactPayload? UnmatchedRowsPayload { get; init; }
     }
 }

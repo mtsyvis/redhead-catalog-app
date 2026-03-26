@@ -61,6 +61,11 @@ public static class ImportConstants
     public const int SitesImportMaxDetailDuplicates = 200;
 
     /// <summary>
+    /// Maximum number of unique duplicate domains included in preview fields.
+    /// </summary>
+    public const int DuplicateDomainsPreviewLimit = 100;
+
+    /// <summary>
     /// CSV file extension
     /// </summary>
     public const string CsvExtension = ".csv";
