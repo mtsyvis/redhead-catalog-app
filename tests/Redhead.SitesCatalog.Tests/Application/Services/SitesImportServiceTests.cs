@@ -58,19 +58,13 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(2, result.Inserted);
-        Assert.Equal(0, result.DuplicatesCount);
-        Assert.Equal(0, result.ErrorsCount);
         Assert.Equal(2, result.InsertedCount);
         Assert.Equal(0, result.SkippedExistingCount);
-        Assert.Equal(0, result.DuplicateInputRowsCount);
         Assert.Equal(0, result.InvalidRowsCount);
         Assert.Equal(0, result.DuplicateDomainsCount);
         Assert.Empty(result.DuplicateDomainsPreview);
         Assert.NotNull(result.Downloads);
         Assert.Null(result.Downloads!.InvalidRows);
-        Assert.Empty(result.Duplicates);
-        Assert.Empty(result.Errors);
 
         var newSite = await GetSiteAsync("newsite.com");
         Assert.Equal(55, newSite.DR);
@@ -122,8 +116,8 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Inserted);
-        Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("semicolon.com");
         Assert.Equal(61, site.DR);
@@ -153,38 +147,11 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Inserted);
-        Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("bomsite.com");
         Assert.Equal(50, site.DR);
-    }
-
-    [Fact]
-    public async Task ImportAsync_UnsupportedFileType_ReturnsErrorResult_AndDoesNotThrow()
-    {
-        // Arrange
-        using var stream = Utf8Csv(
-            HeaderLine() +
-            "newsite.com,55,12000,US,100,150,200,250,Tech,News\n");
-
-        // Act
-        var result = await _sut.ImportAsync(
-            stream,
-            fileName: "sites.xlsx",
-            contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            userId: UserId,
-            userEmail: UserEmail,
-            cancellationToken: CancellationToken.None);
-
-        // Assert
-        Assert.Equal(0, result.Inserted);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Single(result.Errors);
-        Assert.Equal(0, result.Errors[0].RowNumber);
-        Assert.Equal("Unsupported file type. Use CSV.", result.Errors[0].Message);
-
-        Assert.Empty(_context.ImportLogs);
     }
 
     [Fact]
@@ -254,16 +221,12 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(0, result.Inserted);
-        Assert.Equal(1, result.DuplicatesCount);
-        Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
         Assert.Equal(1, result.SkippedExistingCount);
-        Assert.Equal(0, result.DuplicateInputRowsCount);
         Assert.Equal(0, result.InvalidRowsCount);
         Assert.Equal(0, result.DuplicateDomainsCount);
         Assert.Empty(result.DuplicateDomainsPreview);
-        Assert.Single(result.Duplicates);
-        Assert.Equal("existing.com", result.Duplicates[0]);
 
         var allExisting = await _context.Sites.CountAsync(x => x.Domain == "existing.com");
         Assert.Equal(1, allExisting);
@@ -288,11 +251,8 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Inserted);
-        Assert.Equal(1, result.DuplicatesCount);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Single(result.Duplicates);
-        Assert.Equal("duplicate.com", result.Duplicates[0]);
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
         Assert.Equal(1, result.DuplicateDomainsCount);
         Assert.Single(result.DuplicateDomainsPreview);
         Assert.Equal("duplicate.com", result.DuplicateDomainsPreview[0]);
@@ -322,15 +282,15 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Inserted);
-        Assert.Equal(0, result.DuplicatesCount);
-        Assert.Equal(1, result.ErrorsCount);
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
         Assert.Equal(1, result.DuplicateDomainsCount);
         Assert.Single(result.DuplicateDomainsPreview);
         Assert.Equal("mixed-dup.com", result.DuplicateDomainsPreview[0]);
-        Assert.Single(result.Errors);
-        Assert.Equal(2, result.Errors[0].RowNumber);
-        Assert.Equal("Invalid numeric format for DR.", result.Errors[0].Message);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains("2,Invalid numeric format for DR.", StringComparison.Ordinal));
 
         var site = await GetSiteAsync("mixed-dup.com");
         Assert.Equal(60, site.DR);
@@ -353,9 +313,8 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Inserted);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Empty(result.Errors);
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("ignored-empty.com");
         Assert.Equal(50, site.DR);
@@ -380,8 +339,6 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(0, result.Inserted);
-        Assert.Equal(1, result.ErrorsCount);
         Assert.Equal(0, result.InsertedCount);
         Assert.Equal(1, result.InvalidRowsCount);
         Assert.NotNull(result.Downloads);
@@ -389,9 +346,8 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.True(result.Downloads.InvalidRows.Available);
         Assert.NotEmpty(result.Downloads.InvalidRows.Token);
         Assert.EndsWith(".csv", result.Downloads.InvalidRows.FileName);
-        Assert.Single(result.Errors);
-        Assert.Equal(2, result.Errors[0].RowNumber);
-        Assert.Equal(expectedMessage, result.Errors[0].Message);
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows.Token);
+        Assert.Contains(invalidLines, line => line.Contains($",2,{expectedMessage}", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -433,8 +389,8 @@ public sealed class SitesImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Inserted);
-        Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("marker.com");
         Assert.Null(site.PriceCasino);
@@ -454,11 +410,13 @@ public sealed class SitesImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Inserted);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Single(result.Errors);
-        Assert.Equal("PriceCasino", result.Errors[0].Field);
-        Assert.Equal("abc", result.Errors[0].RawValue);
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows.Token);
+        Assert.Contains(invalidLines, line => line.Contains("abc", StringComparison.Ordinal));
+        Assert.Contains(invalidLines, line => line.Contains("Invalid optional service value.", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -470,11 +428,13 @@ public sealed class SitesImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Inserted);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Single(result.Errors);
-        Assert.Equal("PriceCrypto", result.Errors[0].Field);
-        Assert.Equal("abc", result.Errors[0].RawValue);
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains("abc", StringComparison.Ordinal));
+        Assert.Contains(invalidLines, line => line.Contains("Invalid optional service value.", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -486,11 +446,13 @@ public sealed class SitesImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Inserted);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Single(result.Errors);
-        Assert.Equal("PriceLinkInsert", result.Errors[0].Field);
-        Assert.Equal("abc", result.Errors[0].RawValue);
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains("abc", StringComparison.Ordinal));
+        Assert.Contains(invalidLines, line => line.Contains("Invalid optional service value.", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -505,13 +467,13 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Inserted);
+        Assert.Equal(1, result.InsertedCount);
         var site = await GetSiteAsync("mixedcasesite.com");
         Assert.Equal("mixedcasesite.com", site.Domain);
     }
 
     [Fact]
-    public async Task ImportAsync_TooManyInvalidRows_CapsErrorDetailsButKeepsFullCount()
+    public async Task ImportAsync_TooManyInvalidRows_ExportsAllInvalidRowsAndKeepsFullCount()
     {
         // Arrange
         var sb = new StringBuilder();
@@ -528,14 +490,16 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(0, result.Inserted);
-        Assert.Equal(250, result.ErrorsCount);
-        Assert.Equal(200, result.Errors.Count);
-        Assert.All(result.Errors, error => Assert.Equal("Domain is required.", error.Message));
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(250, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows!.Token);
+        Assert.Equal(251, invalidLines.Length);
     }
 
     [Fact]
-    public async Task ImportAsync_TooManyDuplicates_CapsDuplicateDetailsButKeepsFullCount()
+    public async Task ImportAsync_TooManyDuplicateRows_KeepsUniquePreviewAndAccurateDuplicateLogCount()
     {
         // Arrange
         var sb = new StringBuilder();
@@ -552,10 +516,15 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(0, result.Inserted);
-        Assert.Equal(250, result.DuplicatesCount);
-        Assert.Equal(200, result.Duplicates.Count);
-        Assert.All(result.Duplicates, duplicate => Assert.Equal("existing.com", duplicate));
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.SkippedExistingCount);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+        Assert.Single(result.DuplicateDomainsPreview);
+        Assert.Equal("existing.com", result.DuplicateDomainsPreview[0]);
+
+        var log = await GetSitesImportLogAsync();
+        Assert.NotNull(log);
+        Assert.Equal(250, log!.Duplicates);
     }
 
     [Fact]
@@ -573,8 +542,8 @@ public sealed class SitesImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(101, result.Inserted);
-        Assert.Equal(101, result.ErrorsCount);
+        Assert.Equal(101, result.InsertedCount);
+        Assert.Equal(101, result.InvalidRowsCount);
         Assert.Equal(101, result.DuplicateDomainsCount);
         Assert.Equal(100, result.DuplicateDomainsPreview.Count);
         Assert.Equal("dupe-0.com", result.DuplicateDomainsPreview[0]);
@@ -594,8 +563,8 @@ public sealed class SitesImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Inserted);
-        Assert.Equal(1, result.ErrorsCount);
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
         Assert.Equal(1, result.InvalidRowsCount);
         Assert.Equal(1, result.DuplicateDomainsCount);
         Assert.Single(result.DuplicateDomainsPreview);
@@ -617,13 +586,14 @@ public sealed class SitesImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Inserted);
+        Assert.Equal(0, result.InsertedCount);
         Assert.Equal(1, result.SkippedExistingCount);
         Assert.Equal(1, result.DuplicateDomainsCount);
         Assert.Single(result.DuplicateDomainsPreview);
         Assert.Equal("existing.com", result.DuplicateDomainsPreview[0]);
-        Assert.Equal(2, result.DuplicatesCount);
-        Assert.Equal(1, result.DuplicateInputRowsCount);
+        var log = await GetSitesImportLogAsync();
+        Assert.NotNull(log);
+        Assert.Equal(2, log!.Duplicates);
     }
 
     [Fact]
@@ -636,8 +606,8 @@ public sealed class SitesImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Inserted);
-        Assert.Equal(2, result.ErrorsCount);
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(2, result.InvalidRowsCount);
         Assert.Equal(2, result.InvalidRowsCount);
         Assert.Equal(1, result.DuplicateDomainsCount);
         Assert.Single(result.DuplicateDomainsPreview);
@@ -658,8 +628,8 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(0, result.Inserted);
-        Assert.Equal(1, result.ErrorsCount);
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
 
         var log = await GetSitesImportLogAsync();
         Assert.NotNull(log);
@@ -689,11 +659,8 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(totalRows, result.Inserted);
-        Assert.Equal(0, result.DuplicatesCount);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Empty(result.Duplicates);
-        Assert.Empty(result.Errors);
+        Assert.Equal(totalRows, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var insertedCount = await _context.Sites.CountAsync(x => x.Domain.StartsWith("chunk-site-"));
         Assert.Equal(totalRows, insertedCount);
@@ -767,9 +734,9 @@ public sealed class SitesImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(totalRows - existingDomains.Count, result.Inserted);
-        Assert.Equal(existingDomains.Count, result.DuplicatesCount);
-        Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(totalRows - existingDomains.Count, result.InsertedCount);
+        Assert.Equal(existingDomains.Count, result.SkippedExistingCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         foreach (var domain in existingDomains)
         {
@@ -806,6 +773,17 @@ public sealed class SitesImportServiceTests : IDisposable
     private async Task<ImportLog?> GetSitesImportLogAsync()
     {
         return await _context.ImportLogs.SingleOrDefaultAsync(x => x.Type == ImportConstants.ImportTypeSites);
+    }
+
+    private string[] GetDownloadLines(string token)
+    {
+        var download = _artifactStorageService.GetCsvDownload(token);
+        Assert.NotNull(download);
+
+        return Encoding.UTF8.GetString(download!.Content)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
     }
 
     private static MemoryStream Utf8Csv(string text, bool withBom = false)

@@ -8,7 +8,7 @@ namespace Redhead.SitesCatalog.Application.Services;
 public interface ISitesImportService
 {
     /// <summary>
-    /// Import sites from file (add-only). Duplicates are skipped; errors collected.
+    /// Import sites from file (add-only). Returns semantic summary counts, duplicate preview, and download handles.
     /// </summary>
     Task<SitesImportResult> ImportAsync(
         Stream fileStream,

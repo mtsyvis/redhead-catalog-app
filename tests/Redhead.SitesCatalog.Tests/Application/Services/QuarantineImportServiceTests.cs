@@ -55,10 +55,9 @@ public sealed class QuarantineImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(2, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Empty(result.Unmatched);
-        Assert.Empty(result.Errors);
+        Assert.Equal(2, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Equal(0, result.UnmatchedRowsCount);
 
         var example = await GetSiteAsync("example.com");
         Assert.True(example.IsQuarantined);
@@ -90,8 +89,8 @@ public sealed class QuarantineImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("example.com");
         Assert.True(site.IsQuarantined);
@@ -111,8 +110,8 @@ public sealed class QuarantineImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("example.com");
         Assert.True(site.IsQuarantined);
@@ -132,10 +131,8 @@ public sealed class QuarantineImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Single(result.Unmatched);
-        Assert.Equal("missing-site.com", result.Unmatched[0]);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
         Assert.Equal(1, result.UnmatchedRowsCount);
         Assert.NotNull(result.Downloads);
         Assert.NotNull(result.Downloads!.UnmatchedRows);
@@ -170,8 +167,8 @@ public sealed class QuarantineImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Matched);
-        Assert.Empty(result.Unmatched);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.UnmatchedRowsCount);
 
         var site = await GetSiteAsync("example.com");
         Assert.True(site.IsQuarantined);
@@ -191,11 +188,12 @@ public sealed class QuarantineImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Single(result.Errors);
-        Assert.Equal(2, result.Errors[0].RowNumber);
-        Assert.Equal("Domain is required and cannot be empty after normalization.", result.Errors[0].Message);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains(",2,Domain is required and cannot be empty after normalization.", StringComparison.Ordinal));
 
         var test = await GetSiteAsync("test.com");
         Assert.True(test.IsQuarantined);
@@ -245,11 +243,8 @@ public sealed class QuarantineImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Equal(1, result.DuplicatesCount);
-        Assert.Single(result.Duplicates);
-        Assert.Equal("example.com", result.Duplicates[0]);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
         Assert.Equal(1, result.DuplicateDomainsCount);
         Assert.Single(result.DuplicateDomainsPreview);
         Assert.Equal("example.com", result.DuplicateDomainsPreview[0]);
@@ -280,7 +275,7 @@ public sealed class QuarantineImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Matched);
+        Assert.Equal(1, result.UpdatedCount);
         Assert.Equal(101, result.DuplicateDomainsCount);
         Assert.Equal(100, result.DuplicateDomainsPreview.Count);
         Assert.Equal("dupe-0.com", result.DuplicateDomainsPreview[0]);
@@ -298,13 +293,33 @@ public sealed class QuarantineImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Matched);
-        Assert.Equal(1, result.ErrorsCount);
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
         Assert.Equal(1, result.InvalidRowsCount);
         Assert.Equal(1, result.UnmatchedRowsCount);
         Assert.NotNull(result.Downloads);
         Assert.NotNull(result.Downloads!.InvalidRows);
         Assert.NotNull(result.Downloads.UnmatchedRows);
+    }
+
+    [Fact]
+    public async Task ImportAsync_AllRowsWithInvalidDomain_AreExportedAsInvalid_WithoutDuplicatePreview()
+    {
+        using var stream = Utf8Csv(
+            "Domain,Reason\n" +
+            ",Invalid one\n" +
+            ",Invalid two\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(2, result.InvalidRowsCount);
+        Assert.Equal(0, result.UnmatchedRowsCount);
+        Assert.Equal(0, result.DuplicateDomainsCount);
+        Assert.Empty(result.DuplicateDomainsPreview);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        Assert.Null(result.Downloads.UnmatchedRows);
     }
 
     [Fact]
@@ -319,8 +334,8 @@ public sealed class QuarantineImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("example.com");
         Assert.True(site.IsQuarantined);
@@ -342,40 +357,12 @@ public sealed class QuarantineImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Empty(result.Errors);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("example.com");
         Assert.True(site.IsQuarantined);
         Assert.Equal("Policy review", site.QuarantineReason);
-    }
-
-    [Fact]
-    public async Task ImportAsync_UnsupportedFileType_ReturnsErrorResult_AndDoesNotThrow()
-    {
-        // Arrange
-        using var stream = Utf8Csv(
-            "Domain,Reason\n" +
-            "example.com,Policy review\n");
-
-        // Act
-        var result = await _sut.ImportAsync(
-            stream,
-            fileName: "quarantine.xlsx",
-            contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            userId: UserId,
-            userEmail: UserEmail,
-            cancellationToken: CancellationToken.None);
-
-        // Assert
-        Assert.Equal(0, result.Matched);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Single(result.Errors);
-        Assert.Equal(0, result.Errors[0].RowNumber);
-        Assert.Equal("Unsupported file type. Use CSV.", result.Errors[0].Message);
-
-        Assert.Empty(_context.ImportLogs);
     }
 
     [Fact]
@@ -474,6 +461,17 @@ public sealed class QuarantineImportServiceTests : IDisposable
     private async Task<ImportLog?> GetQuarantineImportLogAsync()
     {
         return await _context.ImportLogs.SingleOrDefaultAsync(x => x.Type == ImportConstants.ImportTypeQuarantine);
+    }
+
+    private string[] GetDownloadLines(string token)
+    {
+        var download = _artifactStorageService.GetCsvDownload(token);
+        Assert.NotNull(download);
+
+        return Encoding.UTF8.GetString(download!.Content)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
     }
 
     private static MemoryStream Utf8Csv(string text, bool withBom = false)

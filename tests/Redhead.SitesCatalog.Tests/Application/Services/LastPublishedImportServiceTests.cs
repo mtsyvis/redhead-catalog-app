@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
-using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -57,10 +56,9 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Empty(result.Unmatched);
-        Assert.Empty(result.Errors);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Equal(0, result.UnmatchedRowsCount);
 
         var site = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(expectedYear, expectedMonth, expectedDay, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
@@ -81,8 +79,8 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
@@ -96,8 +94,8 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
@@ -115,11 +113,12 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Matched);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Single(result.Errors);
-        Assert.Equal(2, result.Errors[0].RowNumber);
-        Assert.Equal("LastPublishedDate is required and cannot be empty.", result.Errors[0].Message);
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains(",2,LastPublishedDate is required and cannot be empty.", StringComparison.Ordinal));
 
         var site = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(2025, 12, 31, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
@@ -145,13 +144,16 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Matched);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Single(result.Errors);
-        Assert.Equal(2, result.Errors[0].RowNumber);
-        Assert.Equal(
-            "LastPublishedDate could not be parsed. Use a full date 'DD.MM.YYYY' or month+year like 'January 2026' or 'Jan 2026'.",
-            result.Errors[0].Message);
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows!.Token);
+        Assert.Contains(
+            invalidLines,
+            line => line.Contains(
+                ",2,LastPublishedDate could not be parsed. Use a full date 'DD.MM.YYYY' or month+year like 'January 2026' or 'Jan 2026'.",
+                StringComparison.Ordinal));
 
         var site = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(2025, 6, 10, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
@@ -166,11 +168,12 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Matched);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Single(result.Errors);
-        Assert.Equal(2, result.Errors[0].RowNumber);
-        Assert.Equal("Domain is required and cannot be empty after normalization.", result.Errors[0].Message);
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains(",2,Domain is required and cannot be empty after normalization.", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -207,10 +210,8 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Single(result.Unmatched);
-        Assert.Equal("missing-site.com", result.Unmatched[0]);
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
         Assert.Equal(1, result.UnmatchedRowsCount);
         Assert.NotNull(result.Downloads);
         Assert.NotNull(result.Downloads!.UnmatchedRows);
@@ -243,11 +244,8 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Equal(1, result.DuplicatesCount);
-        Assert.Single(result.Duplicates);
-        Assert.Equal("example.com", result.Duplicates[0]);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
         Assert.Equal(1, result.DuplicateDomainsCount);
         Assert.Single(result.DuplicateDomainsPreview);
         Assert.Equal("example.com", result.DuplicateDomainsPreview[0]);
@@ -278,7 +276,7 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Matched);
+        Assert.Equal(1, result.UpdatedCount);
         Assert.Equal(101, result.DuplicateDomainsCount);
         Assert.Equal(100, result.DuplicateDomainsPreview.Count);
         Assert.Equal("dupe-0.com", result.DuplicateDomainsPreview[0]);
@@ -296,8 +294,8 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.Matched);
-        Assert.Equal(1, result.ErrorsCount);
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
         Assert.Equal(1, result.UnmatchedRowsCount);
         Assert.Equal(1, result.DuplicateDomainsCount);
         Assert.Single(result.DuplicateDomainsPreview);
@@ -305,6 +303,27 @@ public sealed class LastPublishedImportServiceTests : IDisposable
         Assert.NotNull(result.Downloads);
         Assert.NotNull(result.Downloads!.InvalidRows);
         Assert.NotNull(result.Downloads.UnmatchedRows);
+    }
+
+    [Fact]
+    public async Task ImportAsync_DuplicateDomain_AllRowsInvalid_IsCountedAndExported()
+    {
+        using var stream = Utf8Csv(
+            "Domain,LastPublishedDate\n" +
+            "all-invalid-lastpublished.com,invalid\n" +
+            "all-invalid-lastpublished.com,still-invalid\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(2, result.InvalidRowsCount);
+        Assert.Equal(0, result.UnmatchedRowsCount);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+        Assert.Single(result.DuplicateDomainsPreview);
+        Assert.Equal("all-invalid-lastpublished.com", result.DuplicateDomainsPreview[0]);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        Assert.Null(result.Downloads.UnmatchedRows);
     }
 
     [Fact]
@@ -319,16 +338,15 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(0, result.ErrorsCount);
-        Assert.Empty(result.Errors);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
 
         var site = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
     }
 
     [Fact]
-    public async Task ImportAsync_InvalidFirstRow_ValidDuplicateSecondRow_UsesValidRowAndDoesNotCountDuplicate()
+    public async Task ImportAsync_InvalidFirstRow_ValidDuplicateSecondRow_UsesValidRow_AndStillTracksDuplicateDomain()
     {
         using var stream = Utf8Csv(
             "Domain,LastPublishedDate\n" +
@@ -337,10 +355,11 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Equal(0, result.DuplicatesCount);
-        Assert.Empty(result.Duplicates);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+        Assert.Single(result.DuplicateDomainsPreview);
+        Assert.Equal("example.com", result.DuplicateDomainsPreview[0]);
 
         var site = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
@@ -354,7 +373,7 @@ public sealed class LastPublishedImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportAsync_ValidFirstRow_InvalidDuplicateSecondRow_KeepsFirstRowAndDoesNotCountDuplicate()
+    public async Task ImportAsync_ValidFirstRow_InvalidDuplicateSecondRow_KeepsFirstRow_AndStillTracksDuplicateDomain()
     {
         using var stream = Utf8Csv(
             "Domain,LastPublishedDate\n" +
@@ -363,10 +382,11 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Equal(0, result.DuplicatesCount);
-        Assert.Empty(result.Duplicates);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+        Assert.Single(result.DuplicateDomainsPreview);
+        Assert.Equal("example.com", result.DuplicateDomainsPreview[0]);
 
         var site = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc), site.LastPublishedDate);
@@ -391,11 +411,12 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(1, result.Matched);
-        Assert.Equal(2, result.ErrorsCount);
-        Assert.Equal(2, result.Errors.Count);
-        Assert.Single(result.Unmatched);
-        Assert.Equal("missing-site.com", result.Unmatched[0]);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(2, result.InvalidRowsCount);
+        Assert.Equal(1, result.UnmatchedRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+        Assert.NotNull(result.Downloads.UnmatchedRows);
 
         var example = await GetSiteAsync("example.com");
         Assert.Equal(new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc), example.LastPublishedDate);
@@ -408,27 +429,6 @@ public sealed class LastPublishedImportServiceTests : IDisposable
         Assert.Equal(1, log!.Matched);
         Assert.Equal(1, log.Unmatched);
         Assert.Equal(2, log.ErrorsCount);
-    }
-
-    [Fact]
-    public async Task ImportAsync_UnsupportedFileType_ReturnsErrorResult_AndDoesNotThrow()
-    {
-        using var stream = Utf8Csv("Domain,LastPublishedDate\nexample.com,31.01.2026\n");
-
-        var result = await _sut.ImportAsync(
-            stream,
-            fileName: "last-published.xlsx",
-            contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            userId: UserId,
-            userEmail: UserEmail,
-            cancellationToken: CancellationToken.None);
-
-        Assert.Equal(1, result.ErrorsCount);
-        Assert.Single(result.Errors);
-        Assert.Equal(0, result.Errors[0].RowNumber);
-        Assert.Equal("Unsupported file type. Use CSV.", result.Errors[0].Message);
-
-        Assert.Empty(_context.ImportLogs);
     }
 
     [Fact]
@@ -542,6 +542,17 @@ public sealed class LastPublishedImportServiceTests : IDisposable
         site.UpdatedAtUtc = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         await _context.SaveChangesAsync();
         return site.UpdatedAtUtc;
+    }
+
+    private string[] GetDownloadLines(string token)
+    {
+        var download = _artifactStorageService.GetCsvDownload(token);
+        Assert.NotNull(download);
+
+        return Encoding.UTF8.GetString(download!.Content)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
     }
 
     private static MemoryStream Utf8Csv(string text, bool withBom = false)

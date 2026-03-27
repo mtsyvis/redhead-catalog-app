@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.Parsers;
 using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
@@ -69,6 +70,11 @@ public class ImportController : ControllerBase
             return StatusCode(StatusCodes.Status413PayloadTooLarge,
                 new ApiErrorResponse(ImportConstants.FileTooLargeMessage, StatusCodes.Status413PayloadTooLarge));
         }
+        if (!IsCsvFile(file.FileName, file.ContentType))
+        {
+            _logger.LogWarning("Sites import: unsupported file type. FileName={FileName}, ContentType={ContentType}", file.FileName, file.ContentType);
+            return BadRequest(new ApiErrorResponse("Unsupported file type. Use CSV.", StatusCodes.Status400BadRequest));
+        }
 
         if (!TryGetUserContext("Sites import", out var userId, out var userEmail, out var unauthorizedResult))
         {
@@ -93,8 +99,8 @@ public class ImportController : ControllerBase
                 cancellationToken);
 
             _logger.LogInformation(
-                "Sites import succeeded. FileName={FileName}, Inserted={Inserted}, Duplicates={Duplicates}, Errors={Errors}",
-                file.FileName, result.Inserted, result.DuplicatesCount, result.ErrorsCount);
+                "Sites import succeeded. FileName={FileName}, InsertedCount={InsertedCount}, SkippedExistingCount={SkippedExistingCount}, DuplicateDomainsCount={DuplicateDomainsCount}, InvalidRowsCount={InvalidRowsCount}",
+                file.FileName, result.InsertedCount, result.SkippedExistingCount, result.DuplicateDomainsCount, result.InvalidRowsCount);
 
             return Ok(result);
         }
@@ -121,6 +127,11 @@ public class ImportController : ControllerBase
             return StatusCode(StatusCodes.Status413PayloadTooLarge,
                 new ApiErrorResponse(ImportConstants.FileTooLargeMessage, StatusCodes.Status413PayloadTooLarge));
         }
+        if (!IsCsvFile(file.FileName, file.ContentType))
+        {
+            _logger.LogWarning("Quarantine import: unsupported file type. FileName={FileName}, ContentType={ContentType}", file.FileName, file.ContentType);
+            return BadRequest(new ApiErrorResponse("Unsupported file type. Use CSV.", StatusCodes.Status400BadRequest));
+        }
 
         if (!TryGetUserContext("Quarantine import", out var userId, out var userEmail, out var unauthorizedResult))
         {
@@ -145,8 +156,8 @@ public class ImportController : ControllerBase
                 cancellationToken);
 
             _logger.LogInformation(
-                "Quarantine import succeeded. FileName={FileName}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}",
-                file.FileName, result.Matched, result.Unmatched.Count, result.ErrorsCount);
+                "Quarantine import succeeded. FileName={FileName}, UpdatedCount={UpdatedCount}, UnmatchedRowsCount={UnmatchedRowsCount}, DuplicateDomainsCount={DuplicateDomainsCount}, InvalidRowsCount={InvalidRowsCount}",
+                file.FileName, result.UpdatedCount, result.UnmatchedRowsCount, result.DuplicateDomainsCount, result.InvalidRowsCount);
 
             return Ok(result);
         }
@@ -173,6 +184,11 @@ public class ImportController : ControllerBase
             return StatusCode(StatusCodes.Status413PayloadTooLarge,
                 new ApiErrorResponse(ImportConstants.FileTooLargeMessage, StatusCodes.Status413PayloadTooLarge));
         }
+        if (!IsCsvFile(file.FileName, file.ContentType))
+        {
+            _logger.LogWarning("Last Published import: unsupported file type. FileName={FileName}, ContentType={ContentType}", file.FileName, file.ContentType);
+            return BadRequest(new ApiErrorResponse("Unsupported file type. Use CSV.", StatusCodes.Status400BadRequest));
+        }
 
         if (!TryGetUserContext("Last Published import", out var userId, out var userEmail, out var unauthorizedResult))
         {
@@ -197,8 +213,8 @@ public class ImportController : ControllerBase
                 cancellationToken);
 
             _logger.LogInformation(
-                "Last Published import succeeded. FileName={FileName}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}",
-                file.FileName, result.Matched, result.Unmatched.Count, result.ErrorsCount);
+                "Last Published import succeeded. FileName={FileName}, UpdatedCount={UpdatedCount}, UnmatchedRowsCount={UnmatchedRowsCount}, DuplicateDomainsCount={DuplicateDomainsCount}, InvalidRowsCount={InvalidRowsCount}",
+                file.FileName, result.UpdatedCount, result.UnmatchedRowsCount, result.DuplicateDomainsCount, result.InvalidRowsCount);
 
             return Ok(result);
         }
@@ -225,6 +241,11 @@ public class ImportController : ControllerBase
             return StatusCode(StatusCodes.Status413PayloadTooLarge,
                 new ApiErrorResponse(ImportConstants.FileTooLargeMessage, StatusCodes.Status413PayloadTooLarge));
         }
+        if (!IsCsvFile(file.FileName, file.ContentType))
+        {
+            _logger.LogWarning("Sites update import: unsupported file type. FileName={FileName}, ContentType={ContentType}", file.FileName, file.ContentType);
+            return BadRequest(new ApiErrorResponse("Unsupported file type. Use CSV.", StatusCodes.Status400BadRequest));
+        }
 
         if (!TryGetUserContext("Sites update import", out var userId, out var userEmail, out var unauthorizedResult))
         {
@@ -249,8 +270,8 @@ public class ImportController : ControllerBase
                 cancellationToken);
 
             _logger.LogInformation(
-                "Sites update import succeeded. FileName={FileName}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}",
-                file.FileName, result.Matched, result.Unmatched.Count, result.ErrorsCount, result.DuplicatesCount);
+                "Sites update import succeeded. FileName={FileName}, UpdatedCount={UpdatedCount}, UnmatchedRowsCount={UnmatchedRowsCount}, DuplicateDomainsCount={DuplicateDomainsCount}, InvalidRowsCount={InvalidRowsCount}",
+                file.FileName, result.UpdatedCount, result.UnmatchedRowsCount, result.DuplicateDomainsCount, result.InvalidRowsCount);
 
             return Ok(result);
         }
@@ -301,4 +322,7 @@ public class ImportController : ControllerBase
 
         return (stream, null);
     }
+
+    private static bool IsCsvFile(string fileName, string? contentType)
+        => CsvImportHelper.IsCsvExtension(fileName) || CsvImportHelper.IsCsvContentType(contentType);
 }

@@ -74,31 +74,16 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             userId,
             userEmail);
 
-        if (!CsvImportHelper.IsCsvExtension(fileName) && !CsvImportHelper.IsCsvContentType(contentType))
-        {
-            _logger.LogWarning(
-                "Sites update import rejected: not CSV. FileName={FileName}, ContentType={ContentType}",
-                fileName,
-                contentType);
-
-            return new SitesUpdateImportResult
-            {
-                ErrorsCount = 1,
-                Errors =
-                {
-                    new SitesUpdateImportError { RowNumber = 0, Message = "Unsupported file type. Use CSV." }
-                }
-            };
-        }
-
         var result = new SitesUpdateImportResult();
+        var invalidRowsCount = 0;
+        var duplicateRowsCount = 0;
+        var unmatchedDomainsCount = 0;
 
         // Phase 1: parse CSV, validate, build per-domain map (only valid rows enter; last valid wins)
         var updatesByDomain = new Dictionary<string, ParsedSiteUpdate>(StringComparer.Ordinal);
         var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
         var unmatchedRowsPayload = new UnmatchedRowsImportArtifactPayload();
         var validRowsByDomain = new Dictionary<string, List<UnmatchedImportRowRecord>>(StringComparer.Ordinal);
-        var duplicateInputRowsCount = 0;
         var duplicateDomainOccurrences = new Dictionary<string, int>(StringComparer.Ordinal);
         var duplicateDomainsInOrder = new List<string>();
 
@@ -125,7 +110,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
                 if (error is not null)
                 {
-                    AddError(result, error);
+                    invalidRowsCount++;
                     AddInvalidRow(invalidRowsPayload, row.RowNumber, rawValues, error.Message);
                     continue;
                 }
@@ -140,12 +125,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
                 if (updatesByDomain.ContainsKey(domain))
                 {
-                    duplicateInputRowsCount++;
-                    result.DuplicatesCount++;
-                    if (result.Duplicates.Count < ImportConstants.SitesImportMaxDetailDuplicates)
-                    {
-                        result.Duplicates.Add(domain);
-                    }
+                    duplicateRowsCount++;
                 }
 
                 updatesByDomain[domain] = update;
@@ -187,7 +167,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         {
             if (!sitesByDomain.TryGetValue(domain, out var site))
             {
-                result.Unmatched.Add(domain);
+                unmatchedDomainsCount++;
                 if (validRowsByDomain.TryGetValue(domain, out var unmatchedRowsForDomain))
                 {
                     unmatchedRowsPayload.Rows.AddRange(unmatchedRowsForDomain);
@@ -210,18 +190,18 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             site.Categories = update.Categories;
             site.UpdatedAtUtc = now;
 
-            result.Matched++;
+            result.UpdatedCount++;
         }
 
-        AddImportLog(result, userId, userEmail);
+        AddImportLog(result.UpdatedCount, unmatchedDomainsCount, invalidRowsCount, duplicateRowsCount, userId, userEmail);
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
             "Sites update import completed. Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}, UserId={UserId}",
-            result.Matched,
-            result.Unmatched.Count,
-            result.ErrorsCount,
-            result.DuplicatesCount,
+            result.UpdatedCount,
+            unmatchedDomainsCount,
+            invalidRowsCount,
+            duplicateRowsCount,
             userId);
 
         AttachSummaryAndDownloads(
@@ -229,7 +209,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             invalidRowsPayload,
             unmatchedRowsPayload,
             ImportConstants.ImportArtifactSlugSitesUpdate,
-            duplicateInputRowsCount,
+            invalidRowsCount,
             duplicateDomainsInOrder);
         return result;
     }
@@ -287,23 +267,13 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         }
     }
 
-    private static void AddError(SitesUpdateImportResult result, SitesImportError error)
-    {
-        result.ErrorsCount++;
-        if (result.Errors.Count < ImportConstants.SitesImportMaxDetailErrors)
-        {
-            result.Errors.Add(new SitesUpdateImportError
-            {
-                RowNumber = error.RowNumber,
-                Message = error.Message,
-                Domain = error.Domain,
-                Field = error.Field,
-                RawValue = error.RawValue
-            });
-        }
-    }
-
-    private void AddImportLog(SitesUpdateImportResult result, string userId, string userEmail)
+    private void AddImportLog(
+        int updatedCount,
+        int unmatchedDomainsCount,
+        int invalidRowsCount,
+        int duplicateRowsCount,
+        string userId,
+        string userEmail)
     {
         var log = new ImportLog
         {
@@ -313,10 +283,10 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             Type = ImportConstants.ImportTypeSitesUpdate,
             TimestampUtc = DateTime.UtcNow,
             Inserted = 0,
-            Duplicates = result.DuplicatesCount,
-            Matched = result.Matched,
-            Unmatched = result.Unmatched.Count,
-            ErrorsCount = result.ErrorsCount
+            Duplicates = duplicateRowsCount,
+            Matched = updatedCount,
+            Unmatched = unmatchedDomainsCount,
+            ErrorsCount = invalidRowsCount
         };
 
         _context.ImportLogs.Add(log);
@@ -367,13 +337,10 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         InvalidRowsImportArtifactPayload invalidRowsPayload,
         UnmatchedRowsImportArtifactPayload unmatchedRowsPayload,
         string importType,
-        int duplicateInputRowsCount,
+        int invalidRowsCount,
         IReadOnlyCollection<string> duplicateDomainsInOrder)
     {
-        result.UpdatedCount = result.Matched;
-        result.SkippedExistingCount = 0;
-        result.DuplicateInputRowsCount = duplicateInputRowsCount;
-        result.InvalidRowsCount = result.ErrorsCount;
+        result.InvalidRowsCount = invalidRowsCount;
         result.UnmatchedRowsCount = unmatchedRowsPayload.Rows.Count;
         result.DuplicateDomainsCount = duplicateDomainsInOrder.Count;
         result.DuplicateDomainsPreview = duplicateDomainsInOrder

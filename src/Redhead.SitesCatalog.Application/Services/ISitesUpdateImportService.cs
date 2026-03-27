@@ -9,7 +9,7 @@ namespace Redhead.SitesCatalog.Application.Services;
 public interface ISitesUpdateImportService
 {
     /// <summary>
-    /// Import CSV to update existing sites by normalized domain. Returns matched, unmatched, errors, and duplicates.
+    /// Import CSV to update existing sites by normalized domain. Returns semantic summary counts, duplicate preview, and download handles.
     /// </summary>
     Task<SitesUpdateImportResult> ImportAsync(
         Stream fileStream,

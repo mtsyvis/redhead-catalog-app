@@ -61,33 +61,14 @@ public sealed class QuarantineImportService : IQuarantineImportService
             userId,
             userEmail);
 
-        if (!IsCsvFile(fileName, contentType))
-        {
-            _logger.LogWarning(
-                "Quarantine import rejected: not CSV. FileName={FileName}, ContentType={ContentType}",
-                fileName,
-                contentType);
-
-            return new SitesUpdateImportResult
-            {
-                ErrorsCount = 1,
-                Errors =
-                {
-                    new SitesUpdateImportError
-                    {
-                        RowNumber = 0,
-                        Message = "Unsupported file type. Use CSV."
-                    }
-                }
-            };
-        }
-
         var result = new SitesUpdateImportResult();
+        var invalidRowsCount = 0;
+        var duplicateRowsCount = 0;
+        var unmatchedDomainsCount = 0;
         var now = DateTime.UtcNow;
         var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
         var unmatchedRowsPayload = new UnmatchedRowsImportArtifactPayload();
         var validRowsByDomain = new Dictionary<string, List<UnmatchedImportRowRecord>>(StringComparer.Ordinal);
-        var duplicateInputRowsCount = 0;
         var duplicateDomainOccurrences = new Dictionary<string, int>(StringComparer.Ordinal);
         var duplicateDomainsInOrder = new List<string>();
 
@@ -113,12 +94,7 @@ public sealed class QuarantineImportService : IQuarantineImportService
                 var normalizedDomain = DomainNormalizer.Normalize(domain);
                 if (string.IsNullOrEmpty(normalizedDomain))
                 {
-                    result.ErrorsCount++;
-                    result.Errors.Add(new SitesUpdateImportError
-                    {
-                        RowNumber = rowNumber,
-                        Message = "Domain is required and cannot be empty after normalization."
-                    });
+                    invalidRowsCount++;
                     AddInvalidRow(invalidRowsPayload, rowNumber, rawValues, "Domain is required and cannot be empty after normalization.");
                     continue;
                 }
@@ -133,12 +109,7 @@ public sealed class QuarantineImportService : IQuarantineImportService
 
                 if (updates.ContainsKey(normalizedDomain))
                 {
-                    duplicateInputRowsCount++;
-                    result.DuplicatesCount++;
-                    if (result.Duplicates.Count < ImportConstants.SitesImportMaxDetailDuplicates)
-                    {
-                        result.Duplicates.Add(normalizedDomain);
-                    }
+                    duplicateRowsCount++;
 
                     updates[normalizedDomain] = update;
                 }
@@ -182,7 +153,7 @@ public sealed class QuarantineImportService : IQuarantineImportService
         {
             if (!sitesByDomain.TryGetValue(domain, out var site))
             {
-                result.Unmatched.Add(domain);
+                unmatchedDomainsCount++;
                 if (validRowsByDomain.TryGetValue(domain, out var unmatchedRowsForDomain))
                 {
                     unmatchedRowsPayload.Rows.AddRange(unmatchedRowsForDomain);
@@ -196,19 +167,19 @@ public sealed class QuarantineImportService : IQuarantineImportService
             site.QuarantineUpdatedAtUtc = now;
             site.UpdatedAtUtc = now;
 
-            result.Matched++;
+            result.UpdatedCount++;
         }
 
-        AddImportLog(result, userId, userEmail);
+        AddImportLog(result.UpdatedCount, unmatchedDomainsCount, invalidRowsCount, duplicateRowsCount, userId, userEmail);
 
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
             "Quarantine import completed. Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}, UserId={UserId}",
-            result.Matched,
-            result.Unmatched.Count,
-            result.ErrorsCount,
-            result.DuplicatesCount,
+            result.UpdatedCount,
+            unmatchedDomainsCount,
+            invalidRowsCount,
+            duplicateRowsCount,
             userId);
 
         AttachSummaryAndDownloads(
@@ -216,7 +187,7 @@ public sealed class QuarantineImportService : IQuarantineImportService
             invalidRowsPayload,
             unmatchedRowsPayload,
             ImportConstants.ImportArtifactSlugQuarantine,
-            duplicateInputRowsCount,
+            invalidRowsCount,
             duplicateDomainsInOrder);
         return result;
     }
@@ -258,9 +229,6 @@ public sealed class QuarantineImportService : IQuarantineImportService
         }
     }
 
-    private static bool IsCsvFile(string fileName, string? contentType)
-        => CsvImportHelper.IsCsvExtension(fileName) || CsvImportHelper.IsCsvContentType(contentType);
-
     private static IEnumerable<List<T>> Chunk<T>(List<T> source, int size)
     {
         for (var i = 0; i < source.Count; i += size)
@@ -270,7 +238,10 @@ public sealed class QuarantineImportService : IQuarantineImportService
     }
 
     private void AddImportLog(
-        SitesUpdateImportResult result,
+        int updatedCount,
+        int unmatchedDomainsCount,
+        int invalidRowsCount,
+        int duplicateRowsCount,
         string userId,
         string userEmail)
     {
@@ -282,10 +253,10 @@ public sealed class QuarantineImportService : IQuarantineImportService
             Type = ImportConstants.ImportTypeQuarantine,
             TimestampUtc = DateTime.UtcNow,
             Inserted = 0,
-            Duplicates = result.DuplicatesCount,
-            Matched = result.Matched,
-            Unmatched = result.Unmatched.Count,
-            ErrorsCount = result.ErrorsCount
+            Duplicates = duplicateRowsCount,
+            Matched = updatedCount,
+            Unmatched = unmatchedDomainsCount,
+            ErrorsCount = invalidRowsCount
         };
 
         _context.ImportLogs.Add(log);
@@ -330,13 +301,10 @@ public sealed class QuarantineImportService : IQuarantineImportService
         InvalidRowsImportArtifactPayload invalidRowsPayload,
         UnmatchedRowsImportArtifactPayload unmatchedRowsPayload,
         string importType,
-        int duplicateInputRowsCount,
+        int invalidRowsCount,
         IReadOnlyCollection<string> duplicateDomainsInOrder)
     {
-        result.UpdatedCount = result.Matched;
-        result.SkippedExistingCount = 0;
-        result.DuplicateInputRowsCount = duplicateInputRowsCount;
-        result.InvalidRowsCount = result.ErrorsCount;
+        result.InvalidRowsCount = invalidRowsCount;
         result.UnmatchedRowsCount = unmatchedRowsPayload.Rows.Count;
         result.DuplicateDomainsCount = duplicateDomainsInOrder.Count;
         result.DuplicateDomainsPreview = duplicateDomainsInOrder

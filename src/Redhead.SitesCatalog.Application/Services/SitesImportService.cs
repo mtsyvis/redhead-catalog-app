@@ -20,9 +20,6 @@ namespace Redhead.SitesCatalog.Application.Services;
 /// </summary>
 public sealed class SitesImportService : ISitesImportService
 {
-    private const int MaxErrorDetails = 200;
-    private const int MaxDuplicateDetails = 200;
-
     private static readonly IReadOnlyDictionary<string, int> ColumnIndexes =
         ImportConstants.SitesImportRequiredColumnOrder
             .Select((name, index) => new { name, index })
@@ -56,23 +53,14 @@ public sealed class SitesImportService : ISitesImportService
             userId,
             userEmail);
 
-        if (!IsCsvFile(fileName, contentType))
-        {
-            _logger.LogWarning(
-                "Sites import rejected: unsupported file type. FileName={FileName}, ContentType={ContentType}",
-                fileName,
-                contentType);
-
-            return SitesImportResult.UnsupportedFileType();
-        }
-
         var result = new SitesImportResult();
 
         // Phase 1: parse CSV rows and build per-domain map (last valid row wins)
         var parsedSitesByDomain = new Dictionary<string, Site>(StringComparer.Ordinal);
         var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
-        var duplicateInputRowsCount = 0;
         var skippedExistingCount = 0;
+        var duplicateRowsCount = 0;
+        var invalidRowsCount = 0;
         var duplicateDomainOccurrences = new Dictionary<string, int>(StringComparer.Ordinal);
         var duplicateDomainsInOrder = new List<string>();
 
@@ -98,7 +86,7 @@ public sealed class SitesImportService : ISitesImportService
 
                 if (error is not null)
                 {
-                    AddError(result, error);
+                    invalidRowsCount++;
                     AddInvalidRow(invalidRowsPayload, row.RowNumber, rawValues, error.Message);
                     continue;
                 }
@@ -112,8 +100,7 @@ public sealed class SitesImportService : ISitesImportService
 
                 if (parsedSitesByDomain.ContainsKey(domain))
                 {
-                    duplicateInputRowsCount++;
-                    AddDuplicate(result, domain);
+                    duplicateRowsCount++;
                 }
 
                 parsedSitesByDomain[domain] = BuildSiteFromValidatedRow(validatedData);
@@ -127,16 +114,16 @@ public sealed class SitesImportService : ISitesImportService
                 result,
                 invalidRowsPayload,
                 ImportConstants.ImportArtifactSlugSites,
-                duplicateInputRowsCount,
+                invalidRowsCount,
                 skippedExistingCount,
                 duplicateDomainsInOrder);
-            await SaveImportLogOnlyAsync(result, userId, userEmail, cancellationToken);
+            await SaveImportLogOnlyAsync(result, duplicateRowsCount, invalidRowsCount, userId, userEmail, cancellationToken);
 
             _logger.LogInformation(
                 "Sites import completed with no valid rows. Inserted={Inserted}, Duplicates={Duplicates}, Errors={Errors}, UserId={UserId}",
-                result.Inserted,
-                result.DuplicatesCount,
-                result.ErrorsCount,
+                result.InsertedCount,
+                duplicateRowsCount,
+                invalidRowsCount,
                 userId);
 
             return result;
@@ -153,7 +140,7 @@ public sealed class SitesImportService : ISitesImportService
             if (existingDomainsInDb.Contains(domain))
             {
                 skippedExistingCount++;
-                AddDuplicate(result, domain);
+                duplicateRowsCount++;
                 continue;
             }
 
@@ -166,7 +153,7 @@ public sealed class SitesImportService : ISitesImportService
             await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
             await InsertSitesInBatchesAsync(sitesToInsert, result, cancellationToken);
-            AddImportLog(result, userId, userEmail);
+            AddImportLog(result.InsertedCount, duplicateRowsCount, invalidRowsCount, userId, userEmail);
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -181,23 +168,20 @@ public sealed class SitesImportService : ISitesImportService
 
         _logger.LogInformation(
             "Sites import completed. Inserted={Inserted}, Duplicates={Duplicates}, Errors={Errors}, UserId={UserId}",
-            result.Inserted,
-            result.DuplicatesCount,
-            result.ErrorsCount,
+            result.InsertedCount,
+            duplicateRowsCount,
+            invalidRowsCount,
             userId);
 
         AttachSummaryAndDownloads(
             result,
             invalidRowsPayload,
             ImportConstants.ImportArtifactSlugSites,
-            duplicateInputRowsCount,
+            invalidRowsCount,
             skippedExistingCount,
             duplicateDomainsInOrder);
         return result;
     }
-
-    private static bool IsCsvFile(string fileName, string? contentType)
-        => CsvImportHelper.IsCsvExtension(fileName) || CsvImportHelper.IsCsvContentType(contentType);
 
     private static async IAsyncEnumerable<(SitesImportRowDto Row, List<string> RawValues)> ReadRowsAsync(
         CsvReader csv,
@@ -270,7 +254,7 @@ public sealed class SitesImportService : ISitesImportService
                 await _context.Sites.AddRangeAsync(chunk, cancellationToken);
                 await _context.SaveChangesAsync(cancellationToken);
 
-                result.Inserted += chunk.Count;
+                result.InsertedCount += chunk.Count;
 
                 // Important for large imports to avoid growing the tracker across batches.
                 _context.ChangeTracker.Clear();
@@ -284,17 +268,21 @@ public sealed class SitesImportService : ISitesImportService
 
     private async Task SaveImportLogOnlyAsync(
         SitesImportResult result,
+        int duplicateRowsCount,
+        int invalidRowsCount,
         string userId,
         string userEmail,
         CancellationToken cancellationToken)
     {
-        AddImportLog(result, userId, userEmail);
+        AddImportLog(result.InsertedCount, duplicateRowsCount, invalidRowsCount, userId, userEmail);
         await _context.SaveChangesAsync(cancellationToken);
         _context.ChangeTracker.Clear();
     }
 
     private void AddImportLog(
-        SitesImportResult result,
+        int insertedCount,
+        int duplicateRowsCount,
+        int invalidRowsCount,
         string userId,
         string userEmail)
     {
@@ -305,11 +293,11 @@ public sealed class SitesImportService : ISitesImportService
             UserEmail = userEmail,
             Type = ImportConstants.ImportTypeSites,
             TimestampUtc = DateTime.UtcNow,
-            Inserted = result.Inserted,
-            Duplicates = result.DuplicatesCount,
+            Inserted = insertedCount,
+            Duplicates = duplicateRowsCount,
             Matched = 0,
             Unmatched = 0,
-            ErrorsCount = result.ErrorsCount
+            ErrorsCount = invalidRowsCount
         };
 
         _context.ImportLogs.Add(log);
@@ -347,26 +335,6 @@ public sealed class SitesImportService : ISitesImportService
         for (var i = 0; i < source.Count; i += size)
         {
             yield return source.GetRange(i, Math.Min(size, source.Count - i));
-        }
-    }
-
-    private static void AddError(SitesImportResult result, SitesImportError error)
-    {
-        result.ErrorsCount++;
-
-        if (result.Errors.Count < MaxErrorDetails)
-        {
-            result.Errors.Add(error);
-        }
-    }
-
-    private static void AddDuplicate(SitesImportResult result, string domain)
-    {
-        result.DuplicatesCount++;
-
-        if (result.Duplicates.Count < MaxDuplicateDetails)
-        {
-            result.Duplicates.Add(domain);
         }
     }
 
@@ -414,14 +382,12 @@ public sealed class SitesImportService : ISitesImportService
         SitesImportResult result,
         InvalidRowsImportArtifactPayload invalidRowsPayload,
         string importType,
-        int duplicateInputRowsCount,
+        int invalidRowsCount,
         int skippedExistingCount,
         IReadOnlyCollection<string> duplicateDomainsInOrder)
     {
-        result.InsertedCount = result.Inserted;
         result.SkippedExistingCount = skippedExistingCount;
-        result.DuplicateInputRowsCount = duplicateInputRowsCount;
-        result.InvalidRowsCount = result.ErrorsCount;
+        result.InvalidRowsCount = invalidRowsCount;
         result.DuplicateDomainsCount = duplicateDomainsInOrder.Count;
         result.DuplicateDomainsPreview = duplicateDomainsInOrder
             .Take(ImportConstants.DuplicateDomainsPreviewLimit)
