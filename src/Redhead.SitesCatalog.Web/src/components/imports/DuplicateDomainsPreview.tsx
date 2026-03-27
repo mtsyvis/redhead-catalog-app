@@ -22,20 +22,32 @@ export function DuplicateDomainsPreview({
         variant="text"
         size="small"
         onClick={() => setShowDuplicateDomains((current) => !current)}
-        sx={{ alignSelf: 'flex-start', px: 0.5 }}
+        sx={{
+          alignSelf: 'flex-start',
+          px: 0.5,
+          minWidth: 0,
+          color: 'text.secondary',
+          fontWeight: 500,
+          '&:hover': {
+            color: 'text.primary',
+            backgroundColor: 'transparent',
+          },
+        }}
       >
-        {showDuplicateDomains ? 'Hide duplicate domains' : 'Show duplicate domains'}
+        {showDuplicateDomains
+          ? 'Hide duplicate domains'
+          : `Show duplicate domains (${duplicateDomainsCount})`}
       </Button>
       {showDuplicateDomains && (
-        <Stack spacing={0.75}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+        <Stack spacing={1}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {duplicateDomainsPreview.map((domain, index) => (
               <Box
                 key={`${domain}-${index}`}
                 sx={{
-                  px: 1,
+                  px: 1.25,
                   py: 0.5,
-                  borderRadius: 1,
+                  borderRadius: '999px',
                   bgcolor: 'action.hover',
                   fontSize: '0.75rem',
                   lineHeight: 1.4,

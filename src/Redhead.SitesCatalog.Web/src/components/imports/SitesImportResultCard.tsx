@@ -82,16 +82,16 @@ export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
         {canDownloadInvalidRows && (
           <Box
             sx={{
-              maxWidth: 420,
-              px: 1.5,
-              py: 1.25,
-              borderRadius: 1.5,
-              bgcolor: 'action.hover',
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 360px))' },
+              gap: 2,
+              alignItems: 'stretch',
+              justifyContent: 'start',
             }}
           >
             <ImportResultDownloadAction
               label="Download invalid rows"
-              helperText="Includes invalid rows with row number and error details."
+              helperText="Includes row number and validation details."
               onClick={handleDownloadInvalidRows}
               disabled={downloading}
             />

@@ -106,31 +106,29 @@ export function UpdateImportResultCard({
         {(canDownloadInvalidRows || canDownloadUnmatchedRows) && (
           <Box
             sx={{
-              maxWidth: 420,
-              px: 1.5,
-              py: 1.25,
-              borderRadius: 1.5,
-              bgcolor: 'action.hover',
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 360px))' },
+              gap: 2,
+              alignItems: 'stretch',
+              justifyContent: 'start',
             }}
           >
-            <Stack spacing={1}>
-              {canDownloadInvalidRows && (
-                <ImportResultDownloadAction
-                  label="Download invalid rows"
-                  helperText="Includes invalid rows with row number and error details."
-                  onClick={onDownloadInvalidRows}
-                  disabled={downloadingAction !== null}
-                />
-              )}
-              {canDownloadUnmatchedRows && (
-                <ImportResultDownloadAction
-                  label="Download unmatched rows"
-                  helperText="Includes unmatched rows with row number."
-                  onClick={onDownloadUnmatchedRows}
-                  disabled={downloadingAction !== null}
-                />
-              )}
-            </Stack>
+            {canDownloadInvalidRows && (
+              <ImportResultDownloadAction
+                label="Download invalid rows"
+                helperText="Includes row number and validation details."
+                onClick={onDownloadInvalidRows}
+                disabled={downloadingAction !== null}
+              />
+            )}
+            {canDownloadUnmatchedRows && (
+              <ImportResultDownloadAction
+                label="Download unmatched rows"
+                helperText="Includes row number from the source file."
+                onClick={onDownloadUnmatchedRows}
+                disabled={downloadingAction !== null}
+              />
+            )}
           </Box>
         )}
 
