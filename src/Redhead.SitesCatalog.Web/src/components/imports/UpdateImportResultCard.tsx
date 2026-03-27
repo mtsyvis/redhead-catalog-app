@@ -1,6 +1,8 @@
-import { Box, Button, Paper, Stack, Typography } from '@mui/material';
+import { Box, Paper, Stack, Typography } from '@mui/material';
 import { useState } from 'react';
 import { downloadImportArtifactCsv, type UpdateImportResult } from '../../services/import.service';
+import { DuplicateDomainsPreview } from './DuplicateDomainsPreview';
+import { ImportResultDownloadAction } from './ImportResultDownloadAction';
 
 export interface UpdateImportResultCardProps {
   readonly title: string;
@@ -12,33 +14,54 @@ export function UpdateImportResultCard({
   result,
 }: UpdateImportResultCardProps) {
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [downloadingAction, setDownloadingAction] = useState<'invalid' | 'unmatched' | null>(null);
 
-  const updatedCount = result.updatedCount ?? result.matched ?? 0;
-  const duplicateInputRowsCount =
-    result.duplicateInputRowsCount ?? result.duplicatesCount ?? result.duplicates?.length ?? 0;
-  const invalidRowsCount = result.invalidRowsCount ?? result.errorsCount ?? result.errors?.length ?? 0;
+  const updatedCount = result.updatedCount ?? 0;
+  const unmatchedRowsCount = result.unmatchedRowsCount ?? 0;
+  const duplicateDomainsCount = result.duplicateDomainsCount ?? 0;
+  const duplicateDomainsPreview = result.duplicateDomainsPreview ?? [];
+  const invalidRowsCount = result.invalidRowsCount ?? 0;
   const invalidRowsDownload = result.downloads?.invalidRows;
+  const unmatchedRowsDownload = result.downloads?.unmatchedRows;
   const canDownloadInvalidRows =
     invalidRowsCount > 0 && !!invalidRowsDownload?.available && !!invalidRowsDownload.token;
+  const canDownloadUnmatchedRows =
+    unmatchedRowsCount > 0 && !!unmatchedRowsDownload?.available && !!unmatchedRowsDownload.token;
 
-  const handleDownloadInvalidRows = async () => {
-    if (!invalidRowsDownload?.token) {
+  const handleDownload = async (
+    action: 'invalid' | 'unmatched',
+    token: string | undefined,
+    fallbackFileName: string,
+  ) => {
+    if (!token) {
       return;
     }
 
     setDownloadError(null);
-    setDownloading(true);
+    setDownloadingAction(action);
     try {
-      await downloadImportArtifactCsv(
-        invalidRowsDownload.token,
-        invalidRowsDownload.fileName ?? 'update-import-invalid-rows.csv',
-      );
+      await downloadImportArtifactCsv(token, fallbackFileName);
     } catch (error) {
       setDownloadError(error instanceof Error ? error.message : 'Download failed');
     } finally {
-      setDownloading(false);
+      setDownloadingAction(null);
     }
+  };
+
+  const onDownloadInvalidRows = async () => {
+    await handleDownload(
+      'invalid',
+      invalidRowsDownload?.token,
+      invalidRowsDownload?.fileName ?? 'update-import-invalid-rows.csv',
+    );
+  };
+
+  const onDownloadUnmatchedRows = async () => {
+    await handleDownload(
+      'unmatched',
+      unmatchedRowsDownload?.token,
+      unmatchedRowsDownload?.fileName ?? 'update-import-unmatched-rows.csv',
+    );
   };
 
   return (
@@ -49,7 +72,7 @@ export function UpdateImportResultCard({
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' },
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(0, 1fr))' },
               gap: 1.5,
             }}
           >
@@ -61,9 +84,15 @@ export function UpdateImportResultCard({
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">
-                Duplicate rows in file
+                Unmatched domains
               </Typography>
-              <Typography variant="h6">{duplicateInputRowsCount}</Typography>
+              <Typography variant="h6">{unmatchedRowsCount}</Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Duplicate domains in file
+              </Typography>
+              <Typography variant="h6">{duplicateDomainsCount}</Typography>
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">
@@ -74,7 +103,7 @@ export function UpdateImportResultCard({
           </Box>
         </Stack>
 
-        {canDownloadInvalidRows && (
+        {(canDownloadInvalidRows || canDownloadUnmatchedRows) && (
           <Box
             sx={{
               maxWidth: 420,
@@ -84,21 +113,31 @@ export function UpdateImportResultCard({
               bgcolor: 'action.hover',
             }}
           >
-            <Stack spacing={0.5}>
-              <Button
-                variant="outlined"
-                onClick={handleDownloadInvalidRows}
-                disabled={downloading}
-                sx={{ alignSelf: 'flex-start', minHeight: 40, fontWeight: 600 }}
-              >
-                Download invalid rows
-              </Button>
-              <Typography variant="caption" color="text.secondary">
-                Includes original invalid rows, Source Row Number, and Error Details.
-              </Typography>
+            <Stack spacing={1}>
+              {canDownloadInvalidRows && (
+                <ImportResultDownloadAction
+                  label="Download invalid rows"
+                  helperText="Includes invalid rows with row number and error details."
+                  onClick={onDownloadInvalidRows}
+                  disabled={downloadingAction !== null}
+                />
+              )}
+              {canDownloadUnmatchedRows && (
+                <ImportResultDownloadAction
+                  label="Download unmatched rows"
+                  helperText="Includes unmatched rows with row number."
+                  onClick={onDownloadUnmatchedRows}
+                  disabled={downloadingAction !== null}
+                />
+              )}
             </Stack>
           </Box>
         )}
+
+        <DuplicateDomainsPreview
+          duplicateDomainsCount={duplicateDomainsCount}
+          duplicateDomainsPreview={duplicateDomainsPreview}
+        />
 
         {downloadError && <Typography color="error">{downloadError}</Typography>}
       </Stack>

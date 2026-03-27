@@ -1,56 +1,32 @@
-export interface SitesImportError {
-  rowNumber: number;
-  message: string;
-  domain?: string | null;
-  field?: string | null;
-  rawValue?: string | null;
-}
-
-export interface SitesImportResult {
-  insertedCount?: number;
-  updatedCount?: number;
-  skippedExistingCount?: number;
-  duplicateInputRowsCount?: number;
-  invalidRowsCount?: number;
-  downloads?: ImportDownloadsInfo;
-  // Backward compatibility with legacy response fields
-  inserted?: number;
-  duplicatesCount?: number;
-  duplicates?: string[];
-  errorsCount?: number;
-  errors?: SitesImportError[];
-}
-
-export interface UpdateImportError {
-  rowNumber: number;
-  message: string;
-}
-
-export interface UpdateImportResult {
-  insertedCount?: number;
-  updatedCount?: number;
-  skippedExistingCount?: number;
-  duplicateInputRowsCount?: number;
-  invalidRowsCount?: number;
-  downloads?: ImportDownloadsInfo;
-  // Backward compatibility with legacy response fields
-  matched?: number;
-  unmatched?: string[];
-  errorsCount?: number;
-  errors?: UpdateImportError[];
-  duplicatesCount?: number;
-  duplicates?: string[];
-}
-
-export interface ImportDownloadItem {
+export interface ImportDownloadInfo {
   available: boolean;
   token: string;
   fileName?: string;
 }
 
 export interface ImportDownloadsInfo {
-  invalidRows?: ImportDownloadItem | null;
-  duplicateInputRows?: ImportDownloadItem | null;
+  invalidRows?: ImportDownloadInfo | null;
+  unmatchedRows?: ImportDownloadInfo | null;
+}
+
+export interface ImportResultBase {
+  invalidRowsCount?: number;
+  downloads?: ImportDownloadsInfo;
+}
+
+export interface DuplicateDomainsImportResult {
+  duplicateDomainsCount?: number;
+  duplicateDomainsPreview?: string[];
+}
+
+export interface SitesImportResult extends ImportResultBase, DuplicateDomainsImportResult {
+  insertedCount?: number;
+  skippedExistingCount?: number;
+}
+
+export interface UpdateImportResult extends ImportResultBase, DuplicateDomainsImportResult {
+  updatedCount?: number;
+  unmatchedRowsCount?: number;
 }
 
 /** Maximum file size for sites import (50 MB) */

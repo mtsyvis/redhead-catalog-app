@@ -9,6 +9,7 @@ import {
   type SitesImportResult,
   MAX_IMPORT_FILE_SIZE_BYTES,
   FILE_TOO_LARGE_MESSAGE,
+  ACCEPT_FILES,
 } from '../services/import.service';
 import { ImportInstructionsCard } from '../components/imports/ImportInstructionsCard';
 import {
@@ -22,8 +23,6 @@ import { ImportUploadSection } from '../components/imports/ImportUploadSection';
 import { ImportTabContent } from '../components/imports/ImportTabContent';
 import { SitesImportResultCard } from '../components/imports/SitesImportResultCard';
 import { UpdateImportTab } from '../components/imports/UpdateImportTab';
-
-const ACCEPT_FILES = '.csv';
 
 function SitesImportTab() {
   const {

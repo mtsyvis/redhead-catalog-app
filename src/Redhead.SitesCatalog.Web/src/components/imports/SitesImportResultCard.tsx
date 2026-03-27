@@ -1,6 +1,8 @@
-import { Box, Button, Paper, Stack, Typography } from '@mui/material';
+import { Box, Paper, Stack, Typography } from '@mui/material';
 import { useState } from 'react';
 import { downloadImportArtifactCsv, type SitesImportResult } from '../../services/import.service';
+import { DuplicateDomainsPreview } from './DuplicateDomainsPreview';
+import { ImportResultDownloadAction } from './ImportResultDownloadAction';
 
 export interface SitesImportResultCardProps {
   readonly result: SitesImportResult;
@@ -10,10 +12,11 @@ export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
-  const insertedCount = result.insertedCount ?? result.inserted ?? 0;
-  const skippedExistingCount =
-    result.skippedExistingCount ?? result.duplicatesCount ?? result.duplicates?.length ?? 0;
-  const invalidRowsCount = result.invalidRowsCount ?? result.errorsCount ?? result.errors?.length ?? 0;
+  const insertedCount = result.insertedCount ?? 0;
+  const skippedExistingCount = result.skippedExistingCount ?? 0;
+  const duplicateDomainsCount = result.duplicateDomainsCount ?? 0;
+  const duplicateDomainsPreview = result.duplicateDomainsPreview ?? [];
+  const invalidRowsCount = result.invalidRowsCount ?? 0;
   const invalidRowsDownload = result.downloads?.invalidRows;
   const canDownloadInvalidRows =
     invalidRowsCount > 0 && !!invalidRowsDownload?.available && !!invalidRowsDownload.token;
@@ -26,7 +29,10 @@ export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
     setDownloadError(null);
     setDownloading(true);
     try {
-      await downloadImportArtifactCsv(invalidRowsDownload.token, invalidRowsDownload.fileName ?? 'sites-import-invalid-rows.csv');
+      await downloadImportArtifactCsv(
+        invalidRowsDownload.token,
+        invalidRowsDownload.fileName ?? 'sites-import-invalid-rows.csv',
+      );
     } catch (error) {
       setDownloadError(error instanceof Error ? error.message : 'Download failed');
     } finally {
@@ -42,7 +48,7 @@ export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' },
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(0, 1fr))' },
               gap: 1.5,
             }}
           >
@@ -57,6 +63,12 @@ export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
                 Skipped existing domains
               </Typography>
               <Typography variant="h6">{skippedExistingCount}</Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Duplicate domains in file
+              </Typography>
+              <Typography variant="h6">{duplicateDomainsCount}</Typography>
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">
@@ -77,21 +89,19 @@ export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
               bgcolor: 'action.hover',
             }}
           >
-            <Stack spacing={0.5}>
-              <Button
-                variant="outlined"
-                onClick={handleDownloadInvalidRows}
-                disabled={downloading}
-                sx={{ alignSelf: 'flex-start', minHeight: 40, fontWeight: 600 }}
-              >
-                Download invalid rows
-              </Button>
-              <Typography variant="caption" color="text.secondary">
-                Includes original invalid rows, Source Row Number, and Error Details.
-              </Typography>
-            </Stack>
+            <ImportResultDownloadAction
+              label="Download invalid rows"
+              helperText="Includes invalid rows with row number and error details."
+              onClick={handleDownloadInvalidRows}
+              disabled={downloading}
+            />
           </Box>
         )}
+
+        <DuplicateDomainsPreview
+          duplicateDomainsCount={duplicateDomainsCount}
+          duplicateDomainsPreview={duplicateDomainsPreview}
+        />
 
         {downloadError && <Typography color="error">{downloadError}</Typography>}
       </Stack>
