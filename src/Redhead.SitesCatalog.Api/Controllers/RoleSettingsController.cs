@@ -2,14 +2,15 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Api.Models;
+using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
 [Route("api/admin/role-settings")]
-[Authorize(Policy = AppPolicies.AdminAccess)]
 public class RoleSettingsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
@@ -20,16 +21,28 @@ public class RoleSettingsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = AppPolicies.AdminAccess)]
     public async Task<ActionResult<IReadOnlyList<RoleSettingItemDto>>> GetRoleSettings(CancellationToken cancellationToken)
     {
         var list = await _context.RoleSettings
             .OrderBy(rs => rs.RoleName)
-            .Select(rs => new RoleSettingItemDto(rs.RoleName, rs.ExportLimitRows ?? 0))
             .ToListAsync(cancellationToken);
-        return Ok(list);
+
+        var result = list.Select(rs =>
+        {
+            var isSuperAdmin = string.Equals(rs.RoleName, AppRoles.SuperAdmin, StringComparison.Ordinal);
+            return new RoleSettingItemDto(
+                Role: rs.RoleName,
+                ExportLimitMode: isSuperAdmin ? ExportLimitMode.Unlimited : rs.ExportLimitMode,
+                ExportLimitRows: isSuperAdmin ? null : rs.ExportLimitRows,
+                IsEditable: !isSuperAdmin);
+        }).ToList();
+
+        return Ok(result);
     }
 
     [HttpPut]
+    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
     public async Task<ActionResult> UpdateRoleSettings(
         [FromBody] IReadOnlyList<RoleSettingUpdateItemDto> request,
         CancellationToken cancellationToken)
@@ -39,12 +52,12 @@ public class RoleSettingsController : ControllerBase
             return BadRequest(new MessageResponse("At least one role setting is required."));
         }
 
-        var allowedRoles = new HashSet<string>(AppRoles.All);
         foreach (var item in request)
         {
-            if (!allowedRoles.Contains(item.Role))
+            var error = RoleSettingsValidation.ValidateUpdateItem(item);
+            if (error != null)
             {
-                return BadRequest(new MessageResponse($"Invalid role: {item.Role}."));
+                return BadRequest(new MessageResponse(error));
             }
         }
 
@@ -55,6 +68,7 @@ public class RoleSettingsController : ControllerBase
         {
             if (byRole.TryGetValue(item.Role, out var entity))
             {
+                entity.ExportLimitMode = item.ExportLimitMode!.Value;
                 entity.ExportLimitRows = item.ExportLimitRows;
             }
         }

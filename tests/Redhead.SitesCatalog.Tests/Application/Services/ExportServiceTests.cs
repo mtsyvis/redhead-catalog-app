@@ -44,11 +44,11 @@ public class ExportServiceTests : IDisposable
         // Seed role settings
         var roleSettings = new List<RoleSettings>
         {
-            new() { RoleName = AppRoles.SuperAdmin, ExportLimitRows = 1000000 },
-            new() { RoleName = AppRoles.Admin, ExportLimitRows = 50000 },
-            new() { RoleName = AppRoles.Internal, ExportLimitRows = 10000 },
-            new() { RoleName = AppRoles.Client, ExportLimitRows = 5000 },
-            new() { RoleName = "DisabledRole", ExportLimitRows = 0 }
+            new() { RoleName = AppRoles.SuperAdmin, ExportLimitMode = ExportLimitMode.Unlimited, ExportLimitRows = null },
+            new() { RoleName = AppRoles.Admin, ExportLimitMode = ExportLimitMode.Unlimited, ExportLimitRows = null },
+            new() { RoleName = AppRoles.Internal, ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 10000 },
+            new() { RoleName = AppRoles.Client, ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 5000 },
+            new() { RoleName = "DisabledRole", ExportLimitMode = ExportLimitMode.Disabled, ExportLimitRows = null }
         };
         _context.RoleSettings.AddRange(roleSettings);
 
@@ -433,7 +433,7 @@ public class ExportServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         // Create a role with small limit
-        var roleSettings = new RoleSettings { RoleName = "LimitedRole", ExportLimitRows = 5 };
+        var roleSettings = new RoleSettings { RoleName = "LimitedRole", ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 5 };
         _context.RoleSettings.Add(roleSettings);
         await _context.SaveChangesAsync();
 
