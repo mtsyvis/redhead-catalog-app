@@ -316,7 +316,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.NotNull(result.Downloads);
         Assert.NotNull(result.Downloads!.InvalidRows);
         var invalidLines = GetDownloadLines(result.Downloads.InvalidRows!.Token);
-        Assert.Contains(invalidLines, line => line.Contains("3,Invalid numeric format for DR.", StringComparison.Ordinal));
+        Assert.Contains(invalidLines, line => line.Contains("3,DR is required.", StringComparison.Ordinal));
 
         var site = await GetSiteAsync("existing.com");
         Assert.Equal(60, site.DR);
@@ -452,9 +452,10 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     [Theory]
     [InlineData(",55,12000,US,100,150,200,250,Tech,News", "Domain is required.")]
     [InlineData("bad-dr.com,,12000,US,100,150,200,250,Tech,News", "DR is required")]
-    [InlineData("bad-dr.com,abc,12000,US,100,150,200,250,Tech,News", "Invalid numeric format for DR")]
+    [InlineData("bad-dr.com,abc,12000,US,100,150,200,250,Tech,News", "DR is required")]
     [InlineData("bad-dr.com,101,12000,US,100,150,200,250,Tech,News", "DR must be between 0 and 100")]
     [InlineData("bad-traffic.com,55,,US,100,150,200,250,Tech,News", "Traffic is required")]
+    [InlineData("bad-location.com,55,12000, ,100,150,200,250,Tech,News", "Location is required")]
     [InlineData("bad-price.com,55,12000,US,,150,200,250,Tech,News", "Price USD is required")]
     [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,Tech,News", "Price must be >= 0")]
     public async Task ImportAsync_InvalidRow_AddsError(string csvRow, string expectedMessageFragment)
@@ -472,6 +473,29 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
             invalidLines,
             line => line.Contains(",2,", StringComparison.Ordinal)
                     && line.Contains(expectedMessageFragment, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ImportAsync_MultipleSharedValidationErrors_AreJoinedWithSemicolon()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "existing.com,,,,,,,,,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows.Token);
+        var invalidRowLine = Assert.Single(invalidLines, line => line.Contains(",2,", StringComparison.Ordinal));
+        Assert.Contains("DR is required.", invalidRowLine, StringComparison.Ordinal);
+        Assert.Contains("Traffic is required.", invalidRowLine, StringComparison.Ordinal);
+        Assert.Contains("Location is required.", invalidRowLine, StringComparison.Ordinal);
+        Assert.Contains("Price USD is required.", invalidRowLine, StringComparison.Ordinal);
+        Assert.Contains("; ", invalidRowLine, StringComparison.Ordinal);
     }
 
     [Fact]

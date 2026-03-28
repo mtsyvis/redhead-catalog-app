@@ -1,4 +1,6 @@
+using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Models.Import;
+using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Enums;
 
@@ -59,57 +61,6 @@ public static class SitesImportRowValidationHelper
             }, null);
         }
 
-        if (row.PriceUsd is null || row.PriceUsd < 0)
-        {
-            return (false, new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "Price USD is required and must be >= 0."
-            }, null);
-        }
-
-        if (string.IsNullOrWhiteSpace(row.DRRaw))
-        {
-            return (false, new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "DR is required and must be between 0 and 100."
-            }, null);
-        }
-
-        if (row.DR is null)
-        {
-            return (false, new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Domain = domain,
-                Field = "DR",
-                RawValue = row.DRRaw,
-                Message = "Invalid numeric format for DR."
-            }, null);
-        }
-
-        if (row.DR is < 0 or > 100)
-        {
-            return (false, new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Domain = domain,
-                Field = "DR",
-                RawValue = row.DRRaw,
-                Message = "DR must be between 0 and 100."
-            }, null);
-        }
-
-        if (row.Traffic is null || row.Traffic < 0)
-        {
-            return (false, new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Message = "Traffic is required and must be >= 0."
-            }, null);
-        }
-
         var casinoParseResult = OptionalServiceValueParser.Parse(row.PriceCasinoRaw);
         if (!casinoParseResult.IsValid)
         {
@@ -149,22 +100,71 @@ public static class SitesImportRowValidationHelper
             }, null);
         }
 
+        var writeValidationResult = SiteWriteValidator.ValidateAndNormalize(new SiteWriteInput
+        {
+            DR = row.DR,
+            Traffic = row.Traffic,
+            Location = row.Location,
+            PriceUsd = row.PriceUsd,
+            PriceCasino = casinoParseResult.Price,
+            PriceCasinoStatus = casinoParseResult.Status,
+            PriceCrypto = cryptoParseResult.Price,
+            PriceCryptoStatus = cryptoParseResult.Status,
+            PriceLinkInsert = linkInsertParseResult.Price,
+            PriceLinkInsertStatus = linkInsertParseResult.Status,
+            Niche = row.Niche,
+            Categories = row.Categories,
+            LinkType = row.LinkType,
+            SponsoredTag = row.SponsoredTag,
+            IsQuarantined = false,
+            QuarantineReason = null
+        });
+
+        if (!writeValidationResult.IsValid)
+        {
+            var allMessages = writeValidationResult.FieldErrors
+                .SelectMany(kv => kv.Value)
+                .Where(message => !string.IsNullOrWhiteSpace(message))
+                .ToArray();
+            var combinedMessage = allMessages.Length > 0
+                ? string.Join("; ", allMessages)
+                : "Row validation failed.";
+
+            return (false, new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Domain = domain,
+                Message = combinedMessage
+            }, null);
+        }
+
+        var normalized = writeValidationResult.NormalizedRequest;
+        if (normalized is null)
+        {
+            return (false, new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Domain = domain,
+                Message = "Row validation failed."
+            }, null);
+        }
+
         var data = new ValidatedSitesRow(
             domain,
-            row.DR ?? 0,
-            row.Traffic ?? 0,
-            (row.Location ?? string.Empty).Trim(),
-            row.PriceUsd ?? 0,
-            casinoParseResult.Price,
-            casinoParseResult.Status,
-            cryptoParseResult.Price,
-            cryptoParseResult.Status,
-            linkInsertParseResult.Price,
-            linkInsertParseResult.Status,
-            NormalizeOptionalText(row.Niche),
-            NormalizeOptionalText(row.Categories),
-            NormalizeOptionalText(row.LinkType),
-            NormalizeOptionalText(row.SponsoredTag));
+            normalized.DR,
+            normalized.Traffic,
+            normalized.Location,
+            normalized.PriceUsd,
+            normalized.PriceCasino,
+            normalized.PriceCasinoStatus,
+            normalized.PriceCrypto,
+            normalized.PriceCryptoStatus,
+            normalized.PriceLinkInsert,
+            normalized.PriceLinkInsertStatus,
+            normalized.Niche,
+            normalized.Categories,
+            normalized.LinkType,
+            normalized.SponsoredTag);
 
         return (false, null, data);
     }
@@ -185,13 +185,4 @@ public static class SitesImportRowValidationHelper
                && string.IsNullOrWhiteSpace(row.SponsoredTag);
     }
 
-    private static string? NormalizeOptionalText(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        return value.Trim();
-    }
 }
