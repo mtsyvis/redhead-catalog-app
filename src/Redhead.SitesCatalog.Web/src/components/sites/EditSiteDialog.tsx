@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box,
   Dialog,
@@ -22,12 +22,45 @@ import {
   SERVICE_AVAILABILITY_STATUS_OPTIONS,
 } from '../../utils/serviceAvailability';
 
+// --- Types ---
+
+type EditSiteFormState = {
+  dr: string;
+  traffic: string;
+  location: string;
+  priceUsd: string;
+  priceCasino: string;
+  priceCasinoStatus: ServiceAvailabilityStatusValue;
+  priceCrypto: string;
+  priceCryptoStatus: ServiceAvailabilityStatusValue;
+  priceLinkInsert: string;
+  priceLinkInsertStatus: ServiceAvailabilityStatusValue;
+  niche: string;
+  categories: string;
+  linkType: string;
+  sponsoredTag: string;
+  isQuarantined: boolean;
+  quarantineReason: string;
+};
+
 type Props = {
   open: boolean;
   site: Site | null;
   onClose: () => void;
   onSaved: (updated: Site) => void;
 };
+
+type OptionalServiceSectionProps = {
+  label: string;
+  status: ServiceAvailabilityStatusValue;
+  price: string;
+  statusError?: string;
+  priceError?: string;
+  onStatusChange: (status: ServiceAvailabilityStatusValue) => void;
+  onPriceChange: (price: string) => void;
+};
+
+// --- Module-level helpers ---
 
 function parseNumberOrNull(input: string): number | null {
   const t = input.trim();
@@ -37,177 +70,270 @@ function parseNumberOrNull(input: string): number | null {
 }
 
 function getServiceStateHint(status: ServiceAvailabilityStatusValue): string {
-  if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) {
-    return 'Will be shown as NO.';
-  }
-  if (status === SERVICE_AVAILABILITY_STATUS.Unknown) {
-    return 'Will be shown as —.';
-  }
-  return 'Enter a non-negative price.';
+  if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) return 'Will be shown as NO';
+  if (status === SERVICE_AVAILABILITY_STATUS.Unknown) return 'Will be shown as —';
+  return 'Enter a non-negative price';
 }
 
-function getFirstFieldError(fieldErrors: Record<string, string[]>, ...keys: string[]): string | undefined {
-  for (const key of keys) {
-    const message = fieldErrors[key]?.[0];
-    if (message) return message;
+function clearFieldError(
+  errors: Record<string, string[]>,
+  key: string
+): Record<string, string[]> {
+  if (errors[key]) {
+    const next = { ...errors };
+    delete next[key];
+    return next;
   }
-  return undefined;
+  return errors;
 }
 
-export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
-  const [dr, setDr] = useState('');
-  const [traffic, setTraffic] = useState('');
-  const [location, setLocation] = useState('');
-  const [priceUsd, setPriceUsd] = useState('');
-  const [priceCasino, setPriceCasino] = useState('');
-  const [priceCasinoStatus, setPriceCasinoStatus] = useState<ServiceAvailabilityStatusValue>(
-    SERVICE_AVAILABILITY_STATUS.Unknown
-  );
-  const [priceCrypto, setPriceCrypto] = useState('');
-  const [priceCryptoStatus, setPriceCryptoStatus] = useState<ServiceAvailabilityStatusValue>(
-    SERVICE_AVAILABILITY_STATUS.Unknown
-  );
-  const [priceLinkInsert, setPriceLinkInsert] = useState('');
-  const [priceLinkInsertStatus, setPriceLinkInsertStatus] = useState<ServiceAvailabilityStatusValue>(
-    SERVICE_AVAILABILITY_STATUS.Unknown
-  );
-  const [niche, setNiche] = useState('');
-  const [categories, setCategories] = useState('');
-  const [linkType, setLinkType] = useState('');
-  const [sponsoredTag, setSponsoredTag] = useState('');
-  const [isQuarantined, setIsQuarantined] = useState(false);
-  const [reason, setReason] = useState('');
+const EMPTY_FORM_STATE: EditSiteFormState = {
+  dr: '',
+  traffic: '',
+  location: '',
+  priceUsd: '',
+  priceCasino: '',
+  priceCasinoStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
+  priceCrypto: '',
+  priceCryptoStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
+  priceLinkInsert: '',
+  priceLinkInsertStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
+  niche: '',
+  categories: '',
+  linkType: '',
+  sponsoredTag: '',
+  isQuarantined: false,
+  quarantineReason: '',
+};
 
+function createInitialFormState(site: Site): EditSiteFormState {
+  const casinoStatus = normalizeServiceAvailabilityStatus(site.priceCasinoStatus);
+  const cryptoStatus = normalizeServiceAvailabilityStatus(site.priceCryptoStatus);
+  const linkInsertStatus = normalizeServiceAvailabilityStatus(site.priceLinkInsertStatus);
+  return {
+    dr: String(site.dr ?? ''),
+    traffic: String(site.traffic ?? ''),
+    location: site.location ?? '',
+    priceUsd: site.priceUsd == null ? '' : String(site.priceUsd),
+    priceCasinoStatus: casinoStatus,
+    priceCasino:
+      casinoStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceCasino != null
+        ? String(site.priceCasino)
+        : '',
+    priceCryptoStatus: cryptoStatus,
+    priceCrypto:
+      cryptoStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceCrypto != null
+        ? String(site.priceCrypto)
+        : '',
+    priceLinkInsertStatus: linkInsertStatus,
+    priceLinkInsert:
+      linkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceLinkInsert != null
+        ? String(site.priceLinkInsert)
+        : '',
+    niche: site.niche ?? '',
+    categories: site.categories ?? '',
+    linkType: site.linkType ?? '',
+    sponsoredTag: site.sponsoredTag ?? '',
+    isQuarantined: Boolean(site.isQuarantined),
+    quarantineReason: site.quarantineReason ?? '',
+  };
+}
+
+function validateOptionalServicePrice(
+  price: string,
+  fieldKey: string,
+  errors: Record<string, string[]>
+): void {
+  const parsed = parseNumberOrNull(price);
+  if (parsed === null) {
+    errors[fieldKey] = ['Required when status is Available.'];
+  } else if (parsed < 0) {
+    errors[fieldKey] = ['Must be 0 or greater.'];
+  }
+}
+
+function validateEditSiteForm(form: EditSiteFormState): Record<string, string[]> {
+  const errors: Record<string, string[]> = {};
+
+  const parsedDr = parseNumberOrNull(form.dr);
+  if (parsedDr === null || parsedDr < 0 || parsedDr > 100) {
+    errors.dr = ['DR must be between 0 and 100.'];
+  }
+
+  const parsedTraffic = parseNumberOrNull(form.traffic);
+  if (parsedTraffic === null || parsedTraffic < 0) {
+    errors.traffic = ['Traffic must be 0 or greater.'];
+  } else if (!Number.isInteger(parsedTraffic)) {
+    errors.traffic = ['Traffic must be a whole number.'];
+  }
+
+  if (!form.location.trim()) {
+    errors.location = ['Location is required.'];
+  }
+
+  const parsedPriceUsd = parseNumberOrNull(form.priceUsd);
+  if (parsedPriceUsd === null || parsedPriceUsd < 0) {
+    errors.priceUsd = ['Price USD is required and must be 0 or greater.'];
+  }
+
+  if (form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
+    validateOptionalServicePrice(form.priceCasino, 'priceCasino', errors);
+  }
+  if (form.priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
+    validateOptionalServicePrice(form.priceCrypto, 'priceCrypto', errors);
+  }
+  if (form.priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available) {
+    validateOptionalServicePrice(form.priceLinkInsert, 'priceLinkInsert', errors);
+  }
+
+  return errors;
+}
+
+function buildUpdateSitePayload(form: EditSiteFormState): UpdateSitePayload {
+  return {
+    dr: parseNumberOrNull(form.dr)!,
+    traffic: parseNumberOrNull(form.traffic)!,
+    location: form.location.trim(),
+    priceUsd: parseNumberOrNull(form.priceUsd)!,
+    priceCasino:
+      form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available
+        ? (parseNumberOrNull(form.priceCasino) ?? null)
+        : null,
+    priceCasinoStatus: form.priceCasinoStatus,
+    priceCrypto:
+      form.priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available
+        ? (parseNumberOrNull(form.priceCrypto) ?? null)
+        : null,
+    priceCryptoStatus: form.priceCryptoStatus,
+    priceLinkInsert:
+      form.priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available
+        ? (parseNumberOrNull(form.priceLinkInsert) ?? null)
+        : null,
+    priceLinkInsertStatus: form.priceLinkInsertStatus,
+    niche: form.niche.trim() || null,
+    categories: form.categories.trim() || null,
+    LinkType: form.linkType.trim() || null,
+    SponsoredTag: form.sponsoredTag.trim() || null,
+    isQuarantined: form.isQuarantined,
+    quarantineReason: form.isQuarantined ? (form.quarantineReason.trim() || null) : null,
+  };
+}
+
+// --- OptionalServiceSection sub-component ---
+
+function OptionalServiceSection({
+  label,
+  status,
+  price,
+  statusError,
+  priceError,
+  onStatusChange,
+  onPriceChange,
+}: Readonly<OptionalServiceSectionProps>) {
+  const isAvailable = status === SERVICE_AVAILABILITY_STATUS.Available;
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        <TextField
+          select
+          label={`${label} availability`}
+          value={status}
+          onChange={(e) => onStatusChange(Number(e.target.value) as ServiceAvailabilityStatusValue)}
+          size="small"
+          sx={{ minWidth: 220, flex: '1 1 220px' }}
+          error={Boolean(statusError)}
+          helperText={statusError}
+        >
+          {SERVICE_AVAILABILITY_STATUS_OPTIONS.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          label="Price"
+          type="number"
+          value={price}
+          onChange={(e) => onPriceChange(e.target.value)}
+          size="small"
+          placeholder={isAvailable ? 'Enter price' : ''}
+          sx={{ minWidth: 220, flex: '1 1 220px' }}
+          disabled={!isAvailable}
+          error={Boolean(priceError)}
+          helperText={priceError || getServiceStateHint(status)}
+        />
+      </Box>
+    </Box>
+  );
+}
+
+// --- Main component ---
+
+export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>) {
+  const [form, setForm] = useState<EditSiteFormState>(
+    site ? createInitialFormState(site) : EMPTY_FORM_STATE
+  );
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  // Reset form when a different site is opened
   useEffect(() => {
-    if (!site) return;
-    setDr(String(site.dr ?? ''));
-    setTraffic(String(site.traffic ?? ''));
-    setLocation(site.location ?? '');
-    setPriceUsd(site.priceUsd != null ? String(site.priceUsd) : '');
-    const casinoStatus = normalizeServiceAvailabilityStatus(site.priceCasinoStatus);
-    const cryptoStatus = normalizeServiceAvailabilityStatus(site.priceCryptoStatus);
-    const linkInsertStatus = normalizeServiceAvailabilityStatus(site.priceLinkInsertStatus);
-    setPriceCasinoStatus(casinoStatus);
-    setPriceCryptoStatus(cryptoStatus);
-    setPriceLinkInsertStatus(linkInsertStatus);
-    setPriceCasino(
-      casinoStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceCasino != null
-        ? String(site.priceCasino)
-        : ''
-    );
-    setPriceCrypto(
-      cryptoStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceCrypto != null
-        ? String(site.priceCrypto)
-        : ''
-    );
-    setPriceLinkInsert(
-      linkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceLinkInsert != null
-        ? String(site.priceLinkInsert)
-        : ''
-    );
-    setNiche(site.niche ?? '');
-    setCategories(site.categories ?? '');
-    setLinkType(site.linkType ?? '');
-    setSponsoredTag(site.sponsoredTag ?? '');
-    setIsQuarantined(Boolean(site.isQuarantined));
-    setReason(site.quarantineReason ?? '');
+    if (!open || !site) return;
+    setForm(createInitialFormState(site));
     setFieldErrors({});
     setSaving(false);
-  }, [site]);
+  }, [open, site]);
 
-  const canSave = useMemo(() => Boolean(site) && !saving, [site, saving]);
-  const isCasinoAvailable = priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available;
-  const isCryptoAvailable = priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available;
-  const isLinkInsertAvailable = priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available;
-  const linkTypeError = getFirstFieldError(fieldErrors, 'linkType', 'linkType');
-  const sponsoredTagError = getFirstFieldError(fieldErrors, 'sponsoredTag', 'sponsoredTag');
+  const updateField = <K extends keyof EditSiteFormState>(
+    key: K,
+    value: EditSiteFormState[K]
+  ) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setFieldErrors((prev) => clearFieldError(prev, key));
+  };
+
+  const handleCasinoStatusChange = (s: ServiceAvailabilityStatusValue) => {
+    setForm((prev) => ({
+      ...prev,
+      priceCasinoStatus: s,
+      priceCasino: s === SERVICE_AVAILABILITY_STATUS.Available ? prev.priceCasino : '',
+    }));
+    setFieldErrors((prev) => clearFieldError(clearFieldError(prev, 'priceCasinoStatus'), 'priceCasino'));
+  };
+
+  const handleCryptoStatusChange = (s: ServiceAvailabilityStatusValue) => {
+    setForm((prev) => ({
+      ...prev,
+      priceCryptoStatus: s,
+      priceCrypto: s === SERVICE_AVAILABILITY_STATUS.Available ? prev.priceCrypto : '',
+    }));
+    setFieldErrors((prev) => clearFieldError(clearFieldError(prev, 'priceCryptoStatus'), 'priceCrypto'));
+  };
+
+  const handleLinkInsertStatusChange = (s: ServiceAvailabilityStatusValue) => {
+    setForm((prev) => ({
+      ...prev,
+      priceLinkInsertStatus: s,
+      priceLinkInsert: s === SERVICE_AVAILABILITY_STATUS.Available ? prev.priceLinkInsert : '',
+    }));
+    setFieldErrors((prev) =>
+      clearFieldError(clearFieldError(prev, 'priceLinkInsertStatus'), 'priceLinkInsert')
+    );
+  };
 
   const handleSave = async () => {
     if (!site) return;
 
+    const localErrors = validateEditSiteForm(form);
+    if (Object.keys(localErrors).length > 0) {
+      setFieldErrors(localErrors);
+      return;
+    }
+
     setFieldErrors({});
-
-    const parsedDr = parseNumberOrNull(dr);
-    if (parsedDr === null || parsedDr < 0 || parsedDr > 100) {
-      setFieldErrors({ dr: ['DR must be between 0 and 100.'] });
-      return;
-    }
-
-    const parsedTraffic = parseNumberOrNull(traffic);
-    if (parsedTraffic === null || parsedTraffic < 0) {
-      setFieldErrors({ traffic: ['Traffic must be 0 or greater.'] });
-      return;
-    }
-
-    const trimmedLocation = location.trim();
-    if (!trimmedLocation) {
-      setFieldErrors({ location: ['Location is required.'] });
-      return;
-    }
-
-    const parsedPriceUsd = parseNumberOrNull(priceUsd);
-    if (parsedPriceUsd === null || parsedPriceUsd < 0) {
-      setFieldErrors({ priceUsd: ['Price USD is required and must be 0 or greater.'] });
-      return;
-    }
-
-    const parsedPriceCasino = parseNumberOrNull(priceCasino);
-    const parsedPriceCrypto = parseNumberOrNull(priceCrypto);
-    const parsedPriceLinkInsert = parseNumberOrNull(priceLinkInsert);
-
-    const priceErrors: Record<string, string[]> = {};
-    if (priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-      if (parsedPriceCasino == null) {
-        priceErrors.priceCasino = ['Required when status is Available.'];
-      } else if (parsedPriceCasino < 0) {
-        priceErrors.priceCasino = ['Must be 0 or greater.'];
-      }
-    }
-    if (priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-      if (parsedPriceCrypto == null) {
-        priceErrors.priceCrypto = ['Required when status is Available.'];
-      } else if (parsedPriceCrypto < 0) {
-        priceErrors.priceCrypto = ['Must be 0 or greater.'];
-      }
-    }
-    if (priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-      if (parsedPriceLinkInsert == null) {
-        priceErrors.priceLinkInsert = ['Required when status is Available.'];
-      } else if (parsedPriceLinkInsert < 0) {
-        priceErrors.priceLinkInsert = ['Must be 0 or greater.'];
-      }
-    }
-    if (Object.keys(priceErrors).length > 0) {
-      setFieldErrors(priceErrors);
-      return;
-    }
-
-    const payload: UpdateSitePayload = {
-      dr: parsedDr,
-      traffic: Math.floor(parsedTraffic),
-      location: trimmedLocation,
-      priceUsd: parsedPriceUsd,
-      priceCasino: priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available ? (parsedPriceCasino ?? null) : null,
-      priceCasinoStatus,
-      priceCrypto: priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available ? (parsedPriceCrypto ?? null) : null,
-      priceCryptoStatus,
-      priceLinkInsert:
-        priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available ? (parsedPriceLinkInsert ?? null) : null,
-      priceLinkInsertStatus,
-      niche: niche.trim() || null,
-      categories: categories.trim() || null,
-      LinkType: linkType.trim() || null,
-      SponsoredTag: sponsoredTag.trim() || null,
-      isQuarantined,
-      quarantineReason: isQuarantined ? (reason.trim() || null) : null,
-    };
-
     setSaving(true);
     try {
+      const payload = buildUpdateSitePayload(form);
       const updated = await sitesService.updateSite(site.domain, payload);
       onSaved(updated);
     } catch (err) {
@@ -220,6 +346,8 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
       setSaving(false);
     }
   };
+
+  const canSave = Boolean(site) && !saving;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -237,8 +365,8 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
               label="DR"
               type="number"
               inputProps={{ min: 0, max: 100 }}
-              value={dr}
-              onChange={(e) => setDr(e.target.value)}
+              value={form.dr}
+              onChange={(e) => updateField('dr', e.target.value)}
               size="small"
               fullWidth
               error={Boolean(fieldErrors.dr?.length)}
@@ -248,9 +376,9 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
             <TextField
               label="Traffic"
               type="number"
-              inputProps={{ min: 0 }}
-              value={traffic}
-              onChange={(e) => setTraffic(e.target.value)}
+              inputProps={{ min: 0, step: 1 }}
+              value={form.traffic}
+              onChange={(e) => updateField('traffic', e.target.value)}
               size="small"
               fullWidth
               error={Boolean(fieldErrors.traffic?.length)}
@@ -259,8 +387,8 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
 
             <TextField
               label="Location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              value={form.location}
+              onChange={(e) => updateField('location', e.target.value)}
               size="small"
               fullWidth
               error={Boolean(fieldErrors.location?.length)}
@@ -270,9 +398,9 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
             <TextField
               label="Price USD"
               type="number"
-              inputProps={{ min: 0, step: '0.01' }}
-              value={priceUsd}
-              onChange={(e) => setPriceUsd(e.target.value)}
+              inputProps={{ min: 0, step: '1' }}
+              value={form.priceUsd}
+              onChange={(e) => updateField('priceUsd', e.target.value)}
               size="small"
               fullWidth
               error={Boolean(fieldErrors.priceUsd?.length)}
@@ -296,186 +424,94 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
                 Available = show price, Not available = NO, Unknown = —.
               </Typography>
 
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>Casino</Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <TextField
-                    select
-                    label="Casino availability"
-                    value={priceCasinoStatus}
-                    onChange={(e) => {
-                      const status = Number(e.target.value) as ServiceAvailabilityStatusValue;
-                      setPriceCasinoStatus(status);
-                      if (status !== SERVICE_AVAILABILITY_STATUS.Available) {
-                        setPriceCasino('');
-                      }
-                    }}
-                    size="small"
-                    sx={{ minWidth: 220, flex: '1 1 220px' }}
-                    error={Boolean(fieldErrors.priceCasinoStatus?.length)}
-                    helperText={fieldErrors.priceCasinoStatus?.[0]}
-                  >
-                    {SERVICE_AVAILABILITY_STATUS_OPTIONS.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+              <OptionalServiceSection
+                label="Casino"
+                status={form.priceCasinoStatus}
+                price={form.priceCasino}
+                statusError={fieldErrors.priceCasinoStatus?.[0]}
+                priceError={fieldErrors.priceCasino?.[0]}
+                onStatusChange={handleCasinoStatusChange}
+                onPriceChange={(p) => updateField('priceCasino', p)}
+              />
 
-                  <TextField
-                    label="Price"
-                    type="number"
-                    inputProps={{ min: 0, step: '0.01' }}
-                    value={priceCasino}
-                    onChange={(e) => setPriceCasino(e.target.value)}
-                    size="small"
-                    placeholder={isCasinoAvailable ? 'Enter price' : ''}
-                    sx={{ minWidth: 220, flex: '1 1 220px' }}
-                    disabled={!isCasinoAvailable}
-                    error={Boolean(fieldErrors.priceCasino?.length)}
-                    helperText={fieldErrors.priceCasino?.[0] || getServiceStateHint(priceCasinoStatus)}
-                  />
-                </Box>
-              </Box>
+              <OptionalServiceSection
+                label="Crypto"
+                status={form.priceCryptoStatus}
+                price={form.priceCrypto}
+                statusError={fieldErrors.priceCryptoStatus?.[0]}
+                priceError={fieldErrors.priceCrypto?.[0]}
+                onStatusChange={handleCryptoStatusChange}
+                onPriceChange={(p) => updateField('priceCrypto', p)}
+              />
 
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>Crypto</Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <TextField
-                    select
-                    label="Crypto availability"
-                    value={priceCryptoStatus}
-                    onChange={(e) => {
-                      const status = Number(e.target.value) as ServiceAvailabilityStatusValue;
-                      setPriceCryptoStatus(status);
-                      if (status !== SERVICE_AVAILABILITY_STATUS.Available) {
-                        setPriceCrypto('');
-                      }
-                    }}
-                    size="small"
-                    sx={{ minWidth: 220, flex: '1 1 220px' }}
-                    error={Boolean(fieldErrors.priceCryptoStatus?.length)}
-                    helperText={fieldErrors.priceCryptoStatus?.[0]}
-                  >
-                    {SERVICE_AVAILABILITY_STATUS_OPTIONS.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-
-                  <TextField
-                    label="Price"
-                    type="number"
-                    inputProps={{ min: 0, step: '0.01' }}
-                    value={priceCrypto}
-                    onChange={(e) => setPriceCrypto(e.target.value)}
-                    size="small"
-                    placeholder={isCryptoAvailable ? 'Enter price' : ''}
-                    sx={{ minWidth: 220, flex: '1 1 220px' }}
-                    disabled={!isCryptoAvailable}
-                    error={Boolean(fieldErrors.priceCrypto?.length)}
-                    helperText={fieldErrors.priceCrypto?.[0] || getServiceStateHint(priceCryptoStatus)}
-                  />
-                </Box>
-              </Box>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>Link Insert</Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <TextField
-                    select
-                    label="Link Insert availability"
-                    value={priceLinkInsertStatus}
-                    onChange={(e) => {
-                      const status = Number(e.target.value) as ServiceAvailabilityStatusValue;
-                      setPriceLinkInsertStatus(status);
-                      if (status !== SERVICE_AVAILABILITY_STATUS.Available) {
-                        setPriceLinkInsert('');
-                      }
-                    }}
-                    size="small"
-                    sx={{ minWidth: 220, flex: '1 1 220px' }}
-                    error={Boolean(fieldErrors.priceLinkInsertStatus?.length)}
-                    helperText={fieldErrors.priceLinkInsertStatus?.[0]}
-                  >
-                    {SERVICE_AVAILABILITY_STATUS_OPTIONS.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-
-                  <TextField
-                    label="Price"
-                    type="number"
-                    inputProps={{ min: 0, step: '0.01' }}
-                    value={priceLinkInsert}
-                    onChange={(e) => setPriceLinkInsert(e.target.value)}
-                    size="small"
-                    placeholder={isLinkInsertAvailable ? 'Enter price' : ''}
-                    sx={{ minWidth: 220, flex: '1 1 220px' }}
-                    disabled={!isLinkInsertAvailable}
-                    error={Boolean(fieldErrors.priceLinkInsert?.length)}
-                    helperText={fieldErrors.priceLinkInsert?.[0] || getServiceStateHint(priceLinkInsertStatus)}
-                  />
-                </Box>
-              </Box>
+              <OptionalServiceSection
+                label="Link Insert"
+                status={form.priceLinkInsertStatus}
+                price={form.priceLinkInsert}
+                statusError={fieldErrors.priceLinkInsertStatus?.[0]}
+                priceError={fieldErrors.priceLinkInsert?.[0]}
+                onStatusChange={handleLinkInsertStatusChange}
+                onPriceChange={(p) => updateField('priceLinkInsert', p)}
+              />
             </Box>
 
             <TextField
               label="Niche"
-              value={niche}
-              onChange={(e) => setNiche(e.target.value)}
+              value={form.niche}
+              onChange={(e) => updateField('niche', e.target.value)}
               size="small"
               fullWidth
+              error={Boolean(fieldErrors.niche?.length)}
+              helperText={fieldErrors.niche?.[0]}
             />
 
             <TextField
               label="Categories"
-              value={categories}
-              onChange={(e) => setCategories(e.target.value)}
+              value={form.categories}
+              onChange={(e) => updateField('categories', e.target.value)}
               size="small"
               fullWidth
               multiline
               minRows={2}
+              error={Boolean(fieldErrors.categories?.length)}
+              helperText={fieldErrors.categories?.[0]}
             />
 
             <TextField
               label="Link Type"
-              value={linkType}
-              onChange={(e) => setLinkType(e.target.value)}
+              value={form.linkType}
+              onChange={(e) => updateField('linkType', e.target.value)}
               size="small"
               fullWidth
-              error={Boolean(linkTypeError)}
-              helperText={linkTypeError}
+              error={Boolean(fieldErrors.linkType?.length)}
+              helperText={fieldErrors.linkType?.[0]}
             />
 
             <TextField
               label="Sponsored Tag"
-              value={sponsoredTag}
-              onChange={(e) => setSponsoredTag(e.target.value)}
+              value={form.sponsoredTag}
+              onChange={(e) => updateField('sponsoredTag', e.target.value)}
               size="small"
               fullWidth
-              error={Boolean(sponsoredTagError)}
-              helperText={sponsoredTagError}
+              error={Boolean(fieldErrors.sponsoredTag?.length)}
+              helperText={fieldErrors.sponsoredTag?.[0]}
             />
 
             <FormControlLabel
               control={
                 <Switch
-                  checked={isQuarantined}
-                  onChange={(e) => setIsQuarantined(e.target.checked)}
+                  checked={form.isQuarantined}
+                  onChange={(e) => updateField('isQuarantined', e.target.checked)}
                 />
               }
               label="Unavailable (quarantined)"
             />
 
-            {isQuarantined && (
+            {form.isQuarantined && (
               <TextField
                 label="Reason (optional)"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                value={form.quarantineReason}
+                onChange={(e) => updateField('quarantineReason', e.target.value)}
                 size="small"
                 fullWidth
                 multiline
