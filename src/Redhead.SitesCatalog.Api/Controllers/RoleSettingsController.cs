@@ -24,7 +24,7 @@ public class RoleSettingsController : ControllerBase
     {
         var list = await _context.RoleSettings
             .OrderBy(rs => rs.RoleName)
-            .Select(rs => new RoleSettingItemDto(rs.RoleName, rs.ExportLimitRows))
+            .Select(rs => new RoleSettingItemDto(rs.RoleName, rs.ExportLimitRows ?? 0))
             .ToListAsync(cancellationToken);
         return Ok(list);
     }

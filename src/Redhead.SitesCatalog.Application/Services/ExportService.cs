@@ -80,8 +80,7 @@ public class ExportService : IExportService
             throw new RoleSettingsNotFoundException(userRole);
         }
 
-        // Check if export is disabled for this role
-        if (roleSettings.ExportLimitRows == ExportConstants.DisabledLimit)
+        if (roleSettings.ExportLimitMode == ExportLimitMode.Disabled)
         {
             throw new ExportDisabledException(userRole, ExportConstants.ExportDisabledMessage);
         }
@@ -89,8 +88,11 @@ public class ExportService : IExportService
         // Build filtered and sorted query using the query builder
         var sitesQuery = _queryBuilder.BuildQuery(_context.Sites, query);
 
-        // Apply role-based limit
-        sitesQuery = sitesQuery.Take(roleSettings.ExportLimitRows);
+        // Apply role-based limit (only when mode is Limited)
+        if (roleSettings.ExportLimitMode == ExportLimitMode.Limited && roleSettings.ExportLimitRows.HasValue)
+        {
+            sitesQuery = sitesQuery.Take(roleSettings.ExportLimitRows.Value);
+        }
 
         // Execute query
         var sites = await sitesQuery.ToListAsync(cancellationToken);
@@ -139,7 +141,7 @@ public class ExportService : IExportService
             throw new RoleSettingsNotFoundException(userRole);
         }
 
-        if (roleSettings.ExportLimitRows == ExportConstants.DisabledLimit)
+        if (roleSettings.ExportLimitMode == ExportLimitMode.Disabled)
         {
             throw new ExportDisabledException(userRole, ExportConstants.ExportDisabledMessage);
         }
@@ -165,7 +167,10 @@ public class ExportService : IExportService
         }
 
         var filteredQuery = _queryBuilder.BuildQuery(baseQuery, query);
-        var limitedQuery = filteredQuery.Take(roleSettings.ExportLimitRows);
+        // Apply role-based limit (only when mode is Limited)
+        var limitedQuery = roleSettings.ExportLimitMode == ExportLimitMode.Limited && roleSettings.ExportLimitRows.HasValue
+            ? filteredQuery.Take(roleSettings.ExportLimitRows.Value)
+            : filteredQuery;
         var sites = await limitedQuery.ToListAsync(cancellationToken);
 
         var stream = new MemoryStream();
