@@ -322,6 +322,8 @@ public sealed class SitesImportService : ISitesImportService
             PriceLinkInsertStatus = data.PriceLinkInsertStatus,
             Niche = data.Niche,
             Categories = data.Categories,
+            LinkType = data.LinkType,
+            SponsoredTag = data.SponsoredTag,
             IsQuarantined = false,
             QuarantineReason = null,
             QuarantineUpdatedAtUtc = null,

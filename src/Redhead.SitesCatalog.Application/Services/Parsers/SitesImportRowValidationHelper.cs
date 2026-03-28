@@ -26,7 +26,9 @@ public static class SitesImportRowValidationHelper
         decimal? PriceLinkInsert,
         ServiceAvailabilityStatus PriceLinkInsertStatus,
         string? Niche,
-        string? Categories);
+        string? Categories,
+        string? LinkType,
+        string? SponsoredTag);
 
     /// <summary>
     /// Result of validating a row: empty (skip), error, or valid data.
@@ -159,8 +161,10 @@ public static class SitesImportRowValidationHelper
             cryptoParseResult.Status,
             linkInsertParseResult.Price,
             linkInsertParseResult.Status,
-            string.IsNullOrWhiteSpace(row.Niche) ? null : row.Niche.Trim(),
-            string.IsNullOrWhiteSpace(row.Categories) ? null : row.Categories.Trim());
+            NormalizeOptionalText(row.Niche),
+            NormalizeOptionalText(row.Categories),
+            NormalizeOptionalText(row.LinkType),
+            NormalizeOptionalText(row.SponsoredTag));
 
         return (false, null, data);
     }
@@ -176,6 +180,18 @@ public static class SitesImportRowValidationHelper
                && string.IsNullOrWhiteSpace(row.PriceCryptoRaw)
                && string.IsNullOrWhiteSpace(row.PriceLinkInsertRaw)
                && string.IsNullOrWhiteSpace(row.Niche)
-               && string.IsNullOrWhiteSpace(row.Categories);
+               && string.IsNullOrWhiteSpace(row.Categories)
+               && string.IsNullOrWhiteSpace(row.LinkType)
+               && string.IsNullOrWhiteSpace(row.SponsoredTag);
+    }
+
+    private static string? NormalizeOptionalText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim();
     }
 }

@@ -101,6 +101,8 @@ public static class ImportConstants
         public const string PriceLinkInsert = "PriceLinkInsert";
         public const string Niche = "Niche";
         public const string Categories = "Categories";
+        public const string LinkType = "LinkType";
+        public const string SponsoredTag = "SponsoredTag";
     }
 
     /// <summary>
@@ -118,5 +120,7 @@ public static class ImportConstants
         SitesImportColumns.PriceLinkInsert,
         SitesImportColumns.Niche,
         SitesImportColumns.Categories,
+        SitesImportColumns.LinkType,
+        SitesImportColumns.SponsoredTag,
     };
 }

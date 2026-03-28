@@ -1,4 +1,6 @@
 using System.Globalization;
+using CsvHelper;
+using CsvHelper.TypeConversion;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Domain.Constants;
 
@@ -15,16 +17,18 @@ public static class SitesImportRowMapper
 {
     public static SitesImportRowDto Map(Func<string, string?> getValue, int rowNumber)
     {
-        var domain = getValue(ImportConstants.SitesImportColumns.Domain);
-        var drRaw = getValue(ImportConstants.SitesImportColumns.DR);
-        var trafficRaw = getValue(ImportConstants.SitesImportColumns.Traffic);
-        var location = getValue(ImportConstants.SitesImportColumns.Location);
-        var priceUsdRaw = getValue(ImportConstants.SitesImportColumns.PriceUsd);
-        var priceCasinoRaw = getValue(ImportConstants.SitesImportColumns.PriceCasino);
-        var priceCryptoRaw = getValue(ImportConstants.SitesImportColumns.PriceCrypto);
-        var priceLinkInsertRaw = getValue(ImportConstants.SitesImportColumns.PriceLinkInsert);
-        var niche = getValue(ImportConstants.SitesImportColumns.Niche);
-        var categories = getValue(ImportConstants.SitesImportColumns.Categories);
+        var domain = TryGetValue(getValue, ImportConstants.SitesImportColumns.Domain);
+        var drRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.DR);
+        var trafficRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.Traffic);
+        var location = TryGetValue(getValue, ImportConstants.SitesImportColumns.Location);
+        var priceUsdRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceUsd);
+        var priceCasinoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceCasino);
+        var priceCryptoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceCrypto);
+        var priceLinkInsertRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceLinkInsert);
+        var niche = TryGetValue(getValue, ImportConstants.SitesImportColumns.Niche);
+        var categories = TryGetValue(getValue, ImportConstants.SitesImportColumns.Categories);
+        var linkType = TryGetValue(getValue, ImportConstants.SitesImportColumns.LinkType);
+        var sponsoredTag = TryGetValue(getValue, ImportConstants.SitesImportColumns.SponsoredTag);
 
         return new SitesImportRowDto
         {
@@ -39,8 +43,26 @@ public static class SitesImportRowMapper
             PriceCryptoRaw = priceCryptoRaw,
             PriceLinkInsertRaw = priceLinkInsertRaw,
             Niche = niche,
-            Categories = categories
+            Categories = categories,
+            LinkType = linkType,
+            SponsoredTag = sponsoredTag
         };
+    }
+
+    private static string? TryGetValue(Func<string, string?> getValue, string columnName)
+    {
+        try
+        {
+            return getValue(columnName);
+        }
+        catch (CsvHelper.MissingFieldException)
+        {
+            return null;
+        }
+        catch (TypeConverterException)
+        {
+            return null;
+        }
     }
 
     private static decimal? ParseNullableDecimal(string? value)

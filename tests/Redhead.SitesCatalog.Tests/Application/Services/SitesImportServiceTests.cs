@@ -51,8 +51,8 @@ public sealed class SitesImportServiceTests : IDisposable
         // Arrange
         using var stream = Utf8Csv(
             HeaderLine() +
-            "newsite.com,55,12000,US,100,150,200,250,Tech,News\n" +
-            "secondsite.com,42,8000,UK,80,,,,Business,\n");
+            "newsite.com,55,12000,US,100,150,200,250,Tech,News,GuestPost,Sponsored\n" +
+            "secondsite.com,42,8000,UK,80,,,,Business,,,\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -79,6 +79,8 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal(ServiceAvailabilityStatus.Available, newSite.PriceLinkInsertStatus);
         Assert.Equal("Tech", newSite.Niche);
         Assert.Equal("News", newSite.Categories);
+        Assert.Equal("GuestPost", newSite.LinkType);
+        Assert.Equal("Sponsored", newSite.SponsoredTag);
         Assert.False(newSite.IsQuarantined);
 
         var secondSite = await GetSiteAsync("secondsite.com");
@@ -94,6 +96,8 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal(ServiceAvailabilityStatus.Unknown, secondSite.PriceLinkInsertStatus);
         Assert.Equal("Business", secondSite.Niche);
         Assert.Null(secondSite.Categories);
+        Assert.Null(secondSite.LinkType);
+        Assert.Null(secondSite.SponsoredTag);
 
         var log = await GetSitesImportLogAsync();
         Assert.NotNull(log);
@@ -109,8 +113,8 @@ public sealed class SitesImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain;DR;Traffic;Location;PriceUsd;PriceCasino;PriceCrypto;PriceLinkInsert;Niche;Categories\n" +
-            "semicolon.com;61;15000;DE;90;120;;;Finance;Blog\n");
+            "Domain;DR;Traffic;Location;PriceUsd;PriceCasino;PriceCrypto;PriceLinkInsert;Niche;Categories;LinkType;SponsoredTag\n" +
+            "semicolon.com;61;15000;DE;90;120;;;Finance;Blog;;\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -159,8 +163,8 @@ public sealed class SitesImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "DR,Domain,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories\n" +
-            "55,newsite.com,12000,US,100,150,200,250,Tech,News\n");
+            "DR,Domain,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,LinkType,SponsoredTag\n" +
+            "55,newsite.com,12000,US,100,150,200,250,Tech,News,,\n");
 
         // Act
         var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
@@ -174,8 +178,8 @@ public sealed class SitesImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche\n" +
-            "newsite.com,55,12000,US,100,150,200,250,Tech\n");
+            "Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,LinkType,SponsoredTag\n" +
+            "newsite.com,55,12000,US,100,150,200,250,Tech,,\n");
 
         // Act
         var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
@@ -376,8 +380,8 @@ public sealed class SitesImportServiceTests : IDisposable
             .Select(x => x.TrimEnd('\r'))
             .ToArray();
 
-        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,Source Row Number,Error Details", lines[0]);
-        Assert.Equal(",55,12000,US,100,150,200,250,Tech,News,2,Domain is required.", lines[1]);
+        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,LinkType,SponsoredTag,Source Row Number,Error Details", lines[0]);
+        Assert.Equal(",55,12000,US,100,150,200,250,Tech,News,,,2,Domain is required.", lines[1]);
     }
 
     [Fact]
@@ -799,7 +803,7 @@ public sealed class SitesImportServiceTests : IDisposable
 
     private static string HeaderLine()
     {
-        return "Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories\n";
+        return "Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,LinkType,SponsoredTag\n";
     }
 
     private void SeedSites()

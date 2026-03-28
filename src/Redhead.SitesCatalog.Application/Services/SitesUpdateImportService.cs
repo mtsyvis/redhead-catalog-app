@@ -48,7 +48,9 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         decimal? PriceLinkInsert,
         ServiceAvailabilityStatus PriceLinkInsertStatus,
         string? Niche,
-        string? Categories);
+        string? Categories,
+        string? LinkType,
+        string? SponsoredTag);
 
     public SitesUpdateImportService(
         ApplicationDbContext context,
@@ -188,6 +190,8 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             site.PriceLinkInsertStatus = update.PriceLinkInsertStatus;
             site.Niche = update.Niche;
             site.Categories = update.Categories;
+            site.LinkType = update.LinkType;
+            site.SponsoredTag = update.SponsoredTag;
             site.UpdatedAtUtc = now;
 
             result.UpdatedCount++;
@@ -256,7 +260,9 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             data.PriceLinkInsert,
             data.PriceLinkInsertStatus,
             data.Niche,
-            data.Categories);
+            data.Categories,
+            data.LinkType,
+            data.SponsoredTag);
     }
 
     private static IEnumerable<List<T>> Chunk<T>(List<T> source, int size)
