@@ -29,7 +29,9 @@ public class ExportService : IExportService
         "PriceCrypto",
         "PriceLinkInsert",
         "Niche",
-        "Categories"
+        "Categories",
+        "LinkType",
+        "SponsoredTag",
     ];
 
     private static readonly string[] NonClientExportHeaders =
@@ -44,6 +46,8 @@ public class ExportService : IExportService
         "PriceLinkInsert",
         "Niche",
         "Categories",
+        "LinkType",
+        "SponsoredTag",
         "IsQuarantined",
         "QuarantineReason",
         "LastPublishedDate",
@@ -313,6 +317,8 @@ public class ExportService : IExportService
         csvWriter.WriteField(FormatOptionalService(site.PriceLinkInsert, site.PriceLinkInsertStatus));
         csvWriter.WriteField(site.Niche);
         csvWriter.WriteField(site.Categories);
+        csvWriter.WriteField(site.LinkType);
+        csvWriter.WriteField(site.SponsoredTag);
 
         if (isClientRole)
         {

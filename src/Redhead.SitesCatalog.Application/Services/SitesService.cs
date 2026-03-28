@@ -43,6 +43,8 @@ public class SitesService : ISitesService
                 DR = s.DR,
                 Traffic = s.Traffic,
                 Location = s.Location,
+                LinkType = s.LinkType,
+                SponsoredTag = s.SponsoredTag,
                 PriceUsd = s.PriceUsd,
                 PriceCasino = s.PriceCasino,
                 PriceCasinoStatus = s.PriceCasinoStatus,
@@ -101,6 +103,8 @@ public class SitesService : ISitesService
                 DR = s.DR,
                 Traffic = s.Traffic,
                 Location = s.Location,
+                LinkType = s.LinkType,
+                SponsoredTag = s.SponsoredTag,
                 PriceUsd = s.PriceUsd,
                 PriceCasino = s.PriceCasino,
                 PriceCasinoStatus = s.PriceCasinoStatus,
@@ -149,6 +153,8 @@ public class SitesService : ISitesService
         site.DR = request.DR;
         site.Traffic = request.Traffic;
         site.Location = request.Location.Trim();
+        site.LinkType = string.IsNullOrWhiteSpace(request.LinkType) ? null : request.LinkType.Trim();
+        site.SponsoredTag = string.IsNullOrWhiteSpace(request.SponsoredTag) ? null : request.SponsoredTag.Trim();
         site.PriceUsd = request.PriceUsd;
         site.PriceCasino = request.PriceCasino;
         site.PriceCasinoStatus = request.PriceCasinoStatus;
@@ -170,6 +176,8 @@ public class SitesService : ISitesService
             DR = site.DR,
             Traffic = site.Traffic,
             Location = site.Location,
+            LinkType = site.LinkType,
+            SponsoredTag = site.SponsoredTag,
             PriceUsd = site.PriceUsd,
             PriceCasino = site.PriceCasino,
             PriceCasinoStatus = site.PriceCasinoStatus,

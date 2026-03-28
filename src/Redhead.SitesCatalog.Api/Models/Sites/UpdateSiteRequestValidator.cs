@@ -60,6 +60,16 @@ public static class UpdateSiteRequestValidator
             Add(errors, "location", $"Location must be at most {LocationMaxLength} characters.");
         }
 
+        if (request.LinkType != null && request.LinkType.Trim().Length > LocationMaxLength)
+        {
+            Add(errors, "linkType", $"Link type must be at most {LocationMaxLength} characters.");
+        }
+
+        if (request.SponsoredTag != null && request.SponsoredTag.Trim().Length > LocationMaxLength)
+        {
+            Add(errors, "sponsoredTag", $"Sponsored tag must be at most {LocationMaxLength} characters.");
+        }
+
         if (request.PriceUsd is decimal priceUsd)
         {
             if (priceUsd < 0)

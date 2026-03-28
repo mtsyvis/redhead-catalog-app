@@ -17,6 +17,8 @@ public class Site
     public ServiceAvailabilityStatus PriceLinkInsertStatus { get; set; } = ServiceAvailabilityStatus.Unknown;
     public string? Niche { get; set; }
     public string? Categories { get; set; }
+    public string? LinkType { get; set; }
+    public string? SponsoredTag { get; set; }
     public bool IsQuarantined { get; set; }
     public string? QuarantineReason { get; set; }
     public DateTime? QuarantineUpdatedAtUtc { get; set; }

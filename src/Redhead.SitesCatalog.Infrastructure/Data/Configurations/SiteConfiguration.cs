@@ -77,6 +77,12 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(s => s.Categories)
             .HasColumnType("text");
 
+        builder.Property(s => s.LinkType)
+            .HasMaxLength(100);
+
+        builder.Property(s => s.SponsoredTag)
+            .HasMaxLength(100);
+
         builder.Property(s => s.IsQuarantined)
             .IsRequired();
 

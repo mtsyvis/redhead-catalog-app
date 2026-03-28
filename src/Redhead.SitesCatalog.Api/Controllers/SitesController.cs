@@ -103,6 +103,8 @@ public class SitesController : ControllerBase
             DR = request.DR!.Value,
             Traffic = request.Traffic!.Value,
             Location = request.Location!.Trim(),
+            LinkType = string.IsNullOrWhiteSpace(request.LinkType) ? null : request.LinkType.Trim(),
+            SponsoredTag = string.IsNullOrWhiteSpace(request.SponsoredTag) ? null : request.SponsoredTag.Trim(),
             PriceUsd = request.PriceUsd!.Value,
             PriceCasino = request.PriceCasino,
             PriceCasinoStatus = UpdateSiteRequestValidator.ResolveStatusOrInfer(request.PriceCasino, request.PriceCasinoStatus),
