@@ -21,8 +21,10 @@ export const SITES_IMPORT_INSTRUCTIONS = {
     'PriceLinkInsert',
     'Niche',
     'Categories',
+    'LinkType',
+    'SponsoredTag',
   ],
-  optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, Niche, and Categories may be empty.',
+  optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, Niche, Categories, LinkType, and SponsoredTag may be empty.',
 };
 
 export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
@@ -38,8 +40,10 @@ export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
     'PriceLinkInsert',
     'Niche',
     'Categories',
+    'LinkType',
+    'SponsoredTag',
   ],
-  optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, Niche, and Categories may be empty.',
+  optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, Niche, Categories, LinkType, and SponsoredTag may be empty.',
 };
 
 export const QUARANTINE_IMPORT_INSTRUCTIONS = {

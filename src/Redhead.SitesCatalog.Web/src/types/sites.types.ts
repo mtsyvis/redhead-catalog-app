@@ -15,6 +15,8 @@ export interface Site {
   priceLinkInsertStatus: ServiceAvailabilityStatus;
   niche: string | null;
   categories: string | null;
+  linkType: string | null;
+  sponsoredTag: string | null;
   isQuarantined: boolean;
   quarantineReason: string | null;
   createdAtUtc: string;
@@ -113,6 +115,8 @@ export interface UpdateSitePayload {
   priceLinkInsertStatus: ServiceAvailabilityStatusValue;
   niche: string | null;
   categories: string | null;
+  LinkType: string | null;
+  SponsoredTag: string | null;
   isQuarantined: boolean;
   quarantineReason: string | null;
 }

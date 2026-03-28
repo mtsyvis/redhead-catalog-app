@@ -319,7 +319,7 @@ export function Sites() {
     {
       field: 'priceUsd',
       headerName: 'Price USD',
-      width: 120,
+      width: 100,
       type: 'number',
       valueFormatter: (value, row) => formatPrice(row, value as number | null),
     },
@@ -342,7 +342,7 @@ export function Sites() {
     {
       field: 'priceLinkInsert',
       headerName: 'Link Insert',
-      width: 120,
+      width: 100,
       type: 'number',
       valueFormatter: (value, row) =>
         formatOptionalServiceCell(row, value as number | null, (row as Site).priceLinkInsertStatus),
@@ -357,6 +357,20 @@ export function Sites() {
     {
       field: 'categories',
       headerName: 'Categories',
+      width: 150,
+      sortable: false,
+      valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
+    },
+    {
+      field: 'linkType',
+      headerName: 'Link Type',
+      width: 140,
+      sortable: false,
+      valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
+    },
+    {
+      field: 'sponsoredTag',
+      headerName: 'Sponsored Tag',
       width: 150,
       sortable: false,
       valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
@@ -390,7 +404,7 @@ export function Sites() {
     {
       field: 'lastPublishedDate',
       headerName: 'Last Published',
-      width: 200,
+      width: 150,
       valueFormatter: (_value, row) => {
         if (isNotFoundRow(row)) return '—';
         const site = row as Site;

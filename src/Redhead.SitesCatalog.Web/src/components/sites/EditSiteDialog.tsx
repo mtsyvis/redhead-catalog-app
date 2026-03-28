@@ -46,6 +46,14 @@ function getServiceStateHint(status: ServiceAvailabilityStatusValue): string {
   return 'Enter a non-negative price.';
 }
 
+function getFirstFieldError(fieldErrors: Record<string, string[]>, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const message = fieldErrors[key]?.[0];
+    if (message) return message;
+  }
+  return undefined;
+}
+
 export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
   const [dr, setDr] = useState('');
   const [traffic, setTraffic] = useState('');
@@ -65,6 +73,8 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
   );
   const [niche, setNiche] = useState('');
   const [categories, setCategories] = useState('');
+  const [linkType, setLinkType] = useState('');
+  const [sponsoredTag, setSponsoredTag] = useState('');
   const [isQuarantined, setIsQuarantined] = useState(false);
   const [reason, setReason] = useState('');
 
@@ -101,6 +111,8 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
     );
     setNiche(site.niche ?? '');
     setCategories(site.categories ?? '');
+    setLinkType(site.linkType ?? '');
+    setSponsoredTag(site.sponsoredTag ?? '');
     setIsQuarantined(Boolean(site.isQuarantined));
     setReason(site.quarantineReason ?? '');
     setFieldErrors({});
@@ -111,6 +123,8 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
   const isCasinoAvailable = priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available;
   const isCryptoAvailable = priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available;
   const isLinkInsertAvailable = priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available;
+  const linkTypeError = getFirstFieldError(fieldErrors, 'linkType', 'linkType');
+  const sponsoredTagError = getFirstFieldError(fieldErrors, 'sponsoredTag', 'sponsoredTag');
 
   const handleSave = async () => {
     if (!site) return;
@@ -186,6 +200,8 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
       priceLinkInsertStatus,
       niche: niche.trim() || null,
       categories: categories.trim() || null,
+      LinkType: linkType.trim() || null,
+      SponsoredTag: sponsoredTag.trim() || null,
       isQuarantined,
       quarantineReason: isQuarantined ? (reason.trim() || null) : null,
     };
@@ -423,6 +439,26 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Props) {
               fullWidth
               multiline
               minRows={2}
+            />
+
+            <TextField
+              label="Link Type"
+              value={linkType}
+              onChange={(e) => setLinkType(e.target.value)}
+              size="small"
+              fullWidth
+              error={Boolean(linkTypeError)}
+              helperText={linkTypeError}
+            />
+
+            <TextField
+              label="Sponsored Tag"
+              value={sponsoredTag}
+              onChange={(e) => setSponsoredTag(e.target.value)}
+              size="small"
+              fullWidth
+              error={Boolean(sponsoredTagError)}
+              helperText={sponsoredTagError}
             />
 
             <FormControlLabel
