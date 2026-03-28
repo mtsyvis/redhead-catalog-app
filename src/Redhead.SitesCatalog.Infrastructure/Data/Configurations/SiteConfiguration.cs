@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 
@@ -26,7 +27,7 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
 
         builder.Property(s => s.Domain)
             .IsRequired()
-            .HasMaxLength(255);
+            .HasMaxLength(SiteFieldLimits.DomainMaxLength);
 
         builder.Property(s => s.DR)
             .IsRequired();
@@ -36,7 +37,7 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
 
         builder.Property(s => s.Location)
             .IsRequired()
-            .HasMaxLength(100);
+            .HasMaxLength(SiteFieldLimits.LocationMaxLength);
 
         builder.HasIndex(s => s.Location);
 
@@ -78,10 +79,10 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
             .HasColumnType("text");
 
         builder.Property(s => s.LinkType)
-            .HasMaxLength(100);
+            .HasMaxLength(SiteFieldLimits.LinkTypeMaxLength);
 
         builder.Property(s => s.SponsoredTag)
-            .HasMaxLength(100);
+            .HasMaxLength(SiteFieldLimits.SponsoredTagMaxLength);
 
         builder.Property(s => s.IsQuarantined)
             .IsRequired();
@@ -89,7 +90,7 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.HasIndex(s => s.IsQuarantined);
 
         builder.Property(s => s.QuarantineReason)
-            .HasMaxLength(1000);
+            .HasMaxLength(SiteFieldLimits.QuarantineReasonMaxLength);
 
         builder.Property(s => s.QuarantineUpdatedAtUtc);
 

@@ -4,6 +4,7 @@ using Redhead.SitesCatalog.Api.Mappers;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
@@ -88,37 +89,36 @@ public class SitesController : ControllerBase
     [Authorize(Policy = AppPolicies.AdminAccess)]
     public async Task<ActionResult<SiteResponse>> UpdateSite(string domain, [FromBody] Models.Sites.UpdateSiteRequest request, CancellationToken cancellationToken)
     {
-        var validationErrors = UpdateSiteRequestValidator.Validate(request);
-        if (validationErrors != null)
+        var validationResult = SiteWriteValidator.ValidateAndNormalize(new SiteWriteInput
+        {
+            DR = request.DR,
+            Traffic = request.Traffic,
+            Location = request.Location,
+            LinkType = request.LinkType,
+            SponsoredTag = request.SponsoredTag,
+            PriceUsd = request.PriceUsd,
+            PriceCasino = request.PriceCasino,
+            PriceCasinoStatus = request.PriceCasinoStatus,
+            PriceCrypto = request.PriceCrypto,
+            PriceCryptoStatus = request.PriceCryptoStatus,
+            PriceLinkInsert = request.PriceLinkInsert,
+            PriceLinkInsertStatus = request.PriceLinkInsertStatus,
+            Niche = request.Niche,
+            Categories = request.Categories,
+            IsQuarantined = request.IsQuarantined,
+            QuarantineReason = request.QuarantineReason
+        });
+
+        if (!validationResult.IsValid)
         {
             return BadRequest(new
             {
                 message = "Validation failed",
-                fieldErrors = validationErrors
+                fieldErrors = validationResult.FieldErrors
             });
         }
 
-        var appRequest = new Redhead.SitesCatalog.Application.Models.UpdateSiteRequest
-        {
-            DR = request.DR!.Value,
-            Traffic = request.Traffic!.Value,
-            Location = request.Location!.Trim(),
-            LinkType = string.IsNullOrWhiteSpace(request.LinkType) ? null : request.LinkType.Trim(),
-            SponsoredTag = string.IsNullOrWhiteSpace(request.SponsoredTag) ? null : request.SponsoredTag.Trim(),
-            PriceUsd = request.PriceUsd!.Value,
-            PriceCasino = request.PriceCasino,
-            PriceCasinoStatus = UpdateSiteRequestValidator.ResolveStatusOrInfer(request.PriceCasino, request.PriceCasinoStatus),
-            PriceCrypto = request.PriceCrypto,
-            PriceCryptoStatus = UpdateSiteRequestValidator.ResolveStatusOrInfer(request.PriceCrypto, request.PriceCryptoStatus),
-            PriceLinkInsert = request.PriceLinkInsert,
-            PriceLinkInsertStatus = UpdateSiteRequestValidator.ResolveStatusOrInfer(request.PriceLinkInsert, request.PriceLinkInsertStatus),
-            Niche = string.IsNullOrWhiteSpace(request.Niche) ? null : request.Niche.Trim(),
-            Categories = string.IsNullOrWhiteSpace(request.Categories) ? null : request.Categories.Trim(),
-            IsQuarantined = request.IsQuarantined,
-            QuarantineReason = string.IsNullOrWhiteSpace(request.QuarantineReason) ? null : request.QuarantineReason.Trim()
-        };
-
-        var updated = await _sitesService.UpdateSiteAsync(domain, appRequest, cancellationToken);
+        var updated = await _sitesService.UpdateSiteAsync(domain, validationResult.NormalizedRequest!, cancellationToken);
 
         if (updated == null)
         {

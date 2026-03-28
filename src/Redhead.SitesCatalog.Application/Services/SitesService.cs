@@ -152,9 +152,9 @@ public class SitesService : ISitesService
         var now = DateTime.UtcNow;
         site.DR = request.DR;
         site.Traffic = request.Traffic;
-        site.Location = request.Location.Trim();
-        site.LinkType = string.IsNullOrWhiteSpace(request.LinkType) ? null : request.LinkType.Trim();
-        site.SponsoredTag = string.IsNullOrWhiteSpace(request.SponsoredTag) ? null : request.SponsoredTag.Trim();
+        site.Location = request.Location;
+        site.LinkType = request.LinkType;
+        site.SponsoredTag = request.SponsoredTag;
         site.PriceUsd = request.PriceUsd;
         site.PriceCasino = request.PriceCasino;
         site.PriceCasinoStatus = request.PriceCasinoStatus;
@@ -162,10 +162,10 @@ public class SitesService : ISitesService
         site.PriceCryptoStatus = request.PriceCryptoStatus;
         site.PriceLinkInsert = request.PriceLinkInsert;
         site.PriceLinkInsertStatus = request.PriceLinkInsertStatus;
-        site.Niche = string.IsNullOrWhiteSpace(request.Niche) ? null : request.Niche.Trim();
-        site.Categories = string.IsNullOrWhiteSpace(request.Categories) ? null : request.Categories.Trim();
+        site.Niche = request.Niche;
+        site.Categories = request.Categories;
         site.IsQuarantined = request.IsQuarantined;
-        site.QuarantineReason = request.IsQuarantined ? (string.IsNullOrWhiteSpace(request.QuarantineReason) ? null : request.QuarantineReason.Trim()) : null;
+        site.QuarantineReason = request.IsQuarantined ? request.QuarantineReason : null;
         site.QuarantineUpdatedAtUtc = request.IsQuarantined ? now : null;
         site.UpdatedAtUtc = now;
         await _context.SaveChangesAsync(cancellationToken);
