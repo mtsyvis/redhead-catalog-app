@@ -1,9 +1,14 @@
+import type { ExportLimitMode } from '../utils/exportLimit';
+
 export interface RoleSettingItem {
   role: string;
-  exportLimitRows: number;
+  exportLimitMode: ExportLimitMode;
+  exportLimitRows: number | null;
+  isEditable: boolean;
 }
 
 export interface RoleSettingUpdateItem {
   role: string;
-  exportLimitRows: number;
+  exportLimitMode: ExportLimitMode;
+  exportLimitRows: number | null;
 }

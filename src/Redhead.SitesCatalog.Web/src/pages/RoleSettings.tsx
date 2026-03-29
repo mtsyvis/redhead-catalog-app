@@ -13,33 +13,52 @@ import {
   TableHead,
   TableRow,
   CircularProgress,
+  Select,
+  MenuItem,
+  FormControl,
+  FormHelperText,
 } from '@mui/material';
 import { PageShell } from '../components/layout/PageShell';
 import { BrandButton } from '../components/common/BrandButton';
-import { useAuth } from '../contexts/AuthContext';
+import { useUserRoles } from '../hooks/useUserRoles';
 import { roleSettingsService } from '../services/roleSettings.service';
 import { ApiClientError } from '../services/api.client';
+import type { RoleSettingItem } from '../types/roleSettings.types';
+import type { ExportLimitMode } from '../utils/exportLimit';
 
 const ROLE_ORDER = ['SuperAdmin', 'Admin', 'Internal', 'Client'] as const;
 
+type RoleLocalState = { mode: ExportLimitMode; rows: string };
+
+function parsePositiveInt(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const n = Number.parseInt(trimmed, 10);
+  if (Number.isNaN(n) || n <= 0 || String(n) !== trimmed) return null;
+  return n;
+}
+
 export const RoleSettings: React.FC = () => {
-  const { user } = useAuth();
+  const { isAdmin } = useUserRoles();
   const [loading, setLoading] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [localValues, setLocalValues] = useState<Record<string, string>>({});
-
-  const isAdmin = user?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
+  const [serverItems, setServerItems] = useState<RoleSettingItem[]>([]);
+  const [localValues, setLocalValues] = useState<Record<string, RoleLocalState>>({});
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const list = await roleSettingsService.list();
-      const initial: Record<string, string> = {};
+      setServerItems(list);
+      const initial: Record<string, RoleLocalState> = {};
       list.forEach((row) => {
-        initial[row.role] = String(row.exportLimitRows);
+        initial[row.role] = {
+          mode: row.exportLimitMode,
+          rows: row.exportLimitRows !== null ? String(row.exportLimitRows) : '',
+        };
       });
       setLocalValues(initial);
     } catch (err) {
@@ -53,36 +72,47 @@ export const RoleSettings: React.FC = () => {
     loadSettings();
   }, [loadSettings]);
 
-  const handleExportLimitChange = (role: string, value: string) => {
-    setLocalValues((prev) => ({ ...prev, [role]: value }));
+  const handleModeChange = (role: string, mode: ExportLimitMode) => {
+    setLocalValues((prev) => ({
+      ...prev,
+      [role]: { mode, rows: mode === 'Limited' ? (prev[role]?.rows ?? '') : '' },
+    }));
     setSuccess(null);
     setError(null);
   };
 
-  const validateRow = (role: string): number | null => {
-    const raw = localValues[role]?.trim() ?? '';
-    if (raw === '') return null;
-    const n = Number.parseInt(raw, 10);
-    if (Number.isNaN(n) || n < 0 || String(n) !== raw) return null;
-    return n;
+  const handleRowsChange = (role: string, value: string) => {
+    setLocalValues((prev) => ({ ...prev, [role]: { ...prev[role], rows: value } }));
+    setSuccess(null);
+    setError(null);
   };
 
-  const allValid = (): boolean => {
-    return ROLE_ORDER.every((role) => validateRow(role) !== null);
-  };
+  const isEditableFor = (role: string) =>
+    serverItems.find((r) => r.role === role)?.isEditable ?? true;
+
+  const allValid = (): boolean =>
+    ROLE_ORDER.every((role) => {
+      if (!isEditableFor(role)) return true;
+      const state = localValues[role];
+      if (!state) return false;
+      if (state.mode !== 'Limited') return true;
+      return parsePositiveInt(state.rows) !== null;
+    });
 
   const handleSave = async () => {
     if (!allValid()) {
-      setError('Export limit must be an integer ≥ 0 for all roles.');
+      setError('Enter a positive number of rows for all Limited roles.');
       return;
     }
     setError(null);
     setSuccess(null);
     setSaveLoading(true);
     try {
-      const payload = ROLE_ORDER.map((role) => ({
+      const payload = ROLE_ORDER.filter((role) => isEditableFor(role)).map((role) => ({
         role,
-        exportLimitRows: validateRow(role) as number,
+        exportLimitMode: localValues[role].mode,
+        exportLimitRows:
+          localValues[role].mode === 'Limited' ? parsePositiveInt(localValues[role].rows) : null,
       }));
       await roleSettingsService.update(payload);
       setSuccess('Role settings saved.');
@@ -100,7 +130,7 @@ export const RoleSettings: React.FC = () => {
   return (
     <PageShell title="Role Settings" maxWidth="md">
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        0 = export disabled for that role. A large number = effectively unlimited.
+        Configure export access per role: Disabled, Limited by rows, or Unlimited.
       </Typography>
 
       {error && (
@@ -125,31 +155,56 @@ export const RoleSettings: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>Role</TableCell>
-                  <TableCell align="right">Export limit (rows)</TableCell>
+                  <TableCell>Export access</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {ROLE_ORDER.map((role) => {
-                  const value = localValues[role] ?? '';
-                  const parsed = Number.parseInt(value, 10);
-                  const invalid =
-                    value !== '' &&
-                    (Number.isNaN(parsed) || parsed < 0);
+                  const editable = isEditableFor(role);
+                  const state = localValues[role] ?? { mode: 'Disabled' as ExportLimitMode, rows: '' };
+                  const rowsInvalid =
+                    state.mode === 'Limited' &&
+                    state.rows !== '' &&
+                    parsePositiveInt(state.rows) === null;
+
                   return (
                     <TableRow key={role}>
                       <TableCell>{role}</TableCell>
-                      <TableCell align="right">
-                        <TextField
-                          type="number"
-                          size="small"
-                          value={value}
-                          onChange={(e) =>
-                            handleExportLimitChange(role, e.target.value)
-                          }
-                          slotProps={{ htmlInput: { min: 0, step: 1 } }}
-                          error={invalid}
-                          sx={{ width: 140 }}
-                        />
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <FormControl size="small">
+                            <Select
+                              value={state.mode}
+                              onChange={(e) =>
+                                handleModeChange(role, e.target.value as ExportLimitMode)
+                              }
+                              disabled={!editable}
+                              sx={{ minWidth: 130 }}
+                            >
+                              <MenuItem value="Disabled">Disabled</MenuItem>
+                              <MenuItem value="Limited">Limited</MenuItem>
+                              <MenuItem value="Unlimited">Unlimited</MenuItem>
+                            </Select>
+                            {!editable && (
+                              <FormHelperText>Fixed system setting</FormHelperText>
+                            )}
+                          </FormControl>
+
+                          {state.mode === 'Limited' && (
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={state.rows}
+                              onChange={(e) => handleRowsChange(role, e.target.value)}
+                              slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                              error={rowsInvalid}
+                              helperText={rowsInvalid ? 'Positive integer required' : undefined}
+                              disabled={!editable}
+                              sx={{ width: 140 }}
+                              placeholder="Rows"
+                            />
+                          )}
+                        </Box>
                       </TableCell>
                     </TableRow>
                   );
@@ -158,10 +213,7 @@ export const RoleSettings: React.FC = () => {
             </Table>
           </TableContainer>
           <Box>
-            <BrandButton
-              onClick={handleSave}
-              disabled={saveLoading || !allValid()}
-            >
+            <BrandButton onClick={handleSave} disabled={saveLoading || !allValid()}>
               {saveLoading ? (
                 <>
                   <CircularProgress size={20} sx={{ mr: 1 }} color="inherit" />

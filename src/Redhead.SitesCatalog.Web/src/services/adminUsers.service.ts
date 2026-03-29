@@ -4,6 +4,7 @@ import type {
   CreateUserRequest,
   CreateUserResponse,
   ResetPasswordResponse,
+  UpdateExportLimitRequest,
 } from '../types/adminUsers.types';
 
 export const adminUsersService = {
@@ -21,5 +22,9 @@ export const adminUsersService = {
 
   disable(id: string): Promise<{ message: string }> {
     return ApiClient.post<{ message: string }>(`/api/admin/users/${id}/disable`);
+  },
+
+  updateExportLimit(id: string, data: UpdateExportLimitRequest): Promise<void> {
+    return ApiClient.put<void, UpdateExportLimitRequest>(`/api/admin/users/${id}/export-limit`, data);
   },
 };

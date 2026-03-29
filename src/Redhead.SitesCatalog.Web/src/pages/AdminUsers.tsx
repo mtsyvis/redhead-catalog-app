@@ -27,13 +27,28 @@ import { PageShell } from '../components/layout/PageShell';
 import { BrandButton } from '../components/common/BrandButton';
 import { useAuth } from '../contexts/AuthContext';
 import { adminUsersService } from '../services/adminUsers.service';
+import { roleSettingsService } from '../services/roleSettings.service';
 import type { UserListItem as UserListItemType } from '../types/adminUsers.types';
 import { ROLES } from '../types/adminUsers.types';
+import type { RoleSettingItem } from '../types/roleSettings.types';
+import type { ExportLimitMode } from '../utils/exportLimit';
+import { formatExportLimit } from '../utils/exportLimit';
 import { ApiClientError } from '../services/api.client';
+
+type ExportLimitOverrideOption = 'role-default' | ExportLimitMode;
+
+function parsePositiveInt(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const n = Number.parseInt(trimmed, 10);
+  if (Number.isNaN(n) || n <= 0 || String(n) !== trimmed) return null;
+  return n;
+}
 
 export const AdminUsers: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserListItemType[]>([]);
+  const [roleSettings, setRoleSettings] = useState<RoleSettingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,6 +67,12 @@ export const AdminUsers: React.FC = () => {
   const [resetPasswordConfirmUser, setResetPasswordConfirmUser] = useState<UserListItemType | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
+  const [editExportLimitUser, setEditExportLimitUser] = useState<UserListItemType | null>(null);
+  const [exportLimitOption, setExportLimitOption] = useState<ExportLimitOverrideOption>('role-default');
+  const [exportLimitRowsInput, setExportLimitRowsInput] = useState('');
+  const [exportLimitSaveLoading, setExportLimitSaveLoading] = useState(false);
+  const [exportLimitError, setExportLimitError] = useState<string | null>(null);
+
   const isAdmin = currentUser?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
   const isSuperAdmin = currentUser?.roles?.includes('SuperAdmin');
   const allowedRoles = isSuperAdmin ? ROLES : ROLES.filter((r) => r !== 'SuperAdmin');
@@ -60,8 +81,12 @@ export const AdminUsers: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const list = await adminUsersService.list();
+      const [list, settings] = await Promise.all([
+        adminUsersService.list(),
+        roleSettingsService.list(),
+      ]);
       setUsers(list);
+      setRoleSettings(settings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
@@ -136,6 +161,66 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
+  const handleOpenEditExportLimit = (u: UserListItemType) => {
+    setEditExportLimitUser(u);
+    if (u.exportLimitOverrideMode === null) {
+      setExportLimitOption('role-default');
+      setExportLimitRowsInput('');
+    } else {
+      setExportLimitOption(u.exportLimitOverrideMode);
+      setExportLimitRowsInput(
+        u.exportLimitOverrideMode === 'Limited' && u.exportLimitRowsOverride !== null
+          ? String(u.exportLimitRowsOverride)
+          : '',
+      );
+    }
+    setExportLimitError(null);
+  };
+
+  const handleExportLimitOptionChange = (option: ExportLimitOverrideOption) => {
+    setExportLimitOption(option);
+    if (option !== 'Limited') setExportLimitRowsInput('');
+    setExportLimitError(null);
+  };
+
+  const handleCloseExportLimit = () => {
+    if (exportLimitSaveLoading) return;
+    setEditExportLimitUser(null);
+  };
+
+  const handleSaveExportLimit = async () => {
+    if (!editExportLimitUser) return;
+
+    let overrideMode: ExportLimitMode | null = null;
+    let overrideRows: number | null = null;
+
+    if (exportLimitOption !== 'role-default') {
+      overrideMode = exportLimitOption;
+      if (exportLimitOption === 'Limited') {
+        const parsed = parsePositiveInt(exportLimitRowsInput);
+        if (parsed === null) {
+          setExportLimitError('Enter a positive integer (no decimals, no zero).');
+          return;
+        }
+        overrideRows = parsed;
+      }
+    }
+
+    setExportLimitError(null);
+    setExportLimitSaveLoading(true);
+    try {
+      await adminUsersService.updateExportLimit(editExportLimitUser.id, { overrideMode, overrideRows });
+      setEditExportLimitUser(null);
+      await loadUsers();
+    } catch (err) {
+      setExportLimitError(
+        err instanceof ApiClientError ? err.message : 'Failed to save export limit.',
+      );
+    } finally {
+      setExportLimitSaveLoading(false);
+    }
+  };
+
   const canModifyUser = (targetRole: string): boolean => {
     if (isSuperAdmin) return true;
     return targetRole !== 'SuperAdmin' && targetRole !== 'Admin';
@@ -147,9 +232,34 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
+  const getExportLimitPreview = (): string | null => {
+    if (!editExportLimitUser) return null;
+    if (exportLimitOption === 'role-default') {
+      const roleDefault = roleSettings.find((r) => r.role === editExportLimitUser.role);
+      if (!roleDefault) return null;
+      return `Effective export limit: ${formatExportLimit(roleDefault.exportLimitMode, roleDefault.exportLimitRows)}`;
+    }
+    if (exportLimitOption === 'Disabled') return 'Effective export limit: Disabled';
+    if (exportLimitOption === 'Unlimited') return 'Effective export limit: Unlimited';
+    if (exportLimitOption === 'Limited') {
+      const parsed = parsePositiveInt(exportLimitRowsInput);
+      if (parsed === null) return null;
+      return `Effective export limit: ${parsed} rows`;
+    }
+    return null;
+  };
+
+  const getRoleDefaultText = (role: string): string => {
+    const item = roleSettings.find((r) => r.role === role);
+    if (!item) return '—';
+    return `Role default: ${formatExportLimit(item.exportLimitMode, item.exportLimitRows)}`;
+  };
+
   if (!isAdmin) {
     return <Navigate to="/sites" replace />;
   }
+
+  const exportLimitPreview = getExportLimitPreview();
 
   return (
     <PageShell title="Users" maxWidth="lg">
@@ -216,9 +326,8 @@ export const AdminUsers: React.FC = () => {
                 <TableCell>Email</TableCell>
                 <TableCell>Role</TableCell>
                 <TableCell>Status</TableCell>
-                {isSuperAdmin && (
-                  <TableCell align="right">Actions</TableCell>
-                )}
+                <TableCell>Export limit</TableCell>
+                {isSuperAdmin && <TableCell align="right">Actions</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -233,32 +342,56 @@ export const AdminUsers: React.FC = () => {
                       size="small"
                     />
                   </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {formatExportLimit(u.effectiveExportLimitMode, u.effectiveExportLimitRows)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {!u.isExportLimitEditable
+                        ? 'Fixed for SuperAdmin'
+                        : u.isExportLimitOverridden
+                          ? 'Personal override'
+                          : 'Inherited from role'}
+                    </Typography>
+                  </TableCell>
                   {isSuperAdmin && (
                     <TableCell align="right">
-                      {u.isActive && canModifyUser(u.role) && (
-                        <Box sx={{ display: 'inline-flex', gap: 1 }}>
+                      <Box sx={{ display: 'inline-flex', gap: 1, justifyContent: 'flex-end' }}>
+                        {u.isActive && canModifyUser(u.role) && (
+                          <>
+                            <BrandButton
+                              kind="outline"
+                              size="small"
+                              onClick={() => handleResetPasswordClick(u)}
+                              disabled={actionLoadingId === u.id}
+                            >
+                              {actionLoadingId === u.id ? (
+                                <CircularProgress size={18} />
+                              ) : (
+                                'Reset password'
+                              )}
+                            </BrandButton>
+                            <BrandButton
+                              kind="outline"
+                              size="small"
+                              onClick={() => handleDisableClick(u)}
+                              disabled={actionLoadingId === u.id}
+                            >
+                              Disable
+                            </BrandButton>
+                          </>
+                        )}
+                        {u.isActive && u.isExportLimitEditable && (
                           <BrandButton
                             kind="outline"
                             size="small"
-                            onClick={() => handleResetPasswordClick(u)}
+                            onClick={() => handleOpenEditExportLimit(u)}
                             disabled={actionLoadingId === u.id}
                           >
-                            {actionLoadingId === u.id ? (
-                              <CircularProgress size={18} />
-                            ) : (
-                              'Reset password'
-                            )}
+                            Edit export limit
                           </BrandButton>
-                          <BrandButton
-                            kind="outline"
-                            size="small"
-                            onClick={() => handleDisableClick(u)}
-                            disabled={actionLoadingId === u.id}
-                          >
-                            Disable
-                          </BrandButton>
-                        </Box>
-                      )}
+                        )}
+                      </Box>
                     </TableCell>
                   )}
                 </TableRow>
@@ -379,6 +512,83 @@ export const AdminUsers: React.FC = () => {
             Copy password
           </BrandButton>
           <BrandButton onClick={() => setTempPasswordDialog(null)}>Done</BrandButton>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={!!editExportLimitUser}
+        onClose={handleCloseExportLimit}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit export limit</DialogTitle>
+        <DialogContent>
+          {editExportLimitUser && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <Box>
+                <Typography variant="body2">
+                  <strong>{editExportLimitUser.email}</strong> · {editExportLimitUser.role}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {getRoleDefaultText(editExportLimitUser.role)}
+                </Typography>
+              </Box>
+
+              <FormControl fullWidth>
+                <InputLabel>Override</InputLabel>
+                <Select
+                  value={exportLimitOption}
+                  label="Override"
+                  onChange={(e) =>
+                    handleExportLimitOptionChange(e.target.value as ExportLimitOverrideOption)
+                  }
+                  disabled={exportLimitSaveLoading}
+                >
+                  <MenuItem value="role-default">Use role default</MenuItem>
+                  <MenuItem value="Disabled">Disabled</MenuItem>
+                  <MenuItem value="Limited">Limited</MenuItem>
+                  <MenuItem value="Unlimited">Unlimited</MenuItem>
+                </Select>
+              </FormControl>
+
+              {exportLimitOption === 'Limited' && (
+                <TextField
+                  label="Rows"
+                  type="number"
+                  value={exportLimitRowsInput}
+                  onChange={(e) => {
+                    setExportLimitRowsInput(e.target.value);
+                    setExportLimitError(null);
+                  }}
+                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                  disabled={exportLimitSaveLoading}
+                  required
+                  fullWidth
+                />
+              )}
+
+              {exportLimitPreview && (
+                <Typography variant="body2" color="text.secondary">
+                  {exportLimitPreview}
+                </Typography>
+              )}
+
+              {exportLimitError && (
+                <Alert severity="error">{exportLimitError}</Alert>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <BrandButton kind="outline" onClick={handleCloseExportLimit} disabled={exportLimitSaveLoading}>
+            Cancel
+          </BrandButton>
+          <BrandButton
+            onClick={handleSaveExportLimit}
+            disabled={exportLimitSaveLoading || !editExportLimitUser}
+          >
+            {exportLimitSaveLoading ? <CircularProgress size={24} color="inherit" /> : 'Save'}
+          </BrandButton>
         </DialogActions>
       </Dialog>
     </PageShell>
