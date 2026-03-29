@@ -1,10 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Services;
+using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -14,11 +18,16 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 public class AdminUsersController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ApplicationDbContext _context;
     private readonly ILogger<AdminUsersController> _logger;
 
-    public AdminUsersController(UserManager<ApplicationUser> userManager, ILogger<AdminUsersController> logger)
+    public AdminUsersController(
+        UserManager<ApplicationUser> userManager,
+        ApplicationDbContext context,
+        ILogger<AdminUsersController> logger)
     {
         _userManager = userManager;
+        _context = context;
         _logger = logger;
     }
 
@@ -74,16 +83,36 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<UserListItem>>> ListUsers()
+    public async Task<ActionResult<IReadOnlyList<UserListItem>>> ListUsers(CancellationToken cancellationToken)
     {
         var users = _userManager.Users.ToList();
-        var list = new List<UserListItem>();
+        var roleSettingsList = await _context.RoleSettings.ToListAsync(cancellationToken);
+        var roleSettingsMap = roleSettingsList.ToDictionary(rs => rs.RoleName);
 
-        foreach (var u in users)
+        var list = new List<UserListItem>();
+        foreach (var user in users)
         {
-            var roles = await _userManager.GetRolesAsync(u);
+            var roles = await _userManager.GetRolesAsync(user);
             var role = roles.FirstOrDefault() ?? string.Empty;
-            list.Add(new UserListItem(u.Id, u.Email ?? string.Empty, role, u.IsActive));
+            var isSuperAdmin = string.Equals(role, AppRoles.SuperAdmin, StringComparison.Ordinal);
+
+            var roleSettings = roleSettingsMap.TryGetValue(role, out var rs)
+                ? rs
+                : new RoleSettings { RoleName = role, ExportLimitMode = ExportLimitMode.Disabled };
+
+            var effectivePolicy = EffectiveExportPolicyResolver.Resolve(role, roleSettings, user);
+
+            list.Add(new UserListItem(
+                Id: user.Id,
+                Email: user.Email ?? string.Empty,
+                Role: role,
+                IsActive: user.IsActive,
+                ExportLimitOverrideMode: isSuperAdmin ? null : user.ExportLimitOverrideMode,
+                ExportLimitRowsOverride: isSuperAdmin ? null : user.ExportLimitRowsOverride,
+                EffectiveExportLimitMode: effectivePolicy.Mode,
+                EffectiveExportLimitRows: effectivePolicy.Rows,
+                IsExportLimitOverridden: effectivePolicy.IsOverridden,
+                IsExportLimitEditable: !isSuperAdmin));
         }
 
         return Ok(list);
@@ -152,5 +181,47 @@ public class AdminUsersController : ControllerBase
         _logger.LogInformation("User disabled: {Email}", target.Email);
 
         return Ok(new MessageResponse("User has been disabled."));
+    }
+
+    [HttpPut("{id}/export-limit")]
+    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    public async Task<ActionResult> UpdateUserExportLimit(
+        string id,
+        [FromBody] UpdateUserExportLimitRequest request,
+        CancellationToken cancellationToken)
+    {
+        var targetUser = await _userManager.FindByIdAsync(id);
+        if (targetUser == null)
+        {
+            return NotFound(new MessageResponse("User not found."));
+        }
+
+        var targetRoles = await _userManager.GetRolesAsync(targetUser);
+        var targetRole = targetRoles.FirstOrDefault() ?? string.Empty;
+
+        var roleError = UserExportLimitValidation.ValidateTargetRole(targetRole);
+        if (roleError != null)
+        {
+            return BadRequest(new MessageResponse(roleError));
+        }
+
+        var overrideError = UserExportLimitValidation.ValidateOverride(request);
+        if (overrideError != null)
+        {
+            return BadRequest(new MessageResponse(overrideError));
+        }
+
+        targetUser.ExportLimitOverrideMode = request.OverrideMode;
+        targetUser.ExportLimitRowsOverride = request.OverrideMode == ExportLimitMode.Limited
+            ? request.OverrideRows
+            : null;
+
+        await _userManager.UpdateAsync(targetUser);
+
+        _logger.LogInformation(
+            "Export limit override updated for user: {Email}, mode: {Mode}",
+            targetUser.Email, request.OverrideMode);
+
+        return NoContent();
     }
 }

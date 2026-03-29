@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Api.Models;
 
@@ -16,6 +17,16 @@ public record UserListItem(
     string Id,
     string Email,
     string Role,
-    bool IsActive);
+    bool IsActive,
+    ExportLimitMode? ExportLimitOverrideMode,
+    int? ExportLimitRowsOverride,
+    ExportLimitMode? EffectiveExportLimitMode,
+    int? EffectiveExportLimitRows,
+    bool IsExportLimitOverridden,
+    bool IsExportLimitEditable);
 
 public record ResetPasswordResponse(string TemporaryPassword);
+
+public record UpdateUserExportLimitRequest(
+    ExportLimitMode? OverrideMode,
+    int? OverrideRows);
