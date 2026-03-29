@@ -39,7 +39,8 @@ function parsePositiveInt(value: string): number | null {
 }
 
 export const RoleSettings: React.FC = () => {
-  const { isAdmin } = useUserRoles();
+  const { isAdmin, isSuperAdmin } = useUserRoles();
+  const canEditRoleSettings = isSuperAdmin;
   const [loading, setLoading] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,12 +88,14 @@ export const RoleSettings: React.FC = () => {
     setError(null);
   };
 
-  const isEditableFor = (role: string) =>
+  const isRowEditableFromApi = (role: string) =>
     serverItems.find((r) => r.role === role)?.isEditable ?? true;
+
+  const isEditableFor = (role: string) => isRowEditableFromApi(role) && canEditRoleSettings;
 
   const allValid = (): boolean =>
     ROLE_ORDER.every((role) => {
-      if (!isEditableFor(role)) return true;
+      if (!isRowEditableFromApi(role) || !canEditRoleSettings) return true;
       const state = localValues[role];
       if (!state) return false;
       if (state.mode !== 'Limited') return true;
@@ -100,6 +103,7 @@ export const RoleSettings: React.FC = () => {
     });
 
   const handleSave = async () => {
+    if (!canEditRoleSettings) return;
     if (!allValid()) {
       setError('Enter a positive number of rows for all Limited roles.');
       return;
@@ -108,7 +112,7 @@ export const RoleSettings: React.FC = () => {
     setSuccess(null);
     setSaveLoading(true);
     try {
-      const payload = ROLE_ORDER.filter((role) => isEditableFor(role)).map((role) => ({
+      const payload = ROLE_ORDER.filter((role) => isRowEditableFromApi(role)).map((role) => ({
         role,
         exportLimitMode: localValues[role].mode,
         exportLimitRows:
@@ -132,6 +136,12 @@ export const RoleSettings: React.FC = () => {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         Configure export access per role: Disabled, Limited by rows, or Unlimited.
       </Typography>
+
+      {isAdmin && !canEditRoleSettings && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          View only. Only a Super Admin can change these settings.
+        </Alert>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -185,7 +195,7 @@ export const RoleSettings: React.FC = () => {
                               <MenuItem value="Limited">Limited</MenuItem>
                               <MenuItem value="Unlimited">Unlimited</MenuItem>
                             </Select>
-                            {!editable && (
+                            {!isRowEditableFromApi(role) && (
                               <FormHelperText>Fixed system setting</FormHelperText>
                             )}
                           </FormControl>
@@ -212,18 +222,20 @@ export const RoleSettings: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
-          <Box>
-            <BrandButton onClick={handleSave} disabled={saveLoading || !allValid()}>
-              {saveLoading ? (
-                <>
-                  <CircularProgress size={20} sx={{ mr: 1 }} color="inherit" />
-                  Saving…
-                </>
-              ) : (
-                'Save'
-              )}
-            </BrandButton>
-          </Box>
+          {canEditRoleSettings && (
+            <Box>
+              <BrandButton onClick={handleSave} disabled={saveLoading || !allValid()}>
+                {saveLoading ? (
+                  <>
+                    <CircularProgress size={20} sx={{ mr: 1 }} color="inherit" />
+                    Saving…
+                  </>
+                ) : (
+                  'Save'
+                )}
+              </BrandButton>
+            </Box>
+          )}
         </>
       )}
     </PageShell>
