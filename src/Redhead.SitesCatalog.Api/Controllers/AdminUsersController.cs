@@ -115,7 +115,13 @@ public class AdminUsersController : ControllerBase
                 IsExportLimitEditable: !isSuperAdmin));
         }
 
-        return Ok(list);
+        var orderedList = list
+            .OrderBy(item => item.IsActive ? 0 : 1)
+            .ThenBy(item => GetRoleOrder(item.Role))
+            .ThenBy(item => item.Email, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return Ok(orderedList);
     }
 
     [HttpPost("{id}/reset-password")]
@@ -224,4 +230,13 @@ public class AdminUsersController : ControllerBase
 
         return NoContent();
     }
+
+    private static int GetRoleOrder(string role) => role switch
+    {
+        AppRoles.SuperAdmin => 0,
+        AppRoles.Admin => 1,
+        AppRoles.Internal => 2,
+        AppRoles.Client => 3,
+        _ => int.MaxValue,
+    };
 }
