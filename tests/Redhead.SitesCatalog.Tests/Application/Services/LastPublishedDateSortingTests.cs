@@ -178,14 +178,14 @@ public class LastPublishedDateSortingTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        var stream = await _exportService.ExportSitesAsCsvAsync(
+        var result = await _exportService.ExportSitesAsCsvAsync(
             query,
             "user-id",
             "user@example.com",
             AppRoles.Admin,
             CancellationToken.None);
 
-        var sites = await ReadCsvFromStream(stream);
+        var sites = await ReadCsvFromStream(result.CsvStream);
         var domains = sites.Select(s => s.Domain).ToList();
         Assert.Equal(5, domains.Count);
         Assert.Equal("a.com", domains[0]);

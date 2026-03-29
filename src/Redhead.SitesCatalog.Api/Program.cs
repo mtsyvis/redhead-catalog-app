@@ -124,7 +124,12 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:5173", "http://localhost:5174")
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // Important for cookie auth
+              .AllowCredentials() // Important for cookie auth
+              .WithExposedHeaders(
+                  "X-Export-Requested-Rows",
+                  "X-Export-Exported-Rows",
+                  "X-Export-Truncated",
+                  "X-Export-Limit-Rows");
     });
 });
 

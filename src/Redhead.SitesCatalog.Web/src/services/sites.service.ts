@@ -9,6 +9,13 @@ import type {
   UpdateSitePayload,
 } from '../types/sites.types';
 
+export interface ExportMetadata {
+  requestedRows: number;
+  exportedRows: number;
+  truncated: boolean;
+  limitRows?: number;
+}
+
 /**
  * Service for sites-related API calls
  */
@@ -111,9 +118,9 @@ class SitesService {
   }
 
   /**
-   * Export sites as CSV with current filters
+   * Export sites as CSV with current filters. Returns metadata from response headers.
    */
-  async exportSites(params: SitesQueryParams): Promise<void> {
+  async exportSites(params: SitesQueryParams): Promise<ExportMetadata> {
     const queryParams = new URLSearchParams();
 
     // Pagination (not used for export, but kept for consistency)
@@ -185,6 +192,8 @@ class SitesService {
       throw new Error((error as { error?: string }).error || 'Export failed');
     }
 
+    const metadata = readExportMetadata(response.headers);
+
     const blob = await response.blob();
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -194,12 +203,15 @@ class SitesService {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
+
+    return metadata;
   }
 
   /**
    * Export multi-search result as CSV (filtered Found + all Not found). Uses POST.
+   * Returns metadata from response headers.
    */
-  async exportSitesMultiSearch(payload: ExportMultiSearchPayload): Promise<void> {
+  async exportSitesMultiSearch(payload: ExportMultiSearchPayload): Promise<ExportMetadata> {
     const baseUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
     const response = await fetch(`${baseUrl}/api/export/sites-multi-search.csv`, {
       method: 'POST',
@@ -213,6 +225,8 @@ class SitesService {
       throw new Error((error as { detail?: string }).detail || 'Export failed');
     }
 
+    const metadata = readExportMetadata(response.headers);
+
     const blob = await response.blob();
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -222,7 +236,20 @@ class SitesService {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
+
+    return metadata;
   }
 }
 
 export const sitesService = new SitesService();
+
+function readExportMetadata(headers: Headers): ExportMetadata {
+  return {
+    requestedRows: parseInt(headers.get('X-Export-Requested-Rows') ?? '0', 10),
+    exportedRows: parseInt(headers.get('X-Export-Exported-Rows') ?? '0', 10),
+    truncated: headers.get('X-Export-Truncated') === 'true',
+    limitRows: headers.has('X-Export-Limit-Rows')
+      ? parseInt(headers.get('X-Export-Limit-Rows')!, 10)
+      : undefined,
+  };
+}

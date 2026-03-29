@@ -120,43 +120,38 @@ public class ExportServiceTests : IDisposable
         _context.SaveChanges();
     }
 
+    private static SitesQuery DefaultQuery() => new()
+    {
+        Page = 1,
+        PageSize = 10,
+        SortBy = SortFields.Domain,
+        SortDir = SortingDefaults.Ascending,
+        Quarantine = QuarantineFilterValues.All
+    };
+
     #region Export Success Tests
 
     [Fact]
     public async Task ExportSitesAsCsvAsync_WithValidRole_ReturnsStreamWithCsvData()
     {
-        // Arrange
-        var query = new SitesQuery
-        {
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        // Act
-        var stream = await _service.ExportSitesAsCsvAsync(
-            query,
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(),
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        // Assert
-        Assert.NotNull(stream);
-        Assert.True(stream.Length > 0);
-        Assert.Equal(0, stream.Position); // Stream should be at start
+        Assert.NotNull(result);
+        Assert.True(result.CsvStream.Length > 0);
+        Assert.Equal(0, result.CsvStream.Position);
 
-        // Read CSV content
-        var sites = await ReadCsvFromStream(stream);
+        var sites = await ReadCsvFromStream(result.CsvStream);
         Assert.Equal(3, sites.Count);
     }
 
     [Fact]
     public async Task ExportSitesAsCsvAsync_WithFilters_ExportsOnlyMatchingSites()
     {
-        // Arrange
         var query = new SitesQuery
         {
             DrMin = 60,
@@ -167,16 +162,14 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        // Act
-        var stream = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsCsvAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        // Assert
-        var sites = await ReadCsvFromStream(stream);
+        var sites = await ReadCsvFromStream(result.CsvStream);
         Assert.Equal(2, sites.Count); // test.com(70) and gambling.com(90)
         Assert.All(sites, site => Assert.True(site.DR >= 60));
     }
@@ -213,14 +206,14 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        var stream = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsCsvAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var sites = await ReadCsvFromStream(stream);
+        var sites = await ReadCsvFromStream(result.CsvStream);
         Assert.Single(sites);
         Assert.Equal("no-casino.com", sites[0].Domain);
     }
@@ -228,7 +221,6 @@ public class ExportServiceTests : IDisposable
     [Fact]
     public async Task ExportSitesAsCsvAsync_WithQuarantineExclude_ExcludesQuarantinedSites()
     {
-        // Arrange
         var query = new SitesQuery
         {
             Page = 1,
@@ -238,16 +230,14 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.Exclude
         };
 
-        // Act
-        var stream = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsCsvAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        // Assert
-        var sites = await ReadCsvFromStream(stream);
+        var sites = await ReadCsvFromStream(result.CsvStream);
         Assert.Equal(2, sites.Count); // example.com and test.com
         Assert.All(sites, site => Assert.False(site.IsQuarantined));
     }
@@ -255,7 +245,6 @@ public class ExportServiceTests : IDisposable
     [Fact]
     public async Task ExportSitesAsCsvAsync_WithSorting_ReturnsSortedData()
     {
-        // Arrange
         var query = new SitesQuery
         {
             Page = 1,
@@ -265,16 +254,14 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        // Act
-        var stream = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsCsvAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        // Assert
-        var sites = await ReadCsvFromStream(stream);
+        var sites = await ReadCsvFromStream(result.CsvStream);
         Assert.Equal(3, sites.Count);
         Assert.Equal(90, sites[0].DR); // gambling.com
         Assert.Equal(70, sites[1].DR); // test.com
@@ -284,23 +271,14 @@ public class ExportServiceTests : IDisposable
     [Fact]
     public async Task ExportSitesAsCsvAsync_WithClientRole_UsesExpectedHeaderOrder()
     {
-        var query = new SitesQuery
-        {
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        var stream = await _service.ExportSitesAsCsvAsync(
-            query,
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(),
             TestUserId,
             TestUserEmail,
             AppRoles.Client,
             CancellationToken.None);
 
-        var headers = await ReadCsvHeaderFromStream(stream);
+        var headers = await ReadCsvHeaderFromStream(result.CsvStream);
         Assert.Equal(
             [
                 "Domain",
@@ -322,23 +300,14 @@ public class ExportServiceTests : IDisposable
     [Fact]
     public async Task ExportSitesAsCsvAsync_WithAdminRole_UsesExpectedHeaderOrder()
     {
-        var query = new SitesQuery
-        {
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        var stream = await _service.ExportSitesAsCsvAsync(
-            query,
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(),
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var headers = await ReadCsvHeaderFromStream(stream);
+        var headers = await ReadCsvHeaderFromStream(result.CsvStream);
         Assert.Equal(
             [
                 "Domain",
@@ -394,14 +363,14 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        var stream = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsCsvAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var rows = await ReadCsvRowsFromStream(stream);
+        var rows = await ReadCsvRowsFromStream(result.CsvStream);
         Assert.Single(rows);
         Assert.Equal("NO", rows[0]["PriceCasino"]);
         Assert.Equal(string.Empty, rows[0]["PriceCrypto"]);
@@ -410,12 +379,139 @@ public class ExportServiceTests : IDisposable
 
     #endregion
 
-    #region Role Limit Tests
+    #region Export Policy Tests
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_Unlimited_AllRowsExported_TruncatedFalse()
+    {
+        // Admin role is Unlimited — all 3 seeded sites should be exported
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        Assert.Equal(3, result.RequestedRows);
+        Assert.Equal(3, result.ExportedRows);
+        Assert.False(result.Truncated);
+        Assert.Null(result.LimitRows);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_Limited_UnderLimit_AllRowsExported_TruncatedFalse()
+    {
+        // Client role has limit 5000; only 3 sites seeded — no truncation
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        Assert.Equal(3, result.RequestedRows);
+        Assert.Equal(3, result.ExportedRows);
+        Assert.False(result.Truncated);
+        Assert.Equal(5000, result.LimitRows);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_Limited_OverLimit_TruncatedTrue_HeadersCorrect()
+    {
+        // Create a role with limit 2 — 3 sites seeded, so 1 is truncated
+        _context.RoleSettings.Add(new RoleSettings
+        {
+            RoleName = "TinyLimitRole",
+            ExportLimitMode = ExportLimitMode.Limited,
+            ExportLimitRows = 2
+        });
+        await _context.SaveChangesAsync();
+
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            "TinyLimitRole",
+            CancellationToken.None);
+
+        Assert.Equal(3, result.RequestedRows);
+        Assert.Equal(2, result.ExportedRows);
+        Assert.True(result.Truncated);
+        Assert.Equal(2, result.LimitRows);
+
+        var sites = await ReadCsvFromStream(result.CsvStream);
+        Assert.Equal(2, sites.Count);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_WithDisabledRole_ThrowsExportDisabledException()
+    {
+        var exception = await Assert.ThrowsAsync<ExportDisabledException>(
+            () => _service.ExportSitesAsCsvAsync(
+                DefaultQuery(),
+                TestUserId,
+                TestUserEmail,
+                "DisabledRole",
+                CancellationToken.None));
+
+        Assert.Equal(ExportConstants.ExportDisabledMessage, exception.Message);
+        Assert.Equal("DisabledRole", exception.RoleName);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_UserOverride_Disabled_ThrowsExportDisabledException()
+    {
+        // User has a Disabled override even though role (Admin) is Unlimited
+        var user = new ApplicationUser
+        {
+            Id = TestUserId,
+            UserName = TestUserEmail,
+            Email = TestUserEmail,
+            ExportLimitOverrideMode = ExportLimitMode.Disabled
+        };
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ExportDisabledException>(
+            () => _service.ExportSitesAsCsvAsync(
+                DefaultQuery(),
+                TestUserId,
+                TestUserEmail,
+                AppRoles.Admin,
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_UserOverride_Limited_OverridesRolePolicy()
+    {
+        // User has override limit of 1; role (Admin) is Unlimited — override wins
+        var user = new ApplicationUser
+        {
+            Id = TestUserId,
+            UserName = TestUserEmail,
+            Email = TestUserEmail,
+            ExportLimitOverrideMode = ExportLimitMode.Limited,
+            ExportLimitRowsOverride = 1
+        };
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        Assert.Equal(3, result.RequestedRows);
+        Assert.Equal(1, result.ExportedRows);
+        Assert.True(result.Truncated);
+        Assert.Equal(1, result.LimitRows);
+    }
 
     [Fact]
     public async Task ExportSitesAsCsvAsync_WithLimitSmallerThanResults_EnforcesLimit()
     {
-        // Arrange - Add more sites to exceed limit
         for (int i = 0; i < 10; i++)
         {
             _context.Sites.Add(new Site
@@ -432,76 +528,31 @@ public class ExportServiceTests : IDisposable
         }
         await _context.SaveChangesAsync();
 
-        // Create a role with small limit
-        var roleSettings = new RoleSettings { RoleName = "LimitedRole", ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 5 };
-        _context.RoleSettings.Add(roleSettings);
+        _context.RoleSettings.Add(new RoleSettings
+        {
+            RoleName = "LimitedRole",
+            ExportLimitMode = ExportLimitMode.Limited,
+            ExportLimitRows = 5
+        });
         await _context.SaveChangesAsync();
 
-        var query = new SitesQuery
-        {
-            Page = 1,
-            PageSize = 100,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        // Act
-        var stream = await _service.ExportSitesAsCsvAsync(
-            query,
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(),
             TestUserId,
             TestUserEmail,
             "LimitedRole",
             CancellationToken.None);
 
-        // Assert
-        var sites = await ReadCsvFromStream(stream);
-        Assert.Equal(5, sites.Count); // Should be limited to 5
-    }
-
-    [Fact]
-    public async Task ExportSitesAsCsvAsync_WithDisabledRole_ThrowsExportDisabledException()
-    {
-        // Arrange
-        var query = new SitesQuery
-        {
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<ExportDisabledException>(
-            () => _service.ExportSitesAsCsvAsync(
-                query,
-                TestUserId,
-                TestUserEmail,
-                "DisabledRole",
-                CancellationToken.None));
-
-        Assert.Equal(ExportConstants.ExportDisabledMessage, exception.Message);
-        Assert.Equal("DisabledRole", exception.RoleName);
+        var sites = await ReadCsvFromStream(result.CsvStream);
+        Assert.Equal(5, sites.Count);
     }
 
     [Fact]
     public async Task ExportSitesAsCsvAsync_WithNonExistentRole_ThrowsRoleSettingsNotFoundException()
     {
-        // Arrange
-        var query = new SitesQuery
-        {
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        // Act & Assert
         var exception = await Assert.ThrowsAsync<RoleSettingsNotFoundException>(
             () => _service.ExportSitesAsCsvAsync(
-                query,
+                DefaultQuery(),
                 TestUserId,
                 TestUserEmail,
                 "NonExistentRole",
@@ -518,7 +569,6 @@ public class ExportServiceTests : IDisposable
     [Fact]
     public async Task ExportSitesAsCsvAsync_CreatesExportLog()
     {
-        // Arrange
         var query = new SitesQuery
         {
             DrMin = 60,
@@ -529,7 +579,6 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        // Act
         await _service.ExportSitesAsCsvAsync(
             query,
             TestUserId,
@@ -537,7 +586,6 @@ public class ExportServiceTests : IDisposable
             AppRoles.Admin,
             CancellationToken.None);
 
-        // Assert
         var exportLog = await _context.ExportLogs.FirstOrDefaultAsync();
         Assert.NotNull(exportLog);
         Assert.Equal(TestUserId, exportLog.UserId);
@@ -551,7 +599,6 @@ public class ExportServiceTests : IDisposable
     [Fact]
     public async Task ExportSitesAsCsvAsync_LogsCorrectRowCount()
     {
-        // Arrange
         var query = new SitesQuery
         {
             Quarantine = QuarantineFilterValues.Exclude,
@@ -561,7 +608,6 @@ public class ExportServiceTests : IDisposable
             SortDir = SortingDefaults.Ascending
         };
 
-        // Act
         await _service.ExportSitesAsCsvAsync(
             query,
             TestUserId,
@@ -569,7 +615,6 @@ public class ExportServiceTests : IDisposable
             AppRoles.Client,
             CancellationToken.None);
 
-        // Assert
         var exportLog = await _context.ExportLogs.FirstOrDefaultAsync();
         Assert.NotNull(exportLog);
         Assert.Equal(2, exportLog.RowsReturned); // 2 non-quarantined sites

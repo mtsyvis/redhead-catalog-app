@@ -64,14 +64,13 @@ public class ExportService : IExportService
         _queryBuilder = queryBuilder;
     }
 
-    public async Task<Stream> ExportSitesAsCsvAsync(
+    public async Task<ExportResult> ExportSitesAsCsvAsync(
         SitesQuery query,
         string userId,
         string userEmail,
         string userRole,
         CancellationToken cancellationToken = default)
     {
-        // Get role settings to enforce export limit
         var roleSettings = await _context.RoleSettings
             .FirstOrDefaultAsync(rs => rs.RoleName == userRole, cancellationToken);
 
@@ -80,24 +79,25 @@ public class ExportService : IExportService
             throw new RoleSettingsNotFoundException(userRole);
         }
 
-        if (roleSettings.ExportLimitMode == ExportLimitMode.Disabled)
+        var user = await _context.Users.FindAsync(new object?[] { userId }, cancellationToken);
+        var policy = EffectiveExportPolicyResolver.Resolve(userRole, roleSettings, user);
+
+        if (policy.Mode == ExportLimitMode.Disabled)
         {
             throw new ExportDisabledException(userRole, ExportConstants.ExportDisabledMessage);
         }
 
-        // Build filtered and sorted query using the query builder
         var sitesQuery = _queryBuilder.BuildQuery(_context.Sites, query);
 
-        // Apply role-based limit (only when mode is Limited)
-        if (roleSettings.ExportLimitMode == ExportLimitMode.Limited && roleSettings.ExportLimitRows.HasValue)
+        var requestedRows = await sitesQuery.CountAsync(cancellationToken);
+
+        if (policy.Mode == ExportLimitMode.Limited && policy.Rows.HasValue)
         {
-            sitesQuery = sitesQuery.Take(roleSettings.ExportLimitRows.Value);
+            sitesQuery = sitesQuery.Take(policy.Rows.Value);
         }
 
-        // Execute query
         var sites = await sitesQuery.ToListAsync(cancellationToken);
 
-        // Generate CSV
         var stream = new MemoryStream();
         var writer = new StreamWriter(stream, Encoding.UTF8);
         var csvWriter = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
@@ -117,13 +117,20 @@ public class ExportService : IExportService
         await writer.FlushAsync();
         stream.Position = 0;
 
-        // Log export operation
         await LogExportAsync(userId, userEmail, userRole, sites.Count, query, cancellationToken);
 
-        return stream;
+        var exportedRows = sites.Count;
+        var truncated = policy.Mode == ExportLimitMode.Limited && requestedRows > exportedRows;
+
+        return new ExportResult(
+            CsvStream: stream,
+            RequestedRows: requestedRows,
+            ExportedRows: exportedRows,
+            Truncated: truncated,
+            LimitRows: policy.Mode == ExportLimitMode.Limited ? policy.Rows : null);
     }
 
-    public async Task<Stream> ExportMultiSearchAsCsvAsync(
+    public async Task<ExportResult> ExportMultiSearchAsCsvAsync(
         string queryText,
         SitesQuery query,
         string userId,
@@ -141,19 +148,21 @@ public class ExportService : IExportService
             throw new RoleSettingsNotFoundException(userRole);
         }
 
-        if (roleSettings.ExportLimitMode == ExportLimitMode.Disabled)
+        var user = await _context.Users.FindAsync(new object?[] { userId }, cancellationToken);
+        var policy = EffectiveExportPolicyResolver.Resolve(userRole, roleSettings, user);
+
+        if (policy.Mode == ExportLimitMode.Disabled)
         {
             throw new ExportDisabledException(userRole, ExportConstants.ExportDisabledMessage);
         }
 
-        var includeNotFound = !AreFiltersActive(query);
-
         IQueryable<Site> baseQuery = _context.Sites
             .Where(s => parseResult.UniqueDomains.Contains(s.Domain));
 
-        // IMPORTANT:
+        var includeNotFound = !AreFiltersActive(query);
+
         // "Not found" must mean "not present in DB", not "not included due to export limit".
-        // So we compute matched domains from the base query (domain IN list) BEFORE applying role limits.
+        // Compute matched domains from the base query BEFORE applying policy limits.
         List<string> notFound = new();
         if (includeNotFound)
         {
@@ -167,9 +176,11 @@ public class ExportService : IExportService
         }
 
         var filteredQuery = _queryBuilder.BuildQuery(baseQuery, query);
-        // Apply role-based limit (only when mode is Limited)
-        var limitedQuery = roleSettings.ExportLimitMode == ExportLimitMode.Limited && roleSettings.ExportLimitRows.HasValue
-            ? filteredQuery.Take(roleSettings.ExportLimitRows.Value)
+
+        var requestedRows = await filteredQuery.CountAsync(cancellationToken);
+
+        var limitedQuery = policy.Mode == ExportLimitMode.Limited && policy.Rows.HasValue
+            ? filteredQuery.Take(policy.Rows.Value)
             : filteredQuery;
         var sites = await limitedQuery.ToListAsync(cancellationToken);
 
@@ -208,7 +219,15 @@ public class ExportService : IExportService
         var rowsReturned = sites.Count + (includeNotFound ? notFound.Count : 0);
         await LogExportAsync(userId, userEmail, userRole, rowsReturned, query, cancellationToken);
 
-        return stream;
+        var exportedRows = sites.Count;
+        var truncated = policy.Mode == ExportLimitMode.Limited && requestedRows > exportedRows;
+
+        return new ExportResult(
+            CsvStream: stream,
+            RequestedRows: requestedRows,
+            ExportedRows: exportedRows,
+            Truncated: truncated,
+            LimitRows: policy.Mode == ExportLimitMode.Limited ? policy.Rows : null);
     }
 
     private async Task LogExportAsync(

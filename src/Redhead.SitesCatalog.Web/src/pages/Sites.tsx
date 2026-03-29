@@ -216,17 +216,27 @@ export function Sites() {
     try {
       const params = buildSitesQueryParams(1, 1000000);
 
+      let metadata;
       if (multiSearchResult !== null) {
-        await sitesService.exportSitesMultiSearch({
+        metadata = await sitesService.exportSitesMultiSearch({
           queryText: filters.search.trim(),
           filters: params,
           sortBy: params.sortBy,
           sortDir: params.sortDir,
         });
       } else {
-        await sitesService.exportSites(params);
+        metadata = await sitesService.exportSites(params);
       }
-      setSnackbar({ open: true, message: 'Export completed successfully', severity: 'success' });
+
+      if (metadata.truncated) {
+        setSnackbar({
+          open: true,
+          message: `Export completed with limit applied: ${metadata.exportedRows} of ${metadata.requestedRows} rows downloaded.`,
+          severity: 'success',
+        });
+      } else {
+        setSnackbar({ open: true, message: 'Export completed successfully', severity: 'success' });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Export failed';
       setSnackbar({ open: true, message, severity: 'error' });

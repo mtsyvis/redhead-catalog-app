@@ -24,7 +24,7 @@ public class ExportController : ControllerBase
     }
 
     /// <summary>
-    /// Export sites as CSV with role-based limit enforcement
+    /// Export sites as CSV with effective export policy enforcement.
     /// </summary>
     [HttpGet("sites.csv")]
     public async Task<IActionResult> ExportSites(
@@ -55,18 +55,20 @@ public class ExportController : ControllerBase
             });
         }
 
-        var stream = await _exportService.ExportSitesAsCsvAsync(
+        var result = await _exportService.ExportSitesAsCsvAsync(
             query,
             userId,
             userEmail,
             userRole,
             cancellationToken);
 
-        return File(stream, ExportConstants.CsvContentType, ExportConstants.SitesFileName);
+        AddExportHeaders(result);
+
+        return File(result.CsvStream, ExportConstants.CsvContentType, ExportConstants.SitesFileName);
     }
 
     /// <summary>
-    /// Export multi-search result as CSV: filtered Found rows (role limit) + all Not found domains.
+    /// Export multi-search result as CSV: filtered Found rows (effective policy limit) + all Not found domains.
     /// </summary>
     [HttpPost("sites-multi-search.csv")]
     public async Task<IActionResult> ExportSitesMultiSearch(
@@ -106,10 +108,10 @@ public class ExportController : ControllerBase
         query.SortBy = request.SortBy ?? query.SortBy;
         query.SortDir = request.SortDir ?? query.SortDir;
 
-        Stream stream;
+        ExportResult result;
         try
         {
-            stream = await _exportService.ExportMultiSearchAsCsvAsync(
+            result = await _exportService.ExportMultiSearchAsCsvAsync(
                 request.QueryText,
                 query,
                 userId,
@@ -127,6 +129,19 @@ public class ExportController : ControllerBase
             });
         }
 
-        return File(stream, ExportConstants.CsvContentType, ExportConstants.SitesFileName);
+        AddExportHeaders(result);
+
+        return File(result.CsvStream, ExportConstants.CsvContentType, ExportConstants.SitesFileName);
+    }
+
+    private void AddExportHeaders(ExportResult result)
+    {
+        Response.Headers["X-Export-Requested-Rows"] = result.RequestedRows.ToString();
+        Response.Headers["X-Export-Exported-Rows"] = result.ExportedRows.ToString();
+        Response.Headers["X-Export-Truncated"] = result.Truncated ? "true" : "false";
+        if (result.LimitRows.HasValue)
+        {
+            Response.Headers["X-Export-Limit-Rows"] = result.LimitRows.Value.ToString();
+        }
     }
 }
