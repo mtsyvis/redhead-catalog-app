@@ -269,47 +269,49 @@ export const AdminUsers: React.FC = () => {
         </Alert>
       )}
 
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Create user
-        </Typography>
-        <form onSubmit={handleCreate}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-start' }}>
-            <TextField
-              label="Email"
-              type="email"
-              required
-              value={createEmail}
-              onChange={(e) => setCreateEmail(e.target.value)}
-              disabled={createLoading}
-              sx={{ minWidth: 260 }}
-              autoComplete="off"
-            />
-            <FormControl sx={{ minWidth: 160 }} disabled={createLoading}>
-              <InputLabel>Role</InputLabel>
-              <Select
-                value={createRole}
-                label="Role"
-                onChange={(e) => setCreateRole(e.target.value)}
-              >
-                {allowedRoles.map((r) => (
-                  <MenuItem key={r} value={r}>
-                    {r}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <BrandButton type="submit" disabled={createLoading}>
-              {createLoading ? <CircularProgress size={24} color="inherit" /> : 'Create'}
-            </BrandButton>
-          </Box>
-          {createError && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {createError}
-            </Alert>
-          )}
-        </form>
-      </Paper>
+      {isSuperAdmin && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Create user
+          </Typography>
+          <form onSubmit={handleCreate}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-start' }}>
+              <TextField
+                label="Email"
+                type="email"
+                required
+                value={createEmail}
+                onChange={(e) => setCreateEmail(e.target.value)}
+                disabled={createLoading}
+                sx={{ minWidth: 260 }}
+                autoComplete="off"
+              />
+              <FormControl sx={{ minWidth: 160 }} disabled={createLoading}>
+                <InputLabel>Role</InputLabel>
+                <Select
+                  value={createRole}
+                  label="Role"
+                  onChange={(e) => setCreateRole(e.target.value)}
+                >
+                  {allowedRoles.map((r) => (
+                    <MenuItem key={r} value={r}>
+                      {r}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <BrandButton type="submit" disabled={createLoading}>
+                {createLoading ? <CircularProgress size={24} color="inherit" /> : 'Create'}
+              </BrandButton>
+            </Box>
+            {createError && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                {createError}
+              </Alert>
+            )}
+          </form>
+        </Paper>
+      )}
 
       <Typography variant="h6" sx={{ mb: 2 }}>
         All users

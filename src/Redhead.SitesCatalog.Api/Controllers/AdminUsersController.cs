@@ -32,6 +32,7 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
     public async Task<ActionResult<CreateUserResponse>> CreateUser([FromBody] CreateUserRequest request)
     {
         if (!AppRoles.All.Contains(request.Role))
