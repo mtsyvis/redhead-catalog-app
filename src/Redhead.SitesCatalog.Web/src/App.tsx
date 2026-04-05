@@ -19,7 +19,7 @@ const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
+      <BrowserRouter basename="/">
         <AuthProvider>
           <Routes>
             {/* Public route */}
