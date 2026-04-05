@@ -1,26 +1,11 @@
-services:
-  app:
-    build: .
-    expose:
-      - "8080"
-    environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=redhead_sites_catalog;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
-      SeedData__SuperAdmin__Email: ${SEED_SUPERADMIN_EMAIL:-superadmin@redhead.com}
-      SeedData__SuperAdmin__Password: ${SEED_SUPERADMIN_PASSWORD:-SuperAdmin123!}
-    volumes:
-      - dataprotection_keys:/root/.aspnet/DataProtection-Keys
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
+name: app
 
+services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: redhead_sites_catalog
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -30,6 +15,41 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    expose:
+      - "8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=redhead_sites_catalog;Username=postgres;Password=${POSTGRES_PASSWORD}
+      SeedData__SuperAdmin__Email: ${SEED_SUPERADMIN_EMAIL}
+      SeedData__SuperAdmin__Password: ${SEED_SUPERADMIN_PASSWORD}
+    volumes:
+      - dataprotection_keys:/root/.aspnet/DataProtection-Keys
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   caddy:
     image: caddy:2-alpine
@@ -43,8 +63,14 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:
