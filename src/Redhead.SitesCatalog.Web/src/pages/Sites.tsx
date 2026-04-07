@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Paper, Typography, Tooltip, Alert, Snackbar, Popover, List, ListItem, ListItemText } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
@@ -85,6 +85,7 @@ export function Sites() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState<FiltersType>(INITIAL_FILTERS);
+  const [debouncedSearch, setDebouncedSearch] = useState(INITIAL_FILTERS.search);
   const [multiSearchMode, setMultiSearchMode] = useState(false);
   const [multiSearchResult, setMultiSearchResult] = useState<MultiSearchResponse | null>(null);
   const [multiSearchLoading, setMultiSearchLoading] = useState(false);
@@ -106,7 +107,21 @@ export function Sites() {
   const [sortModel, setSortModel] = useState<GridSortModel>([
     { field: 'domain', sort: 'asc' },
   ]);
-  const skipLoadAfterUncheckRef = useRef(false);
+
+  useEffect(() => {
+    if (multiSearchMode) {
+      setDebouncedSearch(filters.search);
+      return;
+    }
+
+    const timeoutId = globalThis.setTimeout(() => {
+      setDebouncedSearch(filters.search);
+    }, 500);
+
+    return () => globalThis.clearTimeout(timeoutId);
+  }, [filters.search, multiSearchMode]);
+
+  const effectiveSearch = multiSearchMode ? filters.search : debouncedSearch;
 
   /** Grid filters active = any filter differs from default (excluding search text). */
   const gridFiltersActive = useMemo(
@@ -131,7 +146,7 @@ export function Sites() {
       pageSize,
       sortBy: sortModel[0]?.field || 'domain',
       sortDir: sortModel[0]?.sort || 'asc',
-      search: filters.search || undefined,
+      search: effectiveSearch || undefined,
       drMin: filters.drMin ? Number(filters.drMin) : undefined,
       drMax: filters.drMax ? Number(filters.drMax) : undefined,
       trafficMin: filters.trafficMin ? Number(filters.trafficMin) : undefined,
@@ -144,7 +159,21 @@ export function Sites() {
       linkInsertAvailability: filters.linkInsertAvailability,
       quarantine: filters.quarantine,
     }),
-    [filters, sortModel]
+    [
+      sortModel,
+      effectiveSearch,
+      filters.drMin,
+      filters.drMax,
+      filters.trafficMin,
+      filters.trafficMax,
+      filters.priceMin,
+      filters.priceMax,
+      filters.location,
+      filters.casinoAvailability,
+      filters.cryptoAvailability,
+      filters.linkInsertAvailability,
+      filters.quarantine,
+    ]
   );
 
   const loadSites = useCallback(async () => {
@@ -169,15 +198,14 @@ export function Sites() {
 
   useEffect(() => {
     if (multiSearchMode) return;
-    if (skipLoadAfterUncheckRef.current) {
-      skipLoadAfterUncheckRef.current = false;
-      return;
-    }
     loadSites();
   }, [loadSites, multiSearchMode]);
 
   const handleFiltersApply = () => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
+    if (!multiSearchMode) {
+      setDebouncedSearch(filters.search);
+    }
     if (multiSearchMode) {
       const query = filters.search.trim();
       if (!query) return;
@@ -194,7 +222,6 @@ export function Sites() {
           });
         })
         .finally(() => setMultiSearchLoading(false));
-      return;
     }
   };
 
@@ -202,12 +229,15 @@ export function Sites() {
     setMultiSearchMode(enabled);
     if (!enabled) {
       setMultiSearchResult(null);
-      if (filters.search.trim() === '') skipLoadAfterUncheckRef.current = true;
+      setDebouncedSearch(filters.search);
     }
   };
 
   const handleClearFilters = () => {
+    setMultiSearchMode(false);
+    setMultiSearchResult(null);
     setFilters(INITIAL_FILTERS);
+    setDebouncedSearch(INITIAL_FILTERS.search);
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
   };
 
@@ -270,7 +300,7 @@ export function Sites() {
 
   const isMultiSearchView = multiSearchResult !== null;
   const gridRows: GridRow[] = useMemo(() => {
-    if (!multiSearchResult) {
+    if (multiSearchResult === null) {
       return sites;
     }
     const filtered = filterSites(multiSearchResult.found, filters);
