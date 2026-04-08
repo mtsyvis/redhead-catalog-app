@@ -108,13 +108,14 @@ export interface ExportMultiSearchPayload {
 }
 
 /**
- * Payload for PUT /api/sites/{domain} (Admin/SuperAdmin). Empty price = null (not allowed).
+ * Payload for PUT /api/sites/{domain} (Admin/SuperAdmin). priceUsd may be null; at least one
+ * numeric price among priceUsd/priceCasino/priceCrypto/priceLinkInsert is required by the backend.
  */
 export interface UpdateSitePayload {
   dr: number;
   traffic: number;
   location: string;
-  priceUsd: number;
+  priceUsd: number | null;
   priceCasino: number | null;
   priceCasinoStatus: ServiceAvailabilityStatusValue;
   priceCrypto: number | null;

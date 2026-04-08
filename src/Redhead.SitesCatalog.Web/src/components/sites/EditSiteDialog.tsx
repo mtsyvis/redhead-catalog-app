@@ -172,8 +172,8 @@ function validateEditSiteForm(form: EditSiteFormState): Record<string, string[]>
   }
 
   const parsedPriceUsd = parseNumberOrNull(form.priceUsd);
-  if (parsedPriceUsd === null || parsedPriceUsd < 0) {
-    errors.priceUsd = ['Price USD is required and must be 0 or greater.'];
+  if (parsedPriceUsd !== null && parsedPriceUsd < 0) {
+    errors.priceUsd = ['Price USD must be 0 or greater.'];
   }
 
   if (form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
@@ -186,6 +186,32 @@ function validateEditSiteForm(form: EditSiteFormState): Record<string, string[]>
     validateOptionalServicePrice(form.priceLinkInsert, 'priceLinkInsert', errors);
   }
 
+  const casinoNumericPrice =
+    form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available
+      ? parseNumberOrNull(form.priceCasino)
+      : null;
+  const cryptoNumericPrice =
+    form.priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available
+      ? parseNumberOrNull(form.priceCrypto)
+      : null;
+  const linkInsertNumericPrice =
+    form.priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available
+      ? parseNumberOrNull(form.priceLinkInsert)
+      : null;
+
+  if (
+    parsedPriceUsd === null &&
+    casinoNumericPrice === null &&
+    cryptoNumericPrice === null &&
+    linkInsertNumericPrice === null
+  ) {
+    const errorText = 'At least one numeric price is required (Price USD, Casino, Crypto, or Link Insert).';
+    errors.priceUsd = [errorText];
+    errors.priceCasino = [errorText];
+    errors.priceCrypto = [errorText];
+    errors.priceLinkInsert = [errorText];
+  }
+
   return errors;
 }
 
@@ -194,7 +220,7 @@ function buildUpdateSitePayload(form: EditSiteFormState): UpdateSitePayload {
     dr: parseNumberOrNull(form.dr)!,
     traffic: parseNumberOrNull(form.traffic)!,
     location: form.location.trim(),
-    priceUsd: parseNumberOrNull(form.priceUsd)!,
+    priceUsd: parseNumberOrNull(form.priceUsd),
     priceCasino:
       form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available
         ? (parseNumberOrNull(form.priceCasino) ?? null)
@@ -404,7 +430,7 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
               size="small"
               fullWidth
               error={Boolean(fieldErrors.priceUsd?.length)}
-              helperText={fieldErrors.priceUsd?.[0]}
+              helperText={fieldErrors.priceUsd?.[0] ?? 'Optional – leave empty if no USD price'}
             />
 
             <Box
