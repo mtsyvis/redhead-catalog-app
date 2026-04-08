@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { AuthProvider } from './contexts/AuthContext';
 import { theme } from './theme/theme';
 import { ProtectedRoute } from './components/routing/ProtectedRoute';
@@ -18,6 +20,7 @@ import { RoleSettings } from './pages/RoleSettings';
 const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
+      <LocalizationProvider dateAdapter={AdapterDayjs}>
       <CssBaseline />
       <BrowserRouter basename="/">
         <AuthProvider>
@@ -91,6 +94,7 @@ const App: React.FC = () => {
           </Routes>
         </AuthProvider>
       </BrowserRouter>
+      </LocalizationProvider>
     </ThemeProvider>
   );
 };

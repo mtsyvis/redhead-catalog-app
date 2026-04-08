@@ -86,6 +86,14 @@ class SitesService {
       queryParams.append('quarantine', params.quarantine);
     }
 
+    // Last published date range (yyyy-MM)
+    if (params.lastPublishedFromMonth) {
+      queryParams.append('lastPublishedFromMonth', params.lastPublishedFromMonth);
+    }
+    if (params.lastPublishedToMonth) {
+      queryParams.append('lastPublishedToMonth', params.lastPublishedToMonth);
+    }
+
     return apiClient.get<SitesListResponse>(`${this.baseUrl}?${queryParams.toString()}`);
   }
 
@@ -179,6 +187,14 @@ class SitesService {
     // Quarantine filter
     if (params.quarantine) {
       queryParams.append('quarantine', params.quarantine);
+    }
+
+    // Last published date range (yyyy-MM)
+    if (params.lastPublishedFromMonth) {
+      queryParams.append('lastPublishedFromMonth', params.lastPublishedFromMonth);
+    }
+    if (params.lastPublishedToMonth) {
+      queryParams.append('lastPublishedToMonth', params.lastPublishedToMonth);
     }
 
     const url = `/api/export/sites.csv?${queryParams.toString()}`;

@@ -53,6 +53,10 @@ export interface SitesQueryParams {
   cryptoAvailability?: ServiceAvailabilityFilter;
   linkInsertAvailability?: ServiceAvailabilityFilter;
   quarantine?: 'all' | 'only' | 'exclude';
+  /** yyyy-MM format, inclusive lower bound */
+  lastPublishedFromMonth?: string;
+  /** yyyy-MM format, inclusive upper bound */
+  lastPublishedToMonth?: string;
 }
 
 /**
@@ -78,6 +82,10 @@ export interface SitesFilters {
   cryptoAvailability: ServiceAvailabilityFilter;
   linkInsertAvailability: ServiceAvailabilityFilter;
   quarantine: 'all' | 'only' | 'exclude';
+  /** yyyy-MM format, null means not set */
+  lastPublishedFromMonth: string | null;
+  /** yyyy-MM format, null means not set */
+  lastPublishedToMonth: string | null;
 }
 
 /**

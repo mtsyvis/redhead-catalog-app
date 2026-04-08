@@ -23,6 +23,7 @@ import type { SitesFilters } from '../../types/sites.types';
 import { sitesService } from '../../services/sites.service';
 import { BrandButton } from '../common/BrandButton';
 import { SERVICE_AVAILABILITY_FILTER_OPTIONS } from '../../utils/serviceAvailability';
+import { LastPublishedRangeFilter } from './LastPublishedRangeFilter';
 
 interface SitesFiltersProps {
   filters: SitesFilters;
@@ -46,6 +47,8 @@ const INITIAL_FILTERS: SitesFilters = {
   cryptoAvailability: 'all',
   linkInsertAvailability: 'all',
   quarantine: 'all',
+  lastPublishedFromMonth: null,
+  lastPublishedToMonth: null,
 };
 
 export function SitesFilters({
@@ -97,9 +100,18 @@ export function SitesFilters({
       filters.casinoAvailability !== 'all' ||
       filters.cryptoAvailability !== 'all' ||
       filters.linkInsertAvailability !== 'all' ||
-      filters.quarantine !== 'all'
+      filters.quarantine !== 'all' ||
+      filters.lastPublishedFromMonth !== null ||
+      filters.lastPublishedToMonth !== null
     );
   };
+
+  const lastPublishedRangeError =
+    filters.lastPublishedFromMonth &&
+    filters.lastPublishedToMonth &&
+    filters.lastPublishedFromMonth > filters.lastPublishedToMonth
+      ? '"From" must be before or equal to "To"'
+      : undefined;
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -266,9 +278,17 @@ export function SitesFilters({
                 /></Box>
             </Box>
 
-            {/* Availability and Quarantine Row */}
-            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              {/* Availability Filters */}
+            {/* Row 2: Last Publication + Service Availability + Quarantine */}
+            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <LastPublishedRangeFilter
+                fromValue={filters.lastPublishedFromMonth}
+                toValue={filters.lastPublishedToMonth}
+                onFromChange={(v) => handleChange('lastPublishedFromMonth', v)}
+                onToChange={(v) => handleChange('lastPublishedToMonth', v)}
+                error={lastPublishedRangeError}
+              />
+
+              {/* Optional Service Availability */}
               <Box sx={{ flex: '1 1 300px' }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Optional Service Availability
@@ -323,7 +343,7 @@ export function SitesFilters({
 
               {/* Quarantine Filter */}
               {canFilterQuarantine && (
-                <Box sx={{ flex: '1 1 400px' }}>
+                <Box sx={{ flex: '1 1 260px' }}>
                   <FormControl component="fieldset">
                     <FormLabel component="legend">Quarantine Status</FormLabel>
                     <RadioGroup
@@ -351,7 +371,7 @@ export function SitesFilters({
               >
                 Clear All
               </BrandButton>
-              <BrandButton kind="primary" onClick={onApply}>
+              <BrandButton kind="primary" onClick={onApply} disabled={!!lastPublishedRangeError}>
                 Apply Filters
               </BrandButton>
             </Box>

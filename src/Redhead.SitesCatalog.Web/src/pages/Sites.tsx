@@ -60,6 +60,14 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
     if (!matchesAvailabilityFilter(s.priceLinkInsertStatus, f.linkInsertAvailability)) return false;
     if (f.quarantine === 'only' && !s.isQuarantined) return false;
     if (f.quarantine === 'exclude' && s.isQuarantined) return false;
+    if (f.lastPublishedFromMonth) {
+      if (s.lastPublishedDate == null) return false;
+      if (s.lastPublishedDate.substring(0, 7) < f.lastPublishedFromMonth) return false;
+    }
+    if (f.lastPublishedToMonth) {
+      if (s.lastPublishedDate == null) return false;
+      if (s.lastPublishedDate.substring(0, 7) > f.lastPublishedToMonth) return false;
+    }
     return true;
   });
 }
@@ -77,6 +85,8 @@ const INITIAL_FILTERS: FiltersType = {
   cryptoAvailability: 'all',
   linkInsertAvailability: 'all',
   quarantine: 'all',
+  lastPublishedFromMonth: null,
+  lastPublishedToMonth: null,
 };
 
 export function Sites() {
@@ -136,7 +146,9 @@ export function Sites() {
       filters.casinoAvailability !== INITIAL_FILTERS.casinoAvailability ||
       filters.cryptoAvailability !== INITIAL_FILTERS.cryptoAvailability ||
       filters.linkInsertAvailability !== INITIAL_FILTERS.linkInsertAvailability ||
-      filters.quarantine !== INITIAL_FILTERS.quarantine,
+      filters.quarantine !== INITIAL_FILTERS.quarantine ||
+      filters.lastPublishedFromMonth !== null ||
+      filters.lastPublishedToMonth !== null,
     [filters]
   );
 
@@ -158,6 +170,8 @@ export function Sites() {
       cryptoAvailability: filters.cryptoAvailability,
       linkInsertAvailability: filters.linkInsertAvailability,
       quarantine: filters.quarantine,
+      lastPublishedFromMonth: filters.lastPublishedFromMonth ?? undefined,
+      lastPublishedToMonth: filters.lastPublishedToMonth ?? undefined,
     }),
     [
       sortModel,
@@ -173,6 +187,8 @@ export function Sites() {
       filters.cryptoAvailability,
       filters.linkInsertAvailability,
       filters.quarantine,
+      filters.lastPublishedFromMonth,
+      filters.lastPublishedToMonth,
     ]
   );
 
