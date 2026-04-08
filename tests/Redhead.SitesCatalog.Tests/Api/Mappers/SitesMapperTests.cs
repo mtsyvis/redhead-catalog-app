@@ -205,6 +205,117 @@ public class SitesMapperTests
         Assert.Contains("Invalid availability filter value", ex.Message);
     }
 
+    #region LastPublishedMonth mapping and validation
+
+    [Fact]
+    public void ToQuery_WithValidLastPublishedFromMonth_MapsToFirstDayOfMonth()
+    {
+        var request = new SitesQueryRequest { LastPublishedFromMonth = "2025-01" };
+
+        var query = SitesMapper.ToQuery(request);
+
+        Assert.Equal(new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc), query.LastPublishedFrom);
+        Assert.Null(query.LastPublishedToExclusive);
+    }
+
+    [Fact]
+    public void ToQuery_WithValidLastPublishedToMonth_MapsToFirstDayOfNextMonth()
+    {
+        var request = new SitesQueryRequest { LastPublishedToMonth = "2025-01" };
+
+        var query = SitesMapper.ToQuery(request);
+
+        Assert.Null(query.LastPublishedFrom);
+        Assert.Equal(new DateTime(2025, 2, 1, 0, 0, 0, DateTimeKind.Utc), query.LastPublishedToExclusive);
+    }
+
+    [Fact]
+    public void ToQuery_WithBothMonths_MapsBothBounds()
+    {
+        var request = new SitesQueryRequest
+        {
+            LastPublishedFromMonth = "2025-03",
+            LastPublishedToMonth = "2026-12"
+        };
+
+        var query = SitesMapper.ToQuery(request);
+
+        Assert.Equal(new DateTime(2025, 3, 1, 0, 0, 0, DateTimeKind.Utc), query.LastPublishedFrom);
+        Assert.Equal(new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc), query.LastPublishedToExclusive);
+    }
+
+    [Fact]
+    public void ToQuery_WithSameFromAndToMonth_IsValid()
+    {
+        var request = new SitesQueryRequest
+        {
+            LastPublishedFromMonth = "2025-06",
+            LastPublishedToMonth = "2025-06"
+        };
+
+        var query = SitesMapper.ToQuery(request);
+
+        Assert.Equal(new DateTime(2025, 6, 1, 0, 0, 0, DateTimeKind.Utc), query.LastPublishedFrom);
+        Assert.Equal(new DateTime(2025, 7, 1, 0, 0, 0, DateTimeKind.Utc), query.LastPublishedToExclusive);
+    }
+
+    [Fact]
+    public void ToQuery_WithNoLastPublishedMonths_BothBoundsAreNull()
+    {
+        var request = new SitesQueryRequest();
+
+        var query = SitesMapper.ToQuery(request);
+
+        Assert.Null(query.LastPublishedFrom);
+        Assert.Null(query.LastPublishedToExclusive);
+    }
+
+    [Theory]
+    [InlineData("2025-00")]
+    [InlineData("2025-13")]
+    [InlineData("not-a-date")]
+    [InlineData("2025/01")]
+    [InlineData("01-2025")]
+    [InlineData("2025-1")]
+    [InlineData("25-01")]
+    public void ToQuery_WithInvalidFromMonthFormat_ThrowsRequestValidationException(string badValue)
+    {
+        var request = new SitesQueryRequest { LastPublishedFromMonth = badValue };
+
+        var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
+
+        Assert.Contains(badValue.Trim(), ex.Message);
+    }
+
+    [Theory]
+    [InlineData("2025-00")]
+    [InlineData("2025-13")]
+    [InlineData("garbage")]
+    public void ToQuery_WithInvalidToMonthFormat_ThrowsRequestValidationException(string badValue)
+    {
+        var request = new SitesQueryRequest { LastPublishedToMonth = badValue };
+
+        var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
+
+        Assert.Contains(badValue.Trim(), ex.Message);
+    }
+
+    [Fact]
+    public void ToQuery_WithFromMonthLaterThanToMonth_ThrowsRequestValidationException()
+    {
+        var request = new SitesQueryRequest
+        {
+            LastPublishedFromMonth = "2025-06",
+            LastPublishedToMonth = "2025-01"
+        };
+
+        var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
+
+        Assert.Contains("must not be later than", ex.Message);
+    }
+
+    #endregion
+
     [Fact]
     public void ToResponse_MapsListAndTotal_Correctly()
     {

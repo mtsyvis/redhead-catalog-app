@@ -39,4 +39,8 @@ public class SitesQuery
 
     // Quarantine filter
     public string Quarantine { get; set; } = string.Empty;
+
+    // LastPublishedDate range filter (parsed from yyyy-MM month inputs)
+    public DateTime? LastPublishedFrom { get; set; }
+    public DateTime? LastPublishedToExclusive { get; set; }
 }

@@ -40,6 +40,9 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         // Apply quarantine filter
         sitesQuery = ApplyQuarantineFilter(sitesQuery, query.Quarantine);
 
+        // Apply last published date filter
+        sitesQuery = ApplyLastPublishedDateFilter(sitesQuery, query);
+
         // Apply sorting
         sitesQuery = ApplySorting(sitesQuery, query.SortBy, query.SortDir);
 
@@ -127,6 +130,28 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         else if (filters.LinkInsertAllowed == true)
         {
             query = query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available);
+        }
+
+        return query;
+    }
+
+    private static IQueryable<Site> ApplyLastPublishedDateFilter(IQueryable<Site> query, SitesQuery filters)
+    {
+        if (!filters.LastPublishedFrom.HasValue && !filters.LastPublishedToExclusive.HasValue)
+        {
+            return query;
+        }
+
+        query = query.Where(s => s.LastPublishedDate != null);
+
+        if (filters.LastPublishedFrom.HasValue)
+        {
+            query = query.Where(s => s.LastPublishedDate >= filters.LastPublishedFrom.Value);
+        }
+
+        if (filters.LastPublishedToExclusive.HasValue)
+        {
+            query = query.Where(s => s.LastPublishedDate < filters.LastPublishedToExclusive.Value);
         }
 
         return query;

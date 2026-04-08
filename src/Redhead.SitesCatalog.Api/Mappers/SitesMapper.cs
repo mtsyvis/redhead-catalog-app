@@ -1,3 +1,4 @@
+using System.Globalization;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -15,6 +16,10 @@ public static class SitesMapper
     /// </summary>
     public static SitesQuery ToQuery(SitesQueryRequest request)
     {
+        var (lastPublishedFrom, lastPublishedToExclusive) = ParseLastPublishedMonthRange(
+            request.LastPublishedFromMonth,
+            request.LastPublishedToMonth);
+
         return new SitesQuery
         {
             Page = request.Page,
@@ -35,7 +40,9 @@ public static class SitesMapper
             CasinoAvailability = ParseAvailabilityFilter(request.CasinoAvailability),
             CryptoAvailability = ParseAvailabilityFilter(request.CryptoAvailability),
             LinkInsertAvailability = ParseAvailabilityFilter(request.LinkInsertAvailability),
-            Quarantine = request.Quarantine
+            Quarantine = request.Quarantine,
+            LastPublishedFrom = lastPublishedFrom,
+            LastPublishedToExclusive = lastPublishedToExclusive
         };
     }
 
@@ -100,5 +107,47 @@ public static class SitesMapper
             _ => throw new RequestValidationException(
                 $"Invalid availability filter value '{rawValue}'. Allowed values: all, available, notAvailable, unknown.")
         };
+    }
+
+    private static (DateTime? from, DateTime? toExclusive) ParseLastPublishedMonthRange(
+        string? fromMonth, string? toMonth)
+    {
+        DateTime? from = null;
+        DateTime? toExclusive = null;
+
+        if (!string.IsNullOrWhiteSpace(fromMonth))
+        {
+            from = ParseYearMonth(fromMonth);
+        }
+
+        if (!string.IsNullOrWhiteSpace(toMonth))
+        {
+            var toFirstDay = ParseYearMonth(toMonth);
+            toExclusive = toFirstDay.AddMonths(1);
+        }
+
+        if (from.HasValue && toExclusive.HasValue && from.Value >= toExclusive.Value)
+        {
+            throw new RequestValidationException(
+                $"LastPublishedFromMonth '{fromMonth}' must not be later than LastPublishedToMonth '{toMonth}'.");
+        }
+
+        return (from, toExclusive);
+    }
+
+    private static DateTime ParseYearMonth(string value)
+    {
+        if (!DateTime.TryParseExact(
+                value.Trim(),
+                "yyyy-MM",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed))
+        {
+            throw new RequestValidationException(
+                $"Invalid month format '{value}'. Expected format: yyyy-MM (e.g. 2025-01).");
+        }
+
+        return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
     }
 }

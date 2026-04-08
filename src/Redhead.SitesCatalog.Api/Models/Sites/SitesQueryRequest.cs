@@ -72,4 +72,16 @@ public class SitesQueryRequest
     /// Quarantine filter. Valid values: all (default - returns all sites), only (returns only quarantined sites), exclude (excludes quarantined sites)
     /// </summary>
     public string Quarantine { get; set; } = QuarantineFilterValues.All;
+
+    /// <summary>
+    /// Inclusive lower bound for LastPublishedDate filter. Format: yyyy-MM (e.g. 2025-01).
+    /// Matches from the first day of the specified month.
+    /// </summary>
+    public string? LastPublishedFromMonth { get; set; }
+
+    /// <summary>
+    /// Inclusive upper bound for LastPublishedDate filter. Format: yyyy-MM (e.g. 2025-12).
+    /// Matches through the last day of the specified month (exclusive upper bound is first day of the next month).
+    /// </summary>
+    public string? LastPublishedToMonth { get; set; }
 }
