@@ -20,7 +20,7 @@ public static class SitesImportRowValidationHelper
         double DR,
         long Traffic,
         string Location,
-        decimal PriceUsd,
+        decimal? PriceUsd,
         decimal? PriceCasino,
         ServiceAvailabilityStatus PriceCasinoStatus,
         decimal? PriceCrypto,
@@ -58,6 +58,18 @@ public static class SitesImportRowValidationHelper
             {
                 RowNumber = row.RowNumber,
                 Message = "Domain could not be normalized."
+            }, null);
+        }
+
+        if (!string.IsNullOrWhiteSpace(row.PriceUsdRaw) && row.PriceUsd is null)
+        {
+            return (false, new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Domain = domain,
+                Field = "PriceUsd",
+                RawValue = row.PriceUsdRaw,
+                Message = "Invalid PriceUsd value."
             }, null);
         }
 
@@ -175,7 +187,7 @@ public static class SitesImportRowValidationHelper
                && string.IsNullOrWhiteSpace(row.DRRaw)
                && row.Traffic is null
                && string.IsNullOrWhiteSpace(row.Location)
-               && row.PriceUsd is null
+               && string.IsNullOrWhiteSpace(row.PriceUsdRaw)
                && string.IsNullOrWhiteSpace(row.PriceCasinoRaw)
                && string.IsNullOrWhiteSpace(row.PriceCryptoRaw)
                && string.IsNullOrWhiteSpace(row.PriceLinkInsertRaw)

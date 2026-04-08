@@ -40,7 +40,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         double DR,
         long Traffic,
         string Location,
-        decimal PriceUsd,
+        decimal? PriceUsd,
         decimal? PriceCasino,
         ServiceAvailabilityStatus PriceCasinoStatus,
         decimal? PriceCrypto,

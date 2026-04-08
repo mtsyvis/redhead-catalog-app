@@ -12,7 +12,7 @@ public class UpdateSiteRequest
     public string Location { get; set; } = string.Empty;
     public string? LinkType { get; set; }
     public string? SponsoredTag { get; set; }
-    public decimal PriceUsd { get; set; }
+    public decimal? PriceUsd { get; set; }
     public decimal? PriceCasino { get; set; }
     public ServiceAvailabilityStatus PriceCasinoStatus { get; set; }
     public decimal? PriceCrypto { get; set; }

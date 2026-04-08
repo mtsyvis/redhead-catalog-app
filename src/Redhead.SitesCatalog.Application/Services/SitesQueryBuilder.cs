@@ -69,6 +69,10 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             query = query.Where(s => s.Traffic <= filters.TrafficMax.Value);
         }
 
+        if (filters.PriceMin.HasValue || filters.PriceMax.HasValue)
+        {
+            query = query.Where(s => s.PriceUsd != null);
+        }
         if (filters.PriceMin.HasValue)
         {
             query = query.Where(s => s.PriceUsd >= filters.PriceMin.Value);
@@ -189,8 +193,8 @@ public class SitesQueryBuilder : ISitesQueryBuilder
                 ? query.OrderByDescending(s => s.Location)
                 : query.OrderBy(s => s.Location),
             SortFields.PriceUsd => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.PriceUsd)
-                : query.OrderBy(s => s.PriceUsd),
+                ? query.OrderBy(s => s.PriceUsd == null ? 1 : 0).ThenByDescending(s => s.PriceUsd)
+                : query.OrderBy(s => s.PriceUsd == null ? 1 : 0).ThenBy(s => s.PriceUsd),
             SortFields.PriceCasino => direction == SortingDefaults.Descending
                 ? query.OrderByDescending(s => s.PriceCasino)
                 : query.OrderBy(s => s.PriceCasino),

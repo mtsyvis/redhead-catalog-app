@@ -706,4 +706,79 @@ public class ExportServiceTests : IDisposable
     }
 
     #endregion
+
+    #region PriceUsd nullable
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_NullPriceUsd_WritesEmptyCell()
+    {
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
+
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(), TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
+
+        var rows = await ReadCsvRowsFromStream(result.CsvStream);
+        var row = rows.Single(r => r["Domain"] == "null-price.com");
+        Assert.Equal(string.Empty, row["PriceUsd"]);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_NumericPriceUsd_WritesNumericValue()
+    {
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(), TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
+
+        var rows = await ReadCsvRowsFromStream(result.CsvStream);
+        var row = rows.Single(r => r["Domain"] == "example.com");
+        Assert.Equal("100", row["PriceUsd"]);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_PriceMinFilter_ExcludesNullPriceUsd()
+    {
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
+
+        var query = new SitesQuery
+        {
+            Page = 1, PageSize = 10, PriceMin = 50m,
+            SortBy = SortFields.Domain, SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.ExportSitesAsCsvAsync(
+            query, TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
+
+        var rows = await ReadCsvRowsFromStream(result.CsvStream);
+        Assert.DoesNotContain(rows, r => r["Domain"] == "null-price.com");
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_NoPriceFilter_IncludesNullPriceUsd()
+    {
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
+
+        var result = await _service.ExportSitesAsCsvAsync(
+            DefaultQuery(), TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
+
+        var rows = await ReadCsvRowsFromStream(result.CsvStream);
+        Assert.Contains(rows, r => r["Domain"] == "null-price.com");
+    }
+
+    #endregion
+
+    private static Site SiteWithNullPrice(string domain) => new()
+    {
+        Domain = domain,
+        DR = 50, Traffic = 10000, Location = "US",
+        PriceUsd = null,
+        PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+        IsQuarantined = false,
+        CreatedAtUtc = DateTime.UtcNow,
+        UpdatedAtUtc = DateTime.UtcNow
+    };
 }

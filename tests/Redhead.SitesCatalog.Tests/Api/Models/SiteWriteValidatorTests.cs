@@ -88,14 +88,90 @@ public class SiteWriteValidatorTests
     }
 
     [Fact]
-    public void ValidateAndNormalize_MissingPriceUsd_ReturnsError()
+    public void ValidateAndNormalize_NullPriceUsd_WithNoOtherPrices_ReturnsCrossFieldError()
     {
         var request = BuildValidRequest();
         request.PriceUsd = null;
 
         var result = SiteWriteValidator.ValidateAndNormalize(request);
 
-        AssertError(result, "priceUsd");
+        Assert.False(result.IsValid);
+        Assert.True(result.FieldErrors.ContainsKey(string.Empty));
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_NullPriceUsd_WithNumericCasinoPrice_IsValid()
+    {
+        var request = BuildValidRequest();
+        request.PriceUsd = null;
+        request.PriceCasino = 50m;
+        request.PriceCasinoStatus = ServiceAvailabilityStatus.Available;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.True(result.IsValid);
+        Assert.Null(result.NormalizedRequest!.PriceUsd);
+        Assert.Equal(50m, result.NormalizedRequest.PriceCasino);
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_NullPriceUsd_WithNumericCryptoPrice_IsValid()
+    {
+        var request = BuildValidRequest();
+        request.PriceUsd = null;
+        request.PriceCrypto = 75m;
+        request.PriceCryptoStatus = ServiceAvailabilityStatus.Available;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.True(result.IsValid);
+        Assert.Null(result.NormalizedRequest!.PriceUsd);
+        Assert.Equal(75m, result.NormalizedRequest.PriceCrypto);
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_NullPriceUsd_WithNumericLinkInsertPrice_IsValid()
+    {
+        var request = BuildValidRequest();
+        request.PriceUsd = null;
+        request.PriceLinkInsert = 30m;
+        request.PriceLinkInsertStatus = ServiceAvailabilityStatus.Available;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.True(result.IsValid);
+        Assert.Null(result.NormalizedRequest!.PriceUsd);
+        Assert.Equal(30m, result.NormalizedRequest.PriceLinkInsert);
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_NullPriceUsd_AllOptionalServicesNotAvailable_ReturnsCrossFieldError()
+    {
+        var request = BuildValidRequest();
+        request.PriceUsd = null;
+        request.PriceCasinoStatus = ServiceAvailabilityStatus.NotAvailable;
+        request.PriceCryptoStatus = ServiceAvailabilityStatus.NotAvailable;
+        request.PriceLinkInsertStatus = ServiceAvailabilityStatus.NotAvailable;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.False(result.IsValid);
+        Assert.True(result.FieldErrors.ContainsKey(string.Empty));
+        Assert.Contains("At least one numeric price is required.", result.FieldErrors[string.Empty]);
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_NullPriceUsd_SingleCasinoNotAvailable_ReturnsCrossFieldError()
+    {
+        // NotAvailable ("NO") must not count as a numeric price
+        var request = BuildValidRequest();
+        request.PriceUsd = null;
+        request.PriceCasinoStatus = ServiceAvailabilityStatus.NotAvailable;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.False(result.IsValid);
+        Assert.True(result.FieldErrors.ContainsKey(string.Empty));
     }
 
     [Fact]

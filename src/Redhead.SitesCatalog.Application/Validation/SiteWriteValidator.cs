@@ -77,10 +77,6 @@ public static class SiteWriteValidator
                 Add(errors, "priceUsd", "Price USD must be 0 or greater.");
             }
         }
-        else
-        {
-            Add(errors, "priceUsd", "Price USD is required.");
-        }
 
         var normalizedCasino = NormalizeOptionalServicePair(
             errors,
@@ -103,6 +99,11 @@ public static class SiteWriteValidator
             input.PriceLinkInsert,
             input.PriceLinkInsertStatus,
             "Price Link Insert");
+
+        if (!HasAnyNumericPrice(input.PriceUsd, normalizedCasino.Price, normalizedCasino.Status, normalizedCrypto.Price, normalizedCrypto.Status, normalizedLinkInsert.Price, normalizedLinkInsert.Status))
+        {
+            Add(errors, string.Empty, "At least one numeric price is required.");
+        }
 
         var niche = TrimToNull(input.Niche);
         var categories = TrimToNull(input.Categories);
@@ -132,7 +133,7 @@ public static class SiteWriteValidator
                 Location = location,
                 LinkType = linkType,
                 SponsoredTag = sponsoredTag,
-                PriceUsd = input.PriceUsd!.Value,
+                PriceUsd = input.PriceUsd,
                 PriceCasino = normalizedCasino.Price,
                 PriceCasinoStatus = normalizedCasino.Status,
                 PriceCrypto = normalizedCrypto.Price,
@@ -197,6 +198,38 @@ public static class SiteWriteValidator
         return price.HasValue
             ? ServiceAvailabilityStatus.Available
             : ServiceAvailabilityStatus.Unknown;
+    }
+
+    private static bool HasAnyNumericPrice(
+        decimal? priceUsd,
+        decimal? casinoPrice,
+        ServiceAvailabilityStatus casinoStatus,
+        decimal? cryptoPrice,
+        ServiceAvailabilityStatus cryptoStatus,
+        decimal? linkInsertPrice,
+        ServiceAvailabilityStatus linkInsertStatus)
+    {
+        if (priceUsd.HasValue && priceUsd.Value >= 0)
+        {
+            return true;
+        }
+
+        if (casinoStatus == ServiceAvailabilityStatus.Available && casinoPrice.HasValue && casinoPrice.Value >= 0)
+        {
+            return true;
+        }
+
+        if (cryptoStatus == ServiceAvailabilityStatus.Available && cryptoPrice.HasValue && cryptoPrice.Value >= 0)
+        {
+            return true;
+        }
+
+        if (linkInsertStatus == ServiceAvailabilityStatus.Available && linkInsertPrice.HasValue && linkInsertPrice.Value >= 0)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static string? TrimToNull(string? value)

@@ -8,7 +8,7 @@ public class Site
     public double DR { get; set; }
     public long Traffic { get; set; }
     public string Location { get; set; } = string.Empty;
-    public decimal PriceUsd { get; set; }
+    public decimal? PriceUsd { get; set; }
     public decimal? PriceCasino { get; set; }
     public ServiceAvailabilityStatus PriceCasinoStatus { get; set; } = ServiceAvailabilityStatus.Unknown;
     public decimal? PriceCrypto { get; set; }

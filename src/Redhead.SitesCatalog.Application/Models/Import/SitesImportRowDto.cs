@@ -11,6 +11,7 @@ public class SitesImportRowDto
     public double? DR { get; set; }
     public long? Traffic { get; set; }
     public string? Location { get; set; }
+    public string? PriceUsdRaw { get; set; }
     public decimal? PriceUsd { get; set; }
     public string? PriceCasinoRaw { get; set; }
     public string? PriceCryptoRaw { get; set; }

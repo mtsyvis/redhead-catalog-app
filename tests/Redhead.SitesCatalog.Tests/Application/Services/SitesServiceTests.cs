@@ -1164,4 +1164,101 @@ public class SitesServiceTests : IDisposable
     }
 
     #endregion
+
+    #region Price filter and sort: PriceUsd nullable
+
+    [Fact]
+    public async Task GetSitesAsync_PriceMinFilter_ExcludesNullPriceUsd()
+    {
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
+
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1, PageSize = 10, PriceMin = 50m,
+            SortBy = SortFields.Domain, SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.DoesNotContain(result.Items, s => s.Domain == "null-price.com");
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_PriceMaxFilter_ExcludesNullPriceUsd()
+    {
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
+
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1, PageSize = 10, PriceMax = 1000m,
+            SortBy = SortFields.Domain, SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.DoesNotContain(result.Items, s => s.Domain == "null-price.com");
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_NoPriceFilter_IncludesNullPriceUsd()
+    {
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
+
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1, PageSize = 10,
+            SortBy = SortFields.Domain, SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Contains(result.Items, s => s.Domain == "null-price.com");
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_SortByPriceUsdAscending_NullsLast()
+    {
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
+
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1, PageSize = 10,
+            SortBy = SortFields.PriceUsd, SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Equal("null-price.com", result.Items.Last().Domain);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_SortByPriceUsdDescending_NullsLast()
+    {
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
+
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1, PageSize = 10,
+            SortBy = SortFields.PriceUsd, SortDir = SortingDefaults.Descending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Equal("null-price.com", result.Items.Last().Domain);
+    }
+
+    #endregion
+
+    private static Site SiteWithNullPrice(string domain) => new()
+    {
+        Domain = domain,
+        DR = 50, Traffic = 10000, Location = "US",
+        PriceUsd = null,
+        PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+        IsQuarantined = false,
+        CreatedAtUtc = DateTime.UtcNow,
+        UpdatedAtUtc = DateTime.UtcNow
+    };
 }

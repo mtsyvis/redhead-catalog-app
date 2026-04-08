@@ -335,7 +335,9 @@ public class ExportService : IExportService
         csvWriter.WriteField(site.DR);
         csvWriter.WriteField(site.Traffic);
         csvWriter.WriteField(site.Location);
-        csvWriter.WriteField(site.PriceUsd);
+        csvWriter.WriteField(site.PriceUsd.HasValue
+            ? site.PriceUsd.Value.ToString(CultureInfo.InvariantCulture)
+            : string.Empty);
         csvWriter.WriteField(FormatOptionalService(site.PriceCasino, site.PriceCasinoStatus));
         csvWriter.WriteField(FormatOptionalService(site.PriceCrypto, site.PriceCryptoStatus));
         csvWriter.WriteField(FormatOptionalService(site.PriceLinkInsert, site.PriceLinkInsertStatus));

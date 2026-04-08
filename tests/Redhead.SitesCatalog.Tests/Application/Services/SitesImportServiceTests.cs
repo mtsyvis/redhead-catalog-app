@@ -331,7 +331,7 @@ public sealed class SitesImportServiceTests : IDisposable
     [InlineData("bad-dr-range.com,101,12000,US,100,150,200,250,Tech,News", "DR must be between 0 and 100.")]
     [InlineData("bad-traffic.com,55,,US,100,150,200,250,Tech,News", "Traffic is required.")]
     [InlineData("bad-location.com,55,12000, ,100,150,200,250,Tech,News", "Location is required.")]
-    [InlineData("bad-price.com,55,12000,US,,150,200,250,Tech,News", "Price USD is required.")]
+    [InlineData("bad-price.com,55,12000,US,,,,,Tech,News", "At least one numeric price")]
     [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,Tech,News", "Price must be >= 0.")]
     [InlineData("bad-crypto.com,55,12000,US,100,150,-1,250,Tech,News", "Price must be >= 0.")]
     [InlineData("bad-link-insert.com,55,12000,US,100,150,200,-1,Tech,News", "Price must be >= 0.")]
@@ -374,7 +374,7 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Contains("DR is required.", invalidRowLine, StringComparison.Ordinal);
         Assert.Contains("Traffic is required.", invalidRowLine, StringComparison.Ordinal);
         Assert.Contains("Location is required.", invalidRowLine, StringComparison.Ordinal);
-        Assert.Contains("Price USD is required.", invalidRowLine, StringComparison.Ordinal);
+        Assert.Contains("At least one numeric price", invalidRowLine, StringComparison.Ordinal);
         Assert.Contains("; ", invalidRowLine, StringComparison.Ordinal);
     }
 
@@ -829,6 +829,66 @@ public sealed class SitesImportServiceTests : IDisposable
     {
         return "Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,LinkType,SponsoredTag\n";
     }
+
+    #region PriceUsd nullable
+
+    [Fact]
+    public async Task ImportAsync_EmptyPriceUsd_WithCasinoPrice_InsertsWithNullPriceUsd()
+    {
+        using var stream = Utf8Csv(HeaderLine() + "nullprice.com,55,12000,US,,150,,,Tech,News\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("nullprice.com");
+        Assert.Null(site.PriceUsd);
+        Assert.Equal(150m, site.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, site.PriceCasinoStatus);
+    }
+
+    [Fact]
+    public async Task ImportAsync_EmptyPriceUsd_AllPricesAbsent_IsInvalidRow()
+    {
+        using var stream = Utf8Csv(HeaderLine() + "noprices.com,55,12000,US,,,,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads?.InvalidRows);
+
+        var lines = GetDownloadLines(result.Downloads.InvalidRows.Token);
+        Assert.Contains(lines, l => l.Contains("At least one numeric price is required.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ImportAsync_AllOptionalServicesNotAvailable_NoPriceUsd_IsInvalidRow()
+    {
+        using var stream = Utf8Csv(HeaderLine() + "allno.com,55,12000,US,,NO,NO,NO,Tech,News\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidPriceUsdFormat_IsInvalidRow()
+    {
+        using var stream = Utf8Csv(HeaderLine() + "badformat.com,55,12000,US,abc,,,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+
+        var lines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
+        Assert.Contains(lines, l => l.Contains("Invalid PriceUsd value.", StringComparison.Ordinal));
+    }
+
+    #endregion
 
     private void SeedSites()
     {

@@ -42,7 +42,6 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.HasIndex(s => s.Location);
 
         builder.Property(s => s.PriceUsd)
-            .IsRequired()
             .HasPrecision(18, 2);
 
         builder.Property(s => s.PriceCasino)

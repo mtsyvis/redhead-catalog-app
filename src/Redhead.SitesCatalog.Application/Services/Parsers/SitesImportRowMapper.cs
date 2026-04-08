@@ -38,6 +38,7 @@ public static class SitesImportRowMapper
             DR = ParseNullableDouble(drRaw),
             Traffic = ParseNullableLong(trafficRaw),
             Location = location,
+            PriceUsdRaw = priceUsdRaw,
             PriceUsd = ParseNullableDecimal(priceUsdRaw),
             PriceCasinoRaw = priceCasinoRaw,
             PriceCryptoRaw = priceCryptoRaw,
