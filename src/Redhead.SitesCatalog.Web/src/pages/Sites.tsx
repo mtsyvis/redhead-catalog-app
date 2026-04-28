@@ -525,7 +525,6 @@ export function Sites() {
           onApply={handleFiltersApply}
           multiSearchMode={multiSearchMode}
           onMultiSearchModeChange={handleMultiSearchModeChange}
-          canFilterQuarantine={!isClient}
         />
 
         {multiSearchResult && multiSearchResult.duplicates.length > 0 && (

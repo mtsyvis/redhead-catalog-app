@@ -3,12 +3,8 @@ import {
   Box,
   TextField,
   MenuItem,
-  FormControl,
   FormControlLabel,
   Checkbox,
-  Radio,
-  RadioGroup,
-  FormLabel,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -51,13 +47,14 @@ const INITIAL_FILTERS: SitesFilters = {
   lastPublishedToMonth: null,
 };
 
+const FILTER_GROUP_GAP = 5;
+
 export function SitesFilters({
   filters,
   onFiltersChange,
   onApply,
   multiSearchMode = false,
   onMultiSearchModeChange,
-  canFilterQuarantine = true,
 }: SitesFiltersProps) {
   const [locations, setLocations] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -171,7 +168,7 @@ export function SitesFilters({
         <AccordionDetails>
           <Stack spacing={3}>
             {/* Range Filters Row */}
-            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap' }}>
               {/* DR Range */}
               <Box sx={{ flex: 1, minWidth: '200px' }}>
                 <Typography variant="subtitle2" gutterBottom>
@@ -279,7 +276,7 @@ export function SitesFilters({
             </Box>
 
             {/* Row 2: Last Publication + Service Availability + Quarantine */}
-            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <LastPublishedRangeFilter
                 fromValue={filters.lastPublishedFromMonth}
                 toValue={filters.lastPublishedToMonth}
@@ -289,7 +286,7 @@ export function SitesFilters({
               />
 
               {/* Optional Service Availability */}
-              <Box sx={{ flex: '1 1 300px' }}>
+              <Box sx={{ flex: '0 0 auto' }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Optional Service Availability
                 </Typography>
@@ -300,7 +297,7 @@ export function SitesFilters({
                     label="Casino"
                     value={filters.casinoAvailability}
                     onChange={(e) => handleChange('casinoAvailability', e.target.value as SitesFilters['casinoAvailability'])}
-                    sx={{ minWidth: 160 }}
+                    sx={{ width: 185 }}
                   >
                     {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
                       <MenuItem key={option.value} value={option.value}>
@@ -314,7 +311,7 @@ export function SitesFilters({
                     label="Crypto"
                     value={filters.cryptoAvailability}
                     onChange={(e) => handleChange('cryptoAvailability', e.target.value as SitesFilters['cryptoAvailability'])}
-                    sx={{ minWidth: 160 }}
+                    sx={{ width: 185 }}
                   >
                     {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
                       <MenuItem key={option.value} value={option.value}>
@@ -330,7 +327,7 @@ export function SitesFilters({
                     onChange={(e) =>
                       handleChange('linkInsertAvailability', e.target.value as SitesFilters['linkInsertAvailability'])
                     }
-                    sx={{ minWidth: 160 }}
+                    sx={{ width: 185 }}
                   >
                     {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
                       <MenuItem key={option.value} value={option.value}>
@@ -342,24 +339,25 @@ export function SitesFilters({
               </Box>
 
               {/* Quarantine Filter */}
-              {canFilterQuarantine && (
-                <Box sx={{ flex: '1 1 260px' }}>
-                  <FormControl component="fieldset">
-                    <FormLabel component="legend">Quarantine Status</FormLabel>
-                    <RadioGroup
-                      row
-                      value={filters.quarantine}
-                      onChange={(e) =>
-                        handleChange('quarantine', e.target.value as 'all' | 'only' | 'exclude')
-                      }
-                    >
-                      <FormControlLabel value="all" control={<Radio />} label="All Sites" />
-                      <FormControlLabel value="exclude" control={<Radio />} label="Available Only" />
-                      <FormControlLabel value="only" control={<Radio />} label="Unavailable Only" />
-                    </RadioGroup>
-                  </FormControl>
-                </Box>
-              )}
+              <Box sx={{ flex: '0 0 auto', minWidth: '185px' }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Quarantine Status
+                </Typography>
+                <TextField
+                  select
+                  size="small"
+                  value={filters.quarantine}
+                  onChange={(e) =>
+                    handleChange('quarantine', e.target.value as 'all' | 'only' | 'exclude')
+                  }
+                  sx={{ width: 185 }}
+                >
+                  <MenuItem value="all">All Sites</MenuItem>
+                  <MenuItem value="exclude">Available Only</MenuItem>
+                  <MenuItem value="only">Unavailable Only</MenuItem>
+                </TextField>
+              </Box>
+
             </Box>
 
             {/* Action Buttons */}
