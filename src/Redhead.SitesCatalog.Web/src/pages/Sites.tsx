@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, Paper, Typography, Tooltip, Alert, Snackbar, Popover, List, ListItem, ListItemText } from '@mui/material';
+import { Box, Paper, Typography, Alert, Snackbar, Popover, List, ListItem, ListItemText } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
 import DownloadIcon from '@mui/icons-material/Download';
 import { PageShell } from '../components/layout/PageShell';
 import { SitesFilters } from '../components/sites/SitesFilters';
 import { EditSiteDialog } from '../components/sites/EditSiteDialog';
+import { StatusBadge } from '../components/sites/StatusBadge';
 import { useUserRoles } from '../hooks/useUserRoles';
 import type {
   Site,
@@ -23,10 +24,6 @@ type GridRow = Site | NotFoundRow;
 
 function isNotFoundRow(row: GridRow): row is NotFoundRow {
   return '_isNotFound' in row && row._isNotFound === true;
-}
-
-function getQuarantineReason(row: GridRow): string | null {
-  return isNotFoundRow(row) ? null : row.quarantineReason;
 }
 
 function formatCell<T>(row: GridRow, value: T, format: (v: T) => string): string {
@@ -434,26 +431,15 @@ export function Sites() {
     {
       field: 'isQuarantined',
       headerName: 'Status',
-      width: 100,
+      width: 110,
       sortable: false,
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) => {
         if (isNotFoundRow(params.row)) return '—';
         const isQuarantined = params.value as boolean;
-        if (isQuarantined) {
-          const reason = getQuarantineReason(params.row);
-          const tooltipText = reason ? `Unavailable: ${reason}` : 'Unavailable';
-          return (
-            <Tooltip title={tooltipText} arrow>
-              <span>Unavailable</span>
-            </Tooltip>
-          );
-        }
         return (
-          <Tooltip title="Available" arrow>
-            <span>Available</span>
-          </Tooltip>
+            <StatusBadge isAvailable={!isQuarantined} />
         );
       },
     },
