@@ -1,10 +1,7 @@
 ---
+description:
 alwaysApply: true
 ---
-
-Source of truth:
-- Follow docs/spec-cursor.txt and docs/plan.md.
-- Implement ONLY the current commit step from plan.md. Do not do future work.
 
 Working style:
 - Keep changes minimal and reviewable.
