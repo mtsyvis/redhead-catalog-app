@@ -460,6 +460,13 @@ export function Sites() {
       valueFormatter: (value, row) => formatNullableInteger(row, value as number | null),
     },
     {
+      field: 'sponsoredTag',
+      headerName: 'Sponsored Tag',
+      width: 150,
+      sortable: false,
+      valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
+    },
+    {
       field: 'term',
       headerName: 'Term',
       width: 120,
@@ -468,13 +475,6 @@ export function Sites() {
         const site = row as Site;
         return formatTerm(site.termType, site.termValue, site.termUnit);
       },
-    },
-    {
-      field: 'sponsoredTag',
-      headerName: 'Sponsored Tag',
-      width: 150,
-      sortable: false,
-      valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
     },
     {
       field: 'isQuarantined',
