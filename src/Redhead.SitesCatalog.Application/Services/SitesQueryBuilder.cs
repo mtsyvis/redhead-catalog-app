@@ -220,20 +220,50 @@ public class SitesQueryBuilder : ISitesQueryBuilder
                 ? query.OrderBy(s => s.PriceUsd == null ? 1 : 0).ThenByDescending(s => s.PriceUsd)
                 : query.OrderBy(s => s.PriceUsd == null ? 1 : 0).ThenBy(s => s.PriceUsd),
             SortFields.PriceCasino => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.PriceCasino)
-                : query.OrderBy(s => s.PriceCasino),
+                ? query
+                    .OrderBy(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
+                    .ThenByDescending(s => s.PriceCasino)
+                    .ThenBy(s => s.Domain)
+                : query
+                    .OrderBy(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
+                    .ThenBy(s => s.PriceCasino)
+                    .ThenBy(s => s.Domain),
             SortFields.PriceCrypto => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.PriceCrypto)
-                : query.OrderBy(s => s.PriceCrypto),
+                ? query
+                    .OrderBy(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
+                    .ThenByDescending(s => s.PriceCrypto)
+                    .ThenBy(s => s.Domain)
+                : query
+                    .OrderBy(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
+                    .ThenBy(s => s.PriceCrypto)
+                    .ThenBy(s => s.Domain),
             SortFields.PriceLinkInsert => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.PriceLinkInsert)
-                : query.OrderBy(s => s.PriceLinkInsert),
+                ? query
+                    .OrderBy(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
+                    .ThenByDescending(s => s.PriceLinkInsert)
+                    .ThenBy(s => s.Domain)
+                : query
+                    .OrderBy(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
+                    .ThenBy(s => s.PriceLinkInsert)
+                    .ThenBy(s => s.Domain),
             SortFields.PriceLinkInsertCasino => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.PriceLinkInsertCasino)
-                : query.OrderBy(s => s.PriceLinkInsertCasino),
+                ? query
+                    .OrderBy(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
+                    .ThenByDescending(s => s.PriceLinkInsertCasino)
+                    .ThenBy(s => s.Domain)
+                : query
+                    .OrderBy(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
+                    .ThenBy(s => s.PriceLinkInsertCasino)
+                    .ThenBy(s => s.Domain),
             SortFields.PriceDating => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.PriceDating)
-                : query.OrderBy(s => s.PriceDating),
+                ? query
+                    .OrderBy(s => s.PriceDatingStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
+                    .ThenByDescending(s => s.PriceDating)
+                    .ThenBy(s => s.Domain)
+                : query
+                    .OrderBy(s => s.PriceDatingStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
+                    .ThenBy(s => s.PriceDating)
+                    .ThenBy(s => s.Domain),
             SortFields.NumberDFLinks => direction == SortingDefaults.Descending
                 ? query.OrderBy(s => s.NumberDFLinks == null ? 1 : 0).ThenByDescending(s => s.NumberDFLinks).ThenBy(s => s.Domain)
                 : query.OrderBy(s => s.NumberDFLinks == null ? 1 : 0).ThenBy(s => s.NumberDFLinks).ThenBy(s => s.Domain),

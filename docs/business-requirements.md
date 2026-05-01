@@ -268,6 +268,7 @@ Rules:
 * Data grid uses server-side paging, sorting, filtering, and search.
 * Large result sets must not be fully loaded into the browser.
 * Nullable or unavailable values should use clear placeholders such as `-`.
+* Sorting by service-specific price fields keeps available services first in both ascending and descending order; not-available and unknown services sort after available services.
 * Row edit actions are visible only to roles allowed to edit, and backend authorization must enforce the same rule.
 
 Main filters:

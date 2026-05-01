@@ -797,6 +797,72 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(150m, result.Items[2].PriceUsd); // crypto.com
     }
 
+    public static TheoryData<string, string, string[]> ServicePriceSortCases => new()
+    {
+        {
+            SortFields.PriceCasino,
+            SortingDefaults.Ascending,
+            new[] { "example.com", "gambling.com", "crypto.com", "lowdr.com", "test.com" }
+        },
+        {
+            SortFields.PriceCasino,
+            SortingDefaults.Descending,
+            new[] { "gambling.com", "example.com", "crypto.com", "lowdr.com", "test.com" }
+        },
+        {
+            SortFields.PriceCrypto,
+            SortingDefaults.Ascending,
+            new[] { "example.com", "crypto.com", "test.com", "gambling.com", "lowdr.com" }
+        },
+        {
+            SortFields.PriceCrypto,
+            SortingDefaults.Descending,
+            new[] { "test.com", "crypto.com", "example.com", "gambling.com", "lowdr.com" }
+        },
+        {
+            SortFields.PriceLinkInsert,
+            SortingDefaults.Ascending,
+            new[] { "lowdr.com", "example.com", "gambling.com", "crypto.com", "test.com" }
+        },
+        {
+            SortFields.PriceLinkInsert,
+            SortingDefaults.Descending,
+            new[] { "gambling.com", "example.com", "lowdr.com", "crypto.com", "test.com" }
+        },
+        {
+            SortFields.PriceLinkInsertCasino,
+            SortingDefaults.Ascending,
+            new[] { "lowdr.com", "example.com", "crypto.com", "gambling.com", "test.com" }
+        },
+        {
+            SortFields.PriceLinkInsertCasino,
+            SortingDefaults.Descending,
+            new[] { "example.com", "lowdr.com", "crypto.com", "gambling.com", "test.com" }
+        },
+        {
+            SortFields.PriceDating,
+            SortingDefaults.Ascending,
+            new[] { "example.com", "gambling.com", "crypto.com", "lowdr.com", "test.com" }
+        },
+        {
+            SortFields.PriceDating,
+            SortingDefaults.Descending,
+            new[] { "gambling.com", "example.com", "crypto.com", "lowdr.com", "test.com" }
+        }
+    };
+
+    [Theory]
+    [MemberData(nameof(ServicePriceSortCases))]
+    public async Task GetSitesAsync_SortByServicePrice_ReturnsUnavailableAndUnknownLast(
+        string sortBy,
+        string sortDir,
+        string[] expectedDomains)
+    {
+        var domains = await GetSortedDomainsAsync(sortBy, sortDir);
+
+        Assert.Equal(expectedDomains, domains);
+    }
+
     [Fact]
     public async Task GetSitesAsync_SortByNumberDFLinksAsc_ReturnsNullsLast()
     {
