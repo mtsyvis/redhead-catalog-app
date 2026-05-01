@@ -69,6 +69,18 @@ public class SitesQueryRequest
     public string? LinkInsertAvailability { get; set; }
 
     /// <summary>
+    /// Optional availability filter for PriceLinkInsertCasino status.
+    /// Allowed values: all, available, notAvailable, unknown.
+    /// </summary>
+    public string? LinkInsertCasinoAvailability { get; set; }
+
+    /// <summary>
+    /// Optional availability filter for PriceDating status.
+    /// Allowed values: all, available, notAvailable, unknown.
+    /// </summary>
+    public string? DatingAvailability { get; set; }
+
+    /// <summary>
     /// Quarantine filter. Valid values: all (default - returns all sites), only (returns only quarantined sites), exclude (excludes quarantined sites)
     /// </summary>
     public string Quarantine { get; set; } = QuarantineFilterValues.All;

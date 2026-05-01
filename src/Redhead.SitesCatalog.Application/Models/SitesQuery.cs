@@ -36,6 +36,8 @@ public class SitesQuery
     public ServiceAvailabilityFilter? CasinoAvailability { get; set; }
     public ServiceAvailabilityFilter? CryptoAvailability { get; set; }
     public ServiceAvailabilityFilter? LinkInsertAvailability { get; set; }
+    public ServiceAvailabilityFilter? LinkInsertCasinoAvailability { get; set; }
+    public ServiceAvailabilityFilter? DatingAvailability { get; set; }
 
     // Quarantine filter
     public string Quarantine { get; set; } = string.Empty;

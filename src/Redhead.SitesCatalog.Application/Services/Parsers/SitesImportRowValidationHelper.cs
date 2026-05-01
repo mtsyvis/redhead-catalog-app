@@ -27,6 +27,14 @@ public static class SitesImportRowValidationHelper
         ServiceAvailabilityStatus PriceCryptoStatus,
         decimal? PriceLinkInsert,
         ServiceAvailabilityStatus PriceLinkInsertStatus,
+        decimal? PriceLinkInsertCasino,
+        ServiceAvailabilityStatus PriceLinkInsertCasinoStatus,
+        decimal? PriceDating,
+        ServiceAvailabilityStatus PriceDatingStatus,
+        int? NumberDFLinks,
+        TermType? TermType,
+        int? TermValue,
+        TermUnit? TermUnit,
         string? Niche,
         string? Categories,
         string? LinkType,
@@ -112,6 +120,57 @@ public static class SitesImportRowValidationHelper
             }, null);
         }
 
+        var linkInsertCasinoParseResult = OptionalServiceValueParser.Parse(row.PriceLinkInsertCasinoRaw);
+        if (!linkInsertCasinoParseResult.IsValid)
+        {
+            return (false, new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Domain = domain,
+                Field = "PriceLinkInsertCasino",
+                RawValue = row.PriceLinkInsertCasinoRaw,
+                Message = linkInsertCasinoParseResult.ErrorMessage ?? "Invalid PriceLinkInsertCasino value."
+            }, null);
+        }
+
+        var datingParseResult = OptionalServiceValueParser.Parse(row.PriceDatingRaw);
+        if (!datingParseResult.IsValid)
+        {
+            return (false, new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Domain = domain,
+                Field = "PriceDating",
+                RawValue = row.PriceDatingRaw,
+                Message = datingParseResult.ErrorMessage ?? "Invalid PriceDating value."
+            }, null);
+        }
+
+        if (!string.IsNullOrWhiteSpace(row.NumberDFLinksRaw) && row.NumberDFLinks is null)
+        {
+            return (false, new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Domain = domain,
+                Field = "NumberDFLinks",
+                RawValue = row.NumberDFLinksRaw,
+                Message = "Invalid NumberDFLinks value."
+            }, null);
+        }
+
+        var termParseResult = TermValueParser.Parse(row.TermRaw);
+        if (!termParseResult.IsValid)
+        {
+            return (false, new SitesImportError
+            {
+                RowNumber = row.RowNumber,
+                Domain = domain,
+                Field = "Term",
+                RawValue = row.TermRaw,
+                Message = termParseResult.ErrorMessage ?? "Invalid Term value."
+            }, null);
+        }
+
         var writeValidationResult = SiteWriteValidator.ValidateAndNormalize(new SiteWriteInput
         {
             DR = row.DR,
@@ -124,6 +183,14 @@ public static class SitesImportRowValidationHelper
             PriceCryptoStatus = cryptoParseResult.Status,
             PriceLinkInsert = linkInsertParseResult.Price,
             PriceLinkInsertStatus = linkInsertParseResult.Status,
+            PriceLinkInsertCasino = linkInsertCasinoParseResult.Price,
+            PriceLinkInsertCasinoStatus = linkInsertCasinoParseResult.Status,
+            PriceDating = datingParseResult.Price,
+            PriceDatingStatus = datingParseResult.Status,
+            NumberDFLinks = row.NumberDFLinks,
+            TermType = termParseResult.TermType,
+            TermValue = termParseResult.TermValue,
+            TermUnit = termParseResult.TermUnit,
             Niche = row.Niche,
             Categories = row.Categories,
             LinkType = row.LinkType,
@@ -173,6 +240,14 @@ public static class SitesImportRowValidationHelper
             normalized.PriceCryptoStatus,
             normalized.PriceLinkInsert,
             normalized.PriceLinkInsertStatus,
+            normalized.PriceLinkInsertCasino,
+            normalized.PriceLinkInsertCasinoStatus,
+            normalized.PriceDating,
+            normalized.PriceDatingStatus,
+            normalized.NumberDFLinks,
+            normalized.TermType,
+            normalized.TermValue,
+            normalized.TermUnit,
             normalized.Niche,
             normalized.Categories,
             normalized.LinkType,
@@ -191,6 +266,10 @@ public static class SitesImportRowValidationHelper
                && string.IsNullOrWhiteSpace(row.PriceCasinoRaw)
                && string.IsNullOrWhiteSpace(row.PriceCryptoRaw)
                && string.IsNullOrWhiteSpace(row.PriceLinkInsertRaw)
+               && string.IsNullOrWhiteSpace(row.PriceLinkInsertCasinoRaw)
+               && string.IsNullOrWhiteSpace(row.PriceDatingRaw)
+               && string.IsNullOrWhiteSpace(row.NumberDFLinksRaw)
+               && string.IsNullOrWhiteSpace(row.TermRaw)
                && string.IsNullOrWhiteSpace(row.Niche)
                && string.IsNullOrWhiteSpace(row.Categories)
                && string.IsNullOrWhiteSpace(row.LinkType)

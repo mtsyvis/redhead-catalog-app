@@ -20,6 +20,14 @@ public class SiteResponse
     public ServiceAvailabilityStatus PriceCryptoStatus { get; set; }
     public decimal? PriceLinkInsert { get; set; }
     public ServiceAvailabilityStatus PriceLinkInsertStatus { get; set; }
+    public decimal? PriceLinkInsertCasino { get; set; }
+    public ServiceAvailabilityStatus PriceLinkInsertCasinoStatus { get; set; }
+    public decimal? PriceDating { get; set; }
+    public ServiceAvailabilityStatus PriceDatingStatus { get; set; }
+    public int? NumberDFLinks { get; set; }
+    public TermType? TermType { get; set; }
+    public int? TermValue { get; set; }
+    public TermUnit? TermUnit { get; set; }
     public string? Niche { get; set; }
     public string? Categories { get; set; }
     public bool IsQuarantined { get; set; }

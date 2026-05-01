@@ -131,6 +131,14 @@ Core site fields:
 * `PriceCryptoStatus`
 * `PriceLinkInsert`
 * `PriceLinkInsertStatus`
+* `PriceLinkInsertCasino`
+* `PriceLinkInsertCasinoStatus`
+* `PriceDating`
+* `PriceDatingStatus`
+* `NumberDFLinks`
+* `TermType`
+* `TermValue`
+* `TermUnit`
 * `Niche`
 * `Categories`
 * `LinkType`
@@ -191,6 +199,8 @@ Service-specific columns:
 * `PriceCasino`
 * `PriceCrypto`
 * `PriceLinkInsert`
+* `PriceLinkInsertCasino`
+* `PriceDating`
 
 Each service-specific price has an availability status:
 
@@ -205,6 +215,19 @@ Rules:
 * Invalid text that is not a supported not-available marker and not a number must be a validation error.
 * Do not represent service availability only as nullable decimal; availability and price are separate concepts.
 * UI must not mislead users by showing unavailable services as zero-price services.
+
+### Additional site fields
+
+`NumberDFLinks` is nullable. When present, it must be a positive whole number.
+
+Term is stored as `TermType`, `TermValue`, and `TermUnit`.
+
+Current term rules:
+
+* Empty term means unknown: all three term fields are empty.
+* `permanent` means `TermType = Permanent` and the value/unit fields are empty.
+* `N year` or `N years` means `TermType = Finite`, `TermValue = N`, and `TermUnit = Year`.
+* Only positive integer year terms are currently valid. Month/day/lifetime/abbreviated values are not supported.
 
 ### Quarantine
 
@@ -257,6 +280,8 @@ Main filters:
 * Casino availability
 * Crypto availability
 * Link Insert availability
+* Link Insert Casino availability
+* Dating availability
 * Quarantine status: all / only quarantined / exclude quarantined
 * Last publication date range/month filter
 
@@ -323,10 +348,14 @@ Required columns, in order:
 6. `PriceCasino`
 7. `PriceCrypto`
 8. `PriceLinkInsert`
-9. `Niche`
-10. `Categories`
-11. `LinkType`
-12. `SponsoredTag`
+9. `PriceLinkInsertCasino`
+10. `PriceDating`
+11. `Niche`
+12. `Categories`
+13. `LinkType`
+14. `NumberDFLinks`
+15. `SponsoredTag`
+16. `Term`
 
 Rules:
 

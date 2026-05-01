@@ -99,11 +99,43 @@ public static class SiteWriteValidator
             input.PriceLinkInsert,
             input.PriceLinkInsertStatus,
             "Price Link Insert");
+        var normalizedLinkInsertCasino = NormalizeOptionalServicePair(
+            errors,
+            "priceLinkInsertCasino",
+            "priceLinkInsertCasinoStatus",
+            input.PriceLinkInsertCasino,
+            input.PriceLinkInsertCasinoStatus,
+            "Price Link Insert Casino");
+        var normalizedDating = NormalizeOptionalServicePair(
+            errors,
+            "priceDating",
+            "priceDatingStatus",
+            input.PriceDating,
+            input.PriceDatingStatus,
+            "Price Dating");
 
-        if (!HasAnyNumericPrice(input.PriceUsd, normalizedCasino.Price, normalizedCasino.Status, normalizedCrypto.Price, normalizedCrypto.Status, normalizedLinkInsert.Price, normalizedLinkInsert.Status))
+        if (!HasAnyNumericPrice(
+                input.PriceUsd,
+                normalizedCasino.Price,
+                normalizedCasino.Status,
+                normalizedCrypto.Price,
+                normalizedCrypto.Status,
+                normalizedLinkInsert.Price,
+                normalizedLinkInsert.Status,
+                normalizedLinkInsertCasino.Price,
+                normalizedLinkInsertCasino.Status,
+                normalizedDating.Price,
+                normalizedDating.Status))
         {
             Add(errors, string.Empty, "At least one numeric price is required.");
         }
+
+        if (input.NumberDFLinks is <= 0)
+        {
+            Add(errors, "numberDFLinks", "Number DF Links must be greater than 0.");
+        }
+
+        ValidateTerm(errors, input.TermType, input.TermValue, input.TermUnit);
 
         var niche = TrimToNull(input.Niche);
         var categories = TrimToNull(input.Categories);
@@ -140,6 +172,14 @@ public static class SiteWriteValidator
                 PriceCryptoStatus = normalizedCrypto.Status,
                 PriceLinkInsert = normalizedLinkInsert.Price,
                 PriceLinkInsertStatus = normalizedLinkInsert.Status,
+                PriceLinkInsertCasino = normalizedLinkInsertCasino.Price,
+                PriceLinkInsertCasinoStatus = normalizedLinkInsertCasino.Status,
+                PriceDating = normalizedDating.Price,
+                PriceDatingStatus = normalizedDating.Status,
+                NumberDFLinks = input.NumberDFLinks,
+                TermType = input.TermType,
+                TermValue = input.TermValue,
+                TermUnit = input.TermUnit,
                 Niche = niche,
                 Categories = categories,
                 IsQuarantined = input.IsQuarantined,
@@ -207,7 +247,11 @@ public static class SiteWriteValidator
         decimal? cryptoPrice,
         ServiceAvailabilityStatus cryptoStatus,
         decimal? linkInsertPrice,
-        ServiceAvailabilityStatus linkInsertStatus)
+        ServiceAvailabilityStatus linkInsertStatus,
+        decimal? linkInsertCasinoPrice,
+        ServiceAvailabilityStatus linkInsertCasinoStatus,
+        decimal? datingPrice,
+        ServiceAvailabilityStatus datingStatus)
     {
         if (priceUsd.HasValue && priceUsd.Value >= 0)
         {
@@ -229,7 +273,71 @@ public static class SiteWriteValidator
             return true;
         }
 
+        if (linkInsertCasinoStatus == ServiceAvailabilityStatus.Available && linkInsertCasinoPrice.HasValue && linkInsertCasinoPrice.Value >= 0)
+        {
+            return true;
+        }
+
+        if (datingStatus == ServiceAvailabilityStatus.Available && datingPrice.HasValue && datingPrice.Value >= 0)
+        {
+            return true;
+        }
+
         return false;
+    }
+
+    private static void ValidateTerm(
+        Dictionary<string, List<string>> errors,
+        TermType? termType,
+        int? termValue,
+        TermUnit? termUnit)
+    {
+        if (termType is null)
+        {
+            if (termValue is not null)
+            {
+                Add(errors, "termValue", "Term value must be empty when term type is empty.");
+            }
+
+            if (termUnit is not null)
+            {
+                Add(errors, "termUnit", "Term unit must be empty when term type is empty.");
+            }
+
+            return;
+        }
+
+        if (termType == TermType.Permanent)
+        {
+            if (termValue is not null)
+            {
+                Add(errors, "termValue", "Term value must be empty when term type is Permanent.");
+            }
+
+            if (termUnit is not null)
+            {
+                Add(errors, "termUnit", "Term unit must be empty when term type is Permanent.");
+            }
+
+            return;
+        }
+
+        if (termType == TermType.Finite)
+        {
+            if (termValue is null or <= 0)
+            {
+                Add(errors, "termValue", "Term value must be greater than 0 when term type is Finite.");
+            }
+
+            if (termUnit != TermUnit.Year)
+            {
+                Add(errors, "termUnit", "Term unit must be Year when term type is Finite.");
+            }
+
+            return;
+        }
+
+        Add(errors, "termType", "Invalid term type value.");
     }
 
     private static string? TrimToNull(string? value)

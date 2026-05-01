@@ -21,6 +21,18 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
             tableBuilder.HasCheckConstraint(
                 "CK_Sites_PriceLinkInsert_StatusConsistency",
                 "(\"PriceLinkInsertStatus\" = 1 AND \"PriceLinkInsert\" IS NOT NULL AND \"PriceLinkInsert\" >= 0) OR (\"PriceLinkInsertStatus\" IN (0, 2) AND \"PriceLinkInsert\" IS NULL)");
+            tableBuilder.HasCheckConstraint(
+                "CK_Sites_PriceLinkInsertCasino_StatusConsistency",
+                "(\"PriceLinkInsertCasinoStatus\" = 1 AND \"PriceLinkInsertCasino\" IS NOT NULL AND \"PriceLinkInsertCasino\" >= 0) OR (\"PriceLinkInsertCasinoStatus\" IN (0, 2) AND \"PriceLinkInsertCasino\" IS NULL)");
+            tableBuilder.HasCheckConstraint(
+                "CK_Sites_PriceDating_StatusConsistency",
+                "(\"PriceDatingStatus\" = 1 AND \"PriceDating\" IS NOT NULL AND \"PriceDating\" >= 0) OR (\"PriceDatingStatus\" IN (0, 2) AND \"PriceDating\" IS NULL)");
+            tableBuilder.HasCheckConstraint(
+                "CK_Sites_NumberDFLinks_PositiveOrNull",
+                "\"NumberDFLinks\" IS NULL OR \"NumberDFLinks\" > 0");
+            tableBuilder.HasCheckConstraint(
+                "CK_Sites_Term_Consistency",
+                "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
         });
 
         builder.HasKey(s => s.Domain);
@@ -70,6 +82,36 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
             .HasConversion<short>()
             .HasColumnType("smallint")
             .HasDefaultValue(ServiceAvailabilityStatus.Unknown);
+
+        builder.Property(s => s.PriceLinkInsertCasino)
+            .HasPrecision(18, 2);
+
+        builder.Property(s => s.PriceLinkInsertCasinoStatus)
+            .IsRequired()
+            .HasConversion<short>()
+            .HasColumnType("smallint")
+            .HasDefaultValue(ServiceAvailabilityStatus.Unknown);
+
+        builder.Property(s => s.PriceDating)
+            .HasPrecision(18, 2);
+
+        builder.Property(s => s.PriceDatingStatus)
+            .IsRequired()
+            .HasConversion<short>()
+            .HasColumnType("smallint")
+            .HasDefaultValue(ServiceAvailabilityStatus.Unknown);
+
+        builder.Property(s => s.NumberDFLinks);
+
+        builder.Property(s => s.TermType)
+            .HasConversion<short>()
+            .HasColumnType("smallint");
+
+        builder.Property(s => s.TermValue);
+
+        builder.Property(s => s.TermUnit)
+            .HasConversion<short>()
+            .HasColumnType("smallint");
 
         builder.Property(s => s.Niche)
             .HasColumnType("text");

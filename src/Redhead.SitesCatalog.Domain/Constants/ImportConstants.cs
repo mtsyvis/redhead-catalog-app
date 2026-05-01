@@ -99,10 +99,14 @@ public static class ImportConstants
         public const string PriceCasino = "PriceCasino";
         public const string PriceCrypto = "PriceCrypto";
         public const string PriceLinkInsert = "PriceLinkInsert";
+        public const string PriceLinkInsertCasino = "PriceLinkInsertCasino";
+        public const string PriceDating = "PriceDating";
         public const string Niche = "Niche";
         public const string Categories = "Categories";
         public const string LinkType = "LinkType";
+        public const string NumberDFLinks = "NumberDFLinks";
         public const string SponsoredTag = "SponsoredTag";
+        public const string Term = "Term";
     }
 
     /// <summary>
@@ -118,9 +122,13 @@ public static class ImportConstants
         SitesImportColumns.PriceCasino,
         SitesImportColumns.PriceCrypto,
         SitesImportColumns.PriceLinkInsert,
+        SitesImportColumns.PriceLinkInsertCasino,
+        SitesImportColumns.PriceDating,
         SitesImportColumns.Niche,
         SitesImportColumns.Categories,
         SitesImportColumns.LinkType,
+        SitesImportColumns.NumberDFLinks,
         SitesImportColumns.SponsoredTag,
+        SitesImportColumns.Term,
     };
 }

@@ -49,6 +49,14 @@ public class SitesServiceTests : IDisposable
                 PriceCryptoStatus = ServiceAvailabilityStatus.Available,
                 PriceLinkInsert = 80m,
                 PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
+                PriceLinkInsertCasino = 85m,
+                PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Available,
+                PriceDating = 95m,
+                PriceDatingStatus = ServiceAvailabilityStatus.Available,
+                NumberDFLinks = 2,
+                TermType = TermType.Finite,
+                TermValue = 2,
+                TermUnit = TermUnit.Year,
                 Niche = "Tech",
                 Categories = "Technology",
                 IsQuarantined = false,
@@ -68,6 +76,10 @@ public class SitesServiceTests : IDisposable
                 PriceCryptoStatus = ServiceAvailabilityStatus.Available,
                 PriceLinkInsert = null,
                 PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+                PriceLinkInsertCasino = null,
+                PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.NotAvailable,
+                PriceDating = null,
+                PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
                 Niche = "News",
                 Categories = "News",
                 IsQuarantined = false,
@@ -87,6 +99,11 @@ public class SitesServiceTests : IDisposable
                 PriceCryptoStatus = ServiceAvailabilityStatus.NotAvailable,
                 PriceLinkInsert = 400m,
                 PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
+                PriceLinkInsertCasino = null,
+                PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.NotAvailable,
+                PriceDating = 700m,
+                PriceDatingStatus = ServiceAvailabilityStatus.Available,
+                TermType = TermType.Permanent,
                 Niche = "Casino",
                 Categories = "Gambling",
                 IsQuarantined = true,
@@ -108,6 +125,10 @@ public class SitesServiceTests : IDisposable
                 PriceCryptoStatus = ServiceAvailabilityStatus.Available,
                 PriceLinkInsert = null,
                 PriceLinkInsertStatus = ServiceAvailabilityStatus.NotAvailable,
+                PriceLinkInsertCasino = null,
+                PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+                PriceDating = null,
+                PriceDatingStatus = ServiceAvailabilityStatus.NotAvailable,
                 Niche = "Crypto",
                 Categories = "Cryptocurrency",
                 IsQuarantined = false,
@@ -127,6 +148,10 @@ public class SitesServiceTests : IDisposable
                 PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceLinkInsert = 30m,
                 PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
+                PriceLinkInsertCasino = 20m,
+                PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Available,
+                PriceDating = null,
+                PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
                 Niche = "General",
                 Categories = "General",
                 IsQuarantined = false,
@@ -498,6 +523,44 @@ public class SitesServiceTests : IDisposable
 
         Assert.Single(result.Items);
         Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceLinkInsertStatus));
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithLinkInsertCasinoAvailabilityNotAvailable_ReturnsOnlyNotAvailableSites()
+    {
+        var query = new SitesQuery
+        {
+            LinkInsertCasinoAvailability = ServiceAvailabilityFilter.NotAvailable,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Equal(2, result.Items.Count);
+        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceLinkInsertCasinoStatus));
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithDatingAvailabilityUnknown_ReturnsOnlyUnknownSites()
+    {
+        var query = new SitesQuery
+        {
+            DatingAvailability = ServiceAvailabilityFilter.Unknown,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Equal(2, result.Items.Count);
+        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Unknown, site.PriceDatingStatus));
     }
 
     [Fact]
@@ -1025,6 +1088,14 @@ public class SitesServiceTests : IDisposable
             PriceCryptoStatus = site.PriceCryptoStatus,
             PriceLinkInsert = site.PriceLinkInsert,
             PriceLinkInsertStatus = site.PriceLinkInsertStatus,
+            PriceLinkInsertCasino = site.PriceLinkInsertCasino,
+            PriceLinkInsertCasinoStatus = site.PriceLinkInsertCasinoStatus,
+            PriceDating = site.PriceDating,
+            PriceDatingStatus = site.PriceDatingStatus,
+            NumberDFLinks = site.NumberDFLinks,
+            TermType = site.TermType,
+            TermValue = site.TermValue,
+            TermUnit = site.TermUnit,
             Niche = site.Niche,
             Categories = site.Categories,
             IsQuarantined = isQuarantined,
@@ -1139,6 +1210,14 @@ public class SitesServiceTests : IDisposable
             PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
             PriceLinkInsert = 90m,
             PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
+            PriceLinkInsertCasino = 95m,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Available,
+            PriceDating = null,
+            PriceDatingStatus = ServiceAvailabilityStatus.NotAvailable,
+            NumberDFLinks = 4,
+            TermType = TermType.Finite,
+            TermValue = 1,
+            TermUnit = TermUnit.Year,
             Niche = "Updated niche",
             Categories = "Updated categories",
             IsQuarantined = site.IsQuarantined,
@@ -1155,6 +1234,13 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(200m, updated.PriceCasino);
         Assert.Null(updated.PriceCrypto);
         Assert.Equal(90m, updated.PriceLinkInsert);
+        Assert.Equal(95m, updated.PriceLinkInsertCasino);
+        Assert.Null(updated.PriceDating);
+        Assert.Equal(ServiceAvailabilityStatus.NotAvailable, updated.PriceDatingStatus);
+        Assert.Equal(4, updated.NumberDFLinks);
+        Assert.Equal(TermType.Finite, updated.TermType);
+        Assert.Equal(1, updated.TermValue);
+        Assert.Equal(TermUnit.Year, updated.TermUnit);
         Assert.Equal("Updated niche", updated.Niche);
         Assert.Equal("Updated categories", updated.Categories);
 
@@ -1257,6 +1343,8 @@ public class SitesServiceTests : IDisposable
         PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
         PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
         PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
         IsQuarantined = false,
         CreatedAtUtc = DateTime.UtcNow,
         UpdatedAtUtc = DateTime.UtcNow

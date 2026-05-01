@@ -25,6 +25,10 @@ public static class SitesImportRowMapper
         var priceCasinoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceCasino);
         var priceCryptoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceCrypto);
         var priceLinkInsertRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceLinkInsert);
+        var priceLinkInsertCasinoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceLinkInsertCasino);
+        var priceDatingRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceDating);
+        var numberDFLinksRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.NumberDFLinks);
+        var termRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.Term);
         var niche = TryGetValue(getValue, ImportConstants.SitesImportColumns.Niche);
         var categories = TryGetValue(getValue, ImportConstants.SitesImportColumns.Categories);
         var linkType = TryGetValue(getValue, ImportConstants.SitesImportColumns.LinkType);
@@ -43,6 +47,11 @@ public static class SitesImportRowMapper
             PriceCasinoRaw = priceCasinoRaw,
             PriceCryptoRaw = priceCryptoRaw,
             PriceLinkInsertRaw = priceLinkInsertRaw,
+            PriceLinkInsertCasinoRaw = priceLinkInsertCasinoRaw,
+            PriceDatingRaw = priceDatingRaw,
+            NumberDFLinksRaw = numberDFLinksRaw,
+            NumberDFLinks = ParseNullableIntStrict(numberDFLinksRaw),
+            TermRaw = termRaw,
             Niche = niche,
             Categories = categories,
             LinkType = linkType,
@@ -107,5 +116,17 @@ public static class SitesImportRowMapper
         }
 
         return null;
+    }
+
+    private static int? ParseNullableIntStrict(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
     }
 }

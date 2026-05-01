@@ -68,6 +68,14 @@ public class ExportServiceTests : IDisposable
                 PriceCryptoStatus = ServiceAvailabilityStatus.Available,
                 PriceLinkInsert = 80m,
                 PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
+                PriceLinkInsertCasino = 85m,
+                PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Available,
+                PriceDating = 95m,
+                PriceDatingStatus = ServiceAvailabilityStatus.Available,
+                NumberDFLinks = 2,
+                TermType = TermType.Finite,
+                TermValue = 2,
+                TermUnit = TermUnit.Year,
                 Niche = "Tech",
                 Categories = "Technology",
                 IsQuarantined = false,
@@ -87,6 +95,10 @@ public class ExportServiceTests : IDisposable
                 PriceCryptoStatus = ServiceAvailabilityStatus.Available,
                 PriceLinkInsert = null,
                 PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+                PriceLinkInsertCasino = null,
+                PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.NotAvailable,
+                PriceDating = null,
+                PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
                 Niche = "News",
                 Categories = "News",
                 IsQuarantined = false,
@@ -106,6 +118,11 @@ public class ExportServiceTests : IDisposable
                 PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
                 PriceLinkInsert = 400m,
                 PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
+                PriceLinkInsertCasino = null,
+                PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.NotAvailable,
+                PriceDating = 700m,
+                PriceDatingStatus = ServiceAvailabilityStatus.Available,
+                TermType = TermType.Permanent,
                 Niche = "Casino",
                 Categories = "Gambling",
                 IsQuarantined = true,
@@ -219,6 +236,55 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportSitesAsCsvAsync_WithLinkInsertCasinoAvailabilityNotAvailable_FiltersByStatus()
+    {
+        var query = new SitesQuery
+        {
+            LinkInsertCasinoAvailability = ServiceAvailabilityFilter.NotAvailable,
+            Page = 1,
+            PageSize = 100,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.ExportSitesAsCsvAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var sites = await ReadCsvFromStream(result.CsvStream);
+        Assert.Equal(["gambling.com", "test.com"], sites.Select(s => s.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsCsvAsync_WithDatingAvailabilityUnknown_FiltersByStatus()
+    {
+        var query = new SitesQuery
+        {
+            DatingAvailability = ServiceAvailabilityFilter.Unknown,
+            Page = 1,
+            PageSize = 100,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.ExportSitesAsCsvAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var sites = await ReadCsvFromStream(result.CsvStream);
+        Assert.Single(sites);
+        Assert.Equal("test.com", sites[0].Domain);
+    }
+
+    [Fact]
     public async Task ExportSitesAsCsvAsync_WithQuarantineExclude_ExcludesQuarantinedSites()
     {
         var query = new SitesQuery
@@ -289,10 +355,14 @@ public class ExportServiceTests : IDisposable
                 "PriceCasino",
                 "PriceCrypto",
                 "PriceLinkInsert",
+                "PriceLinkInsertCasino",
+                "PriceDating",
                 "Niche",
                 "Categories",
                 "LinkType",
-                "SponsoredTag"
+                "NumberDFLinks",
+                "SponsoredTag",
+                "Term"
             ],
             headers);
     }
@@ -318,10 +388,14 @@ public class ExportServiceTests : IDisposable
                 "PriceCasino",
                 "PriceCrypto",
                 "PriceLinkInsert",
+                "PriceLinkInsertCasino",
+                "PriceDating",
                 "Niche",
                 "Categories",
                 "LinkType",
+                "NumberDFLinks",
                 "SponsoredTag",
+                "Term",
                 "IsQuarantined",
                 "QuarantineReason",
                 "LastPublishedDate",
@@ -347,6 +421,14 @@ public class ExportServiceTests : IDisposable
             PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
             PriceLinkInsert = 12m,
             PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
+            PriceLinkInsertCasino = null,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.NotAvailable,
+            PriceDating = null,
+            PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+            NumberDFLinks = 4,
+            TermType = TermType.Finite,
+            TermValue = 1,
+            TermUnit = TermUnit.Year,
             IsQuarantined = false,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
@@ -375,6 +457,10 @@ public class ExportServiceTests : IDisposable
         Assert.Equal("NO", rows[0]["PriceCasino"]);
         Assert.Equal(string.Empty, rows[0]["PriceCrypto"]);
         Assert.Equal("12", rows[0]["PriceLinkInsert"]);
+        Assert.Equal("NO", rows[0]["PriceLinkInsertCasino"]);
+        Assert.Equal(string.Empty, rows[0]["PriceDating"]);
+        Assert.Equal("4", rows[0]["NumberDFLinks"]);
+        Assert.Equal("1 year", rows[0]["Term"]);
     }
 
     #endregion
@@ -694,6 +780,10 @@ public class ExportServiceTests : IDisposable
         public string PriceCasino { get; set; } = string.Empty;
         public string PriceCrypto { get; set; } = string.Empty;
         public string PriceLinkInsert { get; set; } = string.Empty;
+        public string PriceLinkInsertCasino { get; set; } = string.Empty;
+        public string PriceDating { get; set; } = string.Empty;
+        public int? NumberDFLinks { get; set; }
+        public string Term { get; set; } = string.Empty;
         public string? Niche { get; set; }
         public string? Categories { get; set; }
         public string? LinkType { get; set; }
@@ -777,6 +867,8 @@ public class ExportServiceTests : IDisposable
         PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
         PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
         PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
         IsQuarantined = false,
         CreatedAtUtc = DateTime.UtcNow,
         UpdatedAtUtc = DateTime.UtcNow

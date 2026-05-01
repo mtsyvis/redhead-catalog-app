@@ -408,6 +408,9 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Property<string>("Niche")
                         .HasColumnType("text");
 
+                    b.Property<int?>("NumberDFLinks")
+                        .HasColumnType("integer");
+
                     b.Property<decimal?>("PriceCasino")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -426,11 +429,29 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .HasColumnType("smallint")
                         .HasDefaultValue((short)0);
 
+                    b.Property<decimal?>("PriceDating")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<short>("PriceDatingStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((short)0);
+
                     b.Property<decimal?>("PriceLinkInsert")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
                     b.Property<short>("PriceLinkInsertStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((short)0);
+
+                    b.Property<decimal?>("PriceLinkInsertCasino")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<short>("PriceLinkInsertCasinoStatus")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("smallint")
                         .HasDefaultValue((short)0);
@@ -453,6 +474,15 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Property<long>("Traffic")
                         .HasColumnType("bigint");
 
+                    b.Property<short?>("TermType")
+                        .HasColumnType("smallint");
+
+                    b.Property<short?>("TermUnit")
+                        .HasColumnType("smallint");
+
+                    b.Property<int?>("TermValue")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -472,11 +502,19 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
 
                     b.ToTable("Sites", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Sites_NumberDFLinks_PositiveOrNull", "\"NumberDFLinks\" IS NULL OR \"NumberDFLinks\" > 0");
+
                             t.HasCheckConstraint("CK_Sites_PriceCasino_StatusConsistency", "(\"PriceCasinoStatus\" = 1 AND \"PriceCasino\" IS NOT NULL AND \"PriceCasino\" >= 0) OR (\"PriceCasinoStatus\" IN (0, 2) AND \"PriceCasino\" IS NULL)");
 
                             t.HasCheckConstraint("CK_Sites_PriceCrypto_StatusConsistency", "(\"PriceCryptoStatus\" = 1 AND \"PriceCrypto\" IS NOT NULL AND \"PriceCrypto\" >= 0) OR (\"PriceCryptoStatus\" IN (0, 2) AND \"PriceCrypto\" IS NULL)");
 
+                            t.HasCheckConstraint("CK_Sites_PriceDating_StatusConsistency", "(\"PriceDatingStatus\" = 1 AND \"PriceDating\" IS NOT NULL AND \"PriceDating\" >= 0) OR (\"PriceDatingStatus\" IN (0, 2) AND \"PriceDating\" IS NULL)");
+
                             t.HasCheckConstraint("CK_Sites_PriceLinkInsert_StatusConsistency", "(\"PriceLinkInsertStatus\" = 1 AND \"PriceLinkInsert\" IS NOT NULL AND \"PriceLinkInsert\" >= 0) OR (\"PriceLinkInsertStatus\" IN (0, 2) AND \"PriceLinkInsert\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_Sites_PriceLinkInsertCasino_StatusConsistency", "(\"PriceLinkInsertCasinoStatus\" = 1 AND \"PriceLinkInsertCasino\" IS NOT NULL AND \"PriceLinkInsertCasino\" >= 0) OR (\"PriceLinkInsertCasinoStatus\" IN (0, 2) AND \"PriceLinkInsertCasino\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_Sites_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
                         });
                 });
 

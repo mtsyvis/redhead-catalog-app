@@ -28,10 +28,14 @@ public class ExportService : IExportService
         "PriceCasino",
         "PriceCrypto",
         "PriceLinkInsert",
+        "PriceLinkInsertCasino",
+        "PriceDating",
         "Niche",
         "Categories",
         "LinkType",
+        "NumberDFLinks",
         "SponsoredTag",
+        "Term",
     ];
 
     private static readonly string[] NonClientExportHeaders =
@@ -44,10 +48,14 @@ public class ExportService : IExportService
         "PriceCasino",
         "PriceCrypto",
         "PriceLinkInsert",
+        "PriceLinkInsertCasino",
+        "PriceDating",
         "Niche",
         "Categories",
         "LinkType",
+        "NumberDFLinks",
         "SponsoredTag",
+        "Term",
         "IsQuarantined",
         "QuarantineReason",
         "LastPublishedDate",
@@ -254,6 +262,8 @@ public class ExportService : IExportService
             query.CasinoAvailability,
             query.CryptoAvailability,
             query.LinkInsertAvailability,
+            query.LinkInsertCasinoAvailability,
+            query.DatingAvailability,
             query.Quarantine
         };
 
@@ -307,6 +317,16 @@ public class ExportService : IExportService
         {
             return true;
         }
+        if (query.LinkInsertCasinoAvailability.HasValue &&
+            query.LinkInsertCasinoAvailability.Value != ServiceAvailabilityFilter.All)
+        {
+            return true;
+        }
+        if (query.DatingAvailability.HasValue &&
+            query.DatingAvailability.Value != ServiceAvailabilityFilter.All)
+        {
+            return true;
+        }
         if (!string.IsNullOrEmpty(query.Quarantine) &&
             !string.Equals(query.Quarantine, QuarantineFilterValues.All, StringComparison.OrdinalIgnoreCase))
         {
@@ -341,10 +361,14 @@ public class ExportService : IExportService
         csvWriter.WriteField(FormatOptionalService(site.PriceCasino, site.PriceCasinoStatus));
         csvWriter.WriteField(FormatOptionalService(site.PriceCrypto, site.PriceCryptoStatus));
         csvWriter.WriteField(FormatOptionalService(site.PriceLinkInsert, site.PriceLinkInsertStatus));
+        csvWriter.WriteField(FormatOptionalService(site.PriceLinkInsertCasino, site.PriceLinkInsertCasinoStatus));
+        csvWriter.WriteField(FormatOptionalService(site.PriceDating, site.PriceDatingStatus));
         csvWriter.WriteField(site.Niche);
         csvWriter.WriteField(site.Categories);
         csvWriter.WriteField(site.LinkType);
+        csvWriter.WriteField(site.NumberDFLinks?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
         csvWriter.WriteField(site.SponsoredTag);
+        csvWriter.WriteField(FormatTerm(site.TermType, site.TermValue, site.TermUnit));
 
         if (isClientRole)
         {
@@ -366,6 +390,26 @@ public class ExportService : IExportService
             ServiceAvailabilityStatus.NotAvailable => "NO",
             _ => string.Empty
         };
+    }
+
+    private static string FormatTerm(TermType? termType, int? termValue, TermUnit? termUnit)
+    {
+        if (termType is null)
+        {
+            return string.Empty;
+        }
+
+        if (termType == TermType.Permanent)
+        {
+            return "permanent";
+        }
+
+        if (termType == TermType.Finite && termValue.HasValue && termUnit == TermUnit.Year)
+        {
+            return termValue.Value == 1 ? "1 year" : $"{termValue.Value} years";
+        }
+
+        return string.Empty;
     }
 
 }

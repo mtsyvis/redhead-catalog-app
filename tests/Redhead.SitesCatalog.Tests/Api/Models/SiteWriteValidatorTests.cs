@@ -144,6 +144,21 @@ public class SiteWriteValidatorTests
         Assert.Equal(30m, result.NormalizedRequest.PriceLinkInsert);
     }
 
+    [Theory]
+    [InlineData("PriceLinkInsertCasino", 45)]
+    [InlineData("PriceDating", 65)]
+    public void ValidateAndNormalize_NullPriceUsd_WithNewOptionalServicePrice_IsValid(string service, decimal price)
+    {
+        var request = BuildValidRequest();
+        request.PriceUsd = null;
+        SetOptionalService(request, service, price, ServiceAvailabilityStatus.Available);
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.True(result.IsValid);
+        Assert.Null(result.NormalizedRequest!.PriceUsd);
+    }
+
     [Fact]
     public void ValidateAndNormalize_NullPriceUsd_AllOptionalServicesNotAvailable_ReturnsCrossFieldError()
     {
@@ -189,6 +204,8 @@ public class SiteWriteValidatorTests
     [InlineData("priceCasino", "PriceCasino")]
     [InlineData("priceCrypto", "PriceCrypto")]
     [InlineData("priceLinkInsert", "PriceLinkInsert")]
+    [InlineData("priceLinkInsertCasino", "PriceLinkInsertCasino")]
+    [InlineData("priceDating", "PriceDating")]
     public void ValidateAndNormalize_AvailableStatusWithoutPrice_ReturnsError(string expectedField, string service)
     {
         var request = BuildValidRequest();
@@ -203,6 +220,8 @@ public class SiteWriteValidatorTests
     [InlineData("priceCasino", "PriceCasino")]
     [InlineData("priceCrypto", "PriceCrypto")]
     [InlineData("priceLinkInsert", "PriceLinkInsert")]
+    [InlineData("priceLinkInsertCasino", "PriceLinkInsertCasino")]
+    [InlineData("priceDating", "PriceDating")]
     public void ValidateAndNormalize_AvailableStatusWithNegativePrice_ReturnsError(string expectedField, string service)
     {
         var request = BuildValidRequest();
@@ -217,6 +236,8 @@ public class SiteWriteValidatorTests
     [InlineData("priceCasino", "PriceCasino")]
     [InlineData("priceCrypto", "PriceCrypto")]
     [InlineData("priceLinkInsert", "PriceLinkInsert")]
+    [InlineData("priceLinkInsertCasino", "PriceLinkInsertCasino")]
+    [InlineData("priceDating", "PriceDating")]
     public void ValidateAndNormalize_NonAvailableStatusWithPrice_ReturnsError(string expectedField, string service)
     {
         var request = BuildValidRequest();
@@ -322,9 +343,94 @@ public class SiteWriteValidatorTests
     }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ValidateAndNormalize_NumberDFLinksNotPositive_ReturnsError(int value)
+    {
+        var request = BuildValidRequest();
+        request.NumberDFLinks = value;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        AssertError(result, "numberDFLinks");
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_NumberDFLinksNullOrPositive_IsValid()
+    {
+        var nullRequest = BuildValidRequest();
+        nullRequest.NumberDFLinks = null;
+        var nullResult = SiteWriteValidator.ValidateAndNormalize(nullRequest);
+        Assert.True(nullResult.IsValid);
+
+        var positiveRequest = BuildValidRequest();
+        positiveRequest.NumberDFLinks = 3;
+        var positiveResult = SiteWriteValidator.ValidateAndNormalize(positiveRequest);
+        Assert.True(positiveResult.IsValid);
+        Assert.Equal(3, positiveResult.NormalizedRequest!.NumberDFLinks);
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_TermUnknownRequiresNoValueOrUnit()
+    {
+        var request = BuildValidRequest();
+        request.TermValue = 1;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        AssertError(result, "termValue");
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_TermPermanentRequiresNoValueOrUnit()
+    {
+        var request = BuildValidRequest();
+        request.TermType = TermType.Permanent;
+        request.TermUnit = TermUnit.Year;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        AssertError(result, "termUnit");
+    }
+
+    [Theory]
+    [InlineData(null, TermUnit.Year)]
+    [InlineData(0, TermUnit.Year)]
+    [InlineData(1, null)]
+    public void ValidateAndNormalize_TermFiniteRequiresPositiveValueAndYearUnit(int? value, TermUnit? unit)
+    {
+        var request = BuildValidRequest();
+        request.TermType = TermType.Finite;
+        request.TermValue = value;
+        request.TermUnit = unit;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_TermFiniteWithPositiveYears_IsValid()
+    {
+        var request = BuildValidRequest();
+        request.TermType = TermType.Finite;
+        request.TermValue = 2;
+        request.TermUnit = TermUnit.Year;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.True(result.IsValid);
+        Assert.Equal(TermType.Finite, result.NormalizedRequest!.TermType);
+        Assert.Equal(2, result.NormalizedRequest.TermValue);
+        Assert.Equal(TermUnit.Year, result.NormalizedRequest.TermUnit);
+    }
+
+    [Theory]
     [InlineData("PriceCasino", ServiceAvailabilityStatus.Unknown)]
     [InlineData("PriceCrypto", ServiceAvailabilityStatus.NotAvailable)]
     [InlineData("PriceLinkInsert", ServiceAvailabilityStatus.Unknown)]
+    [InlineData("PriceLinkInsertCasino", ServiceAvailabilityStatus.NotAvailable)]
+    [InlineData("PriceDating", ServiceAvailabilityStatus.Unknown)]
     public void ValidateAndNormalize_NonAvailableStatuses_ForceNormalizedPriceToNull(string service, ServiceAvailabilityStatus status)
     {
         var request = BuildValidRequest();
@@ -342,6 +448,12 @@ public class SiteWriteValidatorTests
                 break;
             case "PriceCrypto":
                 Assert.Null(normalized.PriceCrypto);
+                break;
+            case "PriceLinkInsertCasino":
+                Assert.Null(normalized.PriceLinkInsertCasino);
+                break;
+            case "PriceDating":
+                Assert.Null(normalized.PriceDating);
                 break;
             default:
                 Assert.Null(normalized.PriceLinkInsert);
@@ -364,6 +476,14 @@ public class SiteWriteValidatorTests
             case "PriceCrypto":
                 request.PriceCrypto = price;
                 request.PriceCryptoStatus = status;
+                break;
+            case "PriceLinkInsertCasino":
+                request.PriceLinkInsertCasino = price;
+                request.PriceLinkInsertCasinoStatus = status;
+                break;
+            case "PriceDating":
+                request.PriceDating = price;
+                request.PriceDatingStatus = status;
                 break;
             default:
                 request.PriceLinkInsert = price;
@@ -392,6 +512,14 @@ public class SiteWriteValidatorTests
             PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
             PriceLinkInsert = null,
             PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertCasino = null,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceDating = null,
+            PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+            NumberDFLinks = null,
+            TermType = null,
+            TermValue = null,
+            TermUnit = null,
             Niche = null,
             Categories = null,
             LinkType = null,

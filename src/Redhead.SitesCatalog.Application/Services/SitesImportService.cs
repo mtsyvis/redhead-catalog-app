@@ -20,11 +20,6 @@ namespace Redhead.SitesCatalog.Application.Services;
 /// </summary>
 public sealed class SitesImportService : ISitesImportService
 {
-    private static readonly IReadOnlyDictionary<string, int> ColumnIndexes =
-        ImportConstants.SitesImportRequiredColumnOrder
-            .Select((name, index) => new { name, index })
-            .ToDictionary(x => x.name, x => x.index, StringComparer.Ordinal);
-
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SitesImportService> _logger;
     private readonly IImportArtifactStorageService _importArtifactStorageService;
@@ -188,6 +183,8 @@ public sealed class SitesImportService : ISitesImportService
         int headerCount,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var columnIndexes = BuildColumnIndexes(csv.HeaderRecord ?? Array.Empty<string>());
+
         // Row 1 = header
         var rowNumber = 1;
 
@@ -204,7 +201,7 @@ public sealed class SitesImportService : ISitesImportService
             }
 
             var mappedRow = SitesImportRowMapper.Map(
-                columnName => csv.GetField(ColumnIndexes[columnName])?.Trim(),
+                columnName => columnIndexes.TryGetValue(columnName, out var index) ? csv.GetField(index)?.Trim() : null,
                 rowNumber);
 
             yield return (mappedRow, rawValues);
@@ -320,6 +317,14 @@ public sealed class SitesImportService : ISitesImportService
             PriceCryptoStatus = data.PriceCryptoStatus,
             PriceLinkInsert = data.PriceLinkInsert,
             PriceLinkInsertStatus = data.PriceLinkInsertStatus,
+            PriceLinkInsertCasino = data.PriceLinkInsertCasino,
+            PriceLinkInsertCasinoStatus = data.PriceLinkInsertCasinoStatus,
+            PriceDating = data.PriceDating,
+            PriceDatingStatus = data.PriceDatingStatus,
+            NumberDFLinks = data.NumberDFLinks,
+            TermType = data.TermType,
+            TermValue = data.TermValue,
+            TermUnit = data.TermUnit,
             Niche = data.Niche,
             Categories = data.Categories,
             LinkType = data.LinkType,
@@ -378,6 +383,21 @@ public sealed class SitesImportService : ISitesImportService
         }
 
         occurrences[normalizedDomain] = 1;
+    }
+
+    private static Dictionary<string, int> BuildColumnIndexes(IReadOnlyList<string> header)
+    {
+        var indexes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < header.Count; i++)
+        {
+            var normalized = CsvImportHelper.NormalizeHeader(header[i]);
+            if (!string.IsNullOrEmpty(normalized) && !indexes.ContainsKey(normalized))
+            {
+                indexes[normalized] = i;
+            }
+        }
+
+        return indexes;
     }
 
     private void AttachSummaryAndDownloads(

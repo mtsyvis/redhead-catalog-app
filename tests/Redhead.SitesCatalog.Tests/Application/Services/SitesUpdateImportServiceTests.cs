@@ -48,8 +48,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,55,12000,US,100,150,200,250,Tech,News,GuestPost,Sponsored\n" +
-            "second.com,42,8000,UK,80,,,,,,,\n");
+            "existing.com,55,12000,US,100,150,200,250,,,Tech,News,GuestPost,,Sponsored,\n" +
+            "second.com,42,8000,UK,80,,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -109,8 +109,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     public async Task ImportAsync_SemicolonDelimitedFile_IsSupported()
     {
         using var stream = Utf8Csv(
-            "Domain;DR;Traffic;Location;PriceUsd;PriceCasino;PriceCrypto;PriceLinkInsert;Niche;Categories;LinkType;SponsoredTag\n" +
-            "existing.com;61;15000;DE;90;120;;;Finance;Blog;;\n");
+            "Domain;DR;Traffic;Location;PriceUsd;PriceCasino;PriceCrypto;PriceLinkInsert;PriceLinkInsertCasino;PriceDating;Niche;Categories;LinkType;NumberDFLinks;SponsoredTag;Term\n" +
+            "existing.com;61;15000;DE;90;120;;;;;Finance;Blog;;;;\n");
 
         var result = await ImportAsync(stream);
 
@@ -137,7 +137,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,50,1000,US,10,,,,,\n",
+            "existing.com,50,1000,US,10,,,,,,,,,,,\n",
             withBom: true);
 
         var result = await ImportAsync(stream);
@@ -153,8 +153,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     public async Task ImportAsync_InvalidHeaderOrder_ThrowsImportHeaderValidationException()
     {
         using var stream = Utf8Csv(
-            "DR,Domain,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,LinkType,SponsoredTag\n" +
-            "55,existing.com,12000,US,100,150,200,250,Tech,News,,\n");
+            "DR,Domain,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,LinkType,NumberDFLinks,SponsoredTag,Term\n" +
+            "55,existing.com,12000,US,100,150,200,250,,,Tech,News,,,,\n");
 
         var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
 
@@ -165,8 +165,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     public async Task ImportAsync_MissingRequiredHeader_ThrowsImportHeaderValidationException()
     {
         using var stream = Utf8Csv(
-            "Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,LinkType,SponsoredTag\n" +
-            "existing.com,55,12000,US,100,150,200,250,Tech,,\n");
+            "Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,LinkType,NumberDFLinks,SponsoredTag,Term\n" +
+            "existing.com,55,12000,US,100,150,200,250,,,Tech,,,,\n");
 
         var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
 
@@ -186,7 +186,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf16Csv(
             HeaderLine() +
-            "existing.com,55,12000,US,100,150,200,250,Tech,News\n");
+            "existing.com,55,12000,US,100,150,200,250,,,Tech,News,,,,\n");
 
         var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
 
@@ -198,8 +198,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,55,12000,US,100,,,,,\n" +
-            "missing-site.com,42,5000,UK,50,,,,,\n");
+            "existing.com,55,12000,US,100,,,,,,,,,,,\n" +
+            "missing-site.com,42,5000,UK,50,,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -229,7 +229,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
 
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,55,12000,US,100,,,,,\n");
+            "existing.com,55,12000,US,100,,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -256,7 +256,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,55,12000,US,100,,,,,,  Partner  ,   \n");
+            "existing.com,55,12000,US,100,,,,,,,,  Partner  ,,   ,\n");
 
         var result = await ImportAsync(stream);
 
@@ -273,8 +273,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,10,1000,US,10,,,,,\n" +
-            "existing.com,75,25000,CA,300,10,20,30,Finance,Magazine\n");
+            "existing.com,10,1000,US,10,,,,,,,,,,,\n" +
+            "existing.com,75,25000,CA,300,10,20,30,,,Finance,Magazine,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -306,8 +306,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,60,5000,US,15,,,,,\n" +
-            "existing.com,invalid,5000,US,15,,,,,\n");
+            "existing.com,60,5000,US,15,,,,,,,,,,,\n" +
+            "existing.com,invalid,5000,US,15,,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -330,8 +330,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         using var stream = Utf8Csv(
             HeaderLine() +
             "\n" +
-            "existing.com,50,1000,US,10,,,,,\n" +
-            ",,,,,,,,,\n" +
+            "existing.com,50,1000,US,10,,,,,,,,,,,\n" +
+            ",,,,,,,,,,,,,,,\n" +
             "\n");
 
         var result = await ImportAsync(stream);
@@ -368,7 +368,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         sb.Append(HeaderLine());
         for (var i = 0; i < totalSites; i++)
         {
-            sb.Append($"chunk-{i}.com,55,12000,US,100,50,60,70,Tech,News\n");
+            sb.Append($"chunk-{i}.com,55,12000,US,100,50,60,70,,,Tech,News,,,,\n");
         }
 
         using var stream = Utf8Csv(sb.ToString());
@@ -400,7 +400,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,55,12000,US,100,,,,,\n");
+            "existing.com,55,12000,US,100,,,,,,,,,,,\n");
 
         await ImportAsync(stream);
 
@@ -421,7 +421,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,55,12000,US,100,,,,,\n");
+            "existing.com,55,12000,US,100,,,,,,,,,,,\n");
 
         await ImportAsync(stream);
 
@@ -434,7 +434,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "https://www.Existing.COM/,60,8000,UK,90,,,,,\n");
+            "https://www.Existing.COM/,60,8000,UK,90,,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -450,14 +450,19 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(",55,12000,US,100,150,200,250,Tech,News", "Domain is required.")]
-    [InlineData("bad-dr.com,,12000,US,100,150,200,250,Tech,News", "DR is required")]
-    [InlineData("bad-dr.com,abc,12000,US,100,150,200,250,Tech,News", "DR is required")]
-    [InlineData("bad-dr.com,101,12000,US,100,150,200,250,Tech,News", "DR must be between 0 and 100")]
-    [InlineData("bad-traffic.com,55,,US,100,150,200,250,Tech,News", "Traffic is required")]
-    [InlineData("bad-location.com,55,12000, ,100,150,200,250,Tech,News", "Location is required")]
-    [InlineData("bad-price.com,55,12000,US,,,,,Tech,News", "At least one numeric price")]
-    [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,Tech,News", "Price must be >= 0")]
+    [InlineData(",55,12000,US,100,150,200,250,,,Tech,News,,,,", "Domain is required.")]
+    [InlineData("bad-dr.com,,12000,US,100,150,200,250,,,Tech,News,,,,", "DR is required")]
+    [InlineData("bad-dr.com,abc,12000,US,100,150,200,250,,,Tech,News,,,,", "DR is required")]
+    [InlineData("bad-dr.com,101,12000,US,100,150,200,250,,,Tech,News,,,,", "DR must be between 0 and 100")]
+    [InlineData("bad-traffic.com,55,,US,100,150,200,250,,,Tech,News,,,,", "Traffic is required")]
+    [InlineData("bad-location.com,55,12000, ,100,150,200,250,,,Tech,News,,,,", "Location is required")]
+    [InlineData("bad-price.com,55,12000,US,,,,,,,Tech,News,,,,", "At least one numeric price")]
+    [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,,,Tech,News,,,,", "Price must be >= 0")]
+    [InlineData("bad-link-insert-casino.com,55,12000,US,100,150,200,250,-1,,Tech,News,,,,", "Price must be >= 0.")]
+    [InlineData("bad-dating.com,55,12000,US,100,150,200,250,,-1,Tech,News,,,,", "Price must be >= 0.")]
+    [InlineData("bad-df-zero.com,55,12000,US,100,150,200,250,,,Tech,News,GuestPost,0,Sponsored,", "Number DF Links must be greater than 0.")]
+    [InlineData("bad-df-format.com,55,12000,US,100,150,200,250,,,Tech,News,GuestPost,abc,Sponsored,", "Invalid NumberDFLinks value.")]
+    [InlineData("bad-term-main.com,55,12000,US,100,150,200,250,,,Tech,News,GuestPost,,Sponsored,1 month", "Invalid Term value.")]
     public async Task ImportAsync_InvalidRow_AddsError(string csvRow, string expectedMessageFragment)
     {
         using var stream = Utf8Csv(HeaderLine() + csvRow + "\n");
@@ -480,7 +485,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,,,,,,,,,,,\n");
+            "existing.com,,,,,,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -503,7 +508,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            ",55,12000,US,100,150,200,250,Tech,News\n");
+            ",55,12000,US,100,150,200,250,,,Tech,News,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -521,8 +526,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
             .Select(x => x.TrimEnd('\r'))
             .ToArray();
 
-        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,LinkType,SponsoredTag,Source Row Number,Error Details", lines[0]);
-        Assert.Equal(",55,12000,US,100,150,200,250,Tech,News,,,2,Domain is required.", lines[1]);
+        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,LinkType,NumberDFLinks,SponsoredTag,Term,Source Row Number,Error Details", lines[0]);
+        Assert.Equal(",55,12000,US,100,150,200,250,,,Tech,News,,,,,2,Domain is required.", lines[1]);
     }
 
     [Fact]
@@ -530,8 +535,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "missing-site.com,42,5000,UK,50,,,,,\n" +
-            "existing.com,55,12000,US,100,,,,,\n");
+            "missing-site.com,42,5000,UK,50,,,,,,,,,,,\n" +
+            "existing.com,55,12000,US,100,,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -551,8 +556,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
             .Select(x => x.TrimEnd('\r'))
             .ToArray();
 
-        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,LinkType,SponsoredTag,Source Row Number", lines[0]);
-        Assert.Equal("missing-site.com,42,5000,UK,50,,,,,,,,2", lines[1]);
+        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,LinkType,NumberDFLinks,SponsoredTag,Term,Source Row Number", lines[0]);
+        Assert.Equal("missing-site.com,42,5000,UK,50,,,,,,,,,,,,2", lines[1]);
     }
 
     [Fact]
@@ -562,10 +567,10 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         sb.Append(HeaderLine());
         for (var i = 0; i < 101; i++)
         {
-            sb.Append($"dupe-{i}.com,invalid,5000,US,10,,,,,\n");
-            sb.Append($"dupe-{i}.com,55,5000,US,10,,,,,\n");
+            sb.Append($"dupe-{i}.com,invalid,5000,US,10,,,,,,,,,,,\n");
+            sb.Append($"dupe-{i}.com,55,5000,US,10,,,,,,,,,,,\n");
         }
-        sb.Append("existing.com,60,9000,CA,20,,,,,\n");
+        sb.Append("existing.com,60,9000,CA,20,,,,,,,,,,,\n");
 
         using var stream = Utf8Csv(sb.ToString());
 
@@ -584,8 +589,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "missing-site.com,invalid,5000,US,10,,,,,\n" +
-            "missing-site.com,55,5000,US,10,,,,,\n");
+            "missing-site.com,invalid,5000,US,10,,,,,,,,,,,\n" +
+            "missing-site.com,55,5000,US,10,,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -605,8 +610,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         using var stream = Utf8Csv(
             HeaderLine() +
-            "all-invalid-update.com,invalid,5000,US,10,,,,,\n" +
-            "all-invalid-update.com,invalid,6000,US,20,,,,,\n");
+            "all-invalid-update.com,invalid,5000,US,10,,,,,,,,,,,\n" +
+            "all-invalid-update.com,invalid,6000,US,20,,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -631,7 +636,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
 
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,55,12000,US,100,NO,,,,\n");
+            "existing.com,55,12000,US,100,NO,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -651,7 +656,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
 
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,55,12000,US,100,, ,,,\n");
+            "existing.com,55,12000,US,100,, ,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -671,7 +676,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
 
         using var stream = Utf8Csv(
             HeaderLine() +
-            "existing.com,55,12000,US,100,,,55,,\n");
+            "existing.com,55,12000,US,100,,,55,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -679,6 +684,79 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         var updated = await GetSiteAsync("existing.com");
         Assert.Equal(55m, updated.PriceLinkInsert);
         Assert.Equal(ServiceAvailabilityStatus.Available, updated.PriceLinkInsertStatus);
+    }
+
+    [Fact]
+    public async Task ImportAsync_NewFields_UpdatesValues()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "existing.com,55,12000,US,100,150,200,250,175,225,Tech,News,GuestPost,3,Sponsored,2 years\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal(175m, updated.PriceLinkInsertCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, updated.PriceLinkInsertCasinoStatus);
+        Assert.Equal(225m, updated.PriceDating);
+        Assert.Equal(ServiceAvailabilityStatus.Available, updated.PriceDatingStatus);
+        Assert.Equal(3, updated.NumberDFLinks);
+        Assert.Equal(TermType.Finite, updated.TermType);
+        Assert.Equal(2, updated.TermValue);
+        Assert.Equal(TermUnit.Year, updated.TermUnit);
+    }
+
+    [Theory]
+    [InlineData("0", "Number DF Links must be greater than 0.")]
+    [InlineData("1.5", "Invalid NumberDFLinks value.")]
+    public async Task ImportAsync_InvalidNumberDFLinks_IsInvalidRow(string rawValue, string expectedMessage)
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"existing.com,55,12000,US,100,150,200,250,,,Tech,News,GuestPost,{rawValue},Sponsored,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains(expectedMessage, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("permanent")]
+    [InlineData("10 years")]
+    public async Task ImportAsync_ValidTermValues_AreAccepted(string rawTerm)
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"existing.com,55,12000,US,100,150,200,250,,,Tech,News,GuestPost,,Sponsored,{rawTerm}\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+    }
+
+    [Theory]
+    [InlineData("0 year")]
+    [InlineData("1 month")]
+    [InlineData("1y")]
+    public async Task ImportAsync_InvalidTermValues_AreInvalidRows(string rawTerm)
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"existing.com,55,12000,US,100,150,200,250,,,Tech,News,GuestPost,,Sponsored,{rawTerm}\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains("Invalid Term value.", StringComparison.Ordinal));
     }
 
     private async Task<SitesUpdateImportResult> ImportAsync(Stream stream)
@@ -727,7 +805,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
 
     private static string HeaderLine()
     {
-        return "Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,LinkType,SponsoredTag\n";
+        return string.Join(",", ImportConstants.SitesImportRequiredColumnOrder) + "\n";
     }
 
     #region PriceUsd nullable
@@ -736,7 +814,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     public async Task ImportAsync_EmptyPriceUsd_WithCasinoPrice_ClearsPriceUsdToNull()
     {
         // "existing.com" is seeded with PriceUsd = 50m; import with empty PriceUsd + casino = 150
-        using var stream = Utf8Csv(HeaderLine() + "existing.com,55,12000,US,,150,,,Tech,News\n");
+        using var stream = Utf8Csv(HeaderLine() + "existing.com,55,12000,US,,150,,,,,Tech,News,,,,\n");
 
         var result = await ImportAsync(stream);
 
@@ -753,7 +831,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     public async Task ImportAsync_EmptyPriceUsd_AllPricesAbsent_IsInvalidRow_SiteNotUpdated()
     {
         // "existing.com" is seeded with PriceUsd = 50m; import with all prices absent → rejected
-        using var stream = Utf8Csv(HeaderLine() + "existing.com,55,12000,US,,,,,,\n");
+        using var stream = Utf8Csv(HeaderLine() + "existing.com,55,12000,US,,,,,,,,,,,\n");
 
         var result = await ImportAsync(stream);
 

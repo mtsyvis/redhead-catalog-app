@@ -33,6 +33,8 @@ public class SitesMapperTests
             CasinoAvailability = "notAvailable",
             CryptoAvailability = "unknown",
             LinkInsertAvailability = "available",
+            LinkInsertCasinoAvailability = "notAvailable",
+            DatingAvailability = "available",
             Quarantine = QuarantineFilterValues.Exclude
         };
 
@@ -60,6 +62,8 @@ public class SitesMapperTests
         Assert.Equal(ServiceAvailabilityFilter.NotAvailable, query.CasinoAvailability);
         Assert.Equal(ServiceAvailabilityFilter.Unknown, query.CryptoAvailability);
         Assert.Equal(ServiceAvailabilityFilter.Available, query.LinkInsertAvailability);
+        Assert.Equal(ServiceAvailabilityFilter.NotAvailable, query.LinkInsertCasinoAvailability);
+        Assert.Equal(ServiceAvailabilityFilter.Available, query.DatingAvailability);
         Assert.Equal(QuarantineFilterValues.Exclude, query.Quarantine);
     }
 
@@ -112,6 +116,14 @@ public class SitesMapperTests
             PriceCryptoStatus = ServiceAvailabilityStatus.Available,
             PriceLinkInsert = 180m,
             PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
+            PriceLinkInsertCasino = 190m,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Available,
+            PriceDating = 210m,
+            PriceDatingStatus = ServiceAvailabilityStatus.Available,
+            NumberDFLinks = 3,
+            TermType = TermType.Finite,
+            TermValue = 2,
+            TermUnit = TermUnit.Year,
             Niche = "Tech",
             Categories = "Technology, News",
             IsQuarantined = true,
@@ -136,6 +148,14 @@ public class SitesMapperTests
         Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceCryptoStatus);
         Assert.Equal(180m, response.PriceLinkInsert);
         Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceLinkInsertStatus);
+        Assert.Equal(190m, response.PriceLinkInsertCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceLinkInsertCasinoStatus);
+        Assert.Equal(210m, response.PriceDating);
+        Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceDatingStatus);
+        Assert.Equal(3, response.NumberDFLinks);
+        Assert.Equal(TermType.Finite, response.TermType);
+        Assert.Equal(2, response.TermValue);
+        Assert.Equal(TermUnit.Year, response.TermUnit);
         Assert.Equal("Tech", response.Niche);
         Assert.Equal("Technology, News", response.Categories);
         Assert.True(response.IsQuarantined);
@@ -162,6 +182,14 @@ public class SitesMapperTests
             PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
             PriceLinkInsert = null,
             PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertCasino = null,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceDating = null,
+            PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+            NumberDFLinks = null,
+            TermType = null,
+            TermValue = null,
+            TermUnit = null,
             Niche = null,
             Categories = null,
             IsQuarantined = false,
@@ -182,6 +210,14 @@ public class SitesMapperTests
         Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceCryptoStatus);
         Assert.Null(response.PriceLinkInsert);
         Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceLinkInsertStatus);
+        Assert.Null(response.PriceLinkInsertCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceLinkInsertCasinoStatus);
+        Assert.Null(response.PriceDating);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceDatingStatus);
+        Assert.Null(response.NumberDFLinks);
+        Assert.Null(response.TermType);
+        Assert.Null(response.TermValue);
+        Assert.Null(response.TermUnit);
         Assert.Null(response.Niche);
         Assert.Null(response.Categories);
         Assert.False(response.IsQuarantined);

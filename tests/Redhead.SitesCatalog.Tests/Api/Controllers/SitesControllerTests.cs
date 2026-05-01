@@ -31,6 +31,8 @@ public class SitesControllerTests
         Assert.Null(query.CasinoAvailability);
         Assert.Null(query.CryptoAvailability);
         Assert.Null(query.LinkInsertAvailability);
+        Assert.Null(query.LinkInsertCasinoAvailability);
+        Assert.Null(query.DatingAvailability);
     }
 
     [Fact]
@@ -59,6 +61,9 @@ public class SitesControllerTests
             PriceCasino = 150.00m,
             PriceCrypto = null,
             PriceLinkInsert = 75.00m,
+            PriceLinkInsertCasino = 85.00m,
+            PriceDating = null,
+            NumberDFLinks = 2,
             Niche = "Tech",
             Categories = "Technology, News",
             IsQuarantined = false,
@@ -77,6 +82,9 @@ public class SitesControllerTests
         Assert.Equal(150.00m, site.PriceCasino);
         Assert.Null(site.PriceCrypto);
         Assert.Equal(75.00m, site.PriceLinkInsert);
+        Assert.Equal(85.00m, site.PriceLinkInsertCasino);
+        Assert.Null(site.PriceDating);
+        Assert.Equal(2, site.NumberDFLinks);
         Assert.False(site.IsQuarantined);
     }
 }

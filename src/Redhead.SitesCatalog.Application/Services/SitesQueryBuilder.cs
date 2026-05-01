@@ -136,6 +136,30 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             query = query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available);
         }
 
+        if (filters.LinkInsertCasinoAvailability.HasValue)
+        {
+            query = filters.LinkInsertCasinoAvailability.Value switch
+            {
+                ServiceAvailabilityFilter.All => query,
+                ServiceAvailabilityFilter.Available => query.Where(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Available),
+                ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.NotAvailable),
+                ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Unknown),
+                _ => query
+            };
+        }
+
+        if (filters.DatingAvailability.HasValue)
+        {
+            query = filters.DatingAvailability.Value switch
+            {
+                ServiceAvailabilityFilter.All => query,
+                ServiceAvailabilityFilter.Available => query.Where(s => s.PriceDatingStatus == ServiceAvailabilityStatus.Available),
+                ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceDatingStatus == ServiceAvailabilityStatus.NotAvailable),
+                ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceDatingStatus == ServiceAvailabilityStatus.Unknown),
+                _ => query
+            };
+        }
+
         return query;
     }
 
