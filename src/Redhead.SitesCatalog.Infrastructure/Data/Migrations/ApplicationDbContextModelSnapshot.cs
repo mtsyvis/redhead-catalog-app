@@ -494,7 +494,11 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
 
                     b.HasIndex("Location");
 
+                    b.HasIndex("NumberDFLinks");
+
                     b.HasIndex("PriceUsd");
+
+                    b.HasIndex("TermType", "TermUnit", "TermValue");
 
                     b.HasIndex("Traffic");
 

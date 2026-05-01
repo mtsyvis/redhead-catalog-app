@@ -14,7 +14,7 @@ public class SitesQueryRequest
 
     // Sorting
     /// <summary>
-    /// Field to sort by. Valid values: domain, dr, traffic, location, priceusd, pricecasino, pricecrypto, pricelinkinsert, createdat, updatedat, lastpublisheddate
+    /// Field to sort by. Valid values: domain, dr, traffic, location, priceusd, pricecasino, pricecrypto, pricelinkinsert, pricelinkinsertcasino, pricedating, numberdflinks, term, createdat, updatedat, lastpublisheddate
     /// </summary>
     public string? SortBy { get; set; } = SortingDefaults.DefaultSortBy;
     

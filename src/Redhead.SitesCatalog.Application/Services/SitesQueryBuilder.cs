@@ -228,6 +228,24 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             SortFields.PriceLinkInsert => direction == SortingDefaults.Descending
                 ? query.OrderByDescending(s => s.PriceLinkInsert)
                 : query.OrderBy(s => s.PriceLinkInsert),
+            SortFields.PriceLinkInsertCasino => direction == SortingDefaults.Descending
+                ? query.OrderByDescending(s => s.PriceLinkInsertCasino)
+                : query.OrderBy(s => s.PriceLinkInsertCasino),
+            SortFields.PriceDating => direction == SortingDefaults.Descending
+                ? query.OrderByDescending(s => s.PriceDating)
+                : query.OrderBy(s => s.PriceDating),
+            SortFields.NumberDFLinks => direction == SortingDefaults.Descending
+                ? query.OrderBy(s => s.NumberDFLinks == null ? 1 : 0).ThenByDescending(s => s.NumberDFLinks).ThenBy(s => s.Domain)
+                : query.OrderBy(s => s.NumberDFLinks == null ? 1 : 0).ThenBy(s => s.NumberDFLinks).ThenBy(s => s.Domain),
+            SortFields.Term => direction == SortingDefaults.Descending
+                ? query
+                    .OrderBy(s => s.TermType == TermType.Permanent ? 0 : s.TermType == TermType.Finite && s.TermUnit == TermUnit.Year && s.TermValue != null ? 1 : 2)
+                    .ThenByDescending(s => s.TermType == TermType.Finite && s.TermUnit == TermUnit.Year ? s.TermValue : null)
+                    .ThenBy(s => s.Domain)
+                : query
+                    .OrderBy(s => s.TermType == TermType.Finite && s.TermUnit == TermUnit.Year && s.TermValue != null ? 0 : s.TermType == TermType.Permanent ? 1 : 2)
+                    .ThenBy(s => s.TermType == TermType.Finite && s.TermUnit == TermUnit.Year ? s.TermValue : null)
+                    .ThenBy(s => s.Domain),
             SortFields.CreatedAt => direction == SortingDefaults.Descending
                 ? query.OrderByDescending(s => s.CreatedAtUtc)
                 : query.OrderBy(s => s.CreatedAtUtc),

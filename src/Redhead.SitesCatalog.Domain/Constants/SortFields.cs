@@ -13,6 +13,10 @@ public static class SortFields
     public const string PriceCasino = "pricecasino";
     public const string PriceCrypto = "pricecrypto";
     public const string PriceLinkInsert = "pricelinkinsert";
+    public const string PriceLinkInsertCasino = "pricelinkinsertcasino";
+    public const string PriceDating = "pricedating";
+    public const string NumberDFLinks = "numberdflinks";
+    public const string Term = "term";
     public const string CreatedAt = "createdat";
     public const string UpdatedAt = "updatedat";
     public const string LastPublishedDate = "lastpublisheddate";

@@ -797,6 +797,78 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(150m, result.Items[2].PriceUsd); // crypto.com
     }
 
+    [Fact]
+    public async Task GetSitesAsync_SortByNumberDFLinksAsc_ReturnsNullsLast()
+    {
+        SetNumberDFLinks();
+        await _context.SaveChangesAsync();
+
+        var domains = await GetSortedDomainsAsync(SortFields.NumberDFLinks, SortingDefaults.Ascending);
+
+        Assert.Equal(new List<string>
+        {
+            "crypto.com",
+            "example.com",
+            "gambling.com",
+            "lowdr.com",
+            "test.com"
+        }, domains);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_SortByNumberDFLinksDesc_ReturnsNullsLast()
+    {
+        SetNumberDFLinks();
+        await _context.SaveChangesAsync();
+
+        var domains = await GetSortedDomainsAsync(SortFields.NumberDFLinks, SortingDefaults.Descending);
+
+        Assert.Equal(new List<string>
+        {
+            "gambling.com",
+            "example.com",
+            "crypto.com",
+            "lowdr.com",
+            "test.com"
+        }, domains);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_SortByTermAsc_ReturnsFinitePermanentThenNull()
+    {
+        SetTerms();
+        await _context.SaveChangesAsync();
+
+        var domains = await GetSortedDomainsAsync(SortFields.Term, SortingDefaults.Ascending);
+
+        Assert.Equal(new List<string>
+        {
+            "lowdr.com",
+            "example.com",
+            "crypto.com",
+            "gambling.com",
+            "test.com"
+        }, domains);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_SortByTermDesc_ReturnsPermanentFiniteThenNull()
+    {
+        SetTerms();
+        await _context.SaveChangesAsync();
+
+        var domains = await GetSortedDomainsAsync(SortFields.Term, SortingDefaults.Descending);
+
+        Assert.Equal(new List<string>
+        {
+            "gambling.com",
+            "crypto.com",
+            "example.com",
+            "lowdr.com",
+            "test.com"
+        }, domains);
+    }
+
     #endregion
 
     #region Pagination Tests
@@ -1334,6 +1406,53 @@ public class SitesServiceTests : IDisposable
     }
 
     #endregion
+
+    private async Task<List<string>> GetSortedDomainsAsync(string sortBy, string sortDir)
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            SortBy = sortBy,
+            SortDir = sortDir,
+        });
+
+        return result.Items.Select(s => s.Domain).ToList();
+    }
+
+    private void SetNumberDFLinks()
+    {
+        _context.Sites.Single(s => s.Domain == "example.com").NumberDFLinks = 2;
+        _context.Sites.Single(s => s.Domain == "test.com").NumberDFLinks = null;
+        _context.Sites.Single(s => s.Domain == "gambling.com").NumberDFLinks = 10;
+        _context.Sites.Single(s => s.Domain == "crypto.com").NumberDFLinks = 1;
+        _context.Sites.Single(s => s.Domain == "lowdr.com").NumberDFLinks = null;
+    }
+
+    private void SetTerms()
+    {
+        SetFiniteTerm("lowdr.com", 1);
+        SetFiniteTerm("example.com", 2);
+        SetFiniteTerm("crypto.com", 10);
+
+        var permanent = _context.Sites.Single(s => s.Domain == "gambling.com");
+        permanent.TermType = TermType.Permanent;
+        permanent.TermValue = null;
+        permanent.TermUnit = null;
+
+        var empty = _context.Sites.Single(s => s.Domain == "test.com");
+        empty.TermType = null;
+        empty.TermValue = null;
+        empty.TermUnit = null;
+    }
+
+    private void SetFiniteTerm(string domain, int years)
+    {
+        var site = _context.Sites.Single(s => s.Domain == domain);
+        site.TermType = TermType.Finite;
+        site.TermValue = years;
+        site.TermUnit = TermUnit.Year;
+    }
 
     private static Site SiteWithNullPrice(string domain) => new()
     {
