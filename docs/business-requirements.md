@@ -312,7 +312,7 @@ Display rules:
 
 Export rules:
 
-* If no filters are active, export includes found rows plus not found domains appended at the end.
+* If no filters are active, export includes found rows in the `Sites` sheet and, only when any domains are not found, those domains in a `Not found` sheet.
 * If filters are active, export includes only filtered found rows.
 * Not found domains must not be included in export while filters are active.
 * Effective export limits still apply.
@@ -426,12 +426,14 @@ Rules:
 
 ## Exports
 
-Exports produce CSV files from the current catalog context.
+Exports produce Excel `.xlsx` files from the current catalog context.
 
 Rules:
 
 * Export respects current filters, search, sorting where supported, and multi-search mode.
 * Export includes all user-visible site data needed for business use.
+* Export workbooks include a `Sites` sheet and an `Export info` sheet.
+* Export workbooks include a `Not found` sheet only for multi-search exports that have not-found domains included by the export rules.
 * Export must enforce the user's effective export policy.
 * Export actions should be logged.
 * If export is truncated by limit, the user must be informed.

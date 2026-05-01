@@ -6,14 +6,14 @@ namespace Redhead.SitesCatalog.Domain.Constants;
 public static class ExportConstants
 {
     /// <summary>
-    /// CSV file name for sites export
+    /// Excel file name for sites export
     /// </summary>
-    public const string SitesFileName = "sites.csv";
+    public const string SitesFileName = "sites.xlsx";
 
     /// <summary>
-    /// Content type for CSV files
+    /// Content type for Excel workbook files
     /// </summary>
-    public const string CsvContentType = "text/csv";
+    public const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     /// <summary>
     /// Error message when export is disabled for user's role

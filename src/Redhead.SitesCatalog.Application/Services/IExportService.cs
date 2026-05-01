@@ -8,9 +8,9 @@ namespace Redhead.SitesCatalog.Application.Services;
 public interface IExportService
 {
     /// <summary>
-    /// Export sites as CSV with effective policy enforcement (role + per-user override).
+    /// Export sites as Excel with effective policy enforcement (role + per-user override).
     /// </summary>
-    Task<ExportResult> ExportSitesAsCsvAsync(
+    Task<ExportResult> ExportSitesAsExcelAsync(
         SitesQuery query,
         string userId,
         string userEmail,
@@ -18,10 +18,10 @@ public interface IExportService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Export multi-search as CSV: filtered Found (effective policy limit) + all Not found domains.
+    /// Export multi-search as Excel: filtered Found (effective policy limit) + matching Not found domains.
     /// query must have Search = null (domain list comes from queryText).
     /// </summary>
-    Task<ExportResult> ExportMultiSearchAsCsvAsync(
+    Task<ExportResult> ExportMultiSearchAsExcelAsync(
         string queryText,
         SitesQuery query,
         string userId,

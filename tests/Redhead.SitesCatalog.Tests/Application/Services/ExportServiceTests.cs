@@ -1,7 +1,4 @@
 using System.Globalization;
-using System.Text;
-using CsvHelper;
-using CsvHelper.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
@@ -149,9 +146,9 @@ public class ExportServiceTests : IDisposable
     #region Export Success Tests
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithValidRole_ReturnsStreamWithCsvData()
+    public async Task ExportSitesAsExcelAsync_WithValidRole_ReturnsWorkbookWithSiteData()
     {
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(),
             TestUserId,
             TestUserEmail,
@@ -159,15 +156,96 @@ public class ExportServiceTests : IDisposable
             CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.True(result.CsvStream.Length > 0);
-        Assert.Equal(0, result.CsvStream.Position);
+        Assert.True(result.FileStream.Length > 0);
+        Assert.Equal(0, result.FileStream.Position);
 
-        var sites = await ReadCsvFromStream(result.CsvStream);
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Equal(3, sites.Count);
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithFilters_ExportsOnlyMatchingSites()
+    public async Task ExportSitesAsExcelAsync_WithoutNotFoundDomains_OmitsNotFoundSheet()
+    {
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var sheetNames = XlsxTestWorkbook.GetSheetNames(result.FileStream);
+
+        Assert.Equal(["Sites", "Export info"], sheetNames);
+    }
+
+    [Fact]
+    public async Task ExportMultiSearchAsExcelAsync_NoActiveFilters_WritesNotFoundDomainsToSeparateSheet()
+    {
+        var result = await _service.ExportMultiSearchAsExcelAsync(
+            "example.com missing.com test.com",
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var siteRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
+        var notFoundRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Not found");
+
+        Assert.Equal(["example.com", "test.com"], siteRows.Select(row => row["Domain"]).ToList());
+        Assert.Single(notFoundRows);
+        Assert.Equal("missing.com", notFoundRows[0]["Domain"]);
+    }
+
+    [Fact]
+    public async Task ExportMultiSearchAsExcelAsync_AllDomainsFound_OmitsNotFoundSheetAndMetadata()
+    {
+        var result = await _service.ExportMultiSearchAsExcelAsync(
+            "example.com test.com",
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var sheetNames = XlsxTestWorkbook.GetSheetNames(result.FileStream);
+        var infoRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Export info")
+            .ToDictionary(row => row["Property"], row => row["Value"]);
+
+        Assert.Equal(["Sites", "Export info"], sheetNames);
+        Assert.False(infoRows.ContainsKey("Not found sheet rows"));
+        Assert.False(infoRows.ContainsKey("Not found included"));
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WhenTruncated_WritesLimitDetailsToExportInfoSheet()
+    {
+        var internalSettings = await _context.RoleSettings.SingleAsync(rs => rs.RoleName == AppRoles.Internal);
+        internalSettings.ExportLimitRows = 1;
+        await _context.SaveChangesAsync();
+
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Internal,
+            CancellationToken.None);
+
+        var infoRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Export info")
+            .ToDictionary(row => row["Property"], row => row["Value"]);
+
+        Assert.True(result.Truncated);
+        Assert.Equal("1", infoRows["Export limit rows"]);
+        Assert.Equal("TRUE", infoRows["Export truncated by limit"]);
+        Assert.Equal("3", infoRows["Rows matching export request"]);
+        Assert.Equal("1", infoRows["Rows in Sites sheet"]);
+        Assert.False(infoRows.ContainsKey("Limit note"));
+        Assert.False(infoRows.ContainsKey("Filters"));
+        Assert.False(infoRows.ContainsKey("Sort"));
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithFilters_ExportsOnlyMatchingSites()
     {
         var query = new SitesQuery
         {
@@ -179,20 +257,20 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var sites = await ReadCsvFromStream(result.CsvStream);
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Equal(2, sites.Count); // test.com(70) and gambling.com(90)
         Assert.All(sites, site => Assert.True(site.DR >= 60));
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithCasinoAvailabilityNotAvailable_FiltersByStatus()
+    public async Task ExportSitesAsExcelAsync_WithCasinoAvailabilityNotAvailable_FiltersByStatus()
     {
         _context.Sites.Add(new Site
         {
@@ -223,20 +301,20 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var sites = await ReadCsvFromStream(result.CsvStream);
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Single(sites);
         Assert.Equal("no-casino.com", sites[0].Domain);
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithLinkInsertCasinoAvailabilityNotAvailable_FiltersByStatus()
+    public async Task ExportSitesAsExcelAsync_WithLinkInsertCasinoAvailabilityNotAvailable_FiltersByStatus()
     {
         var query = new SitesQuery
         {
@@ -248,19 +326,19 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var sites = await ReadCsvFromStream(result.CsvStream);
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Equal(["gambling.com", "test.com"], sites.Select(s => s.Domain).ToArray());
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithDatingAvailabilityUnknown_FiltersByStatus()
+    public async Task ExportSitesAsExcelAsync_WithDatingAvailabilityUnknown_FiltersByStatus()
     {
         var query = new SitesQuery
         {
@@ -272,20 +350,20 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var sites = await ReadCsvFromStream(result.CsvStream);
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Single(sites);
         Assert.Equal("test.com", sites[0].Domain);
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithQuarantineExclude_ExcludesQuarantinedSites()
+    public async Task ExportSitesAsExcelAsync_WithQuarantineExclude_ExcludesQuarantinedSites()
     {
         var query = new SitesQuery
         {
@@ -296,20 +374,20 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.Exclude
         };
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var sites = await ReadCsvFromStream(result.CsvStream);
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Equal(2, sites.Count); // example.com and test.com
         Assert.All(sites, site => Assert.False(site.IsQuarantined));
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithSorting_ReturnsSortedData()
+    public async Task ExportSitesAsExcelAsync_WithSorting_ReturnsSortedData()
     {
         var query = new SitesQuery
         {
@@ -320,14 +398,14 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var sites = await ReadCsvFromStream(result.CsvStream);
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Equal(3, sites.Count);
         Assert.Equal(90, sites[0].DR); // gambling.com
         Assert.Equal(70, sites[1].DR); // test.com
@@ -335,16 +413,45 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithClientRole_UsesExpectedHeaderOrder()
+    public async Task ExportSitesAsExcelAsync_WithLastPublishedDateFilterAndSort_UsesSitesQueryLogic()
     {
-        var result = await _service.ExportSitesAsCsvAsync(
+        SetLastPublishedDates();
+        await _context.SaveChangesAsync();
+
+        var query = new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.LastPublishedDate,
+            SortDir = SortingDefaults.Descending,
+            Quarantine = QuarantineFilterValues.All,
+            LastPublishedFrom = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            LastPublishedToExclusive = new DateTime(2025, 2, 1, 0, 0, 0, DateTimeKind.Utc)
+        };
+
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+
+        Assert.Equal(["example.com", "test.com"], rows.Select(row => row["Domain"]).ToList());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithClientRole_UsesExpectedHeaderOrder()
+    {
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(),
             TestUserId,
             TestUserEmail,
             AppRoles.Client,
             CancellationToken.None);
 
-        var headers = await ReadCsvHeaderFromStream(result.CsvStream);
+        var headers = await ReadSitesSheetHeaderFromStream(result.FileStream);
         Assert.Equal(
             [
                 "Domain",
@@ -367,16 +474,16 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithAdminRole_UsesExpectedHeaderOrder()
+    public async Task ExportSitesAsExcelAsync_WithAdminRole_UsesExpectedHeaderOrder()
     {
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(),
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var headers = await ReadCsvHeaderFromStream(result.CsvStream);
+        var headers = await ReadSitesSheetHeaderFromStream(result.FileStream);
         Assert.Equal(
             [
                 "Domain",
@@ -404,7 +511,7 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_NotAvailableAndUnknown_AreExportedAsNoAndEmpty()
+    public async Task ExportSitesAsExcelAsync_NotAvailableAndUnknown_AreExportedAsNoAndEmpty()
     {
         _context.Sites.Add(new Site
         {
@@ -443,14 +550,14 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
-        var rows = await ReadCsvRowsFromStream(result.CsvStream);
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         Assert.Single(rows);
         Assert.Equal("NO", rows[0]["PriceCasino"]);
         Assert.Equal(string.Empty, rows[0]["PriceCrypto"]);
@@ -466,10 +573,10 @@ public class ExportServiceTests : IDisposable
     #region Export Policy Tests
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_Unlimited_AllRowsExported_TruncatedFalse()
+    public async Task ExportSitesAsExcelAsync_Unlimited_AllRowsExported_TruncatedFalse()
     {
         // Admin role is Unlimited — all 3 seeded sites should be exported
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(),
             TestUserId,
             TestUserEmail,
@@ -483,10 +590,10 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_Limited_UnderLimit_AllRowsExported_TruncatedFalse()
+    public async Task ExportSitesAsExcelAsync_Limited_UnderLimit_AllRowsExported_TruncatedFalse()
     {
         // Client role has limit 5000; only 3 sites seeded — no truncation
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(),
             TestUserId,
             TestUserEmail,
@@ -500,7 +607,7 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_Limited_OverLimit_TruncatedTrue_HeadersCorrect()
+    public async Task ExportSitesAsExcelAsync_Limited_OverLimit_TruncatedTrue_HeadersCorrect()
     {
         // Create a role with limit 2 — 3 sites seeded, so 1 is truncated
         _context.RoleSettings.Add(new RoleSettings
@@ -511,7 +618,7 @@ public class ExportServiceTests : IDisposable
         });
         await _context.SaveChangesAsync();
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(),
             TestUserId,
             TestUserEmail,
@@ -523,15 +630,15 @@ public class ExportServiceTests : IDisposable
         Assert.True(result.Truncated);
         Assert.Equal(2, result.LimitRows);
 
-        var sites = await ReadCsvFromStream(result.CsvStream);
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Equal(2, sites.Count);
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithDisabledRole_ThrowsExportDisabledException()
+    public async Task ExportSitesAsExcelAsync_WithDisabledRole_ThrowsExportDisabledException()
     {
         var exception = await Assert.ThrowsAsync<ExportDisabledException>(
-            () => _service.ExportSitesAsCsvAsync(
+            () => _service.ExportSitesAsExcelAsync(
                 DefaultQuery(),
                 TestUserId,
                 TestUserEmail,
@@ -543,7 +650,7 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_UserOverride_Disabled_ThrowsExportDisabledException()
+    public async Task ExportSitesAsExcelAsync_UserOverride_Disabled_ThrowsExportDisabledException()
     {
         // User has a Disabled override even though role (Admin) is Unlimited
         var user = new ApplicationUser
@@ -557,7 +664,7 @@ public class ExportServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         await Assert.ThrowsAsync<ExportDisabledException>(
-            () => _service.ExportSitesAsCsvAsync(
+            () => _service.ExportSitesAsExcelAsync(
                 DefaultQuery(),
                 TestUserId,
                 TestUserEmail,
@@ -566,7 +673,7 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_UserOverride_Limited_OverridesRolePolicy()
+    public async Task ExportSitesAsExcelAsync_UserOverride_Limited_OverridesRolePolicy()
     {
         // User has override limit of 1; role (Admin) is Unlimited — override wins
         var user = new ApplicationUser
@@ -580,7 +687,7 @@ public class ExportServiceTests : IDisposable
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(),
             TestUserId,
             TestUserEmail,
@@ -594,7 +701,7 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithLimitSmallerThanResults_EnforcesLimit()
+    public async Task ExportSitesAsExcelAsync_WithLimitSmallerThanResults_EnforcesLimit()
     {
         for (int i = 0; i < 10; i++)
         {
@@ -620,22 +727,22 @@ public class ExportServiceTests : IDisposable
         });
         await _context.SaveChangesAsync();
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(),
             TestUserId,
             TestUserEmail,
             "LimitedRole",
             CancellationToken.None);
 
-        var sites = await ReadCsvFromStream(result.CsvStream);
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Equal(5, sites.Count);
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_WithNonExistentRole_ThrowsRoleSettingsNotFoundException()
+    public async Task ExportSitesAsExcelAsync_WithNonExistentRole_ThrowsRoleSettingsNotFoundException()
     {
         var exception = await Assert.ThrowsAsync<RoleSettingsNotFoundException>(
-            () => _service.ExportSitesAsCsvAsync(
+            () => _service.ExportSitesAsExcelAsync(
                 DefaultQuery(),
                 TestUserId,
                 TestUserEmail,
@@ -651,7 +758,7 @@ public class ExportServiceTests : IDisposable
     #region Export Log Tests
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_CreatesExportLog()
+    public async Task ExportSitesAsExcelAsync_CreatesExportLog()
     {
         var query = new SitesQuery
         {
@@ -663,7 +770,7 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        await _service.ExportSitesAsCsvAsync(
+        await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
             TestUserEmail,
@@ -681,7 +788,7 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_LogsCorrectRowCount()
+    public async Task ExportSitesAsExcelAsync_LogsCorrectRowCount()
     {
         var query = new SitesQuery
         {
@@ -692,7 +799,7 @@ public class ExportServiceTests : IDisposable
             SortDir = SortingDefaults.Ascending
         };
 
-        await _service.ExportSitesAsCsvAsync(
+        await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
             TestUserEmail,
@@ -708,64 +815,63 @@ public class ExportServiceTests : IDisposable
 
     #region Helper Methods
 
-    private static async Task<List<ExportedSiteRow>> ReadCsvFromStream(Stream stream)
+    private static async Task<List<ExportedSiteRow>> ReadSitesSheetFromStream(Stream stream)
     {
-        stream.Position = 0;
-        using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
-        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            HasHeaderRecord = true
-        });
-
-        var sites = new List<ExportedSiteRow>();
-        await foreach (var record in csv.GetRecordsAsync<ExportedSiteRow>())
-        {
-            sites.Add(record);
-        }
-
-        return sites;
+        await Task.CompletedTask;
+        return XlsxTestWorkbook.ReadRows(stream, "Sites")
+            .Select(MapExportedSiteRow)
+            .ToList();
     }
 
-    private static async Task<List<Dictionary<string, string>>> ReadCsvRowsFromStream(Stream stream)
+    private static async Task<List<Dictionary<string, string>>> ReadSitesSheetRowsFromStream(Stream stream)
     {
-        stream.Position = 0;
-        using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
-        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            HasHeaderRecord = true
-        });
-
-        var rows = new List<Dictionary<string, string>>();
-        await csv.ReadAsync();
-        csv.ReadHeader();
-
-        while (await csv.ReadAsync())
-        {
-            var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var header in csv.HeaderRecord ?? [])
-            {
-                row[header] = csv.GetField(header) ?? string.Empty;
-            }
-            rows.Add(row);
-        }
-
-        return rows;
+        await Task.CompletedTask;
+        return XlsxTestWorkbook.ReadRows(stream, "Sites");
     }
 
-    private static async Task<List<string>> ReadCsvHeaderFromStream(Stream stream)
+    private static async Task<List<string>> ReadSitesSheetHeaderFromStream(Stream stream)
     {
-        stream.Position = 0;
-        using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
-        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
+        await Task.CompletedTask;
+        return XlsxTestWorkbook.ReadHeaders(stream, "Sites");
+    }
+
+    private static ExportedSiteRow MapExportedSiteRow(IReadOnlyDictionary<string, string> row)
+        => new()
         {
-            HasHeaderRecord = true
-        });
+            Domain = row["Domain"],
+            DR = double.Parse(row["DR"], CultureInfo.InvariantCulture),
+            Traffic = long.Parse(row["Traffic"], CultureInfo.InvariantCulture),
+            Location = row["Location"],
+            PriceUsd = string.IsNullOrEmpty(row["PriceUsd"]) ? 0 : decimal.Parse(row["PriceUsd"], CultureInfo.InvariantCulture),
+            PriceCasino = row["PriceCasino"],
+            PriceCrypto = row["PriceCrypto"],
+            PriceLinkInsert = row["PriceLinkInsert"],
+            PriceLinkInsertCasino = row["PriceLinkInsertCasino"],
+            PriceDating = row["PriceDating"],
+            NumberDFLinks = string.IsNullOrEmpty(row["NumberDFLinks"]) ? null : int.Parse(row["NumberDFLinks"], CultureInfo.InvariantCulture),
+            Term = row["Term"],
+            Niche = row["Niche"],
+            Categories = row["Categories"],
+            SponsoredTag = row["SponsoredTag"],
+            IsQuarantined = string.Equals(GetOptionalValue(row, "IsQuarantined"), "TRUE", StringComparison.OrdinalIgnoreCase),
+            QuarantineReason = GetOptionalValue(row, "QuarantineReason"),
+        };
 
-        var hasRow = await csv.ReadAsync();
-        Assert.True(hasRow);
-        csv.ReadHeader();
+    private static string? GetOptionalValue(IReadOnlyDictionary<string, string> row, string key)
+        => row.TryGetValue(key, out var value) ? value : null;
 
-        return (csv.HeaderRecord ?? []).ToList();
+    private void SetLastPublishedDates()
+    {
+        SetLastPublishedDate("example.com", new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc));
+        SetLastPublishedDate("test.com", new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        SetLastPublishedDate("gambling.com", null);
+    }
+
+    private void SetLastPublishedDate(string domain, DateTime? value)
+    {
+        var site = _context.Sites.Single(s => s.Domain == domain);
+        site.LastPublishedDate = value;
+        site.LastPublishedDateIsMonthOnly = false;
     }
 
     private sealed class ExportedSiteRow
@@ -797,32 +903,32 @@ public class ExportServiceTests : IDisposable
     #region PriceUsd nullable
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_NullPriceUsd_WritesEmptyCell()
+    public async Task ExportSitesAsExcelAsync_NullPriceUsd_WritesEmptyCell()
     {
         _context.Sites.Add(SiteWithNullPrice("null-price.com"));
         _context.SaveChanges();
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(), TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
 
-        var rows = await ReadCsvRowsFromStream(result.CsvStream);
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         var row = rows.Single(r => r["Domain"] == "null-price.com");
         Assert.Equal(string.Empty, row["PriceUsd"]);
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_NumericPriceUsd_WritesNumericValue()
+    public async Task ExportSitesAsExcelAsync_NumericPriceUsd_WritesNumericValue()
     {
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(), TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
 
-        var rows = await ReadCsvRowsFromStream(result.CsvStream);
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         var row = rows.Single(r => r["Domain"] == "example.com");
         Assert.Equal("100", row["PriceUsd"]);
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_PriceMinFilter_ExcludesNullPriceUsd()
+    public async Task ExportSitesAsExcelAsync_PriceMinFilter_ExcludesNullPriceUsd()
     {
         _context.Sites.Add(SiteWithNullPrice("null-price.com"));
         _context.SaveChanges();
@@ -834,23 +940,23 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             query, TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
 
-        var rows = await ReadCsvRowsFromStream(result.CsvStream);
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         Assert.DoesNotContain(rows, r => r["Domain"] == "null-price.com");
     }
 
     [Fact]
-    public async Task ExportSitesAsCsvAsync_NoPriceFilter_IncludesNullPriceUsd()
+    public async Task ExportSitesAsExcelAsync_NoPriceFilter_IncludesNullPriceUsd()
     {
         _context.Sites.Add(SiteWithNullPrice("null-price.com"));
         _context.SaveChanges();
 
-        var result = await _service.ExportSitesAsCsvAsync(
+        var result = await _service.ExportSitesAsExcelAsync(
             DefaultQuery(), TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
 
-        var rows = await ReadCsvRowsFromStream(result.CsvStream);
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         Assert.Contains(rows, r => r["Domain"] == "null-price.com");
     }
 

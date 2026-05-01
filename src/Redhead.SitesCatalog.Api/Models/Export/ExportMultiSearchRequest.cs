@@ -3,7 +3,7 @@ using Redhead.SitesCatalog.Api.Models.Sites;
 namespace Redhead.SitesCatalog.Api.Models.Export;
 
 /// <summary>
-/// Request body for POST /api/export/sites-multi-search.csv
+/// Request body for POST /api/export/sites-multi-search.xlsx
 /// </summary>
 public class ExportMultiSearchRequest
 {

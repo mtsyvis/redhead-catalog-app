@@ -1,8 +1,5 @@
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
-using CsvHelper;
-using CsvHelper.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -70,7 +67,7 @@ public class ExportService : IExportService
         _queryBuilder = queryBuilder;
     }
 
-    public async Task<ExportResult> ExportSitesAsCsvAsync(
+    public async Task<ExportResult> ExportSitesAsExcelAsync(
         SitesQuery query,
         string userId,
         string userEmail,
@@ -104,39 +101,33 @@ public class ExportService : IExportService
 
         var sites = await sitesQuery.ToListAsync(cancellationToken);
 
-        var stream = new MemoryStream();
-        var writer = new StreamWriter(stream, Encoding.UTF8);
-        var csvWriter = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            HasHeaderRecord = true
-        });
-
         var isClientRole = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
-        WriteHeaders(csvWriter, isClientRole);
-        csvWriter.NextRecord();
-        foreach (var site in sites)
-        {
-            WriteSiteRow(csvWriter, site, isClientRole);
-            csvWriter.NextRecord();
-        }
-        await csvWriter.FlushAsync();
-        await writer.FlushAsync();
-        stream.Position = 0;
+        var exportedRows = sites.Count;
+        var truncated = policy.Mode == ExportLimitMode.Limited && requestedRows > exportedRows;
+        var stream = CreateWorkbook(
+            sites,
+            notFoundDomains: [],
+            isClientRole,
+            userEmail,
+            userRole,
+            query,
+            requestedRows,
+            exportedRows,
+            truncated,
+            policy.Mode == ExportLimitMode.Limited ? policy.Rows : null,
+            notFoundIncluded: false);
 
         await LogExportAsync(userId, userEmail, userRole, sites.Count, query, cancellationToken);
 
-        var exportedRows = sites.Count;
-        var truncated = policy.Mode == ExportLimitMode.Limited && requestedRows > exportedRows;
-
         return new ExportResult(
-            CsvStream: stream,
+            FileStream: stream,
             RequestedRows: requestedRows,
             ExportedRows: exportedRows,
             Truncated: truncated,
             LimitRows: policy.Mode == ExportLimitMode.Limited ? policy.Rows : null);
     }
 
-    public async Task<ExportResult> ExportMultiSearchAsCsvAsync(
+    public async Task<ExportResult> ExportMultiSearchAsExcelAsync(
         string queryText,
         SitesQuery query,
         string userId,
@@ -190,46 +181,27 @@ public class ExportService : IExportService
             : filteredQuery;
         var sites = await limitedQuery.ToListAsync(cancellationToken);
 
-        var stream = new MemoryStream();
-        var writer = new StreamWriter(stream, Encoding.UTF8);
-        var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true };
-        var csvWriter = new CsvWriter(writer, csvConfig);
         var isClientRole = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
-
-        WriteHeaders(csvWriter, isClientRole);
-        csvWriter.NextRecord();
-        foreach (var site in sites)
-        {
-            WriteSiteRow(csvWriter, site, isClientRole);
-            csvWriter.NextRecord();
-        }
-
-        if (includeNotFound)
-        {
-            var placeholderColumnCount = GetHeaders(isClientRole).Length - 1;
-            foreach (var domain in notFound)
-            {
-                csvWriter.WriteField(domain);
-                for (var i = 0; i < placeholderColumnCount; i++)
-                {
-                    csvWriter.WriteField("-");
-                }
-                csvWriter.NextRecord();
-            }
-        }
-
-        await csvWriter.FlushAsync();
-        await writer.FlushAsync();
-        stream.Position = 0;
-
         var rowsReturned = sites.Count + (includeNotFound ? notFound.Count : 0);
-        await LogExportAsync(userId, userEmail, userRole, rowsReturned, query, cancellationToken);
-
         var exportedRows = sites.Count;
         var truncated = policy.Mode == ExportLimitMode.Limited && requestedRows > exportedRows;
+        var stream = CreateWorkbook(
+            sites,
+            includeNotFound ? notFound : [],
+            isClientRole,
+            userEmail,
+            userRole,
+            query,
+            requestedRows,
+            exportedRows,
+            truncated,
+            policy.Mode == ExportLimitMode.Limited ? policy.Rows : null,
+            notFoundIncluded: includeNotFound);
+
+        await LogExportAsync(userId, userEmail, userRole, rowsReturned, query, cancellationToken);
 
         return new ExportResult(
-            CsvStream: stream,
+            FileStream: stream,
             RequestedRows: requestedRows,
             ExportedRows: exportedRows,
             Truncated: truncated,
@@ -244,27 +216,6 @@ public class ExportService : IExportService
         SitesQuery query,
         CancellationToken cancellationToken)
     {
-        var filterSummary = new
-        {
-            query.Search,
-            query.DrMin,
-            query.DrMax,
-            query.TrafficMin,
-            query.TrafficMax,
-            query.PriceMin,
-            query.PriceMax,
-            query.Locations,
-            query.CasinoAllowed,
-            query.CryptoAllowed,
-            query.LinkInsertAllowed,
-            query.CasinoAvailability,
-            query.CryptoAvailability,
-            query.LinkInsertAvailability,
-            query.LinkInsertCasinoAvailability,
-            query.DatingAvailability,
-            query.Quarantine
-        };
-
         var exportLog = new ExportLog
         {
             Id = Guid.NewGuid(),
@@ -273,7 +224,7 @@ public class ExportService : IExportService
             Role = userRole,
             TimestampUtc = DateTime.UtcNow,
             RowsReturned = rowsReturned,
-            FilterSummaryJson = JsonSerializer.Serialize(filterSummary)
+            FilterSummaryJson = JsonSerializer.Serialize(CreateFilterSummary(query))
         };
 
         _context.ExportLogs.Add(exportLog);
@@ -339,55 +290,189 @@ public class ExportService : IExportService
         return isClientRole ? ClientExportHeaders : NonClientExportHeaders;
     }
 
-    private static void WriteHeaders(CsvWriter csvWriter, bool isClientRole)
+    private static MemoryStream CreateWorkbook(
+        IReadOnlyList<Site> sites,
+        IReadOnlyList<string> notFoundDomains,
+        bool isClientRole,
+        string userEmail,
+        string userRole,
+        SitesQuery query,
+        int requestedRows,
+        int exportedRows,
+        bool truncated,
+        int? limitRows,
+        bool notFoundIncluded)
     {
-        foreach (var header in GetHeaders(isClientRole))
+        var siteHeaders = GetHeaders(isClientRole);
+        var sheets = new List<XlsxSheet>
         {
-            csvWriter.WriteField(header);
+            new(
+                "Sites",
+                siteHeaders,
+                sites.Select(site => CreateSiteRow(site, isClientRole)).ToList(),
+                GetSiteColumnWidths(isClientRole))
+        };
+
+        if (notFoundDomains.Count > 0)
+        {
+            sheets.Add(new XlsxSheet(
+                "Not found",
+                ["Domain"],
+                notFoundDomains.Select(domain => (IReadOnlyList<XlsxCell>)[XlsxCell.Text(domain)]).ToList(),
+                [32d]));
         }
+
+        sheets.Add(
+            new(
+                "Export info",
+                ["Property", "Value"],
+                CreateExportInfoRows(
+                    userEmail,
+                    userRole,
+                    requestedRows,
+                    exportedRows,
+                    truncated,
+                    limitRows,
+                    notFoundDomains.Count,
+                    notFoundIncluded),
+                [28d, 80d],
+                FreezeHeader: false,
+                AutoFilter: false));
+
+        return XlsxWorkbookWriter.CreateWorkbook(sheets);
     }
 
-    private static void WriteSiteRow(CsvWriter csvWriter, Site site, bool isClientRole)
+    private static IReadOnlyList<XlsxCell> CreateSiteRow(Site site, bool isClientRole)
     {
-        csvWriter.WriteField(site.Domain);
-        csvWriter.WriteField(site.DR);
-        csvWriter.WriteField(site.Traffic);
-        csvWriter.WriteField(site.Location);
-        csvWriter.WriteField(site.PriceUsd.HasValue
-            ? site.PriceUsd.Value.ToString(CultureInfo.InvariantCulture)
-            : string.Empty);
-        csvWriter.WriteField(FormatOptionalService(site.PriceCasino, site.PriceCasinoStatus));
-        csvWriter.WriteField(FormatOptionalService(site.PriceCrypto, site.PriceCryptoStatus));
-        csvWriter.WriteField(FormatOptionalService(site.PriceLinkInsert, site.PriceLinkInsertStatus));
-        csvWriter.WriteField(FormatOptionalService(site.PriceLinkInsertCasino, site.PriceLinkInsertCasinoStatus));
-        csvWriter.WriteField(FormatOptionalService(site.PriceDating, site.PriceDatingStatus));
-        csvWriter.WriteField(site.Niche);
-        csvWriter.WriteField(site.Categories);
-        csvWriter.WriteField(site.NumberDFLinks?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
-        csvWriter.WriteField(site.SponsoredTag);
-        csvWriter.WriteField(FormatTerm(site.TermType, site.TermValue, site.TermUnit));
+        var row = new List<XlsxCell>
+        {
+            XlsxCell.Text(site.Domain),
+            XlsxCell.Number(Convert.ToDecimal(site.DR, CultureInfo.InvariantCulture), XlsxCellStyle.Integer),
+            XlsxCell.Number(site.Traffic, XlsxCellStyle.Integer),
+            XlsxCell.Text(site.Location),
+            XlsxCell.Number(site.PriceUsd, XlsxCellStyle.Decimal),
+            FormatOptionalService(site.PriceCasino, site.PriceCasinoStatus),
+            FormatOptionalService(site.PriceCrypto, site.PriceCryptoStatus),
+            FormatOptionalService(site.PriceLinkInsert, site.PriceLinkInsertStatus),
+            FormatOptionalService(site.PriceLinkInsertCasino, site.PriceLinkInsertCasinoStatus),
+            FormatOptionalService(site.PriceDating, site.PriceDatingStatus),
+            XlsxCell.Text(site.Niche),
+            XlsxCell.Text(site.Categories),
+            XlsxCell.Number(site.NumberDFLinks, XlsxCellStyle.Integer),
+            XlsxCell.Text(site.SponsoredTag),
+            XlsxCell.Text(FormatTerm(site.TermType, site.TermValue, site.TermUnit))
+        };
 
         if (isClientRole)
         {
-            return;
+            return row;
         }
 
-        csvWriter.WriteField(site.IsQuarantined);
-        csvWriter.WriteField(site.QuarantineReason);
-        csvWriter.WriteField(site.LastPublishedDate);
-        csvWriter.WriteField(site.CreatedAtUtc);
-        csvWriter.WriteField(site.UpdatedAtUtc);
+        row.Add(XlsxCell.Boolean(site.IsQuarantined));
+        row.Add(XlsxCell.Text(site.QuarantineReason));
+        row.Add(XlsxCell.Date(site.LastPublishedDate));
+        row.Add(XlsxCell.DateTime(site.CreatedAtUtc));
+        row.Add(XlsxCell.DateTime(site.UpdatedAtUtc));
+        return row;
     }
 
-    private static string FormatOptionalService(decimal? price, ServiceAvailabilityStatus status)
+    private static XlsxCell FormatOptionalService(decimal? price, ServiceAvailabilityStatus status)
     {
         return status switch
         {
-            ServiceAvailabilityStatus.Available when price.HasValue => price.Value.ToString(CultureInfo.InvariantCulture),
-            ServiceAvailabilityStatus.NotAvailable => "NO",
-            _ => string.Empty
+            ServiceAvailabilityStatus.Available when price.HasValue => XlsxCell.Number(price, XlsxCellStyle.Decimal),
+            ServiceAvailabilityStatus.NotAvailable => XlsxCell.Text("NO"),
+            _ => XlsxCell.Blank()
         };
     }
+
+    private static IReadOnlyList<double> GetSiteColumnWidths(bool isClientRole)
+    {
+        var widths = new List<double>
+        {
+            28,
+            8,
+            14,
+            14,
+            12,
+            16,
+            16,
+            18,
+            24,
+            16,
+            20,
+            28,
+            16,
+            16,
+            16
+        };
+
+        if (!isClientRole)
+        {
+            widths.AddRange([14, 28, 18, 20, 20]);
+        }
+
+        return widths;
+    }
+
+    private static IReadOnlyList<IReadOnlyList<XlsxCell>> CreateExportInfoRows(
+        string userEmail,
+        string userRole,
+        int requestedRows,
+        int exportedRows,
+        bool truncated,
+        int? limitRows,
+        int notFoundRows,
+        bool notFoundIncluded)
+    {
+        var rows = new List<IReadOnlyList<XlsxCell>>
+        {
+            InfoRow("GeneratedAtUtc", XlsxCell.DateTime(DateTime.UtcNow)),
+            InfoRow("GeneratedBy", XlsxCell.Text(userEmail)),
+            InfoRow("Role", XlsxCell.Text(userRole)),
+            InfoRow("Rows matching export request", XlsxCell.Number(requestedRows, XlsxCellStyle.Integer)),
+            InfoRow("Rows in Sites sheet", XlsxCell.Number(exportedRows, XlsxCellStyle.Integer)),
+            InfoRow("Export truncated by limit", XlsxCell.Boolean(truncated)),
+            InfoRow("Export limit rows", limitRows.HasValue
+                ? XlsxCell.Number(limitRows.Value, XlsxCellStyle.Integer)
+                : XlsxCell.Text("Unlimited"))
+        };
+
+        if (notFoundRows > 0)
+        {
+            rows.Add(InfoRow("Not found sheet rows", XlsxCell.Number(notFoundRows, XlsxCellStyle.Integer)));
+            rows.Add(InfoRow("Not found included", XlsxCell.Text(notFoundIncluded ? "Yes" : "No")));
+        }
+
+        return rows;
+    }
+
+    private static IReadOnlyList<XlsxCell> InfoRow(string label, XlsxCell value)
+        => [XlsxCell.InfoLabel(label), value];
+
+    private static object CreateFilterSummary(SitesQuery query)
+        => new
+        {
+            query.Search,
+            query.DrMin,
+            query.DrMax,
+            query.TrafficMin,
+            query.TrafficMax,
+            query.PriceMin,
+            query.PriceMax,
+            query.Locations,
+            query.CasinoAllowed,
+            query.CryptoAllowed,
+            query.LinkInsertAllowed,
+            query.CasinoAvailability,
+            query.CryptoAvailability,
+            query.LinkInsertAvailability,
+            query.LinkInsertCasinoAvailability,
+            query.DatingAvailability,
+            query.Quarantine,
+            query.LastPublishedFrom,
+            query.LastPublishedToExclusive
+        };
 
     private static string FormatTerm(TermType? termType, int? termValue, TermUnit? termUnit)
     {

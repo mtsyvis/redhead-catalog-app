@@ -937,6 +937,44 @@ public class SitesServiceTests : IDisposable
 
     #endregion
 
+    #region LastPublishedDate Tests
+
+    [Fact]
+    public async Task GetSitesAsync_WithLastPublishedRange_ExcludesNullAndOutsideRange()
+    {
+        SetLastPublishedDatesForFiltering();
+        await _context.SaveChangesAsync();
+
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All,
+            LastPublishedFrom = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            LastPublishedToExclusive = new DateTime(2025, 2, 1, 0, 0, 0, DateTimeKind.Utc)
+        });
+
+        Assert.Equal(["example.com", "gambling.com", "test.com"], result.Items.Select(s => s.Domain).ToList());
+        Assert.Equal(3, result.Total);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_SortByLastPublishedDate_ReturnsNullLastAndUsesMonthOnlyTieBreaker()
+    {
+        SetLastPublishedDatesForSorting();
+        await _context.SaveChangesAsync();
+
+        var desc = await GetSortedDomainsAsync(SortFields.LastPublishedDate, SortingDefaults.Descending);
+        var asc = await GetSortedDomainsAsync(SortFields.LastPublishedDate, SortingDefaults.Ascending);
+
+        Assert.Equal(["example.com", "test.com", "gambling.com", "crypto.com", "lowdr.com"], desc);
+        Assert.Equal(["crypto.com", "gambling.com", "test.com", "example.com", "lowdr.com"], asc);
+    }
+
+    #endregion
+
     #region Pagination Tests
 
     [Fact]
@@ -1518,6 +1556,31 @@ public class SitesServiceTests : IDisposable
         site.TermType = TermType.Finite;
         site.TermValue = years;
         site.TermUnit = TermUnit.Year;
+    }
+
+    private void SetLastPublishedDatesForFiltering()
+    {
+        SetLastPublishedDate("example.com", new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        SetLastPublishedDate("test.com", new DateTime(2025, 1, 15, 12, 0, 0, DateTimeKind.Utc));
+        SetLastPublishedDate("gambling.com", new DateTime(2025, 1, 31, 23, 59, 59, DateTimeKind.Utc));
+        SetLastPublishedDate("crypto.com", new DateTime(2025, 2, 1, 0, 0, 0, DateTimeKind.Utc));
+        SetLastPublishedDate("lowdr.com", null);
+    }
+
+    private void SetLastPublishedDatesForSorting()
+    {
+        SetLastPublishedDate("example.com", new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc));
+        SetLastPublishedDate("test.com", new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), isMonthOnly: false);
+        SetLastPublishedDate("gambling.com", new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), isMonthOnly: true);
+        SetLastPublishedDate("crypto.com", new DateTime(2025, 12, 1, 0, 0, 0, DateTimeKind.Utc), isMonthOnly: true);
+        SetLastPublishedDate("lowdr.com", null);
+    }
+
+    private void SetLastPublishedDate(string domain, DateTime? value, bool isMonthOnly = false)
+    {
+        var site = _context.Sites.Single(s => s.Domain == domain);
+        site.LastPublishedDate = value;
+        site.LastPublishedDateIsMonthOnly = value.HasValue && isMonthOnly;
     }
 
     private static Site SiteWithNullPrice(string domain) => new()

@@ -109,7 +109,7 @@ export interface MultiSearchResponse {
 }
 
 /**
- * Request body for POST /api/export/sites-multi-search.csv
+ * Request body for POST /api/export/sites-multi-search.xlsx
  */
 export interface ExportMultiSearchPayload {
   queryText: string;

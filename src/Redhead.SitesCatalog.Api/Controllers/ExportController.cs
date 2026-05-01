@@ -24,9 +24,9 @@ public class ExportController : ControllerBase
     }
 
     /// <summary>
-    /// Export sites as CSV with effective export policy enforcement.
+    /// Export sites as Excel with effective export policy enforcement.
     /// </summary>
-    [HttpGet("sites.csv")]
+    [HttpGet("sites.xlsx")]
     public async Task<IActionResult> ExportSites(
         [FromQuery] SitesQueryRequest request,
         CancellationToken cancellationToken)
@@ -55,7 +55,7 @@ public class ExportController : ControllerBase
             });
         }
 
-        var result = await _exportService.ExportSitesAsCsvAsync(
+        var result = await _exportService.ExportSitesAsExcelAsync(
             query,
             userId,
             userEmail,
@@ -64,13 +64,13 @@ public class ExportController : ControllerBase
 
         AddExportHeaders(result);
 
-        return File(result.CsvStream, ExportConstants.CsvContentType, ExportConstants.SitesFileName);
+        return File(result.FileStream, ExportConstants.ExcelContentType, ExportConstants.SitesFileName);
     }
 
     /// <summary>
-    /// Export multi-search result as CSV: filtered Found rows (effective policy limit) + all Not found domains.
+    /// Export multi-search result as Excel: filtered Found rows (effective policy limit) + matching Not found domains.
     /// </summary>
-    [HttpPost("sites-multi-search.csv")]
+    [HttpPost("sites-multi-search.xlsx")]
     public async Task<IActionResult> ExportSitesMultiSearch(
         [FromBody] ExportMultiSearchRequest request,
         CancellationToken cancellationToken)
@@ -111,7 +111,7 @@ public class ExportController : ControllerBase
         ExportResult result;
         try
         {
-            result = await _exportService.ExportMultiSearchAsCsvAsync(
+            result = await _exportService.ExportMultiSearchAsExcelAsync(
                 request.QueryText,
                 query,
                 userId,
@@ -131,7 +131,7 @@ public class ExportController : ControllerBase
 
         AddExportHeaders(result);
 
-        return File(result.CsvStream, ExportConstants.CsvContentType, ExportConstants.SitesFileName);
+        return File(result.FileStream, ExportConstants.ExcelContentType, ExportConstants.SitesFileName);
     }
 
     private void AddExportHeaders(ExportResult result)

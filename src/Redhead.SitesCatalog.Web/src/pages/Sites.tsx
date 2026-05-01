@@ -556,7 +556,7 @@ export function Sites() {
             onClick={handleExport}
             disabled={exporting || loading}
           >
-            {exporting ? 'Exporting...' : 'Export CSV'}
+            {exporting ? 'Exporting...' : 'Export Excel'}
           </BrandButton>
         </Box>
 

@@ -132,7 +132,7 @@ class SitesService {
   }
 
   /**
-   * Export sites as CSV with current filters. Returns metadata from response headers.
+   * Export sites as Excel with current filters. Returns metadata from response headers.
    */
   async exportSites(params: SitesQueryParams): Promise<ExportMetadata> {
     const queryParams = new URLSearchParams();
@@ -209,7 +209,7 @@ class SitesService {
       queryParams.append('lastPublishedToMonth', params.lastPublishedToMonth);
     }
 
-    const url = `/api/export/sites.csv?${queryParams.toString()}`;
+    const url = `/api/export/sites.xlsx?${queryParams.toString()}`;
     const response = await fetch(url, {
       method: 'GET',
       credentials: 'include',
@@ -226,7 +226,7 @@ class SitesService {
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = 'sites.csv';
+    link.download = 'sites.xlsx';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -236,12 +236,12 @@ class SitesService {
   }
 
   /**
-   * Export multi-search result as CSV (filtered Found + all Not found). Uses POST.
+   * Export multi-search result as Excel (filtered Found + Not found sheet when applicable). Uses POST.
    * Returns metadata from response headers.
    */
   async exportSitesMultiSearch(payload: ExportMultiSearchPayload): Promise<ExportMetadata> {
     const baseUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
-    const response = await fetch(`${baseUrl}/api/export/sites-multi-search.csv`, {
+    const response = await fetch(`${baseUrl}/api/export/sites-multi-search.xlsx`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -259,7 +259,7 @@ class SitesService {
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = 'sites.csv';
+    link.download = 'sites.xlsx';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

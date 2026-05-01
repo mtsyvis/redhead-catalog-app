@@ -1,7 +1,7 @@
 namespace Redhead.SitesCatalog.Application.Services;
 
 public record ExportResult(
-    Stream CsvStream,
+    Stream FileStream,
     int RequestedRows,
     int ExportedRows,
     bool Truncated,
