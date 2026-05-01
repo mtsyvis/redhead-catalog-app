@@ -52,7 +52,6 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         TermUnit? TermUnit,
         string? Niche,
         string? Categories,
-        string? LinkType,
         string? SponsoredTag);
 
     public SitesUpdateImportService(
@@ -201,7 +200,6 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             site.TermUnit = update.TermUnit;
             site.Niche = update.Niche;
             site.Categories = update.Categories;
-            site.LinkType = update.LinkType;
             site.SponsoredTag = update.SponsoredTag;
             site.UpdatedAtUtc = now;
 
@@ -281,7 +279,6 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             data.TermUnit,
             data.Niche,
             data.Categories,
-            data.LinkType,
             data.SponsoredTag);
     }
 

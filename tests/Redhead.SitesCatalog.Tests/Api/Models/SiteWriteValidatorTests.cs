@@ -249,17 +249,6 @@ public class SiteWriteValidatorTests
     }
 
     [Fact]
-    public void ValidateAndNormalize_LinkTypeTooLong_ReturnsError()
-    {
-        var request = BuildValidRequest();
-        request.LinkType = new string('x', SiteFieldLimits.LinkTypeMaxLength + 1);
-
-        var result = SiteWriteValidator.ValidateAndNormalize(request);
-
-        AssertError(result, "linkType");
-    }
-
-    [Fact]
     public void ValidateAndNormalize_SponsoredTagTooLong_ReturnsError()
     {
         var request = BuildValidRequest();
@@ -307,7 +296,6 @@ public class SiteWriteValidatorTests
         request.Location = "  US  ";
         request.Niche = "  iGaming ";
         request.Categories = "  review, blog ";
-        request.LinkType = "  homepage ";
         request.SponsoredTag = "  yes ";
         request.IsQuarantined = true;
         request.QuarantineReason = "  pending check ";
@@ -321,7 +309,6 @@ public class SiteWriteValidatorTests
         Assert.Equal("US", normalized.Location);
         Assert.Equal("iGaming", normalized.Niche);
         Assert.Equal("review, blog", normalized.Categories);
-        Assert.Equal("homepage", normalized.LinkType);
         Assert.Equal("yes", normalized.SponsoredTag);
         Assert.Equal("pending check", normalized.QuarantineReason);
         Assert.Equal(20m, normalized.PriceCasino);
@@ -522,7 +509,6 @@ public class SiteWriteValidatorTests
             TermUnit = null,
             Niche = null,
             Categories = null,
-            LinkType = null,
             SponsoredTag = null,
             IsQuarantined = false,
             QuarantineReason = null

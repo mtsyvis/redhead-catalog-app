@@ -141,7 +141,6 @@ Core site fields:
 * `TermUnit`
 * `Niche`
 * `Categories`
-* `LinkType`
 * `SponsoredTag`
 * `IsQuarantined`
 * `QuarantineReason`
@@ -353,10 +352,9 @@ Required columns, in order:
 10. `PriceDating`
 11. `Niche`
 12. `Categories`
-13. `LinkType`
-14. `NumberDFLinks`
-15. `SponsoredTag`
-16. `Term`
+13. `NumberDFLinks`
+14. `SponsoredTag`
+15. `Term`
 
 Rules:
 

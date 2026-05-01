@@ -30,7 +30,6 @@ export type EditSiteFormState = {
   termValue: string;
   niche: string;
   categories: string;
-  linkType: string;
   sponsoredTag: string;
   isQuarantined: boolean;
   quarantineReason: string;
@@ -95,7 +94,6 @@ export const EMPTY_FORM_STATE: EditSiteFormState = {
   termValue: '',
   niche: '',
   categories: '',
-  linkType: '',
   sponsoredTag: '',
   isQuarantined: false,
   quarantineReason: '',
@@ -146,7 +144,6 @@ export function createInitialFormState(site: Site): EditSiteFormState {
         : '',
     niche: site.niche ?? '',
     categories: site.categories ?? '',
-    linkType: site.linkType ?? '',
     sponsoredTag: site.sponsoredTag ?? '',
     isQuarantined: Boolean(site.isQuarantined),
     quarantineReason: site.quarantineReason ?? '',
@@ -305,7 +302,6 @@ export function buildUpdateSitePayload(form: EditSiteFormState): UpdateSitePaylo
     termUnit: form.termType === TERM_TYPE.Finite ? TERM_UNIT.Year : null,
     niche: form.niche.trim() || null,
     categories: form.categories.trim() || null,
-    LinkType: form.linkType.trim() || null,
     SponsoredTag: form.sponsoredTag.trim() || null,
     isQuarantined: form.isQuarantined,
     quarantineReason: form.isQuarantined ? (form.quarantineReason.trim() || null) : null,

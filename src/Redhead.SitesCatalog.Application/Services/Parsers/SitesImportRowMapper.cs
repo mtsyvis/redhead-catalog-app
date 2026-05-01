@@ -31,7 +31,6 @@ public static class SitesImportRowMapper
         var termRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.Term);
         var niche = TryGetValue(getValue, ImportConstants.SitesImportColumns.Niche);
         var categories = TryGetValue(getValue, ImportConstants.SitesImportColumns.Categories);
-        var linkType = TryGetValue(getValue, ImportConstants.SitesImportColumns.LinkType);
         var sponsoredTag = TryGetValue(getValue, ImportConstants.SitesImportColumns.SponsoredTag);
 
         return new SitesImportRowDto
@@ -54,7 +53,6 @@ public static class SitesImportRowMapper
             TermRaw = termRaw,
             Niche = niche,
             Categories = categories,
-            LinkType = linkType,
             SponsoredTag = sponsoredTag
         };
     }

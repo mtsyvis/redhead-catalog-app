@@ -23,12 +23,11 @@ export const SITES_IMPORT_INSTRUCTIONS = {
     'PriceDating',
     'Niche',
     'Categories',
-    'LinkType',
     'NumberDFLinks',
     'SponsoredTag',
     'Term',
   ],
-  optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, PriceLinkInsertCasino, PriceDating, Niche, Categories, LinkType, NumberDFLinks, SponsoredTag, and Term may be empty.',
+  optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, PriceLinkInsertCasino, PriceDating, Niche, Categories, NumberDFLinks, SponsoredTag, and Term may be empty.',
 };
 
 export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
@@ -46,12 +45,11 @@ export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
     'PriceDating',
     'Niche',
     'Categories',
-    'LinkType',
     'NumberDFLinks',
     'SponsoredTag',
     'Term',
   ],
-  optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, PriceLinkInsertCasino, PriceDating, Niche, Categories, LinkType, NumberDFLinks, SponsoredTag, and Term may be empty.',
+  optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, PriceLinkInsertCasino, PriceDating, Niche, Categories, NumberDFLinks, SponsoredTag, and Term may be empty.',
 };
 
 export const QUARANTINE_IMPORT_INSTRUCTIONS = {

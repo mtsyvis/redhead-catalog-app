@@ -10,7 +10,6 @@ public class UpdateSiteRequest
     public double? DR { get; set; }
     public long? Traffic { get; set; }
     public string? Location { get; set; }
-    public string? LinkType { get; set; }
     public string? SponsoredTag { get; set; }
     public decimal? PriceUsd { get; set; }
     public decimal? PriceCasino { get; set; }

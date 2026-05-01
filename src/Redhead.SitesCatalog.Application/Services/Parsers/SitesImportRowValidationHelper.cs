@@ -37,7 +37,6 @@ public static class SitesImportRowValidationHelper
         TermUnit? TermUnit,
         string? Niche,
         string? Categories,
-        string? LinkType,
         string? SponsoredTag);
 
     /// <summary>
@@ -193,7 +192,6 @@ public static class SitesImportRowValidationHelper
             TermUnit = termParseResult.TermUnit,
             Niche = row.Niche,
             Categories = row.Categories,
-            LinkType = row.LinkType,
             SponsoredTag = row.SponsoredTag,
             IsQuarantined = false,
             QuarantineReason = null
@@ -250,7 +248,6 @@ public static class SitesImportRowValidationHelper
             normalized.TermUnit,
             normalized.Niche,
             normalized.Categories,
-            normalized.LinkType,
             normalized.SponsoredTag);
 
         return (false, null, data);
@@ -272,7 +269,6 @@ public static class SitesImportRowValidationHelper
                && string.IsNullOrWhiteSpace(row.TermRaw)
                && string.IsNullOrWhiteSpace(row.Niche)
                && string.IsNullOrWhiteSpace(row.Categories)
-               && string.IsNullOrWhiteSpace(row.LinkType)
                && string.IsNullOrWhiteSpace(row.SponsoredTag);
     }
 

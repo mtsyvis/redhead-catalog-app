@@ -58,12 +58,6 @@ public static class SiteWriteValidator
             Add(errors, "location", $"Location must be at most {SiteFieldLimits.LocationMaxLength} characters.");
         }
 
-        var linkType = TrimToNull(input.LinkType);
-        if (linkType is not null && linkType.Length > SiteFieldLimits.LinkTypeMaxLength)
-        {
-            Add(errors, "linkType", $"Link type must be at most {SiteFieldLimits.LinkTypeMaxLength} characters.");
-        }
-
         var sponsoredTag = TrimToNull(input.SponsoredTag);
         if (sponsoredTag is not null && sponsoredTag.Length > SiteFieldLimits.SponsoredTagMaxLength)
         {
@@ -163,7 +157,6 @@ public static class SiteWriteValidator
                 DR = input.DR!.Value,
                 Traffic = input.Traffic!.Value,
                 Location = location,
-                LinkType = linkType,
                 SponsoredTag = sponsoredTag,
                 PriceUsd = input.PriceUsd,
                 PriceCasino = normalizedCasino.Price,

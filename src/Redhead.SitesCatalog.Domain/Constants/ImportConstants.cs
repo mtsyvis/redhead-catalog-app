@@ -103,7 +103,6 @@ public static class ImportConstants
         public const string PriceDating = "PriceDating";
         public const string Niche = "Niche";
         public const string Categories = "Categories";
-        public const string LinkType = "LinkType";
         public const string NumberDFLinks = "NumberDFLinks";
         public const string SponsoredTag = "SponsoredTag";
         public const string Term = "Term";
@@ -126,7 +125,6 @@ public static class ImportConstants
         SitesImportColumns.PriceDating,
         SitesImportColumns.Niche,
         SitesImportColumns.Categories,
-        SitesImportColumns.LinkType,
         SitesImportColumns.NumberDFLinks,
         SitesImportColumns.SponsoredTag,
         SitesImportColumns.Term,

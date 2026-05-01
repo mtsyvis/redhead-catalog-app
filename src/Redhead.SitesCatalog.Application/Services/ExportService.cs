@@ -32,7 +32,6 @@ public class ExportService : IExportService
         "PriceDating",
         "Niche",
         "Categories",
-        "LinkType",
         "NumberDFLinks",
         "SponsoredTag",
         "Term",
@@ -52,7 +51,6 @@ public class ExportService : IExportService
         "PriceDating",
         "Niche",
         "Categories",
-        "LinkType",
         "NumberDFLinks",
         "SponsoredTag",
         "Term",
@@ -365,7 +363,6 @@ public class ExportService : IExportService
         csvWriter.WriteField(FormatOptionalService(site.PriceDating, site.PriceDatingStatus));
         csvWriter.WriteField(site.Niche);
         csvWriter.WriteField(site.Categories);
-        csvWriter.WriteField(site.LinkType);
         csvWriter.WriteField(site.NumberDFLinks?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
         csvWriter.WriteField(site.SponsoredTag);
         csvWriter.WriteField(FormatTerm(site.TermType, site.TermValue, site.TermUnit));

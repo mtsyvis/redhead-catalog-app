@@ -71,7 +71,6 @@ public static class SitesMapper
             DR = dto.DR,
             Traffic = dto.Traffic,
             Location = dto.Location,
-            LinkType = dto.LinkType,
             SponsoredTag = dto.SponsoredTag,
             PriceUsd = dto.PriceUsd,
             PriceCasino = dto.PriceCasino,

@@ -327,7 +327,6 @@ public sealed class SitesImportService : ISitesImportService
             TermUnit = data.TermUnit,
             Niche = data.Niche,
             Categories = data.Categories,
-            LinkType = data.LinkType,
             SponsoredTag = data.SponsoredTag,
             IsQuarantined = false,
             QuarantineReason = null,

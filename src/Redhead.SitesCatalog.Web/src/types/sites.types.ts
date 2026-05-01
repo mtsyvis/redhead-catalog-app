@@ -23,7 +23,6 @@ export interface Site {
   termUnit: TermUnit | null;
   niche: string | null;
   categories: string | null;
-  linkType: string | null;
   sponsoredTag: string | null;
   isQuarantined: boolean;
   quarantineReason: string | null;
@@ -144,7 +143,6 @@ export interface UpdateSitePayload {
   termUnit: TermUnitValue | null;
   niche: string | null;
   categories: string | null;
-  LinkType: string | null;
   SponsoredTag: string | null;
   isQuarantined: boolean;
   quarantineReason: string | null;

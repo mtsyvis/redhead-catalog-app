@@ -351,16 +351,6 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
             />
 
             <TextField
-              label="Link Type"
-              value={form.linkType}
-              onChange={(e) => updateField('linkType', e.target.value)}
-              size="small"
-              fullWidth
-              error={Boolean(fieldErrors.linkType?.length)}
-              helperText={fieldErrors.linkType?.[0]}
-            />
-
-            <TextField
               label="Number DF Links"
               type="number"
               inputProps={{ min: 1, step: 1 }}

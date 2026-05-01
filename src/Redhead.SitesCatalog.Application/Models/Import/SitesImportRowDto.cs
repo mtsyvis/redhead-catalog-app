@@ -23,6 +23,5 @@ public class SitesImportRowDto
     public string? TermRaw { get; set; }
     public string? Niche { get; set; }
     public string? Categories { get; set; }
-    public string? LinkType { get; set; }
     public string? SponsoredTag { get; set; }
 }

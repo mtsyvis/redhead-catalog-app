@@ -94,7 +94,6 @@ public class SitesController : ControllerBase
             DR = request.DR,
             Traffic = request.Traffic,
             Location = request.Location,
-            LinkType = request.LinkType,
             SponsoredTag = request.SponsoredTag,
             PriceUsd = request.PriceUsd,
             PriceCasino = request.PriceCasino,

@@ -396,10 +396,6 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
-                    b.Property<string>("LinkType")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<string>("Location")
                         .IsRequired()
                         .HasMaxLength(100)

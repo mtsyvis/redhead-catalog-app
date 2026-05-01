@@ -119,9 +119,6 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(s => s.Categories)
             .HasColumnType("text");
 
-        builder.Property(s => s.LinkType)
-            .HasMaxLength(SiteFieldLimits.LinkTypeMaxLength);
-
         builder.Property(s => s.SponsoredTag)
             .HasMaxLength(SiteFieldLimits.SponsoredTagMaxLength);
 

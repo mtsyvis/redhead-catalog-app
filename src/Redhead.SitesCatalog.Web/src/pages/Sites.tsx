@@ -446,13 +446,6 @@ export function Sites() {
       valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
     },
     {
-      field: 'linkType',
-      headerName: 'Link Type',
-      width: 140,
-      sortable: false,
-      valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
-    },
-    {
       field: 'numberDFLinks',
       headerName: 'DF Links',
       width: 110,
