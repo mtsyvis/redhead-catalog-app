@@ -60,6 +60,8 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
     if (!matchesAvailabilityFilter(s.priceCasinoStatus, f.casinoAvailability)) return false;
     if (!matchesAvailabilityFilter(s.priceCryptoStatus, f.cryptoAvailability)) return false;
     if (!matchesAvailabilityFilter(s.priceLinkInsertStatus, f.linkInsertAvailability)) return false;
+    if (!matchesAvailabilityFilter(s.priceLinkInsertCasinoStatus, f.linkInsertCasinoAvailability)) return false;
+    if (!matchesAvailabilityFilter(s.priceDatingStatus, f.datingAvailability)) return false;
     if (f.quarantine === 'only' && !s.isQuarantined) return false;
     if (f.quarantine === 'exclude' && s.isQuarantined) return false;
     if (f.lastPublishedFromMonth) {
@@ -86,6 +88,8 @@ const INITIAL_FILTERS: FiltersType = {
   casinoAvailability: 'all',
   cryptoAvailability: 'all',
   linkInsertAvailability: 'all',
+  linkInsertCasinoAvailability: 'all',
+  datingAvailability: 'all',
   quarantine: 'all',
   lastPublishedFromMonth: null,
   lastPublishedToMonth: null,
@@ -148,6 +152,8 @@ export function Sites() {
       filters.casinoAvailability !== INITIAL_FILTERS.casinoAvailability ||
       filters.cryptoAvailability !== INITIAL_FILTERS.cryptoAvailability ||
       filters.linkInsertAvailability !== INITIAL_FILTERS.linkInsertAvailability ||
+      filters.linkInsertCasinoAvailability !== INITIAL_FILTERS.linkInsertCasinoAvailability ||
+      filters.datingAvailability !== INITIAL_FILTERS.datingAvailability ||
       filters.quarantine !== INITIAL_FILTERS.quarantine ||
       filters.lastPublishedFromMonth !== null ||
       filters.lastPublishedToMonth !== null,
@@ -171,6 +177,8 @@ export function Sites() {
       casinoAvailability: filters.casinoAvailability,
       cryptoAvailability: filters.cryptoAvailability,
       linkInsertAvailability: filters.linkInsertAvailability,
+      linkInsertCasinoAvailability: filters.linkInsertCasinoAvailability,
+      datingAvailability: filters.datingAvailability,
       quarantine: filters.quarantine,
       lastPublishedFromMonth: filters.lastPublishedFromMonth ?? undefined,
       lastPublishedToMonth: filters.lastPublishedToMonth ?? undefined,
@@ -188,6 +196,8 @@ export function Sites() {
       filters.casinoAvailability,
       filters.cryptoAvailability,
       filters.linkInsertAvailability,
+      filters.linkInsertCasinoAvailability,
+      filters.datingAvailability,
       filters.quarantine,
       filters.lastPublishedFromMonth,
       filters.lastPublishedToMonth,

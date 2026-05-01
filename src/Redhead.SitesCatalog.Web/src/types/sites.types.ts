@@ -60,6 +60,8 @@ export interface SitesQueryParams {
   casinoAvailability?: ServiceAvailabilityFilter;
   cryptoAvailability?: ServiceAvailabilityFilter;
   linkInsertAvailability?: ServiceAvailabilityFilter;
+  linkInsertCasinoAvailability?: ServiceAvailabilityFilter;
+  datingAvailability?: ServiceAvailabilityFilter;
   quarantine?: 'all' | 'only' | 'exclude';
   /** yyyy-MM format, inclusive lower bound */
   lastPublishedFromMonth?: string;
@@ -89,6 +91,8 @@ export interface SitesFilters {
   casinoAvailability: ServiceAvailabilityFilter;
   cryptoAvailability: ServiceAvailabilityFilter;
   linkInsertAvailability: ServiceAvailabilityFilter;
+  linkInsertCasinoAvailability: ServiceAvailabilityFilter;
+  datingAvailability: ServiceAvailabilityFilter;
   quarantine: 'all' | 'only' | 'exclude';
   /** yyyy-MM format, null means not set */
   lastPublishedFromMonth: string | null;

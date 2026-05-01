@@ -42,6 +42,8 @@ const INITIAL_FILTERS: SitesFilters = {
   casinoAvailability: 'all',
   cryptoAvailability: 'all',
   linkInsertAvailability: 'all',
+  linkInsertCasinoAvailability: 'all',
+  datingAvailability: 'all',
   quarantine: 'all',
   lastPublishedFromMonth: null,
   lastPublishedToMonth: null,
@@ -97,6 +99,8 @@ export function SitesFilters({
       filters.casinoAvailability !== 'all' ||
       filters.cryptoAvailability !== 'all' ||
       filters.linkInsertAvailability !== 'all' ||
+      filters.linkInsertCasinoAvailability !== 'all' ||
+      filters.datingAvailability !== 'all' ||
       filters.quarantine !== 'all' ||
       filters.lastPublishedFromMonth !== null ||
       filters.lastPublishedToMonth !== null
@@ -275,7 +279,7 @@ export function SitesFilters({
                 /></Box>
             </Box>
 
-            {/* Row 2: Last Publication + Service Availability + Quarantine */}
+            {/* Row 2: Last Publication + Quarantine */}
             <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <LastPublishedRangeFilter
                 fromValue={filters.lastPublishedFromMonth}
@@ -285,6 +289,30 @@ export function SitesFilters({
                 error={lastPublishedRangeError}
               />
 
+              {/* Quarantine Filter */}
+              <Box sx={{ flex: '0 0 auto', minWidth: '185px' }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Quarantine Status
+                </Typography>
+                <TextField
+                  select
+                  size="small"
+                  value={filters.quarantine}
+                  onChange={(e) =>
+                    handleChange('quarantine', e.target.value as 'all' | 'only' | 'exclude')
+                  }
+                  sx={{ width: 185 }}
+                >
+                  <MenuItem value="all">All Sites</MenuItem>
+                  <MenuItem value="exclude">Available Only</MenuItem>
+                  <MenuItem value="only">Unavailable Only</MenuItem>
+                </TextField>
+              </Box>
+
+            </Box>
+
+            {/* Row 3: Service Availability */}
+            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               {/* Optional Service Availability */}
               <Box sx={{ flex: '0 0 auto' }}>
                 <Typography variant="subtitle2" gutterBottom>
@@ -335,29 +363,36 @@ export function SitesFilters({
                       </MenuItem>
                     ))}
                   </TextField>
+                  <TextField
+                    select
+                    size="small"
+                    label="Link Insert Casino"
+                    value={filters.linkInsertCasinoAvailability}
+                    onChange={(e) => handleChange('linkInsertCasinoAvailability', e.target.value as SitesFilters['linkInsertCasinoAvailability'])}
+                    sx={{ width: 185 }}
+                  >
+                    {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    select
+                    size="small"
+                    label="Dating"
+                    value={filters.datingAvailability}
+                    onChange={(e) => handleChange('datingAvailability', e.target.value as SitesFilters['datingAvailability'])}
+                    sx={{ width: 185 }}
+                  >
+                    {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 </Box>
               </Box>
-
-              {/* Quarantine Filter */}
-              <Box sx={{ flex: '0 0 auto', minWidth: '185px' }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Quarantine Status
-                </Typography>
-                <TextField
-                  select
-                  size="small"
-                  value={filters.quarantine}
-                  onChange={(e) =>
-                    handleChange('quarantine', e.target.value as 'all' | 'only' | 'exclude')
-                  }
-                  sx={{ width: 185 }}
-                >
-                  <MenuItem value="all">All Sites</MenuItem>
-                  <MenuItem value="exclude">Available Only</MenuItem>
-                  <MenuItem value="only">Unavailable Only</MenuItem>
-                </TextField>
-              </Box>
-
             </Box>
 
             {/* Action Buttons */}

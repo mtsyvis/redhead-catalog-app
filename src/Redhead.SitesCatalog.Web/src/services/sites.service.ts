@@ -80,6 +80,12 @@ class SitesService {
     if (params.linkInsertAvailability) {
       queryParams.append('linkInsertAvailability', params.linkInsertAvailability);
     }
+    if (params.linkInsertCasinoAvailability) {
+      queryParams.append('linkInsertCasinoAvailability', params.linkInsertCasinoAvailability);
+    }
+    if (params.datingAvailability) {
+      queryParams.append('datingAvailability', params.datingAvailability);
+    }
 
     // Quarantine filter
     if (params.quarantine) {
@@ -182,6 +188,12 @@ class SitesService {
     }
     if (params.linkInsertAvailability) {
       queryParams.append('linkInsertAvailability', params.linkInsertAvailability);
+    }
+    if (params.linkInsertCasinoAvailability) {
+      queryParams.append('linkInsertCasinoAvailability', params.linkInsertCasinoAvailability);
+    }
+    if (params.datingAvailability) {
+      queryParams.append('datingAvailability', params.datingAvailability);
     }
 
     // Quarantine filter
