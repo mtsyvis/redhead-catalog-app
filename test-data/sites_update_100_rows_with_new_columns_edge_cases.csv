@@ -1,0 +1,102 @@
+Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,Niche,Categories,LinkType,SponsoredTag
+site001.test,12.5,1000,US,,80,90,70,Tech,News,GuestPost69,Sponsored69
+existing.com,40.1,5000,US,,,,,Tech,News,GuestPost,Sponsored
+second.com,41.1,5037,UK,51,81,91,71,Finance,Blog,LinkInsert,NoFollow
+site003-update.test,42.1,5074,DE,52,82,92,72,Crypto,Marketplace,Homepage,UGC
+site004-update.test,43.1,5111,FR,53,83,93,73,Casino,Reviews,Sidebar,Sponsored
+site005-update.test,44.1,5148,CA,54,84,94,74,General,Guides,GuestPost,
+site006-update.test,45.1,5185,US,55,85,95,75,Tech,News,,Sponsored
+site007-update.test,46.1,5222,UK,56,86,96,76,Finance,Blog,LinkInsert,
+site008-update.test,47.1,5259,DE,57,87,97,77,Crypto,Marketplace,Homepage,UGC
+site009-update.test,48.1,5296,FR,58,88,98,78,Casino,Reviews,Sidebar,NoFollow
+site010-update.test,49.1,5333,CA,59,89,99,79,General,Guides,GuestPost,Sponsored
+site011-update.test,50.1,5370,US,60,90,100,80,Tech,News,LinkInsert,NoFollow
+site012-update.test,51.1,5407,UK,61,91,101,81,Finance,Blog,Homepage,UGC
+site013-update.test,52.1,5444,DE,62,92,102,82,Crypto,Marketplace,Sidebar,Sponsored
+site014-update.test,53.1,5481,FR,63,93,103,83,Casino,Reviews,GuestPost,
+site015-update.test,54.1,5518,CA,64,94,104,84,General,Guides,,Sponsored
+site016-update.test,55.1,5555,US,65,95,105,85,Tech,News,LinkInsert,
+site017-update.test,56.1,5592,UK,66,96,106,86,Finance,Blog,Homepage,UGC
+site018-update.test,57.1,5629,DE,67,97,107,87,Crypto,Marketplace,Sidebar,NoFollow
+site019-update.test,58.1,5666,FR,68,98,108,88,Casino,Reviews,GuestPost,Sponsored
+site020-update.test,59.1,5703,CA,69,99,109,89,General,Guides,LinkInsert,NoFollow
+site021-update.test,60.1,5740,US,70,NO,110,90,Tech,News,Homepage,UGC
+site022-update.test,61.1,5777,UK,71,,111,91,Finance,Blog,Sidebar,Sponsored
+site023-update.test,62.1,5814,DE,72,102,,92,Crypto,Marketplace,GuestPost,
+site024-update.test,63.1,5851,FR,73,103,113,NO,Casino,Reviews,,Sponsored
+site025-update.test,64.1,5888,CA,74,n/a,114,94,General,Guides,LinkInsert,
+site026-update.test,65.1,5925,US,75,-,115,95,Tech,News,Homepage,UGC
+site027-update.test,66.1,5962,UK,76,106,NO,96,Finance,Blog,Sidebar,NoFollow
+site028-update.test,67.1,5999,DE,77,107,n/a,97,Crypto,Marketplace,GuestPost,Sponsored
+site029-update.test,68.1,6036,FR,78,108,118,-,Casino,Reviews,LinkInsert,NoFollow
+site030-update.test,69.1,6073,CA,79,109,119,,General,Guides,Homepage,UGC
+site031-update.test,70.1,6110,US,80,110,120,100,Tech,News,  GuestPost  ,  Sponsored
+site032-update.test,71.1,6147,UK,81,111,121,101,Finance,Blog,  LinkInsert  ,
+site033-update.test,72.1,6184,DE,82,112,122,102,Crypto,Marketplace,  Homepage  ,  UGC
+site034-update.test,73.1,6221,FR,83,113,123,103,Casino,Reviews,  Sidebar  ,  NoFollow
+site035-update.test,74.1,6258,CA,84,114,124,104,General,Guides,    ,
+site036-update.test,75.1,6295,US,85,115,125,105,Tech,News, Partner , SponsoredTag1
+site037-update.test,76.1,6332,UK,86,116,126,106,Finance,Blog,Editorial, SponsoredTag2
+site038-update.test,77.1,6369,DE,87,117,127,107,Crypto,Marketplace,PressRelease, SponsoredTag3
+site039-update.test,78.1,6406,FR,88,118,128,108,Casino,Reviews,GuestPost, SponsoredTag4
+site040-update.test,79.1,6443,CA,89,119,129,109,General,Guides,LinkInsert, SponsoredTag5
+https://www.update041.test/,80.1,6480,US,90,120,130,110,Tech,News,GuestPost,Sponsored
+HTTP://UPDATE042.TEST,81.1,6517,UK,91,121,131,111,Finance,Blog,LinkInsert,NoFollow
+www.update043.test,82.1,6554,DE,92,122,132,112,Crypto,Marketplace,Homepage,UGC
+https://update044.test/path,83.1,6591,FR,93,123,133,113,Casino,Reviews,Sidebar,Sponsored
+http://www.update045.test/,84.1,6628,CA,94,124,134,114,General,Guides,GuestPost,
+https://WWW.update046.test,85.1,6665,US,95,125,135,115,Tech,News,,Sponsored
+update047.test,86.1,6702,UK,96,126,136,116,Finance,Blog,LinkInsert,
+update048.test/,87.1,6739,DE,97,127,137,117,Crypto,Marketplace,Homepage,UGC
+HTTPS://update049.test,88.1,6776,FR,98,128,138,118,Casino,Reviews,Sidebar,NoFollow
+http://update050.test,89.1,6813,CA,99,129,139,119,General,Guides,GuestPost,Sponsored
+dup-update-a.test,90.1,6850,US,100,130,140,120,Tech,News,GuestPost,Sponsored
+dup-update-b.test,91.1,6887,UK,101,131,141,121,Finance,Blog,LinkInsert,NoFollow
+dup-update-c.test,92.1,6924,DE,102,132,142,122,Crypto,Marketplace,Homepage,UGC
+dup-update-a.test,93.1,6961,FR,103,133,143,123,Casino,Reviews,Sidebar,Sponsored
+dup-update-b.test,94.1,6998,CA,104,134,144,124,General,Guides,GuestPost,
+dup-update-c.test,95.1,7035,US,105,135,145,125,Tech,News,,Sponsored
+site057-update.test,96.1,7072,UK,106,136,146,126,Finance,Blog,LinkInsert,
+site058-update.test,97.1,7109,DE,107,137,147,127,Crypto,Marketplace,Homepage,UGC
+site059-update.test,98.1,7146,FR,108,138,148,128,Casino,Reviews,Sidebar,NoFollow
+site060-update.test,99.1,7183,CA,109,139,149,129,General,Guides,GuestPost,Sponsored
+site061-update.test,11.1,7220,US,110,140,150,130,Tech,News,LinkInsert,NoFollow
+site062-update.test,12.1,7257,UK,111,141,151,131,Finance,Blog,Homepage,UGC
+site063-update.test,13.1,7294,DE,112,142,152,132,Crypto,Marketplace,Sidebar,Sponsored
+site064-update.test,14.1,7331,FR,113,143,153,133,Casino,Reviews,GuestPost,
+site065-update.test,15.1,7368,CA,114,144,154,134,General,Guides,,Sponsored
+site066-update.test,16.1,7405,US,115,145,155,135,Tech,News,LinkInsert,
+site067-update.test,17.1,7442,UK,116,146,156,136,Finance,Blog,Homepage,UGC
+site068-update.test,18.1,7479,DE,117,147,157,137,Crypto,Marketplace,Sidebar,NoFollow
+site069-update.test,19.1,7516,FR,118,148,158,138,Casino,Reviews,GuestPost,Sponsored
+site070-update.test,20.1,7553,CA,119,149,159,139,General,Guides,LinkInsert,NoFollow
+site071-update.test,21.1,7590,US,120,NO,160,140,Tech,News,Homepage,UGC
+site072-update.test,22.1,7627,UK,121,,161,141,Finance,Blog,Sidebar,Sponsored
+site073-update.test,23.1,7664,DE,122,152,,142,Crypto,Marketplace,GuestPost,
+site074-update.test,24.1,7701,FR,123,153,163,NO,Casino,Reviews,,Sponsored
+site075-update.test,25.1,7738,CA,124,n/a,164,144,General,Guides,LinkInsert,
+site076-update.test,26.1,7775,US,125,-,165,145,Tech,News,Homepage,UGC
+site077-update.test,27.1,7812,UK,126,156,NO,146,Finance,Blog,Sidebar,NoFollow
+site078-update.test,28.1,7849,DE,127,157,n/a,147,Crypto,Marketplace,GuestPost,Sponsored
+site079-update.test,29.1,7886,FR,128,158,168,-,Casino,Reviews,LinkInsert,NoFollow
+site080-update.test,30.1,7923,CA,129,159,169,,General,Guides,Homepage,UGC
+invalid-dr-text-update.test,abc,7950,US,130,160,170,150,Tech,News,GuestPost,Sponsored
+invalid-dr-range-update.test,101,7987,UK,131,161,171,151,Finance,Blog,LinkInsert,NoFollow
+invalid-dr-empty-update.test,,8024,DE,132,162,172,152,Crypto,Marketplace,Homepage,UGC
+invalid-traffic-empty-update.test,22.2,,FR,133,163,173,153,Casino,Reviews,Sidebar,Sponsored
+invalid-traffic-negative-update.test,23.2,-1,CA,134,164,174,154,General,Guides,GuestPost,
+invalid-priceusd-empty-update.test,24.2,8135,US,,165,175,155,Tech,News,,Sponsored
+invalid-priceusd-negative-update.test,25.2,8172,UK,-10,166,176,156,Finance,Blog,LinkInsert,
+invalid-casino-text-update.test,26.2,8209,DE,136,SOME text,177,157,Crypto,Marketplace,Homepage,UGC
+invalid-crypto-text-update.test,27.2,8246,FR,137,168,abc,158,Casino,Reviews,Sidebar,NoFollow
+invalid-linkinsert-text-update.test,28.2,8283,CA,138,169,179,SOME text,General,Guides,GuestPost,Sponsored
+,29.2,8320,US,139,170,180,160,Tech,News,LinkInsert,NoFollow
+,,,,,,,,,,,
+dup-invalid-then-valid-update.test,invalid,8394,DE,141,172,182,162,Crypto,Marketplace,Homepage,UGC
+dup-invalid-then-valid-update.test,31.2,8431,FR,142,173,183,163,Casino,Reviews,Sidebar,Sponsored
+trim-null-update.test,32.2,8468,CA,143,174,184,164,General,Guides,   ,
+trim-linktype-update.test,33.2,8505,US,144,175,185,165,Tech,News,  Partner  ,Sponsored
+trim-sponsored-update.test,34.2,8542,UK,145,176,186,166,Finance,Blog,GuestPost,  paid
+HTTPS://WWW.MixedCase100Update.test/,35.2,8579,DE,146,177,187,167,Crypto,Marketplace,Homepage,UGC
+lastwins-update.test,10,8616,FR,147,178,188,168,Casino,Reviews,GuestPost,First
+lastwins-update.test,40,8653,CA,148,179,189,169,General,Guides,LinkInsert,Final

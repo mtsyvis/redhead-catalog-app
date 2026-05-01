@@ -13,6 +13,14 @@ export interface Site {
   priceCryptoStatus: ServiceAvailabilityStatus;
   priceLinkInsert: number | null;
   priceLinkInsertStatus: ServiceAvailabilityStatus;
+  priceLinkInsertCasino: number | null;
+  priceLinkInsertCasinoStatus: ServiceAvailabilityStatus;
+  priceDating: number | null;
+  priceDatingStatus: ServiceAvailabilityStatus;
+  numberDFLinks: number | null;
+  termType: TermType | null;
+  termValue: number | null;
+  termUnit: TermUnit | null;
   niche: string | null;
   categories: string | null;
   linkType: string | null;
@@ -109,7 +117,7 @@ export interface ExportMultiSearchPayload {
 
 /**
  * Payload for PUT /api/sites/{domain} (Admin/SuperAdmin). priceUsd may be null; at least one
- * numeric price among priceUsd/priceCasino/priceCrypto/priceLinkInsert is required by the backend.
+ * numeric price among priceUsd or service-specific prices is required by the backend.
  */
 export interface UpdateSitePayload {
   dr: number;
@@ -122,6 +130,14 @@ export interface UpdateSitePayload {
   priceCryptoStatus: ServiceAvailabilityStatusValue;
   priceLinkInsert: number | null;
   priceLinkInsertStatus: ServiceAvailabilityStatusValue;
+  priceLinkInsertCasino: number | null;
+  priceLinkInsertCasinoStatus: ServiceAvailabilityStatusValue;
+  priceDating: number | null;
+  priceDatingStatus: ServiceAvailabilityStatusValue;
+  numberDFLinks: number | null;
+  termType: TermTypeValue | null;
+  termValue: number | null;
+  termUnit: TermUnitValue | null;
   niche: string | null;
   categories: string | null;
   LinkType: string | null;
@@ -133,3 +149,7 @@ export interface UpdateSitePayload {
 export type ServiceAvailabilityStatus = 'Unknown' | 'Available' | 'NotAvailable' | 0 | 1 | 2;
 export type ServiceAvailabilityStatusValue = 0 | 1 | 2;
 export type ServiceAvailabilityFilter = 'all' | 'available' | 'notAvailable' | 'unknown';
+export type TermType = 'Permanent' | 'Finite' | 1 | 2;
+export type TermTypeValue = 1 | 2;
+export type TermUnit = 'Year' | 1;
+export type TermUnitValue = 1;

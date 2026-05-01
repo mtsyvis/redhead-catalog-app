@@ -17,6 +17,7 @@ import type {
 import { sitesService } from '../services/sites.service';
 import { BrandButton } from '../components/common/BrandButton';
 import { formatOptionalServicePrice, matchesAvailabilityFilter } from '../utils/serviceAvailability';
+import { formatTerm } from '../utils/term';
 
 /** Row type for grid: normal site or not-found placeholder (domain only). */
 type NotFoundRow = { domain: string; _isNotFound: true };
@@ -40,6 +41,10 @@ function formatOptionalServiceCell(
   status: Site['priceCasinoStatus']
 ): string {
   return formatCell(row, price, (v) => formatOptionalServicePrice(status, v));
+}
+
+function formatNullableInteger(row: GridRow, value: number | null): string {
+  return formatCell(row, value, (v) => (v == null ? '—' : String(v)));
 }
 
 /** Client-side filter for multi-search found rows (same logic as server filters, excluding search). */
@@ -401,6 +406,22 @@ export function Sites() {
         formatOptionalServiceCell(row, value as number | null, (row as Site).priceLinkInsertStatus),
     },
     {
+      field: 'priceLinkInsertCasino',
+      headerName: 'Link Insert Casino',
+      width: 150,
+      type: 'number',
+      valueFormatter: (value, row) =>
+        formatOptionalServiceCell(row, value as number | null, (row as Site).priceLinkInsertCasinoStatus),
+    },
+    {
+      field: 'priceDating',
+      headerName: 'Dating',
+      width: 100,
+      type: 'number',
+      valueFormatter: (value, row) =>
+        formatOptionalServiceCell(row, value as number | null, (row as Site).priceDatingStatus),
+    },
+    {
       field: 'niche',
       headerName: 'Niche',
       width: 150,
@@ -420,6 +441,23 @@ export function Sites() {
       width: 140,
       sortable: false,
       valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
+    },
+    {
+      field: 'numberDFLinks',
+      headerName: 'DF Links',
+      width: 110,
+      type: 'number',
+      valueFormatter: (value, row) => formatNullableInteger(row, value as number | null),
+    },
+    {
+      field: 'term',
+      headerName: 'Term',
+      width: 120,
+      valueFormatter: (_value, row) => {
+        if (isNotFoundRow(row)) return '—';
+        const site = row as Site;
+        return formatTerm(site.termType, site.termValue, site.termUnit);
+      },
     },
     {
       field: 'sponsoredTag',

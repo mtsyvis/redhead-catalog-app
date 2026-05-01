@@ -12,36 +12,34 @@ import {
   Typography,
 } from '@mui/material';
 
-import type { ServiceAvailabilityStatusValue, Site, UpdateSitePayload } from '../../types/sites.types';
+import type {
+  ServiceAvailabilityStatusValue,
+  Site,
+  TermTypeValue,
+} from '../../types/sites.types';
 import { sitesService } from '../../services/sites.service';
 import { ApiClientError } from '../../services/api.client';
 import { BrandButton } from '../common/BrandButton';
 import {
-  normalizeServiceAvailabilityStatus,
   SERVICE_AVAILABILITY_STATUS,
   SERVICE_AVAILABILITY_STATUS_OPTIONS,
 } from '../../utils/serviceAvailability';
+import { TERM_TYPE } from '../../utils/term';
+import {
+  buildUpdateSitePayload,
+  clearFieldError,
+  createInitialFormState,
+  EMPTY_FORM_STATE,
+  getServiceStateHint,
+  validateEditSiteForm,
+} from './EditSiteDialog.helpers';
+import type {
+  EditSiteFormState,
+  OptionalServicePriceField,
+  OptionalServiceStatusField,
+} from './EditSiteDialog.helpers';
 
 // --- Types ---
-
-type EditSiteFormState = {
-  dr: string;
-  traffic: string;
-  location: string;
-  priceUsd: string;
-  priceCasino: string;
-  priceCasinoStatus: ServiceAvailabilityStatusValue;
-  priceCrypto: string;
-  priceCryptoStatus: ServiceAvailabilityStatusValue;
-  priceLinkInsert: string;
-  priceLinkInsertStatus: ServiceAvailabilityStatusValue;
-  niche: string;
-  categories: string;
-  linkType: string;
-  sponsoredTag: string;
-  isQuarantined: boolean;
-  quarantineReason: string;
-};
 
 type Props = {
   open: boolean;
@@ -59,191 +57,6 @@ type OptionalServiceSectionProps = {
   onStatusChange: (status: ServiceAvailabilityStatusValue) => void;
   onPriceChange: (price: string) => void;
 };
-
-// --- Module-level helpers ---
-
-function parseNumberOrNull(input: string): number | null {
-  const t = input.trim();
-  if (t === '') return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-}
-
-function getServiceStateHint(status: ServiceAvailabilityStatusValue): string {
-  if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) return 'Will be shown as NO';
-  if (status === SERVICE_AVAILABILITY_STATUS.Unknown) return 'Will be shown as —';
-  return 'Enter a non-negative price';
-}
-
-function clearFieldError(
-  errors: Record<string, string[]>,
-  key: string
-): Record<string, string[]> {
-  if (errors[key]) {
-    const next = { ...errors };
-    delete next[key];
-    return next;
-  }
-  return errors;
-}
-
-const EMPTY_FORM_STATE: EditSiteFormState = {
-  dr: '',
-  traffic: '',
-  location: '',
-  priceUsd: '',
-  priceCasino: '',
-  priceCasinoStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
-  priceCrypto: '',
-  priceCryptoStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
-  priceLinkInsert: '',
-  priceLinkInsertStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
-  niche: '',
-  categories: '',
-  linkType: '',
-  sponsoredTag: '',
-  isQuarantined: false,
-  quarantineReason: '',
-};
-
-function createInitialFormState(site: Site): EditSiteFormState {
-  const casinoStatus = normalizeServiceAvailabilityStatus(site.priceCasinoStatus);
-  const cryptoStatus = normalizeServiceAvailabilityStatus(site.priceCryptoStatus);
-  const linkInsertStatus = normalizeServiceAvailabilityStatus(site.priceLinkInsertStatus);
-  return {
-    dr: String(site.dr ?? ''),
-    traffic: String(site.traffic ?? ''),
-    location: site.location ?? '',
-    priceUsd: site.priceUsd == null ? '' : String(site.priceUsd),
-    priceCasinoStatus: casinoStatus,
-    priceCasino:
-      casinoStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceCasino != null
-        ? String(site.priceCasino)
-        : '',
-    priceCryptoStatus: cryptoStatus,
-    priceCrypto:
-      cryptoStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceCrypto != null
-        ? String(site.priceCrypto)
-        : '',
-    priceLinkInsertStatus: linkInsertStatus,
-    priceLinkInsert:
-      linkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceLinkInsert != null
-        ? String(site.priceLinkInsert)
-        : '',
-    niche: site.niche ?? '',
-    categories: site.categories ?? '',
-    linkType: site.linkType ?? '',
-    sponsoredTag: site.sponsoredTag ?? '',
-    isQuarantined: Boolean(site.isQuarantined),
-    quarantineReason: site.quarantineReason ?? '',
-  };
-}
-
-function validateOptionalServicePrice(
-  price: string,
-  fieldKey: string,
-  errors: Record<string, string[]>
-): void {
-  const parsed = parseNumberOrNull(price);
-  if (parsed === null) {
-    errors[fieldKey] = ['Required when status is Available.'];
-  } else if (parsed < 0) {
-    errors[fieldKey] = ['Must be 0 or greater.'];
-  }
-}
-
-function validateEditSiteForm(form: EditSiteFormState): Record<string, string[]> {
-  const errors: Record<string, string[]> = {};
-
-  const parsedDr = parseNumberOrNull(form.dr);
-  if (parsedDr === null || parsedDr < 0 || parsedDr > 100) {
-    errors.dr = ['DR must be between 0 and 100.'];
-  }
-
-  const parsedTraffic = parseNumberOrNull(form.traffic);
-  if (parsedTraffic === null || parsedTraffic < 0) {
-    errors.traffic = ['Traffic must be 0 or greater.'];
-  } else if (!Number.isInteger(parsedTraffic)) {
-    errors.traffic = ['Traffic must be a whole number.'];
-  }
-
-  if (!form.location.trim()) {
-    errors.location = ['Location is required.'];
-  }
-
-  const parsedPriceUsd = parseNumberOrNull(form.priceUsd);
-  if (parsedPriceUsd !== null && parsedPriceUsd < 0) {
-    errors.priceUsd = ['Price USD must be 0 or greater.'];
-  }
-
-  if (form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-    validateOptionalServicePrice(form.priceCasino, 'priceCasino', errors);
-  }
-  if (form.priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-    validateOptionalServicePrice(form.priceCrypto, 'priceCrypto', errors);
-  }
-  if (form.priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-    validateOptionalServicePrice(form.priceLinkInsert, 'priceLinkInsert', errors);
-  }
-
-  const casinoNumericPrice =
-    form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available
-      ? parseNumberOrNull(form.priceCasino)
-      : null;
-  const cryptoNumericPrice =
-    form.priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available
-      ? parseNumberOrNull(form.priceCrypto)
-      : null;
-  const linkInsertNumericPrice =
-    form.priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available
-      ? parseNumberOrNull(form.priceLinkInsert)
-      : null;
-
-  if (
-    parsedPriceUsd === null &&
-    casinoNumericPrice === null &&
-    cryptoNumericPrice === null &&
-    linkInsertNumericPrice === null
-  ) {
-    const errorText = 'At least one numeric price is required (Price USD, Casino, Crypto, or Link Insert).';
-    errors.priceUsd = [errorText];
-    errors.priceCasino = [errorText];
-    errors.priceCrypto = [errorText];
-    errors.priceLinkInsert = [errorText];
-  }
-
-  return errors;
-}
-
-function buildUpdateSitePayload(form: EditSiteFormState): UpdateSitePayload {
-  return {
-    dr: parseNumberOrNull(form.dr)!,
-    traffic: parseNumberOrNull(form.traffic)!,
-    location: form.location.trim(),
-    priceUsd: parseNumberOrNull(form.priceUsd),
-    priceCasino:
-      form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available
-        ? (parseNumberOrNull(form.priceCasino) ?? null)
-        : null,
-    priceCasinoStatus: form.priceCasinoStatus,
-    priceCrypto:
-      form.priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available
-        ? (parseNumberOrNull(form.priceCrypto) ?? null)
-        : null,
-    priceCryptoStatus: form.priceCryptoStatus,
-    priceLinkInsert:
-      form.priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available
-        ? (parseNumberOrNull(form.priceLinkInsert) ?? null)
-        : null,
-    priceLinkInsertStatus: form.priceLinkInsertStatus,
-    niche: form.niche.trim() || null,
-    categories: form.categories.trim() || null,
-    LinkType: form.linkType.trim() || null,
-    SponsoredTag: form.sponsoredTag.trim() || null,
-    isQuarantined: form.isQuarantined,
-    quarantineReason: form.isQuarantined ? (form.quarantineReason.trim() || null) : null,
-  };
-}
 
 // --- OptionalServiceSection sub-component ---
 
@@ -318,32 +131,46 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     setFieldErrors((prev) => clearFieldError(prev, key));
   };
 
-  const handleCasinoStatusChange = (s: ServiceAvailabilityStatusValue) => {
+  const handleOptionalServiceStatusChange = (
+    statusKey: OptionalServiceStatusField,
+    priceKey: OptionalServicePriceField,
+    s: ServiceAvailabilityStatusValue
+  ) => {
     setForm((prev) => ({
       ...prev,
-      priceCasinoStatus: s,
-      priceCasino: s === SERVICE_AVAILABILITY_STATUS.Available ? prev.priceCasino : '',
+      [statusKey]: s,
+      [priceKey]: s === SERVICE_AVAILABILITY_STATUS.Available ? prev[priceKey] : '',
     }));
-    setFieldErrors((prev) => clearFieldError(clearFieldError(prev, 'priceCasinoStatus'), 'priceCasino'));
+    setFieldErrors((prev) => clearFieldError(clearFieldError(prev, statusKey), priceKey));
   };
 
-  const handleCryptoStatusChange = (s: ServiceAvailabilityStatusValue) => {
-    setForm((prev) => ({
-      ...prev,
-      priceCryptoStatus: s,
-      priceCrypto: s === SERVICE_AVAILABILITY_STATUS.Available ? prev.priceCrypto : '',
-    }));
-    setFieldErrors((prev) => clearFieldError(clearFieldError(prev, 'priceCryptoStatus'), 'priceCrypto'));
-  };
+  const handleCasinoStatusChange = (s: ServiceAvailabilityStatusValue) =>
+    handleOptionalServiceStatusChange('priceCasinoStatus', 'priceCasino', s);
 
-  const handleLinkInsertStatusChange = (s: ServiceAvailabilityStatusValue) => {
+  const handleCryptoStatusChange = (s: ServiceAvailabilityStatusValue) =>
+    handleOptionalServiceStatusChange('priceCryptoStatus', 'priceCrypto', s);
+
+  const handleLinkInsertStatusChange = (s: ServiceAvailabilityStatusValue) =>
+    handleOptionalServiceStatusChange('priceLinkInsertStatus', 'priceLinkInsert', s);
+
+  const handleLinkInsertCasinoStatusChange = (s: ServiceAvailabilityStatusValue) =>
+    handleOptionalServiceStatusChange('priceLinkInsertCasinoStatus', 'priceLinkInsertCasino', s);
+
+  const handleDatingStatusChange = (s: ServiceAvailabilityStatusValue) =>
+    handleOptionalServiceStatusChange('priceDatingStatus', 'priceDating', s);
+
+  const handleTermTypeChange = (value: string) => {
+    const nextTermType = value === '' ? '' : (Number(value) as TermTypeValue);
     setForm((prev) => ({
       ...prev,
-      priceLinkInsertStatus: s,
-      priceLinkInsert: s === SERVICE_AVAILABILITY_STATUS.Available ? prev.priceLinkInsert : '',
+      termType: nextTermType,
+      termValue: nextTermType === TERM_TYPE.Finite ? prev.termValue : '',
     }));
     setFieldErrors((prev) =>
-      clearFieldError(clearFieldError(prev, 'priceLinkInsertStatus'), 'priceLinkInsert')
+      clearFieldError(
+        clearFieldError(clearFieldError(prev, 'termType'), 'termValue'),
+        'termUnit'
+      )
     );
   };
 
@@ -479,6 +306,26 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
                 onStatusChange={handleLinkInsertStatusChange}
                 onPriceChange={(p) => updateField('priceLinkInsert', p)}
               />
+
+              <OptionalServiceSection
+                label="Link Insert Casino"
+                status={form.priceLinkInsertCasinoStatus}
+                price={form.priceLinkInsertCasino}
+                statusError={fieldErrors.priceLinkInsertCasinoStatus?.[0]}
+                priceError={fieldErrors.priceLinkInsertCasino?.[0]}
+                onStatusChange={handleLinkInsertCasinoStatusChange}
+                onPriceChange={(p) => updateField('priceLinkInsertCasino', p)}
+              />
+
+              <OptionalServiceSection
+                label="Dating"
+                status={form.priceDatingStatus}
+                price={form.priceDating}
+                statusError={fieldErrors.priceDatingStatus?.[0]}
+                priceError={fieldErrors.priceDating?.[0]}
+                onStatusChange={handleDatingStatusChange}
+                onPriceChange={(p) => updateField('priceDating', p)}
+              />
             </Box>
 
             <TextField
@@ -512,6 +359,60 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
               error={Boolean(fieldErrors.linkType?.length)}
               helperText={fieldErrors.linkType?.[0]}
             />
+
+            <TextField
+              label="Number DF Links"
+              type="number"
+              inputProps={{ min: 1, step: 1 }}
+              value={form.numberDFLinks}
+              onChange={(e) => updateField('numberDFLinks', e.target.value)}
+              size="small"
+              fullWidth
+              error={Boolean(fieldErrors.numberDFLinks?.length)}
+              helperText={fieldErrors.numberDFLinks?.[0] ?? 'Optional positive whole number'}
+            />
+
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <TextField
+                select
+                label="Term"
+                value={form.termType}
+                onChange={(e) => handleTermTypeChange(e.target.value)}
+                size="small"
+                sx={{ minWidth: 220, flex: '1 1 220px' }}
+                error={Boolean(fieldErrors.termType?.length)}
+                helperText={fieldErrors.termType?.[0]}
+              >
+                <MenuItem value="">Empty</MenuItem>
+                <MenuItem value={TERM_TYPE.Permanent}>Permanent</MenuItem>
+                <MenuItem value={TERM_TYPE.Finite}>Finite</MenuItem>
+              </TextField>
+
+              {form.termType === TERM_TYPE.Finite && (
+                <>
+                  <TextField
+                    label="Term value"
+                    type="number"
+                    inputProps={{ min: 1, step: 1 }}
+                    value={form.termValue}
+                    onChange={(e) => updateField('termValue', e.target.value)}
+                    size="small"
+                    sx={{ minWidth: 160, flex: '1 1 160px' }}
+                    error={Boolean(fieldErrors.termValue?.length)}
+                    helperText={fieldErrors.termValue?.[0] ?? 'Positive whole number'}
+                  />
+                  <TextField
+                    label="Unit"
+                    value="Year"
+                    size="small"
+                    sx={{ minWidth: 120, flex: '0 1 120px' }}
+                    disabled
+                    error={Boolean(fieldErrors.termUnit?.length)}
+                    helperText={fieldErrors.termUnit?.[0]}
+                  />
+                </>
+              )}
+            </Box>
 
             <TextField
               label="Sponsored Tag"
