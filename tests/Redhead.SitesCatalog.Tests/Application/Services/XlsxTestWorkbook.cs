@@ -37,7 +37,9 @@ internal static class XlsxTestWorkbook
             return [];
         }
 
-        var headers = ReadRowValues(sheetRows[0]);
+        var headers = ReadRowValues(sheetRows[0])
+            .TakeWhile(header => !string.IsNullOrEmpty(header))
+            .ToList();
         var rows = new List<Dictionary<string, string>>();
         foreach (var rowElement in sheetRows.Skip(1))
         {
@@ -65,7 +67,9 @@ internal static class XlsxTestWorkbook
             .Elements(SpreadsheetNs + "row")
             .First();
 
-        return ReadRowValues(headerRow);
+        return ReadRowValues(headerRow)
+            .TakeWhile(header => !string.IsNullOrEmpty(header))
+            .ToList();
     }
 
     private static ZipArchive OpenArchive(Stream stream)

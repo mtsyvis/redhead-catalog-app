@@ -21,16 +21,16 @@ public class ExportService : IExportService
         "DR",
         "Traffic",
         "Location",
-        "PriceUsd",
-        "PriceCasino",
-        "PriceCrypto",
-        "PriceLinkInsert",
-        "PriceLinkInsertCasino",
-        "PriceDating",
+        "Price USD",
+        "Casino",
+        "Crypto",
+        "Link Insert",
+        "Link Insert Casino",
+        "Dating",
         "Niche",
         "Categories",
-        "NumberDFLinks",
-        "SponsoredTag",
+        "DF Links",
+        "Sponsored Tag",
         "Term",
     ];
 
@@ -40,22 +40,22 @@ public class ExportService : IExportService
         "DR",
         "Traffic",
         "Location",
-        "PriceUsd",
-        "PriceCasino",
-        "PriceCrypto",
-        "PriceLinkInsert",
-        "PriceLinkInsertCasino",
-        "PriceDating",
+        "Price USD",
+        "Casino",
+        "Crypto",
+        "Link Insert",
+        "Link Insert Casino",
+        "Dating",
         "Niche",
         "Categories",
-        "NumberDFLinks",
-        "SponsoredTag",
+        "DF Links",
+        "Sponsored Tag",
         "Term",
-        "IsQuarantined",
-        "QuarantineReason",
-        "LastPublishedDate",
-        "CreatedAtUtc",
-        "UpdatedAtUtc"
+        "Status",
+        "Quarantine reason",
+        "Last Published",
+        "CreatedAtUtc (Internal)",
+        "UpdatedAtUtc (Internal)"
     ];
 
     private readonly ApplicationDbContext _context;
@@ -368,12 +368,24 @@ public class ExportService : IExportService
             return row;
         }
 
-        row.Add(XlsxCell.Boolean(site.IsQuarantined));
+        row.Add(XlsxCell.Text(site.IsQuarantined ? "Unavailable" : "Available"));
         row.Add(XlsxCell.Text(site.QuarantineReason));
-        row.Add(XlsxCell.Date(site.LastPublishedDate));
+        row.Add(XlsxCell.Text(FormatLastPublishedDate(site)));
         row.Add(XlsxCell.DateTime(site.CreatedAtUtc));
         row.Add(XlsxCell.DateTime(site.UpdatedAtUtc));
         return row;
+    }
+
+    private static string FormatLastPublishedDate(Site site)
+    {
+        if (!site.LastPublishedDate.HasValue)
+        {
+            return "Before January 2026";
+        }
+
+        return site.LastPublishedDateIsMonthOnly
+            ? site.LastPublishedDate.Value.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
+            : site.LastPublishedDate.Value.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     }
 
     private static XlsxCell FormatOptionalService(decimal? price, ServiceAvailabilityStatus status)
@@ -409,7 +421,7 @@ public class ExportService : IExportService
 
         if (!isClientRole)
         {
-            widths.AddRange([14, 28, 18, 20, 20]);
+            widths.AddRange([14, 28, 24, 28, 28]);
         }
 
         return widths;

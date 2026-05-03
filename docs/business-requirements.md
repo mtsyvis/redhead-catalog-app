@@ -432,6 +432,10 @@ Rules:
 
 * Export respects current filters, search, sorting where supported, and multi-search mode.
 * Export includes all user-visible site data needed for business use.
+* Export column names should match the Sites UI table where a matching UI column exists.
+* Export values should match Sites UI display formatting where practical, including `Last Published` display values.
+* Export-only internal columns should be clearly labeled with `(Internal)`.
+* Export workbooks should remain editable to the right of exported site columns in spreadsheet tools.
 * Export workbooks include a `Sites` sheet and an `Export info` sheet.
 * Export workbooks include a `Not found` sheet only for multi-search exports that have not-found domains included by the export rules.
 * Export must enforce the user's effective export policy.

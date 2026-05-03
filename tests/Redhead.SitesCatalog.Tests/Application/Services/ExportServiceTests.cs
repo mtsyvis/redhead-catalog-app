@@ -442,6 +442,26 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportSitesAsExcelAsync_LastPublished_UsesUiDisplayValues()
+    {
+        SetLastPublishedDates();
+        await _context.SaveChangesAsync();
+
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+
+        Assert.Equal("15.01.2025", rows.Single(row => row["Domain"] == "example.com")["Last Published"]);
+        Assert.Equal("January 2025", rows.Single(row => row["Domain"] == "test.com")["Last Published"]);
+        Assert.Equal("Before January 2026", rows.Single(row => row["Domain"] == "gambling.com")["Last Published"]);
+    }
+
+    [Fact]
     public async Task ExportSitesAsExcelAsync_WithClientRole_UsesExpectedHeaderOrder()
     {
         var result = await _service.ExportSitesAsExcelAsync(
@@ -458,16 +478,16 @@ public class ExportServiceTests : IDisposable
                 "DR",
                 "Traffic",
                 "Location",
-                "PriceUsd",
-                "PriceCasino",
-                "PriceCrypto",
-                "PriceLinkInsert",
-                "PriceLinkInsertCasino",
-                "PriceDating",
+                "Price USD",
+                "Casino",
+                "Crypto",
+                "Link Insert",
+                "Link Insert Casino",
+                "Dating",
                 "Niche",
                 "Categories",
-                "NumberDFLinks",
-                "SponsoredTag",
+                "DF Links",
+                "Sponsored Tag",
                 "Term"
             ],
             headers);
@@ -490,22 +510,22 @@ public class ExportServiceTests : IDisposable
                 "DR",
                 "Traffic",
                 "Location",
-                "PriceUsd",
-                "PriceCasino",
-                "PriceCrypto",
-                "PriceLinkInsert",
-                "PriceLinkInsertCasino",
-                "PriceDating",
+                "Price USD",
+                "Casino",
+                "Crypto",
+                "Link Insert",
+                "Link Insert Casino",
+                "Dating",
                 "Niche",
                 "Categories",
-                "NumberDFLinks",
-                "SponsoredTag",
+                "DF Links",
+                "Sponsored Tag",
                 "Term",
-                "IsQuarantined",
-                "QuarantineReason",
-                "LastPublishedDate",
-                "CreatedAtUtc",
-                "UpdatedAtUtc"
+                "Status",
+                "Quarantine reason",
+                "Last Published",
+                "CreatedAtUtc (Internal)",
+                "UpdatedAtUtc (Internal)"
             ],
             headers);
     }
@@ -559,13 +579,29 @@ public class ExportServiceTests : IDisposable
 
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         Assert.Single(rows);
-        Assert.Equal("NO", rows[0]["PriceCasino"]);
-        Assert.Equal(string.Empty, rows[0]["PriceCrypto"]);
-        Assert.Equal("12", rows[0]["PriceLinkInsert"]);
-        Assert.Equal("NO", rows[0]["PriceLinkInsertCasino"]);
-        Assert.Equal(string.Empty, rows[0]["PriceDating"]);
-        Assert.Equal("4", rows[0]["NumberDFLinks"]);
+        Assert.Equal("NO", rows[0]["Casino"]);
+        Assert.Equal(string.Empty, rows[0]["Crypto"]);
+        Assert.Equal("12", rows[0]["Link Insert"]);
+        Assert.Equal("NO", rows[0]["Link Insert Casino"]);
+        Assert.Equal(string.Empty, rows[0]["Dating"]);
+        Assert.Equal("4", rows[0]["DF Links"]);
         Assert.Equal("1 year", rows[0]["Term"]);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_Status_UsesUiAvailabilityLabels()
+    {
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+
+        Assert.Equal("Available", rows.Single(row => row["Domain"] == "example.com")["Status"]);
+        Assert.Equal("Unavailable", rows.Single(row => row["Domain"] == "gambling.com")["Status"]);
     }
 
     #endregion
@@ -842,19 +878,19 @@ public class ExportServiceTests : IDisposable
             DR = double.Parse(row["DR"], CultureInfo.InvariantCulture),
             Traffic = long.Parse(row["Traffic"], CultureInfo.InvariantCulture),
             Location = row["Location"],
-            PriceUsd = string.IsNullOrEmpty(row["PriceUsd"]) ? 0 : decimal.Parse(row["PriceUsd"], CultureInfo.InvariantCulture),
-            PriceCasino = row["PriceCasino"],
-            PriceCrypto = row["PriceCrypto"],
-            PriceLinkInsert = row["PriceLinkInsert"],
-            PriceLinkInsertCasino = row["PriceLinkInsertCasino"],
-            PriceDating = row["PriceDating"],
-            NumberDFLinks = string.IsNullOrEmpty(row["NumberDFLinks"]) ? null : int.Parse(row["NumberDFLinks"], CultureInfo.InvariantCulture),
+            PriceUsd = string.IsNullOrEmpty(row["Price USD"]) ? 0 : decimal.Parse(row["Price USD"], CultureInfo.InvariantCulture),
+            PriceCasino = row["Casino"],
+            PriceCrypto = row["Crypto"],
+            PriceLinkInsert = row["Link Insert"],
+            PriceLinkInsertCasino = row["Link Insert Casino"],
+            PriceDating = row["Dating"],
+            NumberDFLinks = string.IsNullOrEmpty(row["DF Links"]) ? null : int.Parse(row["DF Links"], CultureInfo.InvariantCulture),
             Term = row["Term"],
             Niche = row["Niche"],
             Categories = row["Categories"],
-            SponsoredTag = row["SponsoredTag"],
-            IsQuarantined = string.Equals(GetOptionalValue(row, "IsQuarantined"), "TRUE", StringComparison.OrdinalIgnoreCase),
-            QuarantineReason = GetOptionalValue(row, "QuarantineReason"),
+            SponsoredTag = row["Sponsored Tag"],
+            IsQuarantined = string.Equals(GetOptionalValue(row, "Status"), "Unavailable", StringComparison.OrdinalIgnoreCase),
+            QuarantineReason = GetOptionalValue(row, "Quarantine reason"),
         };
 
     private static string? GetOptionalValue(IReadOnlyDictionary<string, string> row, string key)
@@ -863,15 +899,15 @@ public class ExportServiceTests : IDisposable
     private void SetLastPublishedDates()
     {
         SetLastPublishedDate("example.com", new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc));
-        SetLastPublishedDate("test.com", new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        SetLastPublishedDate("test.com", new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc), isMonthOnly: true);
         SetLastPublishedDate("gambling.com", null);
     }
 
-    private void SetLastPublishedDate(string domain, DateTime? value)
+    private void SetLastPublishedDate(string domain, DateTime? value, bool isMonthOnly = false)
     {
         var site = _context.Sites.Single(s => s.Domain == domain);
         site.LastPublishedDate = value;
-        site.LastPublishedDateIsMonthOnly = false;
+        site.LastPublishedDateIsMonthOnly = value.HasValue && isMonthOnly;
     }
 
     private sealed class ExportedSiteRow
@@ -913,7 +949,7 @@ public class ExportServiceTests : IDisposable
 
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         var row = rows.Single(r => r["Domain"] == "null-price.com");
-        Assert.Equal(string.Empty, row["PriceUsd"]);
+        Assert.Equal(string.Empty, row["Price USD"]);
     }
 
     [Fact]
@@ -924,7 +960,7 @@ public class ExportServiceTests : IDisposable
 
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         var row = rows.Single(r => r["Domain"] == "example.com");
-        Assert.Equal("100", row["PriceUsd"]);
+        Assert.Equal("100", row["Price USD"]);
     }
 
     [Fact]

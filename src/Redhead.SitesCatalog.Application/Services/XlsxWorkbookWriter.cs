@@ -207,13 +207,9 @@ internal static class XlsxWorkbookWriter
         using var writer = CreateXmlWriter(archive.CreateEntry($"xl/worksheets/sheet{sheetNumber}.xml").Open());
         var columnCount = sheet.Headers.Count;
         var rowCount = sheet.Rows.Count + 1;
-        var lastCell = $"{ColumnName(columnCount)}{Math.Max(rowCount, 1)}";
 
         writer.WriteStartDocument();
         writer.WriteStartElement("worksheet", SpreadsheetNamespace);
-        writer.WriteStartElement("dimension");
-        writer.WriteAttributeString("ref", $"A1:{lastCell}");
-        writer.WriteEndElement();
 
         writer.WriteStartElement("sheetViews");
         writer.WriteStartElement("sheetView");
