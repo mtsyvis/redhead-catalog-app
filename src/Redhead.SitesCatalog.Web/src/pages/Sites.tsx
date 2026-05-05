@@ -32,7 +32,7 @@ function formatCell<T>(row: GridRow, value: T, format: (v: T) => string): string
 }
 
 function formatPrice(row: GridRow, value: number | null): string {
-  return formatCell(row, value, (v) => (v == null ? '—' : `$${v}`));
+  return formatCell(row, value, (v) => (v == null ? 'NO' : `$${v}`));
 }
 
 function formatOptionalServiceCell(
