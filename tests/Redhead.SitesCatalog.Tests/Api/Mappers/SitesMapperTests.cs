@@ -20,6 +20,7 @@ public class SitesMapperTests
             SortBy = SortFields.Traffic,
             SortDir = SortingDefaults.Descending,
             Search = "example.com",
+            StopListDomains = new List<string> { "https://www.Blocked.com/path", "blocked.com", "other.com" },
             DrMin = 50,
             DrMax = 90,
             TrafficMin = 10000,
@@ -48,6 +49,7 @@ public class SitesMapperTests
         Assert.Equal(SortFields.Traffic, query.SortBy);
         Assert.Equal(SortingDefaults.Descending, query.SortDir);
         Assert.Equal("example.com", query.Search);
+        Assert.Equal(["blocked.com", "other.com"], query.StopListDomains);
         Assert.Equal(50, query.DrMin);
         Assert.Equal(90, query.DrMax);
         Assert.Equal(10000, query.TrafficMin);
@@ -95,6 +97,7 @@ public class SitesMapperTests
         Assert.Equal(string.Empty, query.SortBy);
         Assert.Equal(string.Empty, query.SortDir);
         Assert.Null(query.Search);
+        Assert.Null(query.StopListDomains);
         Assert.Null(query.Locations);
         Assert.Null(query.CasinoAllowed);
         Assert.Null(query.CryptoAllowed);
@@ -243,6 +246,72 @@ public class SitesMapperTests
 
         // Assert
         Assert.Contains("Invalid availability filter value", ex.Message);
+    }
+
+    [Fact]
+    public void ToQuery_WithStopListDomains_NormalizesAndIgnoresDuplicates()
+    {
+        var request = new SitesQueryRequest
+        {
+            StopListDomains = new List<string>
+            {
+                "Example.com",
+                "https://www.example.com/page?x=1",
+                "www.Test.com/"
+            }
+        };
+
+        var query = SitesMapper.ToQuery(request);
+
+        Assert.Equal(["example.com", "test.com"], query.StopListDomains);
+    }
+
+    [Fact]
+    public void ToQuery_WithInvalidStopListDomain_ThrowsRequestValidationException()
+    {
+        var request = new SitesQueryRequest
+        {
+            StopListDomains = new List<string> { "valid.com", "https:///path" }
+        };
+
+        var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
+
+        Assert.Contains("Invalid stop-list domain", ex.Message);
+        Assert.Contains("https:///path", ex.Message);
+    }
+
+    [Fact]
+    public void ToQuery_WithMoreThan1000UniqueStopListDomains_ThrowsRequestValidationException()
+    {
+        var request = new SitesQueryRequest
+        {
+            StopListDomains = Enumerable.Range(0, 1001)
+                .Select(i => $"site{i}.com")
+                .ToList()
+        };
+
+        var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
+
+        Assert.Contains("at most 1000 unique domains", ex.Message);
+        Assert.Contains("1001", ex.Message);
+    }
+
+    [Fact]
+    public void ToQuery_StopListLimit_IsCountedAfterNormalizationAndDuplicateRemoval()
+    {
+        var domains = Enumerable.Range(0, 1000)
+            .Select(i => $"site{i}.com")
+            .ToList();
+        domains.Add("https://www.SITE0.com/path");
+
+        var request = new SitesQueryRequest
+        {
+            StopListDomains = domains
+        };
+
+        var query = SitesMapper.ToQuery(request);
+
+        Assert.Equal(1000, query.StopListDomains!.Count);
     }
 
     #region LastPublishedMonth mapping and validation

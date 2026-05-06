@@ -38,6 +38,27 @@ public class SitesController : ControllerBase
     }
 
     /// <summary>
+    /// Get sites with filtering, pagination, sorting, and body-only filters such as Stop list.
+    /// </summary>
+    [HttpPost("search")]
+    public async Task<ActionResult<SitesListResponse>> SearchSites(
+        [FromBody] SitesQueryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request == null)
+        {
+            return BadRequest("Request body is required.");
+        }
+
+        var query = SitesMapper.ToQuery(request);
+
+        var result = await _sitesService.GetSitesAsync(query, cancellationToken);
+        var response = SitesMapper.ToResponse(result);
+
+        return Ok(response);
+    }
+
+    /// <summary>
     /// Multi-search by domains/URLs: exact match on normalized Domain. Max 500 inputs.
     /// </summary>
     [HttpPost("multi-search")]
@@ -48,6 +69,17 @@ public class SitesController : ControllerBase
         if (request == null)
         {
             return BadRequest("Request body is required.");
+        }
+
+        if (StopListParser.HasAnyInput(request.StopListDomains) ||
+            StopListParser.HasAnyInput(request.Filters?.StopListDomains))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Validation Error",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = StopListConstants.MultiSearchNotSupportedMessage
+            });
         }
 
         var parseResult = MultiSearchParser.Parse(request.QueryText);

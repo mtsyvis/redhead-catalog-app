@@ -1,6 +1,7 @@
 using System.Globalization;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 
@@ -27,6 +28,7 @@ public static class SitesMapper
             SortBy = request.SortBy ?? string.Empty,
             SortDir = request.SortDir ?? string.Empty,
             Search = request.Search,
+            StopListDomains = StopListParser.Parse(request.StopListDomains),
             DrMin = request.DrMin,
             DrMax = request.DrMax,
             TrafficMin = request.TrafficMin,

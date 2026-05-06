@@ -136,6 +136,11 @@ public class ExportService : IExportService
         string userRole,
         CancellationToken cancellationToken = default)
     {
+        if (query.StopListDomains is { Count: > 0 })
+        {
+            throw new RequestValidationException(StopListConstants.MultiSearchNotSupportedMessage);
+        }
+
         var parseResult = MultiSearchParser.Parse(queryText);
 
         var roleSettings = await _context.RoleSettings
@@ -468,6 +473,7 @@ public class ExportService : IExportService
         => new
         {
             query.Search,
+            query.StopListDomains,
             query.DrMin,
             query.DrMax,
             query.TrafficMin,

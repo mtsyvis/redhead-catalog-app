@@ -16,6 +16,11 @@ public class MultiSearchRequest
     public SitesQueryRequest? Filters { get; set; }
 
     /// <summary>
+    /// Not supported in multi-search mode. Requests with values are rejected.
+    /// </summary>
+    public List<string>? StopListDomains { get; set; }
+
+    /// <summary>
     /// Optional sort (accepted; in 10A not applied to multi-search results)
     /// </summary>
     public SortDto? Sort { get; set; }

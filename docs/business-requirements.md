@@ -273,6 +273,7 @@ Rules:
 Main filters:
 
 * Domain search
+* Stop list domain exclusion
 * DR range
 * Traffic range
 * Price range
@@ -285,6 +286,16 @@ Main filters:
 * Dating availability
 * Quarantine status: all / only quarantined / exclude quarantined
 * Last publication date range/month filter
+
+Stop list rules:
+
+* Stop list accepts domains or URLs and normalizes them before matching.
+* Stop list excludes exact normalized domains from normal sites search/filter results and export.
+* Stop list filtering happens before pagination, sorting, and total count calculation.
+* Duplicate stop-list values after normalization are ignored.
+* Invalid stop-list values must reject the request; valid values are not partially applied.
+* Stop list supports at most 1000 unique normalized domains.
+* Stop list is not available in Multi-search mode.
 
 Niche filter rules:
 

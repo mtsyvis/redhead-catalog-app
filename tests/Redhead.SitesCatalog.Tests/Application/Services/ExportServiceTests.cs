@@ -276,6 +276,49 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportSitesAsExcelAsync_WithStopList_ExcludesMatchingDomains()
+    {
+        var query = new SitesQuery
+        {
+            StopListDomains = new List<string> { "test.com" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
+        Assert.Equal(2, result.RequestedRows);
+        Assert.Equal(["example.com", "gambling.com"], sites.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task ExportMultiSearchAsExcelAsync_WithStopList_ThrowsRequestValidationException()
+    {
+        var query = DefaultQuery();
+        query.StopListDomains = new List<string> { "example.com" };
+
+        var ex = await Assert.ThrowsAsync<RequestValidationException>(
+            () => _service.ExportMultiSearchAsExcelAsync(
+                "example.com",
+                query,
+                TestUserId,
+                TestUserEmail,
+                AppRoles.Admin,
+                CancellationToken.None));
+
+        Assert.Equal(StopListConstants.MultiSearchNotSupportedMessage, ex.Message);
+    }
+
+    [Fact]
     public async Task ExportSitesAsExcelAsync_WithNicheFilter_ExportsOnlyMatchingSites()
     {
         var query = new SitesQuery

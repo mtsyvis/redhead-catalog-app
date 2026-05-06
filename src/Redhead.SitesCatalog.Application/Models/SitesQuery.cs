@@ -18,6 +18,9 @@ public class SitesQuery
     // Search
     public string? Search { get; set; }
 
+    // Stop list exclusion (normalized exact domains)
+    public List<string>? StopListDomains { get; set; }
+
     // Range filters
     public double? DrMin { get; set; }
     public double? DrMax { get; set; }

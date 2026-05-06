@@ -30,6 +30,27 @@ public class ExportController : ControllerBase
     public async Task<IActionResult> ExportSites(
         [FromQuery] SitesQueryRequest request,
         CancellationToken cancellationToken)
+        => await ExportSitesCore(request, cancellationToken);
+
+    /// <summary>
+    /// Export sites as Excel with filters in the request body. Use this for large Stop list requests.
+    /// </summary>
+    [HttpPost("sites.xlsx")]
+    public async Task<IActionResult> ExportSitesFromBody(
+        [FromBody] SitesQueryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request == null)
+        {
+            return BadRequest();
+        }
+
+        return await ExportSitesCore(request, cancellationToken);
+    }
+
+    private async Task<IActionResult> ExportSitesCore(
+        SitesQueryRequest request,
+        CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var userEmail = User.FindFirstValue(ClaimTypes.Email);
@@ -87,6 +108,16 @@ public class ExportController : ControllerBase
         if (request == null)
         {
             return BadRequest();
+        }
+
+        if (request.Filters?.StopListDomains is { Count: > 0 })
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Validation Error",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = StopListConstants.MultiSearchNotSupportedMessage
+            });
         }
 
         SitesQuery query;

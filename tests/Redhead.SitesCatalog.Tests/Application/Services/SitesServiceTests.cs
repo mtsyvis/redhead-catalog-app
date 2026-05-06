@@ -245,6 +245,68 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(0, result.Total);
     }
 
+    [Fact]
+    public async Task GetSitesAsync_WithStopList_ExcludesMatchingDomains()
+    {
+        var query = new SitesQuery
+        {
+            StopListDomains = new List<string> { "example.com", "crypto.com" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Equal(3, result.Total);
+        Assert.DoesNotContain(result.Items, site => site.Domain == "example.com");
+        Assert.DoesNotContain(result.Items, site => site.Domain == "crypto.com");
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithStopList_AppliesBeforeSortingPaginationAndCount()
+    {
+        var query = new SitesQuery
+        {
+            StopListDomains = new List<string> { "gambling.com" },
+            Locations = new List<string> { "US" },
+            Page = 1,
+            PageSize = 1,
+            SortBy = SortFields.DR,
+            SortDir = SortingDefaults.Descending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Equal(2, result.Total);
+        Assert.Single(result.Items);
+        Assert.Equal("example.com", result.Items[0].Domain);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetSitesAsync_WithNullOrEmptyStopList_BehavesLikeCurrentSearch(bool useEmptyList)
+    {
+        var query = new SitesQuery
+        {
+            StopListDomains = useEmptyList ? new List<string>() : null,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Equal(5, result.Total);
+        Assert.Equal(5, result.Items.Count);
+    }
+
     #endregion
 
     #region Range Filter Tests

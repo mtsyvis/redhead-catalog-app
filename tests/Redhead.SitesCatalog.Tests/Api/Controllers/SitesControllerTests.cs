@@ -1,5 +1,11 @@
+using Microsoft.AspNetCore.Mvc;
+using Moq;
+using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.Models.Sites;
+using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Exceptions;
 
 namespace Redhead.SitesCatalog.Tests;
 
@@ -33,6 +39,79 @@ public class SitesControllerTests
         Assert.Null(query.LinkInsertAvailability);
         Assert.Null(query.LinkInsertCasinoAvailability);
         Assert.Null(query.DatingAvailability);
+        Assert.Null(query.StopListDomains);
+    }
+
+    [Fact]
+    public async Task MultiSearch_WithStopList_ReturnsBadRequest_AndDoesNotCallService()
+    {
+        var sitesService = new Mock<ISitesService>();
+        var controller = new SitesController(sitesService.Object);
+        var request = new MultiSearchRequest
+        {
+            QueryText = "example.com",
+            StopListDomains = new List<string> { "example.com" }
+        };
+
+        var result = await controller.MultiSearch(request, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var problem = Assert.IsType<ProblemDetails>(badRequest.Value);
+        Assert.Equal(StopListConstants.MultiSearchNotSupportedMessage, problem.Detail);
+        sitesService.Verify(
+            service => service.MultiSearchSitesAsync(
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task MultiSearch_WithFilterStopList_ReturnsBadRequest_AndDoesNotCallService()
+    {
+        var sitesService = new Mock<ISitesService>();
+        var controller = new SitesController(sitesService.Object);
+        var request = new MultiSearchRequest
+        {
+            QueryText = "example.com",
+            Filters = new SitesQueryRequest
+            {
+                StopListDomains = new List<string> { "example.com" }
+            }
+        };
+
+        var result = await controller.MultiSearch(request, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var problem = Assert.IsType<ProblemDetails>(badRequest.Value);
+        Assert.Equal(StopListConstants.MultiSearchNotSupportedMessage, problem.Detail);
+        sitesService.Verify(
+            service => service.MultiSearchSitesAsync(
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task SearchSites_WithInvalidStopList_ThrowsValidationException_AndDoesNotCallService()
+    {
+        var sitesService = new Mock<ISitesService>();
+        var controller = new SitesController(sitesService.Object);
+        var request = new SitesQueryRequest
+        {
+            StopListDomains = new List<string> { "example.com", "https:///path" }
+        };
+
+        var ex = await Assert.ThrowsAsync<RequestValidationException>(
+            () => controller.SearchSites(request, CancellationToken.None));
+
+        Assert.Contains("Invalid stop-list domain", ex.Message);
+        sitesService.Verify(
+            service => service.GetSitesAsync(
+                It.IsAny<SitesQuery>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
