@@ -28,6 +28,7 @@ interface SitesFiltersProps {
   multiSearchMode?: boolean;
   onMultiSearchModeChange?: (enabled: boolean) => void;
   canFilterQuarantine?: boolean;
+  filterOptionsRefreshKey?: number;
 }
 
 const INITIAL_FILTERS: SitesFilters = {
@@ -58,6 +59,7 @@ export function SitesFilters({
   onApply,
   multiSearchMode = false,
   onMultiSearchModeChange,
+  filterOptionsRefreshKey = 0,
 }: SitesFiltersProps) {
   const [locations, setLocations] = useState<string[]>([]);
   const [nicheOptions, setNicheOptions] = useState<FilterOption[]>([]);
@@ -87,7 +89,7 @@ export function SitesFilters({
     };
 
     loadFilterOptions();
-  }, []);
+  }, [filterOptionsRefreshKey]);
 
   const handleChange = <K extends keyof SitesFilters>(
     field: K,

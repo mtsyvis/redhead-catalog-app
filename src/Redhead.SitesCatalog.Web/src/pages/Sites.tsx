@@ -107,6 +107,7 @@ export function Sites() {
   const [multiSearchMode, setMultiSearchMode] = useState(false);
   const [multiSearchResult, setMultiSearchResult] = useState<MultiSearchResponse | null>(null);
   const [multiSearchLoading, setMultiSearchLoading] = useState(false);
+  const [filterOptionsRefreshKey, setFilterOptionsRefreshKey] = useState(0);
   const [duplicatesAnchor, setDuplicatesAnchor] = useState<HTMLElement | null>(null);
   const [editSite, setEditSite] = useState<Site | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
@@ -322,6 +323,7 @@ export function Sites() {
 
   const handleEditSaved = (updated: Site) => {
     setEditSite(null);
+    setFilterOptionsRefreshKey((key) => key + 1);
     setSnackbar({ open: true, message: 'Site updated', severity: 'success' });
     if (multiSearchResult) {
       const newFound = multiSearchResult.found.map((s) => (s.domain === updated.domain ? updated : s));
@@ -571,6 +573,7 @@ export function Sites() {
           onApply={handleFiltersApply}
           multiSearchMode={multiSearchMode}
           onMultiSearchModeChange={handleMultiSearchModeChange}
+          filterOptionsRefreshKey={filterOptionsRefreshKey}
         />
 
         {multiSearchResult && multiSearchResult.duplicates.length > 0 && (
