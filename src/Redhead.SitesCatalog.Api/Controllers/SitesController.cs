@@ -82,6 +82,26 @@ public class SitesController : ControllerBase
     }
 
     /// <summary>
+    /// Get filter options derived from current catalog data.
+    /// </summary>
+    [HttpGet("filter-options")]
+    public async Task<ActionResult<FilterOptionsResponse>> GetFilterOptions(CancellationToken cancellationToken)
+    {
+        var niches = await _sitesService.GetNicheOptionsAsync(cancellationToken);
+
+        return Ok(new FilterOptionsResponse
+        {
+            Niches = niches
+                .Select(option => new FilterOptionResponse
+                {
+                    Value = option.Value,
+                    Label = option.Label
+                })
+                .ToList()
+        });
+    }
+
+    /// <summary>
     /// Update site fields (Admin/SuperAdmin). Editable: DR, Traffic, Location, prices, Niche, Categories, quarantine.
     /// Domain is read-only (route parameter). When IsQuarantined is false, reason is cleared.
     /// </summary>

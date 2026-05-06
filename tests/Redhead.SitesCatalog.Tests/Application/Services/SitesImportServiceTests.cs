@@ -2,9 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
-using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -22,6 +22,7 @@ public sealed class SitesImportServiceTests : IDisposable
     private const string CsvContentType = "text/csv";
 
     private readonly ApplicationDbContext _context;
+    private readonly MemoryCache _nicheOptionsMemoryCache;
     private readonly ImportArtifactStorageService _artifactStorageService;
     private readonly SitesImportService _sut;
 
@@ -33,8 +34,13 @@ public sealed class SitesImportServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
+        _nicheOptionsMemoryCache = new MemoryCache(new MemoryCacheOptions());
         _artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
-        _sut = new SitesImportService(_context, NullLogger<SitesImportService>.Instance, _artifactStorageService);
+        _sut = new SitesImportService(
+            _context,
+            NullLogger<SitesImportService>.Instance,
+            _artifactStorageService,
+            new NicheFilterOptionsCache(_context, _nicheOptionsMemoryCache));
 
         SeedSites();
     }
@@ -43,6 +49,7 @@ public sealed class SitesImportServiceTests : IDisposable
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
+        _nicheOptionsMemoryCache.Dispose();
     }
 
     [Fact]
@@ -86,6 +93,7 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal(2, newSite.TermValue);
         Assert.Equal(TermUnit.Year, newSite.TermUnit);
         Assert.Equal("Tech", newSite.Niche);
+        Assert.Equal(["tech"], newSite.NicheTokens);
         Assert.Equal("News", newSite.Categories);
         Assert.Equal("Sponsored", newSite.SponsoredTag);
         Assert.False(newSite.IsQuarantined);
@@ -110,6 +118,7 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Null(secondSite.TermValue);
         Assert.Null(secondSite.TermUnit);
         Assert.Equal("Business", secondSite.Niche);
+        Assert.Equal(["business"], secondSite.NicheTokens);
         Assert.Null(secondSite.Categories);
         Assert.Null(secondSite.SponsoredTag);
 
@@ -120,6 +129,34 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal(2, log.Inserted);
         Assert.Equal(0, log.Duplicates);
         Assert.Equal(0, log.ErrorsCount);
+    }
+
+    [Fact]
+    public async Task ImportAsync_NicheTokens_AreDerivedFromImportedNiche()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "\"token-site.com\",55,12000,US,100,,,,,,\"Crypto, Finance, crypto\",News,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.InsertedCount);
+        var site = await GetSiteAsync("token-site.com");
+        Assert.Equal(["crypto", "finance"], site.NicheTokens);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidEmptyNiche_CreatesEmptyNicheTokens()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "empty-token-site.com,55,12000,US,100,,,,,,N/A,News,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.InsertedCount);
+        var site = await GetSiteAsync("empty-token-site.com");
+        Assert.Empty(site.NicheTokens);
     }
 
     [Fact]
@@ -1006,6 +1043,7 @@ public sealed class SitesImportServiceTests : IDisposable
                 PriceLinkInsert = null,
                 PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
                 Niche = "General",
+                NicheTokens = NicheNormalizer.NormalizeTokens("General"),
                 Categories = "Blog",
                 IsQuarantined = false,
                 CreatedAtUtc = now,

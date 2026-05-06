@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -129,6 +130,11 @@ public class ExportServiceTests : IDisposable
                 UpdatedAtUtc = DateTime.UtcNow
             }
         };
+
+        foreach (var site in sites)
+        {
+            site.NicheTokens = NicheNormalizer.NormalizeTokens(site.Niche);
+        }
 
         _context.Sites.AddRange(sites);
         _context.SaveChanges();
@@ -267,6 +273,31 @@ public class ExportServiceTests : IDisposable
         var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Equal(2, sites.Count); // test.com(70) and gambling.com(90)
         Assert.All(sites, site => Assert.True(site.DR >= 60));
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithNicheFilter_ExportsOnlyMatchingSites()
+    {
+        var query = new SitesQuery
+        {
+            Niches = new List<string> { "casino" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
+        Assert.Single(sites);
+        Assert.Equal("gambling.com", sites[0].Domain);
     }
 
     [Fact]

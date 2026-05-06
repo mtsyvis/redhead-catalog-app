@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Moq;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -11,6 +14,7 @@ namespace Redhead.SitesCatalog.Tests;
 public class SitesServiceTests : IDisposable
 {
     private readonly ApplicationDbContext _context;
+    private readonly MemoryCache _memoryCache;
     private readonly SitesService _service;
 
     public SitesServiceTests()
@@ -20,8 +24,10 @@ public class SitesServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
+        _memoryCache = new MemoryCache(new MemoryCacheOptions());
         var queryBuilder = new SitesQueryBuilder();
-        _service = new SitesService(_context, queryBuilder);
+        var nicheFilterOptionsCache = new NicheFilterOptionsCache(_context, _memoryCache);
+        _service = new SitesService(_context, queryBuilder, nicheFilterOptionsCache);
 
         SeedTestData();
     }
@@ -30,6 +36,7 @@ public class SitesServiceTests : IDisposable
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
+        _memoryCache.Dispose();
     }
 
     private void SeedTestData()
@@ -159,6 +166,11 @@ public class SitesServiceTests : IDisposable
                 UpdatedAtUtc = DateTime.UtcNow
             }
         };
+
+        foreach (var site in sites)
+        {
+            site.NicheTokens = NicheNormalizer.NormalizeTokens(site.Niche);
+        }
 
         _context.Sites.AddRange(sites);
         _context.SaveChanges();
@@ -396,6 +408,163 @@ public class SitesServiceTests : IDisposable
         // Assert
         Assert.Equal(4, result.Total); // example.com, test.com, gambling.com, lowdr.com
         Assert.All(result.Items, site => Assert.Contains(site.Location, new[] { "US", "UK" }));
+    }
+
+    #endregion
+
+    #region Niche Filter Tests
+
+    [Fact]
+    public async Task GetSitesAsync_WithSingleNicheFilter_ReturnsMatchingSites()
+    {
+        var query = new SitesQuery
+        {
+            Niches = new List<string> { "crypto" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Single(result.Items);
+        Assert.Equal("crypto.com", result.Items[0].Domain);
+        Assert.Equal(["crypto"], result.Items[0].NicheTokens);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleNicheFilters_UsesAnySemantics()
+    {
+        var query = new SitesQuery
+        {
+            Niches = new List<string> { "Crypto", "casino" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Equal(["crypto.com", "gambling.com"], result.Items.Select(s => s.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithInvalidNicheFilter_DoesNotApplyNicheFiltering()
+    {
+        var query = new SitesQuery
+        {
+            Niches = new List<string> { "N/A", " " },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.GetSitesAsync(query);
+
+        Assert.Equal(5, result.Total);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_NicheFilter_DoesNotMatchEmptyTokens()
+    {
+        _context.Sites.Add(new Site
+        {
+            Domain = "empty-niche.com",
+            DR = 40,
+            Traffic = 4000,
+            Location = "US",
+            PriceUsd = 100m,
+            PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+            Niche = "N/A",
+            NicheTokens = NicheNormalizer.NormalizeTokens("N/A"),
+            IsQuarantined = false,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Niches = new List<string> { "crypto" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Single(result.Items);
+        Assert.Equal("crypto.com", result.Items[0].Domain);
+        Assert.DoesNotContain(result.Items, s => s.Domain == "empty-niche.com");
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_NicheFilterCombinesWithExistingFilters()
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Niches = new List<string> { "casino", "crypto" },
+            Locations = new List<string> { "US" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Single(result.Items);
+        Assert.Equal("gambling.com", result.Items[0].Domain);
+    }
+
+    [Fact]
+    public async Task GetNicheOptionsAsync_ReturnsDistinctSortedOptions_ExcludingEmptyTokens()
+    {
+        _context.Sites.AddRange(
+            new Site
+            {
+                Domain = "mental.com",
+                DR = 40,
+                Traffic = 4000,
+                Location = "US",
+                PriceUsd = 100m,
+                Niche = "Mental health, crypto",
+                NicheTokens = NicheNormalizer.NormalizeTokens("Mental health, crypto"),
+                IsQuarantined = false,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            },
+            new Site
+            {
+                Domain = "invalid-niche.com",
+                DR = 40,
+                Traffic = 4000,
+                Location = "US",
+                PriceUsd = 100m,
+                Niche = "N/A",
+                NicheTokens = NicheNormalizer.NormalizeTokens("N/A"),
+                IsQuarantined = false,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+        await _context.SaveChangesAsync();
+
+        var result = await _service.GetNicheOptionsAsync();
+
+        Assert.Equal(
+            ["casino", "crypto", "general", "mental health", "news", "tech"],
+            result.Select(option => option.Value).ToArray());
+        Assert.Equal("Mental Health", result.Single(option => option.Value == "mental health").Label);
+        Assert.DoesNotContain(result, option => option.Value is "n/a" or "na" or "-" or "none" or "null");
     }
 
     #endregion
@@ -1418,11 +1587,59 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(1, updated.TermValue);
         Assert.Equal(TermUnit.Year, updated.TermUnit);
         Assert.Equal("Updated niche", updated.Niche);
+        Assert.Equal(["updated niche"], updated.NicheTokens);
         Assert.Equal("Updated categories", updated.Categories);
 
         var dbSite = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
         Assert.Equal(60, dbSite.DR);
         Assert.Equal("CA", dbSite.Location);
+        Assert.Equal(["updated niche"], dbSite.NicheTokens);
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_ClearingNiche_ClearsNicheTokens()
+    {
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Niche = "N/A";
+
+        var updated = await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Empty(updated.NicheTokens);
+
+        var dbSite = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        Assert.Empty(dbSite.NicheTokens);
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_WhenNicheChanges_NicheOptionsIncludeNewTokenAfterCacheWarmup()
+    {
+        var before = await _service.GetNicheOptionsAsync();
+        Assert.DoesNotContain(before, option => option.Value == "updated cache niche");
+
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Niche = "Updated Cache Niche";
+
+        await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+
+        var after = await _service.GetNicheOptionsAsync();
+        Assert.Contains(after, option => option.Value == "updated cache niche");
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_InvalidatesNicheOptionsCache()
+    {
+        var nicheOptionsCacheMock = new Mock<INicheFilterOptionsCache>();
+        var service = new SitesService(_context, new SitesQueryBuilder(), nicheOptionsCacheMock.Object);
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Niche = "Updated Cache Niche";
+
+        await service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+
+        nicheOptionsCacheMock.Verify(cache => cache.Invalidate(), Times.Once);
     }
 
     #endregion

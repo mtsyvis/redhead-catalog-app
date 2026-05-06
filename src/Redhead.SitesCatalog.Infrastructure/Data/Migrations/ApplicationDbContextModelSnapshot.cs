@@ -404,6 +404,12 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Property<string>("Niche")
                         .HasColumnType("text");
 
+                    b.Property<string[]>("NicheTokens")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasDefaultValueSql("ARRAY[]::text[]");
+
                     b.Property<int?>("NumberDFLinks")
                         .HasColumnType("integer");
 
@@ -499,6 +505,9 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.HasIndex("Traffic");
 
                     b.HasIndex("LastPublishedDate", "LastPublishedDateIsMonthOnly", "Domain");
+
+                    b.HasIndex("NicheTokens")
+                        .HasMethod("gin");
 
                     b.ToTable("Sites", null, t =>
                         {

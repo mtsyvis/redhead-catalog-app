@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -34,6 +35,12 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             sitesQuery = sitesQuery.Where(s => query.Locations.Contains(s.Location));
         }
 
+        var nicheTokens = NormalizeNicheFilter(query.Niches);
+        if (nicheTokens.Length > 0)
+        {
+            sitesQuery = sitesQuery.Where(BuildNichePredicate(nicheTokens));
+        }
+
         // Apply allowed flags filters
         sitesQuery = ApplyAllowedFilters(sitesQuery, query);
 
@@ -47,6 +54,36 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         sitesQuery = ApplySorting(sitesQuery, query.SortBy, query.SortDir);
 
         return sitesQuery;
+    }
+
+    private static string[] NormalizeNicheFilter(IReadOnlyCollection<string>? niches)
+    {
+        if (niches is null || niches.Count == 0)
+        {
+            return [];
+        }
+
+        return NicheNormalizer.NormalizeTokens(niches);
+    }
+
+    private static Expression<Func<Site, bool>> BuildNichePredicate(IReadOnlyCollection<string> nicheTokens)
+    {
+        var site = Expression.Parameter(typeof(Site), "site");
+        var nicheTokensProperty = Expression.Property(site, nameof(Site.NicheTokens));
+        Expression body = Expression.Constant(false);
+
+        foreach (var nicheToken in nicheTokens)
+        {
+            var contains = Expression.Call(
+                typeof(Enumerable),
+                nameof(Enumerable.Contains),
+                [typeof(string)],
+                nicheTokensProperty,
+                Expression.Constant(nicheToken));
+            body = Expression.OrElse(body, contains);
+        }
+
+        return Expression.Lambda<Func<Site, bool>>(body, site);
     }
 
     private static IQueryable<Site> ApplyRangeFilters(IQueryable<Site> query, SitesQuery filters)

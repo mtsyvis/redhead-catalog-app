@@ -27,6 +27,7 @@ public class SitesMapperTests
             PriceMin = 100m,
             PriceMax = 500m,
             Locations = new List<string> { "US", "UK" },
+            Niches = new List<string> { "crypto", "finance" },
             CasinoAllowed = true,
             CryptoAllowed = false,
             LinkInsertAllowed = true,
@@ -56,6 +57,7 @@ public class SitesMapperTests
         Assert.Equal(2, query.Locations!.Count);
         Assert.Contains("US", query.Locations);
         Assert.Contains("UK", query.Locations);
+        Assert.Equal(["crypto", "finance"], query.Niches);
         Assert.True(query.CasinoAllowed);
         Assert.False(query.CryptoAllowed);
         Assert.True(query.LinkInsertAllowed);
@@ -125,6 +127,7 @@ public class SitesMapperTests
             TermValue = 2,
             TermUnit = TermUnit.Year,
             Niche = "Tech",
+            NicheTokens = ["tech"],
             Categories = "Technology, News",
             IsQuarantined = true,
             QuarantineReason = "Under review",
@@ -157,6 +160,7 @@ public class SitesMapperTests
         Assert.Equal(2, response.TermValue);
         Assert.Equal(TermUnit.Year, response.TermUnit);
         Assert.Equal("Tech", response.Niche);
+        Assert.Equal(["tech"], response.NicheTokens);
         Assert.Equal("Technology, News", response.Categories);
         Assert.True(response.IsQuarantined);
         Assert.Equal("Under review", response.QuarantineReason);

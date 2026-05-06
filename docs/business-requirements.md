@@ -277,6 +277,7 @@ Main filters:
 * Traffic range
 * Price range
 * Location multi-select
+* Niche multi-select
 * Casino availability
 * Crypto availability
 * Link Insert availability
@@ -284,6 +285,12 @@ Main filters:
 * Dating availability
 * Quarantine status: all / only quarantined / exclude quarantined
 * Last publication date range/month filter
+
+Niche filter rules:
+
+* Niche values are split by comma into normalized multi-word tokens.
+* Niche filtering uses multi-select ANY semantics.
+* Empty or placeholder niche values such as `N/A`, `NA`, `-`, `None`, and `null` are not filterable values.
 
 ## Multi-search
 

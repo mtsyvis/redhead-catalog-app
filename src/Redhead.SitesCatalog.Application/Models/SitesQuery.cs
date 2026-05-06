@@ -29,6 +29,9 @@ public class SitesQuery
     // Location multi-select
     public List<string>? Locations { get; set; }
 
+    // Niche multi-select
+    public List<string>? Niches { get; set; }
+
     // Allowed flags
     public bool? CasinoAllowed { get; set; }
     public bool? CryptoAllowed { get; set; }

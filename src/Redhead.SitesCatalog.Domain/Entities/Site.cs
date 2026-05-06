@@ -24,6 +24,7 @@ public class Site
     public int? TermValue { get; set; }
     public TermUnit? TermUnit { get; set; }
     public string? Niche { get; set; }
+    public string[] NicheTokens { get; set; } = [];
     public string? Categories { get; set; }
     public string? SponsoredTag { get; set; }
     public bool IsQuarantined { get; set; }

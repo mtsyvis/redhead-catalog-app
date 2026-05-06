@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
-using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -21,6 +21,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     private const string CsvContentType = "text/csv";
 
     private readonly ApplicationDbContext _context;
+    private readonly MemoryCache _nicheOptionsMemoryCache;
     private readonly ImportArtifactStorageService _artifactStorageService;
     private readonly SitesUpdateImportService _sut;
 
@@ -31,8 +32,13 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
+        _nicheOptionsMemoryCache = new MemoryCache(new MemoryCacheOptions());
         _artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
-        _sut = new SitesUpdateImportService(_context, NullLogger<SitesUpdateImportService>.Instance, _artifactStorageService);
+        _sut = new SitesUpdateImportService(
+            _context,
+            NullLogger<SitesUpdateImportService>.Instance,
+            _artifactStorageService,
+            new NicheFilterOptionsCache(_context, _nicheOptionsMemoryCache));
 
         SeedSites();
     }
@@ -41,6 +47,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
+        _nicheOptionsMemoryCache.Dispose();
     }
 
     [Fact]
@@ -77,6 +84,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(250m, first.PriceLinkInsert);
         Assert.Equal(ServiceAvailabilityStatus.Available, first.PriceLinkInsertStatus);
         Assert.Equal("Tech", first.Niche);
+        Assert.Equal(["tech"], first.NicheTokens);
         Assert.Equal("News", first.Categories);
         Assert.Equal("Sponsored", first.SponsoredTag);
 
@@ -92,6 +100,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Null(second.PriceLinkInsert);
         Assert.Equal(ServiceAvailabilityStatus.Unknown, second.PriceLinkInsertStatus);
         Assert.Null(second.Niche);
+        Assert.Empty(second.NicheTokens);
         Assert.Null(second.Categories);
         Assert.Null(second.SponsoredTag);
 
@@ -101,6 +110,39 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(0, log.Unmatched);
         Assert.Equal(0, log.ErrorsCount);
         Assert.Equal(0, log.Duplicates);
+    }
+
+    [Fact]
+    public async Task ImportAsync_RecalculatesNicheTokens()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "\"existing.com\",55,12000,US,100,,,,,,\"Crypto, Finance, crypto\",News,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        var site = await GetSiteAsync("existing.com");
+        Assert.Equal(["crypto", "finance"], site.NicheTokens);
+    }
+
+    [Fact]
+    public async Task ImportAsync_ClearingNiche_ClearsNicheTokens()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.Niche = "General";
+        site.NicheTokens = NicheNormalizer.NormalizeTokens(site.Niche);
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "existing.com,55,12000,US,100,,,,,,N/A,News,,,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Empty(updated.NicheTokens);
     }
 
     [Fact]
@@ -858,6 +900,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
                 PriceLinkInsert = null,
                 PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
                 Niche = "General",
+                NicheTokens = NicheNormalizer.NormalizeTokens("General"),
                 Categories = "Blog",
                 IsQuarantined = false,
                 CreatedAtUtc = now,

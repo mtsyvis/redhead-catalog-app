@@ -28,6 +28,7 @@ public class SiteResponse
     public int? TermValue { get; set; }
     public TermUnit? TermUnit { get; set; }
     public string? Niche { get; set; }
+    public string[] NicheTokens { get; set; } = [];
     public string? Categories { get; set; }
     public bool IsQuarantined { get; set; }
     public string? QuarantineReason { get; set; }

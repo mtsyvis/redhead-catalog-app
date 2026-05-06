@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -240,6 +241,7 @@ public class ExportService : IExportService
         if (query.TrafficMin.HasValue || query.TrafficMax.HasValue) { return true; }
         if (query.PriceMin.HasValue || query.PriceMax.HasValue) { return true; }
         if (query.Locations is { Count: > 0 }) { return true; }
+        if (NicheNormalizer.NormalizeTokens(query.Niches ?? []).Length > 0) { return true; }
         if (query.CasinoAvailability.HasValue)
         {
             if (query.CasinoAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
@@ -473,6 +475,7 @@ public class ExportService : IExportService
             query.PriceMin,
             query.PriceMax,
             query.Locations,
+            query.Niches,
             query.CasinoAllowed,
             query.CryptoAllowed,
             query.LinkInsertAllowed,

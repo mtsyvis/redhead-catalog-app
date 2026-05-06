@@ -18,6 +18,11 @@ public interface ISitesService
     Task<List<string>> GetLocationsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get distinct normalized niche values for filter dropdowns.
+    /// </summary>
+    Task<List<FilterOptionDto>> GetNicheOptionsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Multi-search: exact match by normalized domains. Single DB query.
     /// </summary>
     /// <param name="normalizedDomains">Unique normalized domains to look up</param>

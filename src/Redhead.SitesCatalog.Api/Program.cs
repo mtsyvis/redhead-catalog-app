@@ -17,6 +17,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 builder.Services.AddScoped<ISitesQueryBuilder, SitesQueryBuilder>();
+builder.Services.AddScoped<INicheFilterOptionsCache, NicheFilterOptionsCache>();
 builder.Services.AddScoped<ISitesService, SitesService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<ISitesImportService, SitesImportService>();

@@ -23,15 +23,18 @@ public sealed class SitesImportService : ISitesImportService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SitesImportService> _logger;
     private readonly IImportArtifactStorageService _importArtifactStorageService;
+    private readonly INicheFilterOptionsCache _nicheFilterOptionsCache;
 
     public SitesImportService(
         ApplicationDbContext context,
         ILogger<SitesImportService> logger,
-        IImportArtifactStorageService importArtifactStorageService)
+        IImportArtifactStorageService importArtifactStorageService,
+        INicheFilterOptionsCache nicheFilterOptionsCache)
     {
         _context = context;
         _logger = logger;
         _importArtifactStorageService = importArtifactStorageService;
+        _nicheFilterOptionsCache = nicheFilterOptionsCache;
     }
 
     public async Task<SitesImportResult> ImportAsync(
@@ -152,6 +155,7 @@ public sealed class SitesImportService : ISitesImportService
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            _nicheFilterOptionsCache.Invalidate();
         }
         catch (DbUpdateException ex)
         {
@@ -326,6 +330,7 @@ public sealed class SitesImportService : ISitesImportService
             TermValue = data.TermValue,
             TermUnit = data.TermUnit,
             Niche = data.Niche,
+            NicheTokens = NicheNormalizer.NormalizeTokens(data.Niche),
             Categories = data.Categories,
             SponsoredTag = data.SponsoredTag,
             IsQuarantined = false,

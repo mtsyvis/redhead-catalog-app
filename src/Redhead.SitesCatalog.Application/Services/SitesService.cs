@@ -13,11 +13,16 @@ public class SitesService : ISitesService
 {
     private readonly ApplicationDbContext _context;
     private readonly ISitesQueryBuilder _queryBuilder;
+    private readonly INicheFilterOptionsCache _nicheFilterOptionsCache;
 
-    public SitesService(ApplicationDbContext context, ISitesQueryBuilder queryBuilder)
+    public SitesService(
+        ApplicationDbContext context,
+        ISitesQueryBuilder queryBuilder,
+        INicheFilterOptionsCache nicheFilterOptionsCache)
     {
         _context = context;
         _queryBuilder = queryBuilder;
+        _nicheFilterOptionsCache = nicheFilterOptionsCache;
     }
 
     public async Task<SitesListResult> GetSitesAsync(SitesQuery query, CancellationToken cancellationToken = default)
@@ -60,6 +65,7 @@ public class SitesService : ISitesService
                 TermValue = s.TermValue,
                 TermUnit = s.TermUnit,
                 Niche = s.Niche,
+                NicheTokens = s.NicheTokens,
                 Categories = s.Categories,
                 IsQuarantined = s.IsQuarantined,
                 QuarantineReason = s.QuarantineReason,
@@ -85,6 +91,11 @@ public class SitesService : ISitesService
             .Distinct()
             .OrderBy(l => l)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<FilterOptionDto>> GetNicheOptionsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _nicheFilterOptionsCache.GetOptionsAsync(cancellationToken);
     }
 
     public async Task<MultiSearchSitesResult> MultiSearchSitesAsync(
@@ -127,6 +138,7 @@ public class SitesService : ISitesService
                 TermValue = s.TermValue,
                 TermUnit = s.TermUnit,
                 Niche = s.Niche,
+                NicheTokens = s.NicheTokens,
                 Categories = s.Categories,
                 IsQuarantined = s.IsQuarantined,
                 QuarantineReason = s.QuarantineReason,
@@ -184,12 +196,14 @@ public class SitesService : ISitesService
         site.TermValue = request.TermValue;
         site.TermUnit = request.TermUnit;
         site.Niche = request.Niche;
+        site.NicheTokens = NicheNormalizer.NormalizeTokens(request.Niche);
         site.Categories = request.Categories;
         site.IsQuarantined = request.IsQuarantined;
         site.QuarantineReason = request.IsQuarantined ? request.QuarantineReason : null;
         site.QuarantineUpdatedAtUtc = request.IsQuarantined ? now : null;
         site.UpdatedAtUtc = now;
         await _context.SaveChangesAsync(cancellationToken);
+        _nicheFilterOptionsCache.Invalidate();
 
         return new SiteDto
         {
@@ -214,6 +228,7 @@ public class SitesService : ISitesService
             TermValue = site.TermValue,
             TermUnit = site.TermUnit,
             Niche = site.Niche,
+            NicheTokens = site.NicheTokens,
             Categories = site.Categories,
             IsQuarantined = site.IsQuarantined,
             QuarantineReason = site.QuarantineReason,

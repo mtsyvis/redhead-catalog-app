@@ -116,6 +116,14 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(s => s.Niche)
             .HasColumnType("text");
 
+        builder.Property(s => s.NicheTokens)
+            .IsRequired()
+            .HasColumnType("text[]")
+            .HasDefaultValueSql("ARRAY[]::text[]");
+
+        builder.HasIndex(s => s.NicheTokens)
+            .HasMethod("gin");
+
         builder.Property(s => s.Categories)
             .HasColumnType("text");
 

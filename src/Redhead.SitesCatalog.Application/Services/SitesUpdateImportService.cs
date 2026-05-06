@@ -26,6 +26,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SitesUpdateImportService> _logger;
     private readonly IImportArtifactStorageService _importArtifactStorageService;
+    private readonly INicheFilterOptionsCache _nicheFilterOptionsCache;
 
     /// <summary>
     /// Parsed update for one domain. Domain is lookup key only.
@@ -57,11 +58,13 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
     public SitesUpdateImportService(
         ApplicationDbContext context,
         ILogger<SitesUpdateImportService> logger,
-        IImportArtifactStorageService importArtifactStorageService)
+        IImportArtifactStorageService importArtifactStorageService,
+        INicheFilterOptionsCache nicheFilterOptionsCache)
     {
         _context = context;
         _logger = logger;
         _importArtifactStorageService = importArtifactStorageService;
+        _nicheFilterOptionsCache = nicheFilterOptionsCache;
     }
 
     public async Task<SitesUpdateImportResult> ImportAsync(
@@ -199,6 +202,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             site.TermValue = update.TermValue;
             site.TermUnit = update.TermUnit;
             site.Niche = update.Niche;
+            site.NicheTokens = NicheNormalizer.NormalizeTokens(update.Niche);
             site.Categories = update.Categories;
             site.SponsoredTag = update.SponsoredTag;
             site.UpdatedAtUtc = now;
@@ -208,6 +212,10 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
         AddImportLog(result.UpdatedCount, unmatchedDomainsCount, invalidRowsCount, duplicateRowsCount, userId, userEmail);
         await _context.SaveChangesAsync(cancellationToken);
+        if (result.UpdatedCount > 0)
+        {
+            _nicheFilterOptionsCache.Invalidate();
+        }
 
         _logger.LogInformation(
             "Sites update import completed. Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}, UserId={UserId}",
