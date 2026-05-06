@@ -22,22 +22,6 @@ public class SitesController : ControllerBase
     }
 
     /// <summary>
-    /// Get sites with filtering, pagination, and sorting
-    /// </summary>
-    [HttpGet]
-    public async Task<ActionResult<SitesListResponse>> GetSites(
-        [FromQuery] SitesQueryRequest request,
-        CancellationToken cancellationToken)
-    {
-        var query = SitesMapper.ToQuery(request);
-
-        var result = await _sitesService.GetSitesAsync(query, cancellationToken);
-        var response = SitesMapper.ToResponse(result);
-
-        return Ok(response);
-    }
-
-    /// <summary>
     /// Get sites with filtering, pagination, sorting, and body-only filters such as Stop list.
     /// </summary>
     [HttpPost("search")]

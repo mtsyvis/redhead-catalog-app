@@ -11,6 +11,8 @@ import {
   Typography,
   Stack,
   Autocomplete,
+  Chip,
+  Button,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
@@ -20,6 +22,8 @@ import { sitesService } from '../../services/sites.service';
 import { BrandButton } from '../common/BrandButton';
 import { SERVICE_AVAILABILITY_FILTER_OPTIONS } from '../../utils/serviceAvailability';
 import { LastPublishedRangeFilter } from './LastPublishedRangeFilter';
+import { StopListDialog } from './StopListDialog';
+import { pluralize } from '../../utils/pluralize';
 
 interface SitesFiltersProps {
   filters: SitesFilters;
@@ -39,6 +43,7 @@ const INITIAL_FILTERS: SitesFilters = {
   trafficMax: '',
   priceMin: '',
   priceMax: '',
+  stopListDomains: [],
   location: [],
   niches: [],
   casinoAvailability: 'all',
@@ -64,6 +69,7 @@ export function SitesFilters({
   const [locations, setLocations] = useState<string[]>([]);
   const [nicheOptions, setNicheOptions] = useState<FilterOption[]>([]);
   const [expanded, setExpanded] = useState(false);
+  const [stopListDialogOpen, setStopListDialogOpen] = useState(false);
 
   useEffect(() => {
     const loadLocations = async () => {
@@ -103,7 +109,29 @@ export function SitesFilters({
     onApply();
   };
 
-  const hasActiveFilters = () => {
+  const getAdvancedActiveFilterCount = () => {
+    let count = 0;
+
+    if (filters.drMin !== '' || filters.drMax !== '') count += 1;
+    if (filters.trafficMin !== '' || filters.trafficMax !== '') count += 1;
+    if (filters.priceMin !== '' || filters.priceMax !== '') count += 1;
+    if (!multiSearchMode && filters.stopListDomains.length > 0) count += 1;
+    if (filters.location.length > 0) count += 1;
+    if (filters.niches.length > 0) count += 1;
+    if (filters.casinoAvailability !== 'all') count += 1;
+    if (filters.cryptoAvailability !== 'all') count += 1;
+    if (filters.linkInsertAvailability !== 'all') count += 1;
+    if (filters.linkInsertCasinoAvailability !== 'all') count += 1;
+    if (filters.datingAvailability !== 'all') count += 1;
+    if (filters.quarantine !== 'all') count += 1;
+    if (filters.lastPublishedFromMonth !== null || filters.lastPublishedToMonth !== null) {
+      count += 1;
+    }
+
+    return count;
+  };
+
+  const hasSearchOrAdvancedFilters = () => {
     return (
       filters.search !== '' ||
       filters.drMin !== '' ||
@@ -112,6 +140,7 @@ export function SitesFilters({
       filters.trafficMax !== '' ||
       filters.priceMin !== '' ||
       filters.priceMax !== '' ||
+      (!multiSearchMode && filters.stopListDomains.length > 0) ||
       filters.location.length > 0 ||
       filters.niches.length > 0 ||
       filters.casinoAvailability !== 'all' ||
@@ -135,6 +164,35 @@ export function SitesFilters({
   const selectedNicheOptions = filters.niches.map(
     (value) => nicheOptions.find((option) => option.value === value) ?? { value, label: value }
   );
+
+  const stopListCount = filters.stopListDomains.length;
+  const stopListPaused = multiSearchMode && stopListCount > 0;
+  const stopListApplied = !multiSearchMode && stopListCount > 0;
+  const advancedActiveFilterCount = getAdvancedActiveFilterCount();
+  const stopListStatusText =
+    stopListCount === 0
+      ? 'No domains excluded'
+      : stopListPaused
+        ? `${stopListCount} ${pluralize(stopListCount, 'domain')} saved`
+        : `${stopListCount} ${pluralize(stopListCount, 'domain')} excluded`;
+
+  const handleOpenStopListDialog = () => {
+    setStopListDialogOpen(true);
+  };
+
+  const handleCancelStopListDialog = () => {
+    setStopListDialogOpen(false);
+  };
+
+  const handleApplyStopList = (domains: string[]) => {
+    handleChange('stopListDomains', domains);
+    setStopListDialogOpen(false);
+  };
+
+  const handleClearStopList = () => {
+    handleChange('stopListDomains', []);
+    setStopListDialogOpen(false);
+  };
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -182,17 +240,45 @@ export function SitesFilters({
       {/* Advanced Filters */}
       <Accordion expanded={expanded} onChange={() => setExpanded(!expanded)}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography>
-            Advanced Filters
-            {hasActiveFilters() && (
-              <Typography component="span" color="primary" sx={{ ml: 1 }}>
-                (Active)
-              </Typography>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography>Advanced Filters</Typography>
+            {advancedActiveFilterCount > 0 && (
+              <Chip
+                label={`${advancedActiveFilterCount} active`}
+                size="small"
+                variant="outlined"
+                sx={{
+                  height: 24,
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  color: 'text.secondary',
+                  fontWeight: 600,
+                }}
+              />
             )}
-          </Typography>
+          </Stack>
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={3}>
+            {stopListApplied && !expanded && (
+              <Box sx={{ display: 'inline-flex' }}>
+                <Chip
+                  label={`Stop list: ${stopListCount} ${pluralize(stopListCount, 'domain')}`}
+                  onDelete={handleClearStopList}
+                  variant="outlined"
+                  sx={{
+                    borderColor: 'divider',
+                    color: 'text.primary',
+                    bgcolor: 'background.paper',
+                    '& .MuiChip-deleteIcon': {
+                      color: 'text.secondary',
+                      '&:hover': { color: 'text.primary' },
+                    },
+                  }}
+                />
+              </Box>
+            )}
+
             {/* Range Filters Row */}
             <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap' }}>
               {/* DR Range */}
@@ -443,12 +529,76 @@ export function SitesFilters({
               </Box>
             </Box>
 
+            {/* Stop list */}
+            <Box sx={{ width: { xs: '100%', sm: 520 }, maxWidth: '100%' }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Stop list
+              </Typography>
+              <Box
+                data-testid="stop-list-control"
+                sx={{
+                  minHeight: 40,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  flexWrap: 'wrap',
+                  px: 1.5,
+                  py: 0.75,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: (theme) => `${theme.custom.radius}px`,
+                  bgcolor: 'background.paper',
+                }}
+              >
+                <Typography variant="body2" color="text.secondary" sx={{ flex: '1 1 auto', minWidth: 150 }}>
+                  {stopListStatusText}
+                </Typography>
+                {stopListPaused && (
+                  <Chip
+                    label="Paused"
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                      height: 22,
+                      borderColor: 'divider',
+                      color: 'text.secondary',
+                      bgcolor: 'background.paper',
+                    }}
+                  />
+                )}
+                {stopListCount > 0 && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    color="inherit"
+                    onClick={handleClearStopList}
+                    sx={{ textTransform: 'none', color: 'text.secondary', px: 1 }}
+                  >
+                    Clear
+                  </Button>
+                )}
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleOpenStopListDialog}
+                  sx={{ textTransform: 'none' }}
+                >
+                  {stopListCount === 0 ? 'Add domains' : 'Edit'}
+                </Button>
+              </Box>
+              {stopListPaused && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                  Not applied in Multi-search mode.
+                </Typography>
+              )}
+            </Box>
+
             {/* Action Buttons */}
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
               <BrandButton
                 startIcon={<ClearIcon />}
                 onClick={handleClear}
-                disabled={!hasActiveFilters()}
+                disabled={!hasSearchOrAdvancedFilters()}
               >
                 Clear All
               </BrandButton>
@@ -459,6 +609,16 @@ export function SitesFilters({
           </Stack>
         </AccordionDetails>
       </Accordion>
+
+      {stopListDialogOpen && (
+        <StopListDialog
+          open={stopListDialogOpen}
+          domains={filters.stopListDomains}
+          onClose={handleCancelStopListDialog}
+          onApply={handleApplyStopList}
+          onClear={handleClearStopList}
+        />
+      )}
     </Box>
   );
 }

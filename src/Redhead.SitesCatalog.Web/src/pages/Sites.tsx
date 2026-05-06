@@ -18,6 +18,7 @@ import { sitesService } from '../services/sites.service';
 import { BrandButton } from '../components/common/BrandButton';
 import { formatOptionalServicePrice, matchesAvailabilityFilter } from '../utils/serviceAvailability';
 import { formatTerm } from '../utils/term';
+import { loadStoredStopListDomains, persistStopListDomains } from '../utils/stopList';
 
 /** Row type for grid: normal site or not-found placeholder (domain only). */
 type NotFoundRow = { domain: string; _isNotFound: true };
@@ -85,6 +86,7 @@ const INITIAL_FILTERS: FiltersType = {
   trafficMax: '',
   priceMin: '',
   priceMax: '',
+  stopListDomains: [],
   location: [],
   niches: [],
   casinoAvailability: 'all',
@@ -97,12 +99,19 @@ const INITIAL_FILTERS: FiltersType = {
   lastPublishedToMonth: null,
 };
 
+function createInitialFilters(): FiltersType {
+  return {
+    ...INITIAL_FILTERS,
+    stopListDomains: loadStoredStopListDomains(),
+  };
+}
+
 export function Sites() {
   const [sites, setSites] = useState<Site[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [filters, setFilters] = useState<FiltersType>(INITIAL_FILTERS);
+  const [filters, setFilters] = useState<FiltersType>(() => createInitialFilters());
   const [debouncedSearch, setDebouncedSearch] = useState(INITIAL_FILTERS.search);
   const [multiSearchMode, setMultiSearchMode] = useState(false);
   const [multiSearchResult, setMultiSearchResult] = useState<MultiSearchResponse | null>(null);
@@ -117,6 +126,10 @@ export function Sites() {
   });
 
   const { isAdmin, isClient } = useUserRoles();
+
+  useEffect(() => {
+    persistStopListDomains(filters.stopListDomains);
+  }, [filters.stopListDomains]);
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -177,6 +190,10 @@ export function Sites() {
       trafficMax: filters.trafficMax ? Number(filters.trafficMax) : undefined,
       priceMin: filters.priceMin ? Number(filters.priceMin) : undefined,
       priceMax: filters.priceMax ? Number(filters.priceMax) : undefined,
+      stopListDomains:
+        !multiSearchMode && filters.stopListDomains.length > 0
+          ? filters.stopListDomains
+          : undefined,
       location: filters.location.length > 0 ? filters.location : undefined,
       niches: filters.niches.length > 0 ? filters.niches : undefined,
       casinoAvailability: filters.casinoAvailability,
@@ -197,6 +214,7 @@ export function Sites() {
       filters.trafficMax,
       filters.priceMin,
       filters.priceMax,
+      filters.stopListDomains,
       filters.location,
       filters.niches,
       filters.casinoAvailability,
@@ -207,6 +225,7 @@ export function Sites() {
       filters.quarantine,
       filters.lastPublishedFromMonth,
       filters.lastPublishedToMonth,
+      multiSearchMode,
     ]
   );
 

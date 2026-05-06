@@ -32,7 +32,7 @@ public class SitesQueryRequest
 
     /// <summary>
     /// Domains/URLs to exclude from normal search/filter results. Normalized and matched by exact Domain.
-    /// Prefer POST /api/sites/search or POST /api/export/sites.xlsx for large lists.
+    /// Send in the POST request body for /api/sites/search or /api/export/sites.xlsx.
     /// </summary>
     public List<string>? StopListDomains { get; set; }
 

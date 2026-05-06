@@ -24,16 +24,7 @@ public class ExportController : ControllerBase
     }
 
     /// <summary>
-    /// Export sites as Excel with effective export policy enforcement.
-    /// </summary>
-    [HttpGet("sites.xlsx")]
-    public async Task<IActionResult> ExportSites(
-        [FromQuery] SitesQueryRequest request,
-        CancellationToken cancellationToken)
-        => await ExportSitesCore(request, cancellationToken);
-
-    /// <summary>
-    /// Export sites as Excel with filters in the request body. Use this for large Stop list requests.
+    /// Export sites as Excel with filters in the request body.
     /// </summary>
     [HttpPost("sites.xlsx")]
     public async Task<IActionResult> ExportSitesFromBody(

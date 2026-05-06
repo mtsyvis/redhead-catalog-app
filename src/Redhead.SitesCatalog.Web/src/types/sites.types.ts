@@ -56,6 +56,7 @@ export interface SitesQueryParams {
   trafficMax?: number;
   priceMin?: number;
   priceMax?: number;
+  stopListDomains?: string[];
   location?: string[];
   niches?: string[];
   casinoAvailability?: ServiceAvailabilityFilter;
@@ -97,6 +98,7 @@ export interface SitesFilters {
   trafficMax: string;
   priceMin: string;
   priceMax: string;
+  stopListDomains: string[];
   location: string[];
   niches: string[];
   casinoAvailability: ServiceAvailabilityFilter;
