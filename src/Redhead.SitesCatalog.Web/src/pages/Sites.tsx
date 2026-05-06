@@ -57,6 +57,7 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
     if (f.priceMin !== '' && (s.priceUsd ?? 0) < Number(f.priceMin)) return false;
     if (f.priceMax !== '' && (s.priceUsd ?? 0) > Number(f.priceMax)) return false;
     if (f.location.length > 0 && !f.location.includes(s.location)) return false;
+    if (f.niches.length > 0 && !f.niches.some((niche) => (s.nicheTokens ?? []).includes(niche))) return false;
     if (!matchesAvailabilityFilter(s.priceCasinoStatus, f.casinoAvailability)) return false;
     if (!matchesAvailabilityFilter(s.priceCryptoStatus, f.cryptoAvailability)) return false;
     if (!matchesAvailabilityFilter(s.priceLinkInsertStatus, f.linkInsertAvailability)) return false;
@@ -85,6 +86,7 @@ const INITIAL_FILTERS: FiltersType = {
   priceMin: '',
   priceMax: '',
   location: [],
+  niches: [],
   casinoAvailability: 'all',
   cryptoAvailability: 'all',
   linkInsertAvailability: 'all',
@@ -149,6 +151,7 @@ export function Sites() {
       filters.priceMin !== INITIAL_FILTERS.priceMin ||
       filters.priceMax !== INITIAL_FILTERS.priceMax ||
       filters.location.length !== 0 ||
+      filters.niches.length !== 0 ||
       filters.casinoAvailability !== INITIAL_FILTERS.casinoAvailability ||
       filters.cryptoAvailability !== INITIAL_FILTERS.cryptoAvailability ||
       filters.linkInsertAvailability !== INITIAL_FILTERS.linkInsertAvailability ||
@@ -174,6 +177,7 @@ export function Sites() {
       priceMin: filters.priceMin ? Number(filters.priceMin) : undefined,
       priceMax: filters.priceMax ? Number(filters.priceMax) : undefined,
       location: filters.location.length > 0 ? filters.location : undefined,
+      niches: filters.niches.length > 0 ? filters.niches : undefined,
       casinoAvailability: filters.casinoAvailability,
       cryptoAvailability: filters.cryptoAvailability,
       linkInsertAvailability: filters.linkInsertAvailability,
@@ -193,6 +197,7 @@ export function Sites() {
       filters.priceMin,
       filters.priceMax,
       filters.location,
+      filters.niches,
       filters.casinoAvailability,
       filters.cryptoAvailability,
       filters.linkInsertAvailability,

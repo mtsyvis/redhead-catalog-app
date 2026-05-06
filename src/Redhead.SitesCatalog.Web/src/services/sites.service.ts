@@ -4,6 +4,7 @@ import type {
   SitesListResponse,
   SitesQueryParams,
   LocationsResponse,
+  FilterOptionsResponse,
   MultiSearchResponse,
   ExportMultiSearchPayload,
   UpdateSitePayload,
@@ -70,6 +71,11 @@ class SitesService {
       params.location.forEach(loc => queryParams.append('locations', loc));
     }
 
+    // Niche multi-select
+    if (params.niches && params.niches.length > 0) {
+      params.niches.forEach(niche => queryParams.append('niches', niche));
+    }
+
     // Availability filters
     if (params.casinoAvailability) {
       queryParams.append('casinoAvailability', params.casinoAvailability);
@@ -132,6 +138,13 @@ class SitesService {
   }
 
   /**
+   * Fetch filter option values for advanced filters.
+   */
+  async getFilterOptions(): Promise<FilterOptionsResponse> {
+    return apiClient.get<FilterOptionsResponse>(`${this.baseUrl}/filter-options`);
+  }
+
+  /**
    * Export sites as Excel with current filters. Returns metadata from response headers.
    */
   async exportSites(params: SitesQueryParams): Promise<ExportMetadata> {
@@ -177,6 +190,11 @@ class SitesService {
     // Location multi-select
     if (params.location && params.location.length > 0) {
       params.location.forEach(loc => queryParams.append('locations', loc));
+    }
+
+    // Niche multi-select
+    if (params.niches && params.niches.length > 0) {
+      params.niches.forEach(niche => queryParams.append('niches', niche));
     }
 
     // Availability filters

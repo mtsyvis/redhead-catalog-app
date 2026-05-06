@@ -22,6 +22,7 @@ export interface Site {
   termValue: number | null;
   termUnit: TermUnit | null;
   niche: string | null;
+  nicheTokens?: string[];
   categories: string | null;
   sponsoredTag: string | null;
   isQuarantined: boolean;
@@ -56,6 +57,7 @@ export interface SitesQueryParams {
   priceMin?: number;
   priceMax?: number;
   location?: string[];
+  niches?: string[];
   casinoAvailability?: ServiceAvailabilityFilter;
   cryptoAvailability?: ServiceAvailabilityFilter;
   linkInsertAvailability?: ServiceAvailabilityFilter;
@@ -75,6 +77,15 @@ export interface LocationsResponse {
   locations: string[];
 }
 
+export interface FilterOption {
+  value: string;
+  label: string;
+}
+
+export interface FilterOptionsResponse {
+  niches: FilterOption[];
+}
+
 /**
  * Filter values state
  */
@@ -87,6 +98,7 @@ export interface SitesFilters {
   priceMin: string;
   priceMax: string;
   location: string[];
+  niches: string[];
   casinoAvailability: ServiceAvailabilityFilter;
   cryptoAvailability: ServiceAvailabilityFilter;
   linkInsertAvailability: ServiceAvailabilityFilter;
