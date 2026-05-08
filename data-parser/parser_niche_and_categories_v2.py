@@ -210,7 +210,9 @@ DEFAULT_MIN_INTERNAL_TEXT_CHARS = 120
 DEFAULT_SELENIUM_TIMEOUT = 12
 DEFAULT_SELENIUM_HARD_TIMEOUT = 25
 DEFAULT_SELENIUM_INTERNAL_LIMIT = 2
-DEFAULT_MAX_TOKENS = 700
+DEFAULT_MIN_CATEGORIES = 10
+DEFAULT_MAX_CATEGORIES = 20
+DEFAULT_MAX_TOKENS = 900
 DEFAULT_MAX_PROMPT_CHARS = 20_000
 DEFAULT_POLL_INTERVAL = 30
 DEFAULT_LOG_FILE = "parser_v2.log"
@@ -836,7 +838,12 @@ def build_system_prompt() -> str:
     )
 
 
-def build_user_prompt(extraction: SiteExtraction, max_prompt_chars: int) -> str:
+def build_user_prompt(
+    extraction: SiteExtraction,
+    max_prompt_chars: int,
+    min_categories: int,
+    max_categories: int,
+) -> str:
     payload = {
         "original_url": extraction.original_url,
         "source_quality": extraction.source_quality,
@@ -847,15 +854,28 @@ def build_user_prompt(extraction: SiteExtraction, max_prompt_chars: int) -> str:
             "Niche must be 1 to 3 values chosen only from niche_whitelist or special_niches.",
             "Use UNKNOWN only when there is not enough real content to classify the website.",
             "Use Business or Lifestyle only when no more specific niche clearly applies.",
-            "Categories must be 7 to 14 English search tags when there is enough content.",
-            "Categories may include sub-niches, synonyms, products, services, audience terms, and site-type/attribute terms such as SaaS, Blog, Marketplace, Directory, Tool, App, B2B, B2C.",
+            f"Categories must be {min_categories} to {max_categories} English search tags when there is enough content.",
+            "Order Categories from most important/useful to least important for advertising placement research.",
+            "Prefer specific searchable phrases over generic single words.",
+            "Include relevant subniches, synonyms, services, products, audience terms, and site-type/attribute terms when useful.",
+            "Do not add filler tags just to reach the minimum.",
+            "Categories should help a manager search/filter candidate websites for client ad placement requests.",
             "Do not put language codes or language names inside Categories.",
-            "Avoid generic tags like online, website, homepage, company, best, top, official unless part of a specific meaningful phrase.",
+            "Avoid standalone generic tags such as online, website, homepage, company, best, top, official, services, solutions, blog, news unless they are part of a specific meaningful phrase like legal services, CRM platform, travel guide, news site, or industry news.",
             "Base the answer only on the provided extracted website data. Do not guess from the domain alone unless the extracted data is also consistent.",
         ],
         "required_json_shape": {
             "Niche": ["Finance", "Software"],
-            "Categories": ["B2B SaaS", "accounting software", "invoice management"],
+            "Categories": [
+                "B2B SaaS",
+                "accounting software",
+                "invoice management",
+                "tax reporting",
+                "business finance",
+                "expense tracking",
+                "financial automation",
+                "small business accounting",
+            ],
             "Language": "EN",
         },
         "extracted_pages": [],
@@ -934,7 +954,7 @@ def normalize_niches(value: Any) -> List[str]:
     return result or ["UNKNOWN"]
 
 
-def normalize_categories(value: Any, niches: List[str]) -> List[str]:
+def normalize_categories(value: Any, niches: List[str], max_categories: int = DEFAULT_MAX_CATEGORIES) -> List[str]:
     if niches == ["UNKNOWN"]:
         return []
     raw = coerce_list(value)
@@ -955,7 +975,7 @@ def normalize_categories(value: Any, niches: List[str]) -> List[str]:
             continue
         seen.add(key)
         result.append(cleaned)
-        if len(result) >= 14:
+        if len(result) >= max_categories:
             break
     return result
 
@@ -997,6 +1017,7 @@ def parse_and_validate_model_result(
     batch_id: str,
     batch_status: str,
     raw_text: str,
+    max_categories: int = DEFAULT_MAX_CATEGORIES,
 ) -> ClassificationResult:
     result = ClassificationResult(
         row_index=row_index,
@@ -1016,7 +1037,11 @@ def parse_and_validate_model_result(
         return result
 
     result.niche = normalize_niches(obj.get("Niche") or obj.get("niche") or obj.get("niches"))
-    result.categories = normalize_categories(obj.get("Categories") or obj.get("categories") or obj.get("Category"), result.niche)
+    result.categories = normalize_categories(
+        obj.get("Categories") or obj.get("categories") or obj.get("Category"),
+        result.niche,
+        max_categories=max_categories,
+    )
     result.language = normalize_language(obj.get("Language") or obj.get("language"))
     return result
 
@@ -1076,7 +1101,16 @@ def count_input_tokens_exact(client: Any, model: str, system_prompt: str, user_p
         return 0, "failed"
 
 
-def create_batch_requests(extractions: List[SiteExtraction], model: str, max_tokens: int, max_prompt_chars: int, client: Optional[Any] = None, count_tokens: bool = False) -> Tuple[List[Any], Dict[str, SiteExtraction]]:
+def create_batch_requests(
+    extractions: List[SiteExtraction],
+    model: str,
+    max_tokens: int,
+    max_prompt_chars: int,
+    min_categories: int,
+    max_categories: int,
+    client: Optional[Any] = None,
+    count_tokens: bool = False,
+) -> Tuple[List[Any], Dict[str, SiteExtraction]]:
     try:
         from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
         from anthropic.types.messages.batch_create_params import Request
@@ -1094,7 +1128,12 @@ def create_batch_requests(extractions: List[SiteExtraction], model: str, max_tok
             continue
         custom_id = f"site_{seq:06d}"
         mapping[custom_id] = extraction
-        user_prompt = build_user_prompt(extraction, max_prompt_chars=max_prompt_chars)
+        user_prompt = build_user_prompt(
+            extraction,
+            max_prompt_chars=max_prompt_chars,
+            min_categories=min_categories,
+            max_categories=max_categories,
+        )
         prompt_chars = len(system_prompt) + len(user_prompt)
         extraction.prompt_chars = prompt_chars
         extraction.estimated_input_tokens = estimate_tokens_from_text(system_prompt + "\n" + user_prompt)
@@ -1152,6 +1191,7 @@ def read_batch_results(
     batch_status: str,
     custom_id_map: Dict[str, SiteExtraction],
     model_name: str,
+    max_categories: int = DEFAULT_MAX_CATEGORIES,
 ) -> Dict[int, ClassificationResult]:
     by_row: Dict[int, ClassificationResult] = {}
     for item in client.messages.batches.results(batch_id):
@@ -1173,6 +1213,7 @@ def read_batch_results(
                 batch_id=batch_id,
                 batch_status=batch_status,
                 raw_text=raw_text,
+                max_categories=max_categories,
             )
             usage = getattr(message, "usage", None)
             parsed.input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
@@ -1446,6 +1487,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", choices=MODEL_CHOICES, default=DEFAULT_MODEL, help="Claude model. Default claude-haiku-4-5.")
     parser.add_argument("--api-key", default=ANTHROPIC_API_KEY, help="Anthropic API key. Overrides ANTHROPIC_API_KEY constant and env var.")
     parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS, help="Max output tokens per site classification request.")
+    parser.add_argument(
+        "--min-categories",
+        type=int,
+        default=DEFAULT_MIN_CATEGORIES,
+        help="Minimum number of English Categories/search tags requested from Claude when enough content is available.",
+    )
+    parser.add_argument(
+        "--max-categories",
+        type=int,
+        default=DEFAULT_MAX_CATEGORIES,
+        help="Maximum number of English Categories/search tags kept after validation.",
+    )
     parser.add_argument("--max-prompt-chars", type=int, default=DEFAULT_MAX_PROMPT_CHARS, help="Max user prompt characters per site before dropping internal pages/trimming text.")
     parser.add_argument("--count-tokens", action="store_true", help="Call Anthropic token counting API before batch creation and write ExactInputTokens.")
     parser.add_argument("--poll-interval", type=int, default=DEFAULT_POLL_INTERVAL, help="Batch polling interval seconds.")
@@ -1454,6 +1507,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--log-file", default=DEFAULT_LOG_FILE, help="Log file path.")
     parser.add_argument("--proxy", action="append", default=DEFAULT_PROXY, help="Proxy URL. Can be passed multiple times.")
     args = parser.parse_args()
+    if args.min_categories < 1:
+        parser.error("--min-categories must be at least 1")
+    if args.max_categories < args.min_categories:
+        parser.error("--max-categories must be greater than or equal to --min-categories")
+    if args.max_categories > 40:
+        parser.error("--max-categories must be <= 40 to keep prompts/results useful and costs controlled")
     args.internal_pages = max(0, min(10, args.internal_pages))
     args.selenium_internal_limit = max(0, min(args.internal_pages, args.selenium_internal_limit))
     args.proxies = args.proxy or []
@@ -1580,6 +1639,8 @@ def main() -> None:
             model=args.model,
             max_tokens=args.max_tokens,
             max_prompt_chars=args.max_prompt_chars,
+            min_categories=args.min_categories,
+            max_categories=args.max_categories,
             client=client,
             count_tokens=args.count_tokens,
         )
@@ -1670,6 +1731,7 @@ def main() -> None:
         batch_status=batch_status,
         custom_id_map=custom_id_map,
         model_name=args.model,
+        max_categories=args.max_categories,
     )
     classifications_by_row.update(model_results)
     log_usage_summary(classifications_by_row, args.model)
