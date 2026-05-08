@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
@@ -919,6 +920,255 @@ public class ExportServiceTests : IDisposable
         var exportLog = await _context.ExportLogs.FirstOrDefaultAsync();
         Assert.NotNull(exportLog);
         Assert.Equal(2, exportLog.RowsReturned); // 2 non-quarantined sites
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientRole_CreatesExportLogAndAnalyticsSnapshot()
+    {
+        await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        var exportLog = await _context.ExportLogs.SingleAsync();
+        var snapshot = await _context.ExportAnalyticsSnapshots.SingleAsync();
+
+        Assert.Equal(exportLog.Id, snapshot.ExportLogId);
+        Assert.Equal(ExportAnalyticsSnapshotBuilder.CurrentSnapshotVersion, snapshot.SnapshotVersion);
+        Assert.Equal(exportLog.TimestampUtc, snapshot.CreatedAtUtc);
+        Assert.Equal(3, exportLog.RowsReturned);
+        Assert.NotNull(exportLog.FilterSummaryJson);
+        Assert.NotNull(snapshot.FiltersSnapshotJson);
+        Assert.NotNull(snapshot.SortSnapshotJson);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientRole_StoresActiveFiltersSnapshot()
+    {
+        var query = new SitesQuery
+        {
+            DrMin = 30,
+            DrMax = 80,
+            TrafficMin = 1000,
+            PriceMax = 250m,
+            Locations = ["US"],
+            Niches = ["Casino", " crypto ", "casino"],
+            CasinoAvailability = ServiceAvailabilityFilter.Available,
+            LinkInsertAllowed = true,
+            StopListDomains = ["test.com"],
+            Quarantine = QuarantineFilterValues.Exclude,
+            LastPublishedToExclusive = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending
+        };
+
+        await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        var snapshot = await _context.ExportAnalyticsSnapshots.SingleAsync();
+        using var document = JsonDocument.Parse(snapshot.FiltersSnapshotJson);
+        var root = document.RootElement;
+        var filters = root.GetProperty("filters").EnumerateArray().ToArray();
+
+        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "dr" &&
+            filter.GetProperty("kind").GetString() == "numberRange" &&
+            filter.GetProperty("operator").GetString() == "between" &&
+            filter.GetProperty("value").GetProperty("min").GetDecimal() == 30m &&
+            filter.GetProperty("value").GetProperty("max").GetDecimal() == 80m);
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "traffic" &&
+            filter.GetProperty("operator").GetString() == "gte" &&
+            filter.GetProperty("value").GetProperty("min").GetDecimal() == 1000m);
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "priceUsd" &&
+            filter.GetProperty("operator").GetString() == "lte" &&
+            filter.GetProperty("value").GetProperty("max").GetDecimal() == 250m);
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "niche" &&
+            filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["casino", "crypto"]));
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "stopList" &&
+            filter.GetProperty("kind").GetString() == "boolean" &&
+            filter.GetProperty("value").GetBoolean());
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "priceCasinoAvailability" &&
+            filter.GetProperty("value").GetString() == "available");
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "lastPublishedDate" &&
+            filter.GetProperty("kind").GetString() == "monthRange" &&
+            filter.GetProperty("operator").GetString() == "before" &&
+            filter.GetProperty("value").GetProperty("month").GetString() == "2026-01");
+        Assert.DoesNotContain("test.com", snapshot.FiltersSnapshotJson);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientRole_StoresEmptyFiltersArrayWhenNoFiltersActive()
+    {
+        var query = new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            SortBy = string.Empty,
+            SortDir = string.Empty,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        var snapshot = await _context.ExportAnalyticsSnapshots.SingleAsync();
+        using var document = JsonDocument.Parse(snapshot.FiltersSnapshotJson);
+
+        Assert.Equal(1, document.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Empty(document.RootElement.GetProperty("filters").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientRole_StoresActiveSortSnapshot()
+    {
+        var query = DefaultQuery();
+        query.SortBy = SortFields.Traffic;
+        query.SortDir = SortingDefaults.Descending;
+
+        await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        var snapshot = await _context.ExportAnalyticsSnapshots.SingleAsync();
+        using var document = JsonDocument.Parse(snapshot.SortSnapshotJson);
+        var sorts = document.RootElement.GetProperty("sorts").EnumerateArray().ToArray();
+
+        Assert.Equal(1, document.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Single(sorts);
+        Assert.Equal("traffic", sorts[0].GetProperty("field").GetString());
+        Assert.Equal("desc", sorts[0].GetProperty("direction").GetString());
+        Assert.Equal(1, sorts[0].GetProperty("priority").GetInt32());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientRole_StoresEmptySortsArrayWhenNoSortActive()
+    {
+        var query = DefaultQuery();
+        query.SortBy = string.Empty;
+        query.SortDir = string.Empty;
+
+        await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        var snapshot = await _context.ExportAnalyticsSnapshots.SingleAsync();
+        using var document = JsonDocument.Parse(snapshot.SortSnapshotJson);
+
+        Assert.Equal(1, document.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Empty(document.RootElement.GetProperty("sorts").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientRole_StoresCatalogSearchSnapshotWhenSearchIsAvailable()
+    {
+        var query = DefaultQuery();
+        query.Search = " Casino USA ";
+
+        await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        var snapshot = await _context.ExportAnalyticsSnapshots.SingleAsync();
+        Assert.NotNull(snapshot.SearchSnapshotJson);
+        using var document = JsonDocument.Parse(snapshot.SearchSnapshotJson);
+
+        Assert.Equal(1, document.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal("catalogSearch", document.RootElement.GetProperty("mode").GetString());
+        Assert.Equal("Casino USA", document.RootElement.GetProperty("query").GetString());
+        Assert.Equal("casino usa", document.RootElement.GetProperty("normalizedQuery").GetString());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientRole_StoresNullSearchSnapshotWhenSearchIsNotAvailable()
+    {
+        await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        var snapshot = await _context.ExportAnalyticsSnapshots.SingleAsync();
+
+        Assert.Null(snapshot.SearchSnapshotJson);
+    }
+
+    [Fact]
+    public async Task ExportMultiSearchAsExcelAsync_ClientRole_StoresMultiSearchSnapshotWithoutDomains()
+    {
+        await _service.ExportMultiSearchAsExcelAsync(
+            "example.com missing.com example.com",
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        var snapshot = await _context.ExportAnalyticsSnapshots.SingleAsync();
+        Assert.NotNull(snapshot.SearchSnapshotJson);
+        using var document = JsonDocument.Parse(snapshot.SearchSnapshotJson);
+
+        Assert.Equal("multiSearch", document.RootElement.GetProperty("mode").GetString());
+        Assert.Equal(3, document.RootElement.GetProperty("inputCount").GetInt32());
+        Assert.Equal(2, document.RootElement.GetProperty("uniqueInputCount").GetInt32());
+        Assert.Equal(1, document.RootElement.GetProperty("foundCount").GetInt32());
+        Assert.Equal(1, document.RootElement.GetProperty("notFoundCount").GetInt32());
+        Assert.DoesNotContain("example.com", snapshot.SearchSnapshotJson);
+        Assert.DoesNotContain("missing.com", snapshot.SearchSnapshotJson);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_NonClientRole_DoesNotCreateAnalyticsSnapshot()
+    {
+        await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        Assert.Single(await _context.ExportLogs.ToListAsync());
+        Assert.Empty(await _context.ExportAnalyticsSnapshots.ToListAsync());
+    }
+
+    [Fact]
+    public void ExportAnalyticsSnapshot_ExportLogId_HasUniqueIndex()
+    {
+        var entityType = _context.Model.FindEntityType(typeof(ExportAnalyticsSnapshot));
+        Assert.NotNull(entityType);
+
+        var index = entityType.GetIndexes()
+            .Single(i => i.Properties.Count == 1 && i.Properties[0].Name == nameof(ExportAnalyticsSnapshot.ExportLogId));
+
+        Assert.True(index.IsUnique);
     }
 
     #endregion

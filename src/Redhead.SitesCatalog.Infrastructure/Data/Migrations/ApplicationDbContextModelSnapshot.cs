@@ -276,6 +276,40 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.ToTable("ExportLogs", (string)null);
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ExportAnalyticsSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ExportLogId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FiltersSnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SearchSnapshotJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("SnapshotVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SortSnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExportLogId")
+                        .IsUnique();
+
+                    b.ToTable("ExportAnalyticsSnapshots", (string)null);
+                });
+
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ImportLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -576,6 +610,17 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ExportAnalyticsSnapshot", b =>
+                {
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.ExportLog", "ExportLog")
+                        .WithOne("AnalyticsSnapshot")
+                        .HasForeignKey("Redhead.SitesCatalog.Domain.Entities.ExportAnalyticsSnapshot", "ExportLogId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ExportLog");
                 });
 #pragma warning restore 612, 618
         }

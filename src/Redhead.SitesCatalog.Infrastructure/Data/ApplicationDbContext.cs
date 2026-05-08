@@ -14,6 +14,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Site> Sites => Set<Site>();
     public DbSet<RoleSettings> RoleSettings => Set<RoleSettings>();
     public DbSet<ExportLog> ExportLogs => Set<ExportLog>();
+    public DbSet<ExportAnalyticsSnapshot> ExportAnalyticsSnapshots => Set<ExportAnalyticsSnapshot>();
     public DbSet<ImportLog> ImportLogs => Set<ImportLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

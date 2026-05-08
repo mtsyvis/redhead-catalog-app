@@ -25,6 +25,7 @@ public static class MultiSearchParser
         {
             return new MultiSearchParseResult
             {
+                InputCount = 0,
                 UniqueDomains = [],
                 Duplicates = []
             };
@@ -57,6 +58,7 @@ public static class MultiSearchParser
 
         return new MultiSearchParseResult
         {
+            InputCount = normalized.Count,
             UniqueDomains = uniqueDomains,
             Duplicates = duplicates
         };

@@ -458,6 +458,7 @@ Rules:
 * Export workbooks include a `Not found` sheet only for multi-search exports that have not-found domains included by the export rules.
 * Export must enforce the user's effective export policy.
 * Export actions should be logged.
+* Client-role exports create a separate analytics snapshot of active filters, sorting, and available search context for future analysis. These snapshots must not store exported site IDs or exported domains.
 * If export is truncated by limit, the user must be informed.
 * Disabled export must be enforced by backend, not only by hiding the button.
 

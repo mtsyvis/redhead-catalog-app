@@ -118,7 +118,7 @@ public class ExportService : IExportService
             policy.Mode == ExportLimitMode.Limited ? policy.Rows : null,
             notFoundIncluded: false);
 
-        await LogExportAsync(userId, userEmail, userRole, sites.Count, query, cancellationToken);
+        await LogExportAsync(userId, userEmail, userRole, sites.Count, query, searchContext: null, cancellationToken);
 
         return new ExportResult(
             FileStream: stream,
@@ -159,6 +159,8 @@ public class ExportService : IExportService
             throw new ExportDisabledException(userRole, ExportConstants.ExportDisabledMessage);
         }
 
+        var isClientRole = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
+
         IQueryable<Site> baseQuery = _context.Sites
             .Where(s => parseResult.UniqueDomains.Contains(s.Domain));
 
@@ -167,15 +169,21 @@ public class ExportService : IExportService
         // "Not found" must mean "not present in DB", not "not included due to export limit".
         // Compute matched domains from the base query BEFORE applying policy limits.
         List<string> notFound = new();
-        if (includeNotFound)
+        int? multiSearchFoundCount = null;
+        if (includeNotFound || isClientRole)
         {
             var matchedDomains = await baseQuery
                 .Select(s => s.Domain)
                 .ToListAsync(cancellationToken);
-            var matchedSet = new HashSet<string>(matchedDomains, StringComparer.Ordinal);
-            notFound = parseResult.UniqueDomains
-                .Where(d => !matchedSet.Contains(d))
-                .ToList();
+            multiSearchFoundCount = matchedDomains.Count;
+
+            if (includeNotFound)
+            {
+                var matchedSet = new HashSet<string>(matchedDomains, StringComparer.Ordinal);
+                notFound = parseResult.UniqueDomains
+                    .Where(d => !matchedSet.Contains(d))
+                    .ToList();
+            }
         }
 
         var filteredQuery = _queryBuilder.BuildQuery(baseQuery, query);
@@ -187,7 +195,6 @@ public class ExportService : IExportService
             : filteredQuery;
         var sites = await limitedQuery.ToListAsync(cancellationToken);
 
-        var isClientRole = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
         var rowsReturned = sites.Count + (includeNotFound ? notFound.Count : 0);
         var exportedRows = sites.Count;
         var truncated = policy.Mode == ExportLimitMode.Limited && requestedRows > exportedRows;
@@ -204,7 +211,14 @@ public class ExportService : IExportService
             policy.Mode == ExportLimitMode.Limited ? policy.Rows : null,
             notFoundIncluded: includeNotFound);
 
-        await LogExportAsync(userId, userEmail, userRole, rowsReturned, query, cancellationToken);
+        var searchContext = isClientRole
+            ? ExportAnalyticsSnapshotBuilder.CreateMultiSearchContext(
+                parseResult.InputCount,
+                parseResult.UniqueDomains.Count,
+                multiSearchFoundCount.GetValueOrDefault())
+            : null;
+
+        await LogExportAsync(userId, userEmail, userRole, rowsReturned, query, searchContext, cancellationToken);
 
         return new ExportResult(
             FileStream: stream,
@@ -220,6 +234,7 @@ public class ExportService : IExportService
         string userRole,
         int rowsReturned,
         SitesQuery query,
+        ExportAnalyticsSearchContext? searchContext,
         CancellationToken cancellationToken)
     {
         var exportLog = new ExportLog
@@ -232,8 +247,14 @@ public class ExportService : IExportService
             RowsReturned = rowsReturned,
             FilterSummaryJson = JsonSerializer.Serialize(CreateFilterSummary(query))
         };
-
         _context.ExportLogs.Add(exportLog);
+
+        if (string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal))
+        {
+            _context.ExportAnalyticsSnapshots.Add(
+                ExportAnalyticsSnapshotBuilder.Create(exportLog, query, searchContext));
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 

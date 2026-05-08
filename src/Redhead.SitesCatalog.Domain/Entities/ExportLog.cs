@@ -9,4 +9,5 @@ public class ExportLog
     public DateTime TimestampUtc { get; set; }
     public int RowsReturned { get; set; }
     public string? FilterSummaryJson { get; set; }
+    public ExportAnalyticsSnapshot? AnalyticsSnapshot { get; set; }
 }

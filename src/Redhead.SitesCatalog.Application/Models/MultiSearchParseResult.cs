@@ -6,6 +6,11 @@ namespace Redhead.SitesCatalog.Application.Models;
 public class MultiSearchParseResult
 {
     /// <summary>
+    /// Count of normalized inputs after empty values are removed, before duplicate removal.
+    /// </summary>
+    public int InputCount { get; init; }
+
+    /// <summary>
     /// Unique normalized domains to look up (duplicates removed)
     /// </summary>
     public IReadOnlyList<string> UniqueDomains { get; init; } = [];
