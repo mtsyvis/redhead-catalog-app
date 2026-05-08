@@ -184,6 +184,18 @@ LANGUAGE_MULTI = "MULTI"
 
 MODEL_CHOICES = ("claude-haiku-4-5", "claude-sonnet-4-6")
 DEFAULT_MODEL = "claude-haiku-4-5"
+# Estimated Anthropic Message Batch prices in USD per 1M tokens.
+# Used only for local run cost estimation. Anthropic Console remains the billing source of truth.
+BATCH_PRICING_USD_PER_MTOK = {
+    "claude-haiku-4-5": {
+        "input": 0.50,
+        "output": 2.50,
+    },
+    "claude-sonnet-4-6": {
+        "input": 1.50,
+        "output": 7.50,
+    },
+}
 DEFAULT_INPUT = "sites.xlsx"
 DEFAULT_OUTPUT = "sites_with_categories_v2.xlsx"
 DEFAULT_URL_COLUMN = None
@@ -1037,8 +1049,18 @@ def estimate_tokens_from_text(text: str) -> int:
 
 
 def calculate_batch_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
-    prices = BATCH_PRICING_USD_PER_MTOK.get(model, BATCH_PRICING_USD_PER_MTOK[DEFAULT_MODEL])
-    return round((input_tokens / 1_000_000) * prices["input"] + (output_tokens / 1_000_000) * prices["output"], 8)
+    prices = BATCH_PRICING_USD_PER_MTOK.get(model) or BATCH_PRICING_USD_PER_MTOK.get(DEFAULT_MODEL)
+    if not prices:
+        return 0.0
+
+    input_price = float(prices.get("input", 0.0))
+    output_price = float(prices.get("output", 0.0))
+
+    return round(
+        (max(0, input_tokens) / 1_000_000) * input_price
+        + (max(0, output_tokens) / 1_000_000) * output_price,
+        8,
+    )
 
 
 def count_input_tokens_exact(client: Any, model: str, system_prompt: str, user_prompt: str) -> Tuple[int, str]:
@@ -1179,6 +1201,38 @@ def read_batch_results(
 
 
 # ===================== EXCEL OUTPUT =====================
+RESULT_COLUMNS = [
+    "Niche",
+    "Categories",
+    "Language",
+    "Error",
+    "HomepageFetchMethod",
+    "FinalUrl",
+    "Redirected",
+    "HttpStatus",
+    "HomepageTextLength",
+    "InternalPagesRequested",
+    "InternalPagesHttpSucceeded",
+    "InternalPagesSeleniumTried",
+    "InternalPagesSeleniumSucceeded",
+    "InternalPagesSucceeded",
+    "TotalExtractedTextLength",
+    "SourceQuality",
+    "ModelName",
+    "BatchId",
+    "BatchStatus",
+    "ModelError",
+    "PromptChars",
+    "EstimatedInputTokens",
+    "ExactInputTokens",
+    "ActualInputTokens",
+    "OutputTokens",
+    "EstimatedCostUsd",
+    "TokenCountMethod",
+    "ProcessingTimeMs",
+]
+
+
 def detect_url_column(df: pd.DataFrame, explicit: Optional[str]) -> str:
     if explicit:
         if explicit not in df.columns:
@@ -1204,7 +1258,101 @@ def empty_classification_for_extraction(extraction: SiteExtraction, model_name: 
     )
 
 
-def apply_results_to_dataframe(
+def validate_output_path(output_path: str) -> None:
+    if os.path.splitext(output_path)[1].lower() != ".xlsx":
+        raise RuntimeError("Output file must be an .xlsx file. Example: --output sites_with_categories_v2.xlsx")
+
+
+def excel_value(value: Any) -> Any:
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, (list, tuple, set)):
+        return ", ".join(str(v) for v in value if v is not None and str(v).strip())
+    return value
+
+
+def excel_text(value: Any) -> str:
+    safe = excel_value(value)
+    if safe is None:
+        return ""
+    return str(safe)
+
+
+def excel_bool(value: Optional[bool]) -> str:
+    if value is None:
+        return ""
+    return "TRUE" if bool(value) else "FALSE"
+
+
+def excel_int(value: Optional[int]) -> Any:
+    safe = excel_value(value)
+    if safe == "":
+        return ""
+    return int(safe)
+
+
+def excel_float(value: Optional[float], decimals: int = 8) -> Any:
+    safe = excel_value(value)
+    if safe == "":
+        return ""
+    return round(float(safe), decimals)
+
+
+def build_result_values(
+    extraction: SiteExtraction,
+    classification: ClassificationResult,
+    model_name: str,
+    batch_id: str,
+    batch_status: str,
+    extract_only: bool,
+) -> Dict[str, Any]:
+    homepage = extraction.homepage
+    detected_language = homepage.html_lang if homepage and homepage.html_lang else LANGUAGE_UNKNOWN
+    language = classification.language or detected_language or LANGUAGE_UNKNOWN
+    if language == LANGUAGE_UNKNOWN and detected_language:
+        language = detected_language
+
+    errors = [e for e in [extraction.error, classification.model_error] if e]
+    return {
+        "Niche": "" if extract_only else excel_text(classification.niche or ["UNKNOWN"]),
+        "Categories": excel_text(classification.categories or []),
+        "Language": excel_text(language or LANGUAGE_UNKNOWN),
+        "Error": excel_text("; ".join(errors)),
+        "HomepageFetchMethod": excel_text(homepage.fetch_method if homepage else "failed"),
+        "FinalUrl": excel_text(homepage.final_url if homepage else ""),
+        "Redirected": excel_bool(homepage.redirected if homepage else None),
+        "HttpStatus": excel_int(homepage.http_status if homepage and homepage.http_status is not None else None),
+        "HomepageTextLength": excel_int(homepage.text_length if homepage else 0),
+        "InternalPagesRequested": excel_int(extraction.internal_pages_requested),
+        "InternalPagesHttpSucceeded": excel_int(extraction.internal_pages_http_succeeded),
+        "InternalPagesSeleniumTried": excel_int(extraction.internal_pages_selenium_tried),
+        "InternalPagesSeleniumSucceeded": excel_int(extraction.internal_pages_selenium_succeeded),
+        "InternalPagesSucceeded": excel_int(extraction.internal_pages_succeeded),
+        "TotalExtractedTextLength": excel_int(extraction.total_text_length),
+        "SourceQuality": excel_text(extraction.source_quality),
+        "ModelName": "" if extract_only else excel_text(classification.model_name or model_name),
+        "BatchId": "" if extract_only else excel_text(classification.batch_id or batch_id),
+        "BatchStatus": excel_text(classification.batch_status or batch_status),
+        "ModelError": excel_text(classification.model_error),
+        "PromptChars": excel_int(extraction.prompt_chars),
+        "EstimatedInputTokens": excel_int(extraction.estimated_input_tokens),
+        "ExactInputTokens": excel_int(extraction.exact_input_tokens),
+        "ActualInputTokens": "" if extract_only else excel_int(classification.input_tokens),
+        "OutputTokens": "" if extract_only else excel_int(classification.output_tokens),
+        "EstimatedCostUsd": "" if extract_only else excel_float(classification.estimated_cost_usd, 8),
+        "TokenCountMethod": excel_text(extraction.token_count_method),
+        "ProcessingTimeMs": excel_int(extraction.processing_time_ms),
+    }
+
+
+def build_output_dataframe(
     df: pd.DataFrame,
     extractions: List[SiteExtraction],
     classifications_by_row: Dict[int, ClassificationResult],
@@ -1212,79 +1360,67 @@ def apply_results_to_dataframe(
     batch_id: str,
     batch_status: str,
 ) -> pd.DataFrame:
-    output = df.copy()
-    output_columns = [
-        "Niche",
-        "Categories",
-        "Language",
-        "Error",
-        "HomepageFetchMethod",
-        "FinalUrl",
-        "Redirected",
-        "HttpStatus",
-        "HomepageTextLength",
-        "InternalPagesRequested",
-        "InternalPagesHttpSucceeded",
-        "InternalPagesSeleniumTried",
-        "InternalPagesSeleniumSucceeded",
-        "InternalPagesSucceeded",
-        "TotalExtractedTextLength",
-        "SourceQuality",
-        "PromptChars",
-        "EstimatedInputTokens",
-        "ExactInputTokens",
-        "ActualInputTokens",
-        "OutputTokens",
-        "EstimatedCostUsd",
-        "TokenCountMethod",
-        "ModelName",
-        "BatchId",
-        "BatchStatus",
-        "ModelError",
-        "ProcessingTimeMs",
-    ]
-    for col in output_columns:
-        if col not in output.columns:
-            output[col] = ""
+    original_columns = list(df.columns)
+    fieldnames = original_columns + [col for col in RESULT_COLUMNS if col not in original_columns]
+    if len(fieldnames) != len(set(fieldnames)):
+        raise RuntimeError("Output DataFrame has duplicate columns")
 
-    for extraction in extractions:
-        row = extraction.row_index
-        classification = classifications_by_row.get(row) or empty_classification_for_extraction(
-            extraction, model_name=model_name, batch_id=batch_id, batch_status=batch_status
-        )
-        homepage = extraction.homepage
-        errors = [e for e in [extraction.error, classification.model_error] if e]
+    extractions_by_row = {extraction.row_index: extraction for extraction in extractions}
+    rows: List[Dict[str, Any]] = []
 
-        output.at[row, "Niche"] = ", ".join(classification.niche or ["UNKNOWN"])
-        output.at[row, "Categories"] = ", ".join(classification.categories or [])
-        output.at[row, "Language"] = classification.language or LANGUAGE_UNKNOWN
-        output.at[row, "Error"] = "; ".join(errors)
-        output.at[row, "HomepageFetchMethod"] = homepage.fetch_method if homepage else "failed"
-        output.at[row, "FinalUrl"] = homepage.final_url if homepage else ""
-        output.at[row, "Redirected"] = homepage.redirected if homepage else ""
-        output.at[row, "HttpStatus"] = homepage.http_status if homepage and homepage.http_status is not None else ""
-        output.at[row, "HomepageTextLength"] = homepage.text_length if homepage else 0
-        output.at[row, "InternalPagesRequested"] = extraction.internal_pages_requested
-        output.at[row, "InternalPagesHttpSucceeded"] = extraction.internal_pages_http_succeeded
-        output.at[row, "InternalPagesSeleniumTried"] = extraction.internal_pages_selenium_tried
-        output.at[row, "InternalPagesSeleniumSucceeded"] = extraction.internal_pages_selenium_succeeded
-        output.at[row, "InternalPagesSucceeded"] = extraction.internal_pages_succeeded
-        output.at[row, "TotalExtractedTextLength"] = extraction.total_text_length
-        output.at[row, "SourceQuality"] = extraction.source_quality
-        output.at[row, "PromptChars"] = extraction.prompt_chars
-        output.at[row, "EstimatedInputTokens"] = extraction.estimated_input_tokens
-        output.at[row, "ExactInputTokens"] = extraction.exact_input_tokens
-        output.at[row, "ActualInputTokens"] = classification.input_tokens
-        output.at[row, "OutputTokens"] = classification.output_tokens
-        output.at[row, "EstimatedCostUsd"] = classification.estimated_cost_usd
-        output.at[row, "TokenCountMethod"] = extraction.token_count_method
-        output.at[row, "ModelName"] = classification.model_name or model_name
-        output.at[row, "BatchId"] = classification.batch_id or batch_id
-        output.at[row, "BatchStatus"] = classification.batch_status or batch_status
-        output.at[row, "ModelError"] = classification.model_error
-        output.at[row, "ProcessingTimeMs"] = extraction.processing_time_ms
+    for input_index, input_row in df.iterrows():
+        output_row: Dict[str, Any] = {}
+        for col in original_columns:
+            output_row[col] = excel_value(input_row.get(col, ""))
 
-    return output
+        extraction = extractions_by_row.get(input_index)
+        if extraction:
+            extract_only = batch_status == "extract_only" and input_index not in classifications_by_row
+            classification = classifications_by_row.get(input_index)
+            if classification is None and extract_only:
+                homepage = extraction.homepage
+                classification = ClassificationResult(
+                    row_index=extraction.row_index,
+                    original_url=extraction.original_url,
+                    niche=[],
+                    categories=[],
+                    language=homepage.html_lang if homepage and homepage.html_lang else LANGUAGE_UNKNOWN,
+                    batch_status="extract_only",
+                )
+            elif classification is None:
+                classification = empty_classification_for_extraction(
+                    extraction, model_name=model_name, batch_id=batch_id, batch_status=batch_status
+                )
+            output_row.update(
+                build_result_values(
+                    extraction=extraction,
+                    classification=classification,
+                    model_name=model_name,
+                    batch_id=batch_id,
+                    batch_status=batch_status,
+                    extract_only=extract_only,
+                )
+            )
+        else:
+            for col in RESULT_COLUMNS:
+                if col not in original_columns:
+                    output_row[col] = ""
+
+        rows.append(output_row)
+
+    output_df = pd.DataFrame(rows, columns=fieldnames)
+    if len(output_df) != len(df):
+        raise RuntimeError(f"Output row count mismatch: expected {len(df)}, got {len(output_df)}")
+    if len(output_df.columns) != len(set(output_df.columns)):
+        raise RuntimeError("Output DataFrame has duplicate columns")
+    return output_df
+
+
+def write_output_excel(output_path: str, output_df: pd.DataFrame) -> None:
+    if len(output_df.columns) != len(set(output_df.columns)):
+        raise RuntimeError("Output DataFrame has duplicate columns")
+    output_df.to_excel(output_path, index=False, engine="openpyxl")
+    logging.info("Saved Excel output to %s rows=%s", output_path, len(output_df))
 
 
 # ===================== MAIN FLOW =====================
@@ -1384,6 +1520,7 @@ def main() -> None:
     setup_logging(args.log_file)
 
     logging.info("parser_v2 starting. model=%s max_sites=%s", args.model, args.max_sites)
+    validate_output_path(args.output)
     if not os.path.exists(args.input):
         raise RuntimeError(f"Input file not found: {args.input}")
 
@@ -1416,7 +1553,7 @@ def main() -> None:
         )
 
     if args.extract_only:
-        output = apply_results_to_dataframe(
+        output = build_output_dataframe(
             df,
             extractions,
             classifications_by_row={},
@@ -1424,8 +1561,7 @@ def main() -> None:
             batch_id="",
             batch_status="extract_only",
         )
-        output.to_excel(args.output, index=False)
-        logging.info("Extract-only output saved: %s", args.output)
+        write_output_excel(args.output, output)
         return
 
     classifications_by_row: Dict[int, ClassificationResult] = {}
@@ -1458,7 +1594,7 @@ def main() -> None:
 
         if not requests_payload:
             logging.warning("No valid extracted sites to send to Claude.")
-            output = apply_results_to_dataframe(
+            output = build_output_dataframe(
                 df,
                 extractions,
                 classifications_by_row=classifications_by_row,
@@ -1466,7 +1602,7 @@ def main() -> None:
                 batch_id="",
                 batch_status="no_valid_requests",
             )
-            output.to_excel(args.output, index=False)
+            write_output_excel(args.output, output)
             return
 
         logging.info("Creating Anthropic batch with %s requests...", len(requests_payload))
@@ -1490,7 +1626,7 @@ def main() -> None:
         )
         logging.info("Batch created: %s status=%s", batch_id, batch_status)
         if args.submit_only:
-            output = apply_results_to_dataframe(
+            output = build_output_dataframe(
                 df,
                 extractions,
                 classifications_by_row=classifications_by_row,
@@ -1498,8 +1634,7 @@ def main() -> None:
                 batch_id=batch_id,
                 batch_status=batch_status,
             )
-            output.to_excel(args.output, index=False)
-            logging.info("Submit-only output saved with batch id: %s", args.output)
+            write_output_excel(args.output, output)
             return
     else:
         client = create_anthropic_client(args.api_key)
@@ -1539,7 +1674,7 @@ def main() -> None:
     classifications_by_row.update(model_results)
     log_usage_summary(classifications_by_row, args.model)
 
-    output = apply_results_to_dataframe(
+    output = build_output_dataframe(
         df,
         extractions,
         classifications_by_row=classifications_by_row,
@@ -1547,8 +1682,8 @@ def main() -> None:
         batch_id=batch_id,
         batch_status=batch_status,
     )
-    output.to_excel(args.output, index=False)
-    logging.info("Done. Output saved: %s", args.output)
+    write_output_excel(args.output, output)
+    logging.info("Done.")
 
 
 if __name__ == "__main__":
