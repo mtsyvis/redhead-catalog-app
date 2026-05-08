@@ -13,6 +13,9 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.ToTable("Sites", tableBuilder =>
         {
             tableBuilder.HasCheckConstraint(
+                "CK_Sites_PriceUsd_PositiveOrNull",
+                "\"PriceUsd\" IS NULL OR \"PriceUsd\" > 0");
+            tableBuilder.HasCheckConstraint(
                 "CK_Sites_PriceCasino_StatusConsistency",
                 "(\"PriceCasinoStatus\" = 1 AND \"PriceCasino\" IS NOT NULL AND \"PriceCasino\" >= 0) OR (\"PriceCasinoStatus\" IN (0, 2) AND \"PriceCasino\" IS NULL)");
             tableBuilder.HasCheckConstraint(

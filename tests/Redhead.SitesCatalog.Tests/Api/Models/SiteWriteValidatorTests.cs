@@ -115,6 +115,30 @@ public class SiteWriteValidatorTests
     }
 
     [Fact]
+    public void ValidateAndNormalize_PositivePriceUsd_IsValid()
+    {
+        var request = BuildValidRequest();
+        request.PriceUsd = 0.01m;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.True(result.IsValid);
+        Assert.Equal(0.01m, result.NormalizedRequest!.PriceUsd);
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_ZeroPriceUsd_ReturnsError()
+    {
+        var request = BuildValidRequest();
+        request.PriceUsd = 0m;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        AssertError(result, "priceUsd");
+        Assert.Contains("Price USD must be greater than 0 or empty.", result.FieldErrors["priceUsd"]);
+    }
+
+    [Fact]
     public void ValidateAndNormalize_NullPriceUsd_WithNumericCryptoPrice_IsValid()
     {
         var request = BuildValidRequest();

@@ -557,6 +557,8 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
 
                             t.HasCheckConstraint("CK_Sites_PriceLinkInsertCasino_StatusConsistency", "(\"PriceLinkInsertCasinoStatus\" = 1 AND \"PriceLinkInsertCasino\" IS NOT NULL AND \"PriceLinkInsertCasino\" >= 0) OR (\"PriceLinkInsertCasinoStatus\" IN (0, 2) AND \"PriceLinkInsertCasino\" IS NULL)");
 
+                            t.HasCheckConstraint("CK_Sites_PriceUsd_PositiveOrNull", "\"PriceUsd\" IS NULL OR \"PriceUsd\" > 0");
+
                             t.HasCheckConstraint("CK_Sites_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
                         });
                 });

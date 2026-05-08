@@ -383,6 +383,7 @@ public sealed class SitesImportServiceTests : IDisposable
     [InlineData("bad-traffic.com,55,,US,100,150,200,250,,,Tech,News,,,,", "Traffic is required.")]
     [InlineData("bad-location.com,55,12000, ,100,150,200,250,,,Tech,News,,,,", "Location is required.")]
     [InlineData("bad-price.com,55,12000,US,,,,,,,Tech,News,,,,", "At least one numeric price")]
+    [InlineData("bad-price-zero.com,55,12000,US,0,,,,,,Tech,News,,,", "Price USD must be greater than 0 or empty.")]
     [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,,,Tech,News,,,,", "Price must be >= 0.")]
     [InlineData("bad-crypto.com,55,12000,US,100,150,-1,250,,,Tech,News,,,,", "Price must be >= 0.")]
     [InlineData("bad-link-insert.com,55,12000,US,100,150,200,-1,,,Tech,News,,,,", "Price must be >= 0.")]

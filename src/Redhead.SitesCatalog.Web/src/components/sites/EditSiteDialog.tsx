@@ -58,6 +58,37 @@ type OptionalServiceSectionProps = {
   onPriceChange: (price: string) => void;
 };
 
+const PRICE_VALIDATION_FIELDS: ReadonlySet<keyof EditSiteFormState> = new Set([
+  'priceUsd',
+  'priceCasino',
+  'priceCasinoStatus',
+  'priceCrypto',
+  'priceCryptoStatus',
+  'priceLinkInsert',
+  'priceLinkInsertStatus',
+  'priceLinkInsertCasino',
+  'priceLinkInsertCasinoStatus',
+  'priceDating',
+  'priceDatingStatus',
+]);
+
+function syncPriceUsdErrors(
+  errors: Record<string, string[]>,
+  form: EditSiteFormState
+): Record<string, string[]> {
+  const priceUsdErrors = validateEditSiteForm(form).priceUsd;
+
+  if (priceUsdErrors?.length) {
+    return { ...errors, priceUsd: priceUsdErrors };
+  }
+
+  if (!errors.priceUsd) return errors;
+
+  const next = { ...errors };
+  delete next.priceUsd;
+  return next;
+}
+
 // --- OptionalServiceSection sub-component ---
 
 function OptionalServiceSection({
@@ -127,8 +158,12 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     key: K,
     value: EditSiteFormState[K]
   ) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setFieldErrors((prev) => clearFieldError(prev, key));
+    const nextForm = { ...form, [key]: value };
+    setForm(nextForm);
+    setFieldErrors((prev) => {
+      const next = clearFieldError(prev, key);
+      return PRICE_VALIDATION_FIELDS.has(key) ? syncPriceUsdErrors(next, nextForm) : next;
+    });
   };
 
   const handleOptionalServiceStatusChange = (
@@ -136,12 +171,16 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     priceKey: OptionalServicePriceField,
     s: ServiceAvailabilityStatusValue
   ) => {
-    setForm((prev) => ({
-      ...prev,
+    const nextForm = {
+      ...form,
       [statusKey]: s,
-      [priceKey]: s === SERVICE_AVAILABILITY_STATUS.Available ? prev[priceKey] : '',
-    }));
-    setFieldErrors((prev) => clearFieldError(clearFieldError(prev, statusKey), priceKey));
+      [priceKey]: s === SERVICE_AVAILABILITY_STATUS.Available ? form[priceKey] : '',
+    };
+    setForm(nextForm);
+    setFieldErrors((prev) => {
+      const next = clearFieldError(clearFieldError(prev, statusKey), priceKey);
+      return syncPriceUsdErrors(next, nextForm);
+    });
   };
 
   const handleCasinoStatusChange = (s: ServiceAvailabilityStatusValue) =>
@@ -200,7 +239,7 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     }
   };
 
-  const canSave = Boolean(site) && !saving;
+  const canSave = Boolean(site) && !saving && !fieldErrors.priceUsd?.length;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -251,7 +290,7 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
             <TextField
               label="Price USD"
               type="number"
-              inputProps={{ min: 0, step: '1' }}
+              inputProps={{ min: 1, step: '1' }}
               value={form.priceUsd}
               onChange={(e) => updateField('priceUsd', e.target.value)}
               size="small"

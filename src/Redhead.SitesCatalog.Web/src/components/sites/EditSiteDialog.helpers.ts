@@ -56,6 +56,17 @@ export function parseNumberOrNull(input: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function validatePriceUsdField(input: string): string | null {
+  const trimmed = input.trim();
+  if (trimmed === '') return null;
+
+  const parsed = parseNumberOrNull(input);
+  if (parsed === null) return 'Price USD must be a valid number.';
+  if (parsed <= 0) return 'Price USD must be greater than 0 or empty.';
+
+  return null;
+}
+
 export function getServiceStateHint(status: ServiceAvailabilityStatusValue): string {
   if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) return 'Will be shown as NO';
   if (status === SERVICE_AVAILABILITY_STATUS.Unknown) return 'Will be shown as —';
@@ -183,8 +194,9 @@ export function validateEditSiteForm(form: EditSiteFormState): Record<string, st
   }
 
   const parsedPriceUsd = parseNumberOrNull(form.priceUsd);
-  if (parsedPriceUsd !== null && parsedPriceUsd < 0) {
-    errors.priceUsd = ['Price USD must be 0 or greater.'];
+  const priceUsdError = validatePriceUsdField(form.priceUsd);
+  if (priceUsdError) {
+    errors.priceUsd = [priceUsdError];
   }
 
   if (form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
@@ -251,7 +263,7 @@ export function validateEditSiteForm(form: EditSiteFormState): Record<string, st
     datingNumericPrice === null
   ) {
     const errorText = 'At least one numeric price is required.';
-    errors.priceUsd = [errorText];
+    errors.priceUsd ??= [errorText];
     errors.priceCasino = [errorText];
     errors.priceCrypto = [errorText];
     errors.priceLinkInsert = [errorText];

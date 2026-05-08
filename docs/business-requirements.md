@@ -186,8 +186,10 @@ Use the same normalization in:
 Rules:
 
 * Empty `PriceUsd` must be stored as empty/null, not as `0`.
+* `PriceUsd` must be either empty/null or greater than `0`; `0` and negative values are invalid.
 * UI must display empty `PriceUsd` as `NO`.
 * During sites import and sites update import, if `PriceUsd` is empty, at least one service-specific price/availability value must still be valid and present.
+* During sites import and sites update import, if `PriceUsd` is provided, it must be greater than `0`.
 * Invalid price data must create row-level validation errors.
 * Empty input in an import file means empty value, not implicit zero.
 

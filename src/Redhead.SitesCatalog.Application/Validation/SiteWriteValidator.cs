@@ -66,9 +66,9 @@ public static class SiteWriteValidator
 
         if (input.PriceUsd is decimal priceUsd)
         {
-            if (priceUsd < 0)
+            if (priceUsd <= 0)
             {
-                Add(errors, "priceUsd", "Price USD must be 0 or greater.");
+                Add(errors, "priceUsd", "Price USD must be greater than 0 or empty.");
             }
         }
 
@@ -246,7 +246,7 @@ public static class SiteWriteValidator
         decimal? datingPrice,
         ServiceAvailabilityStatus datingStatus)
     {
-        if (priceUsd.HasValue && priceUsd.Value >= 0)
+        if (priceUsd.HasValue && priceUsd.Value > 0)
         {
             return true;
         }
