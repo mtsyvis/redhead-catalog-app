@@ -277,6 +277,9 @@ class ClassificationResult:
     niche: List[str] = field(default_factory=lambda: ["UNKNOWN"])
     categories: List[str] = field(default_factory=list)
     language: str = LANGUAGE_UNKNOWN
+    raw_niche: List[str] = field(default_factory=list)
+    raw_categories: List[str] = field(default_factory=list)
+    normalization_warnings: List[str] = field(default_factory=list)
     model_name: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
@@ -830,11 +833,11 @@ def crawl_site(row_index: int, original_url: str, args: argparse.Namespace) -> S
 # ===================== CLAUDE PROMPT / VALIDATION =====================
 def build_system_prompt() -> str:
     return (
-        "You classify websites for an advertising placement catalog. "
-        "Return only valid JSON. Do not include explanations. "
-        "Use English for Niche and Categories even if the website content is not English. "
-        "Language must be the primary content language as an ISO 639-1 uppercase code like EN, DE, FR, ES, ID, RU; "
-        "use MULTI for genuinely multilingual sites and UNKNOWN if unclear."
+        "You are a strict website classifier for an advertising placement catalog. "
+        "Return only one valid JSON object. Do not include markdown, comments, explanations, or extra text. "
+        "Use English for Niche and Categories, even when the website content is not English. "
+        "Language must be the primary content language as an ISO 639-1 uppercase code, or MULTI for genuinely multilingual sites, or UNKNOWN if unclear. "
+        "Follow the user's schema and constraints exactly."
     )
 
 
@@ -850,22 +853,34 @@ def build_user_prompt(
         "niche_whitelist": NICHES_LIST,
         "special_niches": SPECIAL_NICHES,
         "category_attribute_hints": CATEGORY_ATTRIBUTE_HINTS,
-        "rules": [
-            "Niche must be 1 to 3 values chosen only from niche_whitelist or special_niches.",
-            "Use UNKNOWN only when there is not enough real content to classify the website.",
-            "Use Business or Lifestyle only when no more specific niche clearly applies.",
-            f"Categories must be {min_categories} to {max_categories} English search tags when there is enough content.",
-            "Order Categories from most important/useful to least important for advertising placement research.",
-            "Prefer specific searchable phrases over generic single words.",
-            "Include relevant subniches, synonyms, services, products, audience terms, and site-type/attribute terms when useful.",
-            "Do not add filler tags just to reach the minimum.",
-            "Categories should help a manager search/filter candidate websites for client ad placement requests.",
-            "Do not put language codes or language names inside Categories.",
-            "Avoid standalone generic tags such as online, website, homepage, company, best, top, official, services, solutions, blog, news unless they are part of a specific meaningful phrase like legal services, CRM platform, travel guide, news site, or industry news.",
-            "Base the answer only on the provided extracted website data. Do not guess from the domain alone unless the extracted data is also consistent.",
-        ],
+        "rules": {
+          "output": [
+            "Return only one valid JSON object.",
+            "No markdown, no explanation, no extra text.",
+            "Use exactly these keys: Niche, Categories, Language."
+          ],
+          "niche": [
+            "Niche must contain 1 to 3 strings.",
+            "Every Niche value must be copied exactly from niche_whitelist or special_niches.",
+            "Never invent niche values, sub-niches, variants, or more specific labels.",
+            "If a specific topic is not in niche_whitelist, choose the closest broader exact whitelist value.",
+            "If no whitelist value reasonably matches, use UNKNOWN."
+          ],
+          "categories": [
+            f"Target {min_categories} to {max_categories} English search tags when there is enough distinct content.",
+            "Return fewer categories if needed; never add filler.",
+            "Categories should help managers search candidate websites for client ad placement requests.",
+            "Use specific searchable phrases: subniches, synonyms, services, products, audience terms, site format attributes.",
+            "Do not include language codes or language names.",
+            "Avoid standalone generic tags unless part of a meaningful phrase."
+          ],
+          "language": [
+            "Language must be the main content language as an ISO 639-1 uppercase code, e.g. EN, DE, FR.",
+            "Use UNKNOWN if the language cannot be determined."
+          ]
+        },
         "required_json_shape": {
-            "Niche": ["Finance", "Software"],
+            "Niche": ["<exact whitelist niche>"],
             "Categories": [
                 "B2B SaaS",
                 "accounting software",
@@ -941,22 +956,30 @@ def coerce_list(value: Any) -> List[str]:
     return [compact_text(str(x), 120) for x in raw if compact_text(str(x), 120)]
 
 
-def normalize_niches(value: Any) -> List[str]:
+def normalize_niche_key(value: Any) -> str:
+    text = str(value or "").strip()
+    text = re.sub(r"[_-]+", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.lower()
+
+
+def normalize_niches(value: Any) -> Tuple[List[str], List[str]]:
     raw = coerce_list(value)
     result: List[str] = []
-    # Case-insensitive mapping back to canonical whitelist value.
-    canonical = {n.lower(): n for n in ALLOWED_NICHES}
+    invalid: List[str] = []
+    # Case-insensitive exact matching back to canonical whitelist value after safe whitespace normalization only.
+    canonical = {normalize_niche_key(n): n for n in ALLOWED_NICHES}
     for item in raw:
-        key = item.strip().lower()
+        key = normalize_niche_key(item)
         if key in canonical and canonical[key] not in result:
             result.append(canonical[key])
+        elif item not in invalid:
+            invalid.append(item)
     result = [n for n in result if n != "UNKNOWN"][:3]
-    return result or ["UNKNOWN"]
+    return result or ["UNKNOWN"], invalid
 
 
 def normalize_categories(value: Any, niches: List[str], max_categories: int = DEFAULT_MAX_CATEGORIES) -> List[str]:
-    if niches == ["UNKNOWN"]:
-        return []
     raw = coerce_list(value)
     result: List[str] = []
     seen = set()
@@ -1036,13 +1059,25 @@ def parse_and_validate_model_result(
         result.model_error = "model_returned_invalid_json"
         return result
 
-    result.niche = normalize_niches(obj.get("Niche") or obj.get("niche") or obj.get("niches"))
+    raw_niche_value = obj.get("Niche") or obj.get("niche") or obj.get("niches")
+    raw_categories_value = obj.get("Categories") or obj.get("categories") or obj.get("Category")
+    result.raw_niche = coerce_list(raw_niche_value)
+    result.raw_categories = coerce_list(raw_categories_value)
+
+    invalid_niche_values: List[str]
+    result.niche, invalid_niche_values = normalize_niches(result.raw_niche)
     result.categories = normalize_categories(
-        obj.get("Categories") or obj.get("categories") or obj.get("Category"),
+        result.raw_categories,
         result.niche,
         max_categories=max_categories,
     )
     result.language = normalize_language(obj.get("Language") or obj.get("language"))
+    if invalid_niche_values:
+        result.normalization_warnings.append("invalid_niche_values: " + ", ".join(invalid_niche_values))
+    if result.niche == ["UNKNOWN"] and result.raw_categories:
+        result.normalization_warnings.append("niche_unknown_but_categories_present")
+    if result.niche == ["UNKNOWN"] and result.categories:
+        result.normalization_warnings.append("categories_kept_despite_unknown_niche")
     return result
 
 
@@ -1271,6 +1306,10 @@ RESULT_COLUMNS = [
     "EstimatedCostUsd",
     "TokenCountMethod",
     "ProcessingTimeMs",
+    "RawNiche",
+    "RawCategories",
+    "NormalizationWarnings",
+    "RawModelText",
 ]
 
 
@@ -1324,6 +1363,13 @@ def excel_text(value: Any) -> str:
     if safe is None:
         return ""
     return str(safe)
+
+
+def excel_long_text(value: Any, max_len: int = 5000) -> str:
+    text = excel_text(value)
+    if len(text) > max_len:
+        return text[: max_len - 1] + "…"
+    return text
 
 
 def excel_bool(value: Optional[bool]) -> str:
@@ -1390,6 +1436,10 @@ def build_result_values(
         "EstimatedCostUsd": "" if extract_only else excel_float(classification.estimated_cost_usd, 8),
         "TokenCountMethod": excel_text(extraction.token_count_method),
         "ProcessingTimeMs": excel_int(extraction.processing_time_ms),
+        "RawNiche": "" if extract_only else excel_text(classification.raw_niche or []),
+        "RawCategories": "" if extract_only else excel_text(classification.raw_categories or []),
+        "NormalizationWarnings": "" if extract_only else excel_text("; ".join(classification.normalization_warnings)),
+        "RawModelText": "" if extract_only else excel_long_text(classification.raw_model_text, 5000),
     }
 
 
