@@ -13,13 +13,18 @@ Key design decisions:
 - Uses Selenium only as a fallback for homepage by default. Internal Selenium fallback is opt-in.
 
 Install dependencies:
-    pip install pandas openpyxl requests beautifulsoup4 tqdm anthropic undetected-chromedriver selenium
+    pip install -r data-parser/requirements.txt
+
+Recommended Python:
+    3.11
 
 Environment:
     set ANTHROPIC_API_KEY=sk-ant-...     # Windows PowerShell: $env:ANTHROPIC_API_KEY="sk-ant-..."
 
 Example test run:
     python parser_niche_and_categories_v2.py --input sites.xlsx --output sites_with_categories_v2.xlsx --max-sites 20
+
+By default, output contains only processed rows. Use --output-scope all to keep the full input file in the output.
 
 Try Sonnet for quality comparison:
     python parser_niche_and_categories_v2.py --input sites.xlsx --output sonnet_test.xlsx --max-sites 20 --model claude-sonnet-4-6
@@ -290,6 +295,14 @@ class ClassificationResult:
     raw_model_text: str = ""
 
 
+@dataclass
+class SeleniumAvailability:
+    enabled: bool
+    available: bool
+    error: str = ""
+    user_message: str = ""
+
+
 # ===================== LOGGING / CHECKPOINT =====================
 def setup_logging(log_file: str) -> None:
     logging.basicConfig(
@@ -437,12 +450,59 @@ def http_fetch(url: str, timeout: int, proxies: Optional[Dict[str, str]] = None)
 
 
 # ===================== SELENIUM FALLBACK =====================
+def check_selenium_availability(mode: str) -> SeleniumAvailability:
+    if mode == "off":
+        return SeleniumAvailability(
+            enabled=False,
+            available=False,
+            user_message="Selenium disabled by --selenium-mode off",
+        )
+
+    try:
+        import undetected_chromedriver as uc  # noqa: F401
+        from selenium.webdriver.common.by import By  # noqa: F401
+        from selenium.webdriver.support import expected_conditions as EC  # noqa: F401
+        from selenium.webdriver.support.ui import WebDriverWait  # noqa: F401
+    except ModuleNotFoundError as e:
+        if getattr(e, "name", "") == "distutils":
+            message = (
+                "Selenium fallback is unavailable because Python 3.12 removed distutils. "
+                "Recommended: use Python 3.11 for this parser, or run "
+                "`python -m pip install --upgrade setuptools wheel` and retry."
+            )
+        else:
+            message = (
+                f"Selenium fallback is unavailable: {type(e).__name__}: {e}. "
+                "Install parser dependencies from data-parser/requirements.txt."
+            )
+        if mode == "required":
+            raise RuntimeError(message)
+        return SeleniumAvailability(enabled=False, available=False, error=f"{type(e).__name__}:{e}", user_message=message)
+    except Exception as e:
+        message = (
+            f"Selenium fallback is unavailable: {type(e).__name__}: {e}. "
+            "Install parser dependencies from data-parser/requirements.txt."
+        )
+        if mode == "required":
+            raise RuntimeError(message)
+        return SeleniumAvailability(enabled=False, available=False, error=f"{type(e).__name__}:{e}", user_message=message)
+
+    return SeleniumAvailability(enabled=True, available=True)
+
+
 def selenium_fetch_once(url: str, timeout: int, proxy: Optional[str] = None) -> Tuple[Optional[str], str, str]:
     try:
         import undetected_chromedriver as uc
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.webdriver.support.ui import WebDriverWait
+    except ModuleNotFoundError as e:
+        if getattr(e, "name", "") == "distutils":
+            return None, url, (
+                "selenium_import_failed:distutils_missing:"
+                "Python 3.12 removed distutils. Use Python 3.11 or install setuptools/wheel."
+            )
+        return None, url, f"selenium_import_failed:{type(e).__name__}:{e}"
     except Exception as e:
         return None, url, f"selenium_import_failed:{type(e).__name__}:{e}"
 
@@ -766,13 +826,15 @@ def crawl_site(row_index: int, original_url: str, args: argparse.Namespace) -> S
     homepage = None
     homepage_links: List[str] = []
     last_error = ""
+    selenium_availability: SeleniumAvailability = args.selenium_availability
+    homepage_selenium_enabled = args.selenium_mode != "off" and selenium_availability.available
     for candidate in candidates:
         page, links, err = fetch_page(
             candidate,
             request_timeout=args.request_timeout,
             selenium_timeout=args.selenium_timeout,
             selenium_hard_timeout=args.selenium_hard_timeout,
-            use_selenium_fallback=not args.no_selenium,
+            use_selenium_fallback=homepage_selenium_enabled,
             proxies=args.proxies,
             min_text_chars=args.min_text_chars,
         )
@@ -780,6 +842,8 @@ def crawl_site(row_index: int, original_url: str, args: argparse.Namespace) -> S
             homepage = page
             homepage_links = links
             break
+        if args.selenium_mode == "auto" and not selenium_availability.available:
+            err = f"{err}; selenium_unavailable" if err else "selenium_unavailable"
         last_error = err
 
     if not homepage:
@@ -791,7 +855,8 @@ def crawl_site(row_index: int, original_url: str, args: argparse.Namespace) -> S
     extraction.homepage = homepage
 
     selected_links = homepage_links[: max(0, args.internal_pages)]
-    selenium_internal_remaining = max(0, args.selenium_internal_limit if args.selenium_internal_fallback else 0)
+    internal_selenium_enabled = args.selenium_internal_fallback and selenium_availability.available
+    selenium_internal_remaining = max(0, args.selenium_internal_limit if internal_selenium_enabled else 0)
 
     for link in selected_links:
         if len(extraction.internal_pages) >= args.internal_pages:
@@ -806,7 +871,7 @@ def crawl_site(row_index: int, original_url: str, args: argparse.Namespace) -> S
                 extraction.internal_pages_http_succeeded += 1
                 continue
 
-        if args.selenium_internal_fallback and selenium_internal_remaining > 0 and not args.no_selenium:
+        if internal_selenium_enabled and selenium_internal_remaining > 0:
             extraction.internal_pages_selenium_tried += 1
             selenium_internal_remaining -= 1
             html2, final_url2, selenium_err = selenium_fetch_with_hard_timeout(
@@ -1278,6 +1343,7 @@ def read_batch_results(
 
 # ===================== EXCEL OUTPUT =====================
 RESULT_COLUMNS = [
+    "SourceRowNumber",
     "Niche",
     "Categories",
     "Language",
@@ -1408,6 +1474,7 @@ def build_result_values(
 
     errors = [e for e in [extraction.error, classification.model_error] if e]
     return {
+        "SourceRowNumber": excel_int(extraction.row_index + 1),
         "Niche": "" if extract_only else excel_text(classification.niche or ["UNKNOWN"]),
         "Categories": excel_text(classification.categories or []),
         "Language": excel_text(language or LANGUAGE_UNKNOWN),
@@ -1450,6 +1517,7 @@ def build_output_dataframe(
     model_name: str,
     batch_id: str,
     batch_status: str,
+    output_scope: str = "processed",
 ) -> pd.DataFrame:
     original_columns = list(df.columns)
     fieldnames = original_columns + [col for col in RESULT_COLUMNS if col not in original_columns]
@@ -1457,9 +1525,24 @@ def build_output_dataframe(
         raise RuntimeError("Output DataFrame has duplicate columns")
 
     extractions_by_row = {extraction.row_index: extraction for extraction in extractions}
+    if output_scope == "processed":
+        row_indexes = sorted(extractions_by_row.keys())
+    elif output_scope == "all":
+        row_indexes = list(df.index)
+    else:
+        raise RuntimeError(f"Unsupported output_scope: {output_scope}")
+
+    logging.info(
+        "Building output dataframe: scope=%s processed_rows=%s output_rows=%s",
+        output_scope,
+        len(extractions_by_row),
+        len(row_indexes),
+    )
+
     rows: List[Dict[str, Any]] = []
 
-    for input_index, input_row in df.iterrows():
+    for input_index in row_indexes:
+        input_row = df.loc[input_index]
         output_row: Dict[str, Any] = {}
         for col in original_columns:
             output_row[col] = excel_value(input_row.get(col, ""))
@@ -1494,14 +1577,13 @@ def build_output_dataframe(
             )
         else:
             for col in RESULT_COLUMNS:
-                if col not in original_columns:
-                    output_row[col] = ""
+                output_row[col] = excel_int(input_index + 1) if col == "SourceRowNumber" else ""
 
         rows.append(output_row)
 
     output_df = pd.DataFrame(rows, columns=fieldnames)
-    if len(output_df) != len(df):
-        raise RuntimeError(f"Output row count mismatch: expected {len(df)}, got {len(output_df)}")
+    if len(output_df) != len(row_indexes):
+        raise RuntimeError(f"Output row count mismatch: expected {len(row_indexes)}, got {len(output_df)}")
     if len(output_df.columns) != len(set(output_df.columns)):
         raise RuntimeError("Output DataFrame has duplicate columns")
     return output_df
@@ -1524,12 +1606,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume", action="store_true", help="Resume from checkpoint if it exists.")
     parser.add_argument("--max-sites", type=int, default=DEFAULT_MAX_SITES, help="Max rows to process. Default 20 to avoid accidental large paid runs.")
     parser.add_argument("--start-row", type=int, default=DEFAULT_START_ROW, help="Zero-based row offset in the Excel dataframe.")
+    parser.add_argument(
+        "--output-scope",
+        choices=["processed", "all"],
+        default="processed",
+        help="Controls which input rows are written to output. processed=only rows actually processed by this run/checkpoint, all=all input rows with blank result columns for unprocessed rows.",
+    )
     parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help="Concurrent website extraction workers.")
     parser.add_argument("--request-timeout", type=int, default=DEFAULT_REQUEST_TIMEOUT, help="HTTP request timeout seconds.")
     parser.add_argument("--internal-pages", type=int, default=DEFAULT_INTERNAL_PAGES, help="Max internal pages to fetch per site. 0 disables light crawler.")
     parser.add_argument("--min-text-chars", type=int, default=DEFAULT_MIN_TEXT_CHARS, help="Minimum homepage extracted text chars before considering text usable.")
     parser.add_argument("--min-internal-text-chars", type=int, default=DEFAULT_MIN_INTERNAL_TEXT_CHARS, help="Minimum internal page extracted text chars before using it.")
-    parser.add_argument("--no-selenium", action="store_true", help="Disable Selenium fallback completely.")
+    parser.add_argument("--no-selenium", action="store_true", help="Deprecated alias for --selenium-mode off.")
+    parser.add_argument(
+        "--selenium-mode",
+        choices=["auto", "off", "required"],
+        default="auto",
+        help="Controls Selenium fallback. auto=use if available, off=HTTP only, required=fail fast if Selenium is unavailable.",
+    )
     parser.add_argument("--selenium-timeout", type=int, default=DEFAULT_SELENIUM_TIMEOUT, help="Selenium page load / wait timeout seconds.")
     parser.add_argument("--selenium-hard-timeout", type=int, default=DEFAULT_SELENIUM_HARD_TIMEOUT, help="Hard timeout for one Selenium fetch.")
     parser.add_argument("--selenium-internal-fallback", action="store_true", help="Allow Selenium fallback for weak/failed internal pages.")
@@ -1563,6 +1657,10 @@ def parse_args() -> argparse.Namespace:
         parser.error("--max-categories must be greater than or equal to --min-categories")
     if args.max_categories > 40:
         parser.error("--max-categories must be <= 40 to keep prompts/results useful and costs controlled")
+    if args.no_selenium:
+        if args.selenium_mode == "required":
+            parser.error("--no-selenium conflicts with --selenium-mode required")
+        args.selenium_mode = "off"
     args.internal_pages = max(0, min(10, args.internal_pages))
     args.selenium_internal_limit = max(0, min(args.internal_pages, args.selenium_internal_limit))
     args.proxies = args.proxy or []
@@ -1629,6 +1727,13 @@ def main() -> None:
     setup_logging(args.log_file)
 
     logging.info("parser_v2 starting. model=%s max_sites=%s", args.model, args.max_sites)
+    selenium_availability = check_selenium_availability(args.selenium_mode)
+    args.selenium_availability = selenium_availability
+    if selenium_availability.user_message:
+        if selenium_availability.available or args.selenium_mode == "off":
+            logging.info(selenium_availability.user_message)
+        else:
+            logging.warning(selenium_availability.user_message)
     validate_output_path(args.output)
     if not os.path.exists(args.input):
         raise RuntimeError(f"Input file not found: {args.input}")
@@ -1669,6 +1774,7 @@ def main() -> None:
             model_name=args.model,
             batch_id="",
             batch_status="extract_only",
+            output_scope=args.output_scope,
         )
         write_output_excel(args.output, output)
         return
@@ -1712,6 +1818,7 @@ def main() -> None:
                 model_name=args.model,
                 batch_id="",
                 batch_status="no_valid_requests",
+                output_scope=args.output_scope,
             )
             write_output_excel(args.output, output)
             return
@@ -1744,6 +1851,7 @@ def main() -> None:
                 model_name=args.model,
                 batch_id=batch_id,
                 batch_status=batch_status,
+                output_scope=args.output_scope,
             )
             write_output_excel(args.output, output)
             return
@@ -1793,6 +1901,7 @@ def main() -> None:
         model_name=args.model,
         batch_id=batch_id,
         batch_status=batch_status,
+        output_scope=args.output_scope,
     )
     write_output_excel(args.output, output)
     logging.info("Done.")

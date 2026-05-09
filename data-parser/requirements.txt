@@ -1,0 +1,10 @@
+pandas
+openpyxl
+requests
+beautifulsoup4
+tqdm
+anthropic
+selenium
+undetected-chromedriver
+setuptools>=70; python_version >= "3.12"
+wheel
