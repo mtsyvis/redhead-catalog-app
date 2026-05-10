@@ -269,7 +269,7 @@ class SiteExtraction:
     internal_pages_selenium_tried: int = 0
     internal_pages_selenium_succeeded: int = 0
     processing_time_ms: int = 0
-    source_quality: str = "failed"  # good / limited / poor / failed
+    source_quality: str = "failed"  # good / limited / poor / protected / failed
     prompt_chars: int = 0
     estimated_input_tokens: int = 0
     exact_input_tokens: int = 0
@@ -279,7 +279,11 @@ class SiteExtraction:
     @property
     def total_text_length(self) -> int:
         pages = ([self.homepage] if self.homepage else []) + self.internal_pages
-        return sum(p.text_length for p in pages if p)
+        return sum(
+            p.text_length
+            for p in pages
+            if p and "bot_protection_challenge" not in (p.error or "").split("; ")
+        )
 
     @property
     def internal_pages_succeeded(self) -> int:
@@ -1090,6 +1094,68 @@ def parse_html(html: str, url: str, fetch_method: str, http_status: Optional[int
     return page, links
 
 
+BOT_PROTECTION_PATTERNS = [
+    "verifying you are a human",
+    "needs to review the security of your connection",
+    "checking if the site connection is secure",
+    "checking your browser",
+    "please wait while we verify",
+    "enable javascript and cookies",
+    "cf-browser-verification",
+    "cloudflare ray id",
+    "attention required",
+    "security check",
+    "ddos-guard",
+    "bot verification",
+    "human verification",
+]
+
+
+def append_error(existing: str, new_error: str) -> str:
+    existing = (existing or "").strip()
+    new_error = (new_error or "").strip()
+    if not existing:
+        return new_error
+    if not new_error:
+        return existing
+    if new_error in existing.split("; "):
+        return existing
+    return f"{existing}; {new_error}"
+
+
+def combined_page_text(page: Optional[PageExtract]) -> str:
+    if not page:
+        return ""
+    parts = [
+        page.title,
+        page.meta_description,
+        page.meta_keywords,
+        *page.h1,
+        *page.h2,
+        *page.nav_items,
+        *page.breadcrumbs,
+        *page.paragraphs,
+    ]
+    return " ".join(str(p) for p in parts if p)
+
+
+def is_bot_protection_text(text: str) -> bool:
+    normalized = re.sub(r"\s+", " ", (text or "").lower()).strip()
+    if not normalized:
+        return False
+    return any(pattern in normalized for pattern in BOT_PROTECTION_PATTERNS)
+
+
+def is_bot_protection_page(page: Optional[PageExtract]) -> bool:
+    if not page:
+        return False
+    return is_bot_protection_text(combined_page_text(page))
+
+
+def page_has_error(page: PageExtract, error_code: str) -> bool:
+    return error_code in (page.error or "").split("; ")
+
+
 def page_to_prompt_payload(page: PageExtract) -> Dict[str, Any]:
     return {
         "url": page.final_url or page.url,
@@ -1128,6 +1194,8 @@ def fetch_page(
     html, status, final_url, err = http_fetch(url, timeout=request_timeout, proxies=proxy_dict)
     if html:
         page, links = parse_html(html, url=url, fetch_method="http", http_status=status, final_url=final_url)
+        if is_bot_protection_page(page):
+            return page, links, ""
         if page.text_length >= min_text_chars or not use_selenium_fallback:
             return page, links, ""
         # Text exists but is too weak. Let Selenium try to render it.
@@ -1152,6 +1220,8 @@ def fetch_page(
 
 
 def evaluate_source_quality(extraction: SiteExtraction, min_text_chars: int) -> str:
+    if extraction.homepage and is_bot_protection_page(extraction.homepage):
+        return "protected"
     if extraction.error and not extraction.homepage:
         return "failed"
     total = extraction.total_text_length
@@ -1215,6 +1285,18 @@ def crawl_site(
         return extraction
 
     extraction.homepage = homepage
+    if is_bot_protection_page(homepage):
+        homepage.error = append_error(homepage.error, "bot_protection_challenge")
+        extraction.source_quality = "protected"
+        extraction.error = append_error(extraction.error, "bot_protection_challenge")
+        extraction.internal_pages = []
+        extraction.processing_time_ms = int((time.time() - start_time) * 1000)
+        logging.info(
+            "Bot protection detected for %s final_url=%s; skipping Claude classification",
+            extraction.original_url,
+            homepage.final_url,
+        )
+        return extraction
 
     selected_links = homepage_links[: max(0, args.internal_pages)]
     internal_selenium_enabled = args.selenium_internal_fallback and selenium_availability.available
@@ -1228,6 +1310,11 @@ def crawl_site(
         html, status, final_url, err = http_fetch(link, timeout=args.request_timeout, proxies=proxy_dict)
         if html:
             page, _links = parse_html(html, url=link, fetch_method="http", http_status=status, final_url=final_url)
+            if is_bot_protection_page(page):
+                page.error = append_error(page.error, "bot_protection_challenge")
+                extraction.internal_pages.append(page)
+                logging.debug("Internal bot protection detected for %s final_url=%s", link, page.final_url)
+                continue
             if page.text_length >= args.min_internal_text_chars:
                 extraction.internal_pages.append(page)
                 extraction.internal_pages_http_succeeded += 1
@@ -1245,6 +1332,11 @@ def crawl_site(
             )
             if html2:
                 page2, _links2 = parse_html(html2, url=link, fetch_method="selenium", http_status=status, final_url=final_url2)
+                if is_bot_protection_page(page2):
+                    page2.error = append_error(page2.error, "bot_protection_challenge")
+                    extraction.internal_pages.append(page2)
+                    logging.debug("Internal bot protection detected for %s final_url=%s", link, page2.final_url)
+                    continue
                 if page2.text_length >= args.min_internal_text_chars:
                     extraction.internal_pages.append(page2)
                     extraction.internal_pages_selenium_succeeded += 1
@@ -1326,6 +1418,8 @@ def build_user_prompt(
     if extraction.homepage:
         payload["extracted_pages"].append({"type": "homepage", **page_to_prompt_payload(extraction.homepage)})
     for page in extraction.internal_pages:
+        if page_has_error(page, "bot_protection_challenge"):
+            continue
         payload["extracted_pages"].append({"type": "internal", **page_to_prompt_payload(page)})
 
     # Keep cost predictable. We include pages in priority order: homepage first, then selected internals.
@@ -1587,7 +1681,7 @@ def create_batch_requests(
     system_prompt = build_system_prompt()
 
     for seq, extraction in enumerate(extractions, start=1):
-        if extraction.source_quality == "failed" or not extraction.homepage:
+        if extraction.source_quality in {"failed", "protected"} or not extraction.homepage:
             continue
         custom_id = f"site_{seq:06d}"
         mapping[custom_id] = extraction
@@ -1801,6 +1895,11 @@ def detect_url_column(df: pd.DataFrame, explicit: Optional[str]) -> str:
 
 
 def empty_classification_for_extraction(extraction: SiteExtraction, model_name: str, batch_id: str, batch_status: str) -> ClassificationResult:
+    model_error = ""
+    if extraction.source_quality == "failed":
+        model_error = "not_sent_to_model_due_to_failed_extraction"
+    elif extraction.source_quality == "protected":
+        model_error = "not_sent_to_model_due_to_bot_protection"
     return ClassificationResult(
         row_index=extraction.row_index,
         original_url=extraction.original_url,
@@ -1810,7 +1909,7 @@ def empty_classification_for_extraction(extraction: SiteExtraction, model_name: 
         model_name=model_name,
         batch_id=batch_id,
         batch_status=batch_status,
-        model_error="not_sent_to_model_due_to_failed_extraction" if extraction.source_quality == "failed" else "",
+        model_error=model_error,
     )
 
 
@@ -1883,7 +1982,9 @@ def build_result_values(
     if language == LANGUAGE_UNKNOWN and detected_language:
         language = detected_language
 
-    errors = [e for e in [extraction.error, classification.model_error] if e]
+    errors = [e for e in [extraction.error] if e]
+    if extraction.source_quality != "protected" and classification.model_error:
+        errors.append(classification.model_error)
     return {
         "SourceRowNumber": excel_int(extraction.row_index + 1),
         "Niche": "" if extract_only else excel_text(classification.niche or ["UNKNOWN"]),
@@ -2270,8 +2371,8 @@ def main() -> None:
 
     classifications_by_row: Dict[int, ClassificationResult] = {}
 
-    # For failed extraction rows, we do not send anything to Claude.
-    failed_extractions = [x for x in extractions if x.source_quality == "failed" or not x.homepage]
+    # For failed/protected extraction rows, we do not send anything to Claude.
+    failed_extractions = [x for x in extractions if x.source_quality in {"failed", "protected"} or not x.homepage]
     for extraction in failed_extractions:
         classifications_by_row[extraction.row_index] = empty_classification_for_extraction(
             extraction, model_name=args.model, batch_id=batch_id, batch_status=batch_status or "not_sent"
