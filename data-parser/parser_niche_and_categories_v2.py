@@ -48,6 +48,7 @@ import logging
 import os
 import random
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -561,7 +562,73 @@ def check_selenium_availability(mode: str) -> SeleniumAvailability:
     return SeleniumAvailability(enabled=True, available=True)
 
 
-def selenium_fetch_once(url: str, timeout: int, proxy: Optional[str] = None) -> Tuple[Optional[str], str, str]:
+def detect_chrome_version_main() -> Optional[int]:
+    candidates = []
+    for env_name in ["ProgramFiles", "ProgramFiles(x86)", "LocalAppData"]:
+        base = os.environ.get(env_name)
+        if base:
+            candidates.append(os.path.join(base, "Google", "Chrome", "Application", "chrome.exe"))
+    candidates.extend(["chrome", "google-chrome"])
+
+    for candidate in candidates:
+        try:
+            completed = subprocess.run(
+                [candidate, "--version"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            output = f"{completed.stdout} {completed.stderr}"
+            match = re.search(r"(\d+)\.", output)
+            if match:
+                return int(match.group(1))
+        except Exception:
+            continue
+    return None
+
+
+def resolve_chrome_version_main(cli_value: Optional[int]) -> Optional[int]:
+    if cli_value:
+        logging.info("Using Chrome major version from --chrome-version-main: %s", cli_value)
+        return cli_value
+
+    detected = detect_chrome_version_main()
+    if detected:
+        logging.info("Detected Chrome major version: %s", detected)
+        return detected
+
+    logging.info("Chrome major version was not detected; undetected_chromedriver will choose automatically")
+    return None
+
+
+def parse_current_browser_major_from_error(message: str) -> Optional[int]:
+    match = re.search(r"Current browser version is\s+(\d+)\.", message)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def format_selenium_error(error: Exception) -> str:
+    message = str(error)
+    current_major = parse_current_browser_major_from_error(message)
+    if "ChromeDriver" in message and "Current browser version is" in message:
+        if current_major:
+            return (
+                "selenium_version_mismatch:ChromeDriver/Chrome version mismatch. "
+                f"Current browser version is {current_major}. "
+                f"Try updating Chrome or run with --chrome-version-main {current_major}."
+            )
+        return "selenium_version_mismatch:ChromeDriver/Chrome version mismatch."
+    return f"selenium_exception:{type(error).__name__}:{error}"
+
+
+def selenium_fetch_once(
+    url: str,
+    timeout: int,
+    proxy: Optional[str] = None,
+    chrome_version_main: Optional[int] = None,
+) -> Tuple[Optional[str], str, str]:
     try:
         import undetected_chromedriver as uc
 
@@ -592,14 +659,32 @@ def selenium_fetch_once(url: str, timeout: int, proxy: Optional[str] = None) -> 
         if proxy:
             options.add_argument(f"--proxy-server={proxy}")
 
-        driver = uc.Chrome(options=options, headless=True, use_subprocess=True)
+        chrome_kwargs = {
+            "options": options,
+            "headless": True,
+            "use_subprocess": True,
+        }
+        if chrome_version_main is not None:
+            chrome_kwargs["version_main"] = chrome_version_main
+
+        try:
+            driver = uc.Chrome(**chrome_kwargs)
+        except Exception as e:
+            retry_version = parse_current_browser_major_from_error(str(e))
+            if retry_version is not None and retry_version != chrome_version_main:
+                logging.warning("Retrying Selenium with detected Chrome major version from error: %s", retry_version)
+                chrome_kwargs["version_main"] = retry_version
+                driver = uc.Chrome(**chrome_kwargs)
+            else:
+                raise
+
         driver.set_page_load_timeout(timeout)
         driver.get(url)
         WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         time.sleep(0.4)
         return driver.page_source, driver.current_url, ""
     except Exception as e:
-        return None, url, f"selenium_exception:{type(e).__name__}:{e}"
+        return None, url, format_selenium_error(e)
     finally:
         safe_quit_driver(driver)
 
@@ -609,11 +694,17 @@ def selenium_fetch_with_hard_timeout(
     timeout: int,
     hard_timeout: int,
     proxy: Optional[str] = None,
+    chrome_version_main: Optional[int] = None,
 ) -> Tuple[Optional[str], str, str]:
     result: Dict[str, Any] = {"html": None, "final_url": url, "error": ""}
 
     def run() -> None:
-        html, final_url, err = selenium_fetch_once(url, timeout=timeout, proxy=proxy)
+        html, final_url, err = selenium_fetch_once(
+            url,
+            timeout=timeout,
+            proxy=proxy,
+            chrome_version_main=chrome_version_main,
+        )
         result["html"] = html
         result["final_url"] = final_url
         result["error"] = err
@@ -835,6 +926,7 @@ def fetch_page(
     use_selenium_fallback: bool,
     proxies: Sequence[str],
     min_text_chars: int,
+    chrome_version_main: Optional[int] = None,
 ) -> Tuple[Optional[PageExtract], List[str], str]:
     proxy = choose_proxy(proxies)
     proxy_dict = {"http": proxy, "https": proxy} if proxy else None
@@ -856,6 +948,7 @@ def fetch_page(
         timeout=selenium_timeout,
         hard_timeout=selenium_hard_timeout,
         proxy=selenium_proxy,
+        chrome_version_main=chrome_version_main,
     )
     if html2:
         page2, links2 = parse_html(html2, url=url, fetch_method="selenium", http_status=status, final_url=final_url2)
@@ -877,7 +970,12 @@ def evaluate_source_quality(extraction: SiteExtraction, min_text_chars: int) -> 
     return "failed"
 
 
-def crawl_site(row_index: int, original_url: str, args: argparse.Namespace) -> SiteExtraction:
+def crawl_site(
+    row_index: int,
+    original_url: str,
+    args: argparse.Namespace,
+    chrome_version_main: Optional[int] = None,
+) -> SiteExtraction:
     start_time = time.time()
     extraction = SiteExtraction(
         row_index=row_index,
@@ -906,6 +1004,7 @@ def crawl_site(row_index: int, original_url: str, args: argparse.Namespace) -> S
             use_selenium_fallback=homepage_selenium_enabled,
             proxies=args.proxies,
             min_text_chars=args.min_text_chars,
+            chrome_version_main=chrome_version_main,
         )
         if page:
             homepage = page
@@ -948,6 +1047,7 @@ def crawl_site(row_index: int, original_url: str, args: argparse.Namespace) -> S
                 timeout=args.selenium_timeout,
                 hard_timeout=args.selenium_hard_timeout,
                 proxy=choose_proxy(args.proxies),
+                chrome_version_main=chrome_version_main,
             )
             if html2:
                 page2, _links2 = parse_html(html2, url=link, fetch_method="selenium", http_status=status, final_url=final_url2)
@@ -1720,7 +1820,7 @@ def write_output_excel(output_path: str, output_df: pd.DataFrame) -> None:
     apply_excel_formatting(ws)
 
     wb.save(output_path)
-    logging.info("Formatted Excel output for review: freeze_panes=A2 autofilter=enabled")
+    logging.info("Formatted Excel output for review: freeze_panes=A2")
     logging.info("Saved Excel output to %s rows=%s", output_path, len(output_df))
 
 
@@ -1733,8 +1833,6 @@ def apply_excel_formatting(ws: Any) -> None:
     sample_limit = min(ws.max_row, 101)
 
     ws.freeze_panes = "A2"
-    if ws.max_row and ws.max_column:
-        ws.auto_filter.ref = ws.dimensions
     ws.sheet_view.zoomScale = 90
 
     header_fill = PatternFill(fill_type="solid", fgColor="D9EAF7")
@@ -1745,8 +1843,6 @@ def apply_excel_formatting(ws: Any) -> None:
     ws.row_dimensions[1].height = 36
 
     headers_by_index = {cell.column: str(cell.value or "") for cell in ws[1]}
-    raw_model_text_col = None
-
     for col_idx in range(1, ws.max_column + 1):
         header = headers_by_index.get(col_idx, "")
         col_letter = get_column_letter(col_idx)
@@ -1763,16 +1859,11 @@ def apply_excel_formatting(ws: Any) -> None:
             width = min(max(max(sampled_lengths) + 2, min_width), max_width)
 
         ws.column_dimensions[col_letter].width = width
-        if header == "RawModelText":
-            raw_model_text_col = col_letter
 
     for row_idx in range(2, ws.max_row + 1):
         ws.row_dimensions[row_idx].height = 18
         for cell in ws[row_idx]:
             cell.alignment = Alignment(vertical="top", wrap_text=False)
-
-    if raw_model_text_col:
-        ws.column_dimensions[raw_model_text_col].hidden = True
 
 
 # ===================== MAIN FLOW =====================
@@ -1807,6 +1898,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--selenium-hard-timeout", type=int, default=DEFAULT_SELENIUM_HARD_TIMEOUT, help="Hard timeout for one Selenium fetch.")
     parser.add_argument("--selenium-internal-fallback", action="store_true", help="Allow Selenium fallback for weak/failed internal pages.")
     parser.add_argument("--selenium-internal-limit", type=int, default=DEFAULT_SELENIUM_INTERNAL_LIMIT, help="Max internal pages per site that may use Selenium if fallback enabled.")
+    parser.add_argument(
+        "--chrome-version-main",
+        type=int,
+        default=None,
+        help="Chrome major version to pass to undetected_chromedriver, e.g. 147. If omitted, the script tries to detect it automatically.",
+    )
     parser.add_argument("--model", choices=MODEL_CHOICES, default=DEFAULT_MODEL, help="Claude model. Default claude-haiku-4-5.")
     parser.add_argument("--api-key", default=ANTHROPIC_API_KEY, help="Anthropic API key. Overrides ANTHROPIC_API_KEY constant and env var.")
     parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS, help="Max output tokens per site classification request.")
@@ -1869,14 +1966,19 @@ def deserialize_extractions(items: List[Dict[str, Any]]) -> List[SiteExtraction]
     return result
 
 
-def run_extraction(df: pd.DataFrame, url_col: str, args: argparse.Namespace) -> List[SiteExtraction]:
+def run_extraction(
+    df: pd.DataFrame,
+    url_col: str,
+    args: argparse.Namespace,
+    chrome_version_main: Optional[int] = None,
+) -> List[SiteExtraction]:
     selected = df.iloc[args.start_row : args.start_row + args.max_sites]
     tasks = [(idx, row[url_col]) for idx, row in selected.iterrows()]
     extractions: List[SiteExtraction] = []
 
     logging.info("Starting extraction: rows=%s concurrency=%s internal_pages=%s", len(tasks), args.concurrency, args.internal_pages)
     with ThreadPoolExecutor(max_workers=max(1, args.concurrency)) as executor:
-        futures = {executor.submit(crawl_site, idx, url, args): idx for idx, url in tasks}
+        futures = {executor.submit(crawl_site, idx, url, args, chrome_version_main): idx for idx, url in tasks}
         for future in tqdm(as_completed(futures), total=len(futures), desc="Extracting"):
             idx = futures[future]
             try:
@@ -1911,6 +2013,7 @@ def main() -> None:
     setup_logging(args.log_file)
 
     logging.info("parser_v2 starting. model=%s max_sites=%s", args.model, args.max_sites)
+    chrome_version_main = resolve_chrome_version_main(args.chrome_version_main)
     selenium_availability = check_selenium_availability(args.selenium_mode)
     args.selenium_availability = selenium_availability
     if selenium_availability.user_message:
@@ -1934,7 +2037,7 @@ def main() -> None:
         logging.info("Loaded extractions from checkpoint: %s", len(checkpoint["extractions"]))
         extractions = deserialize_extractions(checkpoint["extractions"])
     else:
-        extractions = run_extraction(df, url_col, args)
+        extractions = run_extraction(df, url_col, args, chrome_version_main=chrome_version_main)
         save_checkpoint(
             args.checkpoint,
             {

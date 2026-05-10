@@ -51,6 +51,14 @@ Use `--selenium-mode` to control it:
 - `off`: never use Selenium fallback. This is HTTP-only mode.
 - `required`: fail fast at startup if Selenium dependencies are unavailable.
 
+If ChromeDriver and the installed Chrome browser are on different major versions, pass the installed Chrome major version explicitly:
+
+```powershell
+python data-parser/parser_niche_and_categories_v2.py --input sites.xlsx --output extraction_debug.xlsx --max-sites 20 --extract-only --selenium-mode auto --chrome-version-main 147
+```
+
+When `--chrome-version-main` is omitted, the parser tries to detect the installed Chrome major version automatically.
+
 On Python 3.12, some Selenium dependency chains can fail because `distutils` was removed from Python. If that happens, prefer Python 3.11 for this parser, or run:
 
 ```powershell
