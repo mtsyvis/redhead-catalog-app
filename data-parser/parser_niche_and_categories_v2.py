@@ -520,6 +520,56 @@ def safe_quit_driver(driver: Any) -> None:
         logging.debug("Ignoring Selenium driver quit error: %s", e)
 
 
+def stop_page_load(driver: Any) -> None:
+    try:
+        driver.execute_script("window.stop();")
+    except Exception as e:
+        logging.debug("Ignoring Selenium window.stop() error: %s", e)
+
+
+def get_selenium_page_source(driver: Any) -> str:
+    try:
+        source = driver.page_source or ""
+        return source
+    except Exception as e:
+        logging.debug("Could not read Selenium page_source: %s", e)
+        return ""
+
+
+def build_chrome_options(uc: Any, proxy: Optional[str] = None) -> Any:
+    options = uc.ChromeOptions()
+    options.page_load_strategy = "eager"
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--no-first-run")
+    options.add_argument("--no-default-browser-check")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-sync")
+    options.add_argument("--disable-default-apps")
+    if proxy:
+        options.add_argument(f"--proxy-server={proxy}")
+    return options
+
+
+def create_uc_driver(
+    uc: Any,
+    proxy: Optional[str] = None,
+    chrome_version_main: Optional[int] = None,
+) -> Any:
+    kwargs = {
+        "options": build_chrome_options(uc, proxy),
+        "headless": True,
+        "use_subprocess": True,
+    }
+    if chrome_version_main is not None:
+        kwargs["version_main"] = chrome_version_main
+    return uc.Chrome(**kwargs)
+
+
 def check_selenium_availability(mode: str) -> SeleniumAvailability:
     if mode == "off":
         return SeleniumAvailability(
@@ -611,15 +661,21 @@ def parse_current_browser_major_from_error(message: str) -> Optional[int]:
 
 def format_selenium_error(error: Exception) -> str:
     message = str(error)
-    current_major = parse_current_browser_major_from_error(message)
-    if "ChromeDriver" in message and "Current browser version is" in message:
+    is_version_mismatch = (
+        "This version of ChromeDriver only supports Chrome version" in message
+        or "Current browser version is" in message
+    )
+    if is_version_mismatch:
+        current_major = parse_current_browser_major_from_error(message)
         if current_major:
             return (
-                "selenium_version_mismatch:ChromeDriver/Chrome version mismatch. "
-                f"Current browser version is {current_major}. "
-                f"Try updating Chrome or run with --chrome-version-main {current_major}."
+                "selenium_version_mismatch:ChromeDriver/Chrome version mismatch; "
+                f"try --chrome-version-main {current_major}"
             )
-        return "selenium_version_mismatch:ChromeDriver/Chrome version mismatch."
+        return (
+            "selenium_version_mismatch:ChromeDriver/Chrome version mismatch; "
+            "try --chrome-version-main <major_version>"
+        )
     return f"selenium_exception:{type(error).__name__}:{error}"
 
 
@@ -633,6 +689,7 @@ def selenium_fetch_once(
         import undetected_chromedriver as uc
 
         patch_undetected_chromedriver_cleanup(uc)
+        from selenium.common.exceptions import TimeoutException
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.webdriver.support.ui import WebDriverWait
@@ -648,42 +705,56 @@ def selenium_fetch_once(
 
     driver = None
     try:
-        options = uc.ChromeOptions()
-        options.add_argument("--headless=new")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_argument("--no-first-run")
-        options.add_argument("--no-default-browser-check")
-        if proxy:
-            options.add_argument(f"--proxy-server={proxy}")
-
-        chrome_kwargs = {
-            "options": options,
-            "headless": True,
-            "use_subprocess": True,
-        }
-        if chrome_version_main is not None:
-            chrome_kwargs["version_main"] = chrome_version_main
-
         try:
-            driver = uc.Chrome(**chrome_kwargs)
+            driver = create_uc_driver(uc, proxy=proxy, chrome_version_main=chrome_version_main)
         except Exception as e:
             retry_version = parse_current_browser_major_from_error(str(e))
             if retry_version is not None and retry_version != chrome_version_main:
                 logging.warning("Retrying Selenium with detected Chrome major version from error: %s", retry_version)
-                chrome_kwargs["version_main"] = retry_version
-                driver = uc.Chrome(**chrome_kwargs)
+                driver = create_uc_driver(uc, proxy=proxy, chrome_version_main=retry_version)
             else:
                 raise
 
         driver.set_page_load_timeout(timeout)
-        driver.get(url)
-        WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        time.sleep(0.4)
-        return driver.page_source, driver.current_url, ""
+        page_load_timed_out = False
+
+        try:
+            driver.get(url)
+        except TimeoutException:
+            page_load_timed_out = True
+            logging.debug(
+                "Selenium page load timed out for %s after %ss; trying to use partial page_source",
+                url,
+                timeout,
+            )
+            stop_page_load(driver)
+
+        try:
+            WebDriverWait(driver, min(timeout, 5)).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+        except TimeoutException:
+            logging.debug("Selenium body wait timed out for %s; trying page_source anyway", url)
+
+        time.sleep(0.2)
+        html = get_selenium_page_source(driver)
+        try:
+            final_url = driver.current_url or url
+        except Exception as e:
+            logging.debug("Could not read Selenium current_url: %s", e)
+            final_url = url
+
+        if html and len(html) >= 200:
+            if page_load_timed_out:
+                return html, final_url, "selenium_page_load_timeout_but_source_available"
+            return html, final_url, ""
+
+        if page_load_timed_out:
+            return None, final_url, "selenium_page_load_timeout_no_usable_source"
+        return None, final_url, "selenium_no_usable_source"
     except Exception as e:
+        if type(e).__name__ == "TimeoutException":
+            return None, url, "selenium_page_load_timeout_no_usable_source"
         return None, url, format_selenium_error(e)
     finally:
         safe_quit_driver(driver)
@@ -1902,7 +1973,7 @@ def parse_args() -> argparse.Namespace:
         "--chrome-version-main",
         type=int,
         default=None,
-        help="Chrome major version to pass to undetected_chromedriver, e.g. 147. If omitted, the script tries to detect it automatically.",
+        help="Chrome major version passed to undetected_chromedriver, e.g. 147.",
     )
     parser.add_argument("--model", choices=MODEL_CHOICES, default=DEFAULT_MODEL, help="Claude model. Default claude-haiku-4-5.")
     parser.add_argument("--api-key", default=ANTHROPIC_API_KEY, help="Anthropic API key. Overrides ANTHROPIC_API_KEY constant and env var.")
