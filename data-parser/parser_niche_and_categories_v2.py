@@ -282,7 +282,7 @@ class SiteExtraction:
         return sum(
             p.text_length
             for p in pages
-            if p and "bot_protection_challenge" not in (p.error or "").split("; ")
+            if p and "bot_protection_challenge" not in [part.strip() for part in (p.error or "").split(";")]
         )
 
     @property
@@ -1099,12 +1099,12 @@ BOT_PROTECTION_PATTERNS = [
     "needs to review the security of your connection",
     "checking if the site connection is secure",
     "checking your browser",
+    "just a moment",
     "please wait while we verify",
     "enable javascript and cookies",
     "cf-browser-verification",
     "cloudflare ray id",
     "attention required",
-    "security check",
     "ddos-guard",
     "bot verification",
     "human verification",
@@ -1118,9 +1118,10 @@ def append_error(existing: str, new_error: str) -> str:
         return new_error
     if not new_error:
         return existing
-    if new_error in existing.split("; "):
+    parts = [p.strip() for p in existing.split(";") if p.strip()]
+    if new_error in parts:
         return existing
-    return f"{existing}; {new_error}"
+    return existing + "; " + new_error
 
 
 def combined_page_text(page: Optional[PageExtract]) -> str:
@@ -1153,7 +1154,7 @@ def is_bot_protection_page(page: Optional[PageExtract]) -> bool:
 
 
 def page_has_error(page: PageExtract, error_code: str) -> bool:
-    return error_code in (page.error or "").split("; ")
+    return error_code in [part.strip() for part in (page.error or "").split(";")]
 
 
 def page_to_prompt_payload(page: PageExtract) -> Dict[str, Any]:
@@ -1292,9 +1293,9 @@ def crawl_site(
         extraction.internal_pages = []
         extraction.processing_time_ms = int((time.time() - start_time) * 1000)
         logging.info(
-            "Bot protection detected for %s final_url=%s; skipping Claude classification",
+            "Bot protection detected for %s final_url=%s; skipping normal content classification",
             extraction.original_url,
-            homepage.final_url,
+            homepage.final_url if homepage else "",
         )
         return extraction
 
@@ -1441,6 +1442,62 @@ def build_user_prompt(
         rendered = json.dumps(payload, ensure_ascii=False, indent=2)
 
     return rendered
+
+def build_protected_domain_only_prompt(
+    extraction: SiteExtraction,
+    min_categories: int,
+    max_categories: int,
+) -> str:
+    protected_max_categories = min(5, max_categories)
+
+    payload = {
+        "original_url": extraction.original_url,
+        "final_url": extraction.homepage.final_url if extraction.homepage else "",
+        "normalized_start_url": extraction.normalized_start_url,
+        "source_quality": "protected",
+        "niche_whitelist": NICHES_LIST,
+        "special_niches": SPECIAL_NICHES,
+        "rules": {
+            "output": [
+                "Return only one valid JSON object.",
+                "Use exactly these keys: Niche, Categories, Language.",
+                "Do not include markdown, comments, explanations, or extra text.",
+            ],
+            "protected_source": [
+                "The site showed bot protection, so real content-based classification was not possible.",
+                "Classify only from original_url, final_url, and normalized_start_url.",
+                "Treat this as weak domain-only inference.",
+                "Prefer UNKNOWN over guessing.",
+                "If the domain/final URL is ambiguous, return Niche [\"UNKNOWN\"], Categories [], Language \"UNKNOWN\".",
+                "Do not infer anything from bot-protection/security challenge text.",
+            ],
+            "niche": [
+                "Niche must contain 1 to 3 strings.",
+                "Every Niche value must exactly match niche_whitelist or special_niches.",
+                "Do not invent Niche values, sub-niches, variants, or more specific labels.",
+                "If no exact whitelist value strongly matches the domain/final URL, use [\"UNKNOWN\"].",
+            ],
+            "categories": [
+                f"Return 0 to {protected_max_categories} cautious English Categories.",
+                "Return 0 to 3 Categories by default.",
+                "Use up to 5 only when the domain/final URL is very specific.",
+                "Categories must be derived only from clear domain/final URL signals.",
+                "Do not invent detailed Categories.",
+                "Do not add generic filler tags.",
+            ],
+            "language": [
+                "Use UNKNOWN unless the domain/final URL strongly and unambiguously indicates the primary content language.",
+                "Do not infer language from TLD alone unless it is very strong and unambiguous.",
+            ],
+        },
+        "required_json_shape": {
+            "Niche": ["<exact niche from niche_whitelist or UNKNOWN>"],
+            "Categories": ["<cautious English domain-derived tag>"],
+            "Language": "UNKNOWN",
+        },
+    }
+
+    return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 def safe_load_json_object(text: str) -> Optional[Dict[str, Any]]:
@@ -1658,6 +1715,19 @@ def count_input_tokens_exact(client: Any, model: str, system_prompt: str, user_p
         return 0, "failed"
 
 
+def should_send_extraction_to_model(
+    extraction: SiteExtraction,
+    classify_protected_from_domain: bool,
+) -> bool:
+    if not extraction.homepage:
+        return False
+    if extraction.source_quality == "failed":
+        return False
+    if extraction.source_quality == "protected":
+        return bool(classify_protected_from_domain)
+    return True
+
+
 def create_batch_requests(
     extractions: List[SiteExtraction],
     model: str,
@@ -1667,6 +1737,7 @@ def create_batch_requests(
     max_categories: int,
     client: Optional[Any] = None,
     count_tokens: bool = False,
+    classify_protected_from_domain: bool = False,
 ) -> Tuple[List[Any], Dict[str, SiteExtraction]]:
     try:
         from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
@@ -1681,16 +1752,29 @@ def create_batch_requests(
     system_prompt = build_system_prompt()
 
     for seq, extraction in enumerate(extractions, start=1):
-        if extraction.source_quality in {"failed", "protected"} or not extraction.homepage:
+        if not should_send_extraction_to_model(extraction, classify_protected_from_domain):
             continue
         custom_id = f"site_{seq:06d}"
         mapping[custom_id] = extraction
-        user_prompt = build_user_prompt(
-            extraction,
-            max_prompt_chars=max_prompt_chars,
-            min_categories=min_categories,
-            max_categories=max_categories,
-        )
+        if extraction.source_quality == "protected":
+            extraction.error = append_error(extraction.error, "classified_from_domain_only")
+            logging.info(
+                "Protected site will be classified from domain only: %s final_url=%s",
+                extraction.original_url,
+                extraction.homepage.final_url if extraction.homepage else "",
+            )
+            user_prompt = build_protected_domain_only_prompt(
+                extraction,
+                min_categories=min_categories,
+                max_categories=max_categories,
+            )
+        else:
+            user_prompt = build_user_prompt(
+                extraction,
+                max_prompt_chars=max_prompt_chars,
+                min_categories=min_categories,
+                max_categories=max_categories,
+            )
         prompt_chars = len(system_prompt) + len(user_prompt)
         extraction.prompt_chars = prompt_chars
         extraction.estimated_input_tokens = estimate_tokens_from_text(system_prompt + "\n" + user_prompt)
@@ -1770,7 +1854,7 @@ def read_batch_results(
                 batch_id=batch_id,
                 batch_status=batch_status,
                 raw_text=raw_text,
-                max_categories=max_categories,
+                max_categories=min(5, max_categories) if extraction.source_quality == "protected" else max_categories,
             )
             usage = getattr(message, "usage", None)
             parsed.input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
@@ -1899,7 +1983,8 @@ def empty_classification_for_extraction(extraction: SiteExtraction, model_name: 
     if extraction.source_quality == "failed":
         model_error = "not_sent_to_model_due_to_failed_extraction"
     elif extraction.source_quality == "protected":
-        model_error = "not_sent_to_model_due_to_bot_protection"
+        if batch_status in {"not_sent", "no_valid_requests", ""}:
+            model_error = "not_sent_to_model_due_to_bot_protection"
     return ClassificationResult(
         row_index=extraction.row_index,
         original_url=extraction.original_url,
@@ -2222,6 +2307,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-prompt-chars", type=int, default=DEFAULT_MAX_PROMPT_CHARS, help="Max user prompt characters per site before dropping internal pages/trimming text.")
     parser.add_argument("--count-tokens", action="store_true", help="Call Anthropic token counting API before batch creation and write ExactInputTokens.")
+    parser.add_argument(
+        "--classify-protected-from-domain",
+        action="store_true",
+        help="For bot-protected sites, ask Claude to infer only a cautious niche/categories from domain/final URL. SourceQuality remains protected.",
+    )
     parser.add_argument("--poll-interval", type=int, default=DEFAULT_POLL_INTERVAL, help="Batch polling interval seconds.")
     parser.add_argument("--submit-only", action="store_true", help="Create Anthropic batch and exit without polling/results.")
     parser.add_argument("--extract-only", action="store_true", help="Only fetch/crawl/extract and write analytics; do not call Anthropic.")
@@ -2354,6 +2444,13 @@ def main() -> None:
             },
         )
 
+    protected_count = len([x for x in extractions if x.source_quality == "protected"])
+    logging.info("Protected pages detected: %s", protected_count)
+    if args.classify_protected_from_domain:
+        logging.info("Protected domain-only classification is enabled.")
+    else:
+        logging.info("Protected pages will not be sent to Claude.")
+
     if args.extract_only:
         output = build_output_dataframe(
             df,
@@ -2371,8 +2468,10 @@ def main() -> None:
 
     classifications_by_row: Dict[int, ClassificationResult] = {}
 
-    # For failed/protected extraction rows, we do not send anything to Claude.
-    failed_extractions = [x for x in extractions if x.source_quality in {"failed", "protected"} or not x.homepage]
+    # For rows that cannot be sent to Claude, write explicit fallback classifications.
+    failed_extractions = [
+        x for x in extractions if not should_send_extraction_to_model(x, args.classify_protected_from_domain)
+    ]
     for extraction in failed_extractions:
         classifications_by_row[extraction.row_index] = empty_classification_for_extraction(
             extraction, model_name=args.model, batch_id=batch_id, batch_status=batch_status or "not_sent"
@@ -2389,6 +2488,7 @@ def main() -> None:
             max_categories=args.max_categories,
             client=client,
             count_tokens=args.count_tokens,
+            classify_protected_from_domain=args.classify_protected_from_domain,
         )
         estimated_input_tokens = sum(x.estimated_input_tokens for x in extractions)
         exact_input_tokens = sum(x.exact_input_tokens for x in extractions)
