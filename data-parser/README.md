@@ -33,6 +33,14 @@ Small normal test run:
 python data-parser/parser_niche_and_categories_v2.py --input sites.xlsx --output sites_with_categories_v2.xlsx --max-sites 20 --selenium-mode auto
 ```
 
+Access-blocked pages are written with `SourceQuality=blocked` and are not sent to Claude by default. To allow cautious domain-only classification for those rows:
+
+```powershell
+python data-parser/parser_niche_and_categories_v2.py --input sites.xlsx --output blocked_domain.xlsx --max-sites 20 --classify-blocked-from-domain
+```
+
+Add `--excel-filter` when you want the output worksheet to include an Excel autofilter. Autofilter is off by default.
+
 ## Output Columns
 
 Default output contains only business-friendly parser columns:

@@ -9,9 +9,13 @@ Key design decisions:
 - Default model: claude-haiku-4-5. Optional: claude-sonnet-4-6.
 - Keeps Niche as a clean controlled taxonomy.
 - Keeps Categories as English search tags, including site-type / attribute-like tags when useful.
-- Default Excel output uses business-friendly result columns. Use --debug-output to include
+- Default Excel output uses business-friendly result columns. SourceQuality can be
+  good / limited / poor / protected / blocked / failed. Use --debug-output to include
   extraction/fetch/model analytics columns so bad classification can be traced back to weak input.
 - Uses Selenium only as a fallback for homepage by default. Internal Selenium fallback is opt-in.
+- Access-blocked pages are not sent to Claude by default. Use --classify-blocked-from-domain
+  to request cautious domain-only classification.
+- Use --excel-filter to enable Excel autofilter on the output worksheet.
 
 Install dependencies:
     pip install -r data-parser/requirements.txt
@@ -219,7 +223,7 @@ DEFAULT_MAX_SITES = 20
 DEFAULT_START_ROW = 0
 DEFAULT_CONCURRENCY = 6
 DEFAULT_REQUEST_TIMEOUT = 12
-DEFAULT_INTERNAL_PAGES = 5
+DEFAULT_INTERNAL_PAGES = 3
 DEFAULT_MIN_TEXT_CHARS = 180
 DEFAULT_MIN_INTERNAL_TEXT_CHARS = 120
 DEFAULT_SELENIUM_TIMEOUT = 12
@@ -269,7 +273,7 @@ class SiteExtraction:
     internal_pages_selenium_tried: int = 0
     internal_pages_selenium_succeeded: int = 0
     processing_time_ms: int = 0
-    source_quality: str = "failed"  # good / limited / poor / protected / failed
+    source_quality: str = "failed"  # good / limited / poor / protected / blocked / failed
     prompt_chars: int = 0
     estimated_input_tokens: int = 0
     exact_input_tokens: int = 0
@@ -282,7 +286,11 @@ class SiteExtraction:
         return sum(
             p.text_length
             for p in pages
-            if p and "bot_protection_challenge" not in [part.strip() for part in (p.error or "").split(";")]
+            if p
+            and not any(
+                marker in [part.strip() for part in (p.error or "").split(";")]
+                for marker in {"bot_protection_challenge", "access_blocked_page"}
+            )
         )
 
     @property
@@ -1110,6 +1118,26 @@ BOT_PROTECTION_PATTERNS = [
     "human verification",
 ]
 
+BLOCKED_PAGE_PATTERNS = [
+    "website blocked",
+    "access to this website has been denied",
+    "akses ke situs ini diblokir",
+    "diblokir oleh pemerintah",
+    "trustpositif",
+    "trust+",
+    "konten negatif",
+    "negative content",
+    "internet positif",
+    "situs ini diblokir",
+    "blocked by government",
+    "blocked by your country",
+    "blocked in your country",
+    "this website is blocked",
+    "access denied by",
+    "content is not available in your country",
+    "not available in your region",
+]
+
 
 def append_error(existing: str, new_error: str) -> str:
     existing = (existing or "").strip()
@@ -1151,6 +1179,19 @@ def is_bot_protection_page(page: Optional[PageExtract]) -> bool:
     if not page:
         return False
     return is_bot_protection_text(combined_page_text(page))
+
+
+def is_blocked_page_text(text: str) -> bool:
+    normalized = re.sub(r"\s+", " ", (text or "").lower()).strip()
+    if not normalized:
+        return False
+    return any(pattern in normalized for pattern in BLOCKED_PAGE_PATTERNS)
+
+
+def is_blocked_page(page: Optional[PageExtract]) -> bool:
+    if not page:
+        return False
+    return is_blocked_page_text(combined_page_text(page))
 
 
 def page_has_error(page: PageExtract, error_code: str) -> bool:
@@ -1197,6 +1238,8 @@ def fetch_page(
         page, links = parse_html(html, url=url, fetch_method="http", http_status=status, final_url=final_url)
         if is_bot_protection_page(page):
             return page, links, ""
+        if is_blocked_page(page):
+            return page, links, ""
         if page.text_length >= min_text_chars or not use_selenium_fallback:
             return page, links, ""
         # Text exists but is too weak. Let Selenium try to render it.
@@ -1223,6 +1266,8 @@ def fetch_page(
 def evaluate_source_quality(extraction: SiteExtraction, min_text_chars: int) -> str:
     if extraction.homepage and is_bot_protection_page(extraction.homepage):
         return "protected"
+    if extraction.homepage and is_blocked_page(extraction.homepage):
+        return "blocked"
     if extraction.error and not extraction.homepage:
         return "failed"
     total = extraction.total_text_length
@@ -1299,6 +1344,19 @@ def crawl_site(
         )
         return extraction
 
+    if is_blocked_page(homepage):
+        homepage.error = append_error(homepage.error, "access_blocked_page")
+        extraction.source_quality = "blocked"
+        extraction.error = append_error(extraction.error, "access_blocked_page")
+        extraction.internal_pages = []
+        extraction.processing_time_ms = int((time.time() - start_time) * 1000)
+        logging.info(
+            "Access/block page detected for %s final_url=%s; skipping normal content classification",
+            extraction.original_url,
+            homepage.final_url if homepage else "",
+        )
+        return extraction
+
     selected_links = homepage_links[: max(0, args.internal_pages)]
     internal_selenium_enabled = args.selenium_internal_fallback and selenium_availability.available
     selenium_internal_remaining = max(0, args.selenium_internal_limit if internal_selenium_enabled else 0)
@@ -1315,6 +1373,11 @@ def crawl_site(
                 page.error = append_error(page.error, "bot_protection_challenge")
                 extraction.internal_pages.append(page)
                 logging.debug("Internal bot protection detected for %s final_url=%s", link, page.final_url)
+                continue
+            if is_blocked_page(page):
+                page.error = append_error(page.error, "access_blocked_page")
+                extraction.internal_pages.append(page)
+                logging.debug("Internal access/block page detected for %s final_url=%s", link, page.final_url)
                 continue
             if page.text_length >= args.min_internal_text_chars:
                 extraction.internal_pages.append(page)
@@ -1337,6 +1400,11 @@ def crawl_site(
                     page2.error = append_error(page2.error, "bot_protection_challenge")
                     extraction.internal_pages.append(page2)
                     logging.debug("Internal bot protection detected for %s final_url=%s", link, page2.final_url)
+                    continue
+                if is_blocked_page(page2):
+                    page2.error = append_error(page2.error, "access_blocked_page")
+                    extraction.internal_pages.append(page2)
+                    logging.debug("Internal access/block page detected for %s final_url=%s", link, page2.final_url)
                     continue
                 if page2.text_length >= args.min_internal_text_chars:
                     extraction.internal_pages.append(page2)
@@ -1421,6 +1489,8 @@ def build_user_prompt(
     for page in extraction.internal_pages:
         if page_has_error(page, "bot_protection_challenge"):
             continue
+        if page_has_error(page, "access_blocked_page"):
+            continue
         payload["extracted_pages"].append({"type": "internal", **page_to_prompt_payload(page)})
 
     # Keep cost predictable. We include pages in priority order: homepage first, then selected internals.
@@ -1443,18 +1513,18 @@ def build_user_prompt(
 
     return rendered
 
-def build_protected_domain_only_prompt(
+def build_domain_only_prompt(
     extraction: SiteExtraction,
     min_categories: int,
     max_categories: int,
 ) -> str:
-    protected_max_categories = min(5, max_categories)
+    domain_only_max_categories = min(5, max_categories)
 
     payload = {
         "original_url": extraction.original_url,
         "final_url": extraction.homepage.final_url if extraction.homepage else "",
         "normalized_start_url": extraction.normalized_start_url,
-        "source_quality": "protected",
+        "source_quality": extraction.source_quality,
         "niche_whitelist": NICHES_LIST,
         "special_niches": SPECIAL_NICHES,
         "rules": {
@@ -1463,13 +1533,11 @@ def build_protected_domain_only_prompt(
                 "Use exactly these keys: Niche, Categories, Language.",
                 "Do not include markdown, comments, explanations, or extra text.",
             ],
-            "protected_source": [
-                "The site showed bot protection, so real content-based classification was not possible.",
+            "domain_only_source": [
                 "Classify only from original_url, final_url, and normalized_start_url.",
                 "Treat this as weak domain-only inference.",
                 "Prefer UNKNOWN over guessing.",
                 "If the domain/final URL is ambiguous, return Niche [\"UNKNOWN\"], Categories [], Language \"UNKNOWN\".",
-                "Do not infer anything from bot-protection/security challenge text.",
             ],
             "niche": [
                 "Niche must contain 1 to 3 strings.",
@@ -1478,7 +1546,6 @@ def build_protected_domain_only_prompt(
                 "If no exact whitelist value strongly matches the domain/final URL, use [\"UNKNOWN\"].",
             ],
             "categories": [
-                f"Return 0 to {protected_max_categories} cautious English Categories.",
                 "Return 0 to 3 Categories by default.",
                 "Use up to 5 only when the domain/final URL is very specific.",
                 "Categories must be derived only from clear domain/final URL signals.",
@@ -1718,6 +1785,7 @@ def count_input_tokens_exact(client: Any, model: str, system_prompt: str, user_p
 def should_send_extraction_to_model(
     extraction: SiteExtraction,
     classify_protected_from_domain: bool,
+    classify_blocked_from_domain: bool,
 ) -> bool:
     if not extraction.homepage:
         return False
@@ -1725,6 +1793,8 @@ def should_send_extraction_to_model(
         return False
     if extraction.source_quality == "protected":
         return bool(classify_protected_from_domain)
+    if extraction.source_quality == "blocked":
+        return bool(classify_blocked_from_domain)
     return True
 
 
@@ -1738,6 +1808,7 @@ def create_batch_requests(
     client: Optional[Any] = None,
     count_tokens: bool = False,
     classify_protected_from_domain: bool = False,
+    classify_blocked_from_domain: bool = False,
 ) -> Tuple[List[Any], Dict[str, SiteExtraction]]:
     try:
         from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
@@ -1752,7 +1823,11 @@ def create_batch_requests(
     system_prompt = build_system_prompt()
 
     for seq, extraction in enumerate(extractions, start=1):
-        if not should_send_extraction_to_model(extraction, classify_protected_from_domain):
+        if not should_send_extraction_to_model(
+            extraction,
+            classify_protected_from_domain,
+            classify_blocked_from_domain,
+        ):
             continue
         custom_id = f"site_{seq:06d}"
         mapping[custom_id] = extraction
@@ -1763,7 +1838,19 @@ def create_batch_requests(
                 extraction.original_url,
                 extraction.homepage.final_url if extraction.homepage else "",
             )
-            user_prompt = build_protected_domain_only_prompt(
+            user_prompt = build_domain_only_prompt(
+                extraction,
+                min_categories=min_categories,
+                max_categories=max_categories,
+            )
+        elif extraction.source_quality == "blocked":
+            extraction.error = append_error(extraction.error, "classified_from_domain_only")
+            logging.info(
+                "Blocked site will be classified from domain only: %s final_url=%s",
+                extraction.original_url,
+                extraction.homepage.final_url if extraction.homepage else "",
+            )
+            user_prompt = build_domain_only_prompt(
                 extraction,
                 min_categories=min_categories,
                 max_categories=max_categories,
@@ -1854,7 +1941,9 @@ def read_batch_results(
                 batch_id=batch_id,
                 batch_status=batch_status,
                 raw_text=raw_text,
-                max_categories=min(5, max_categories) if extraction.source_quality == "protected" else max_categories,
+                max_categories=min(5, max_categories)
+                if extraction.source_quality in {"protected", "blocked"}
+                else max_categories,
             )
             usage = getattr(message, "usage", None)
             parsed.input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
@@ -1983,8 +2072,9 @@ def empty_classification_for_extraction(extraction: SiteExtraction, model_name: 
     if extraction.source_quality == "failed":
         model_error = "not_sent_to_model_due_to_failed_extraction"
     elif extraction.source_quality == "protected":
-        if batch_status in {"not_sent", "no_valid_requests", ""}:
-            model_error = "not_sent_to_model_due_to_bot_protection"
+        model_error = "not_sent_to_model_due_to_bot_protection"
+    elif extraction.source_quality == "blocked":
+        model_error = "not_sent_to_model_due_to_access_block"
     return ClassificationResult(
         row_index=extraction.row_index,
         original_url=extraction.original_url,
@@ -2068,7 +2158,7 @@ def build_result_values(
         language = detected_language
 
     errors = [e for e in [extraction.error] if e]
-    if extraction.source_quality != "protected" and classification.model_error:
+    if extraction.source_quality not in {"protected", "blocked"} and classification.model_error:
         errors.append(classification.model_error)
     return {
         "SourceRowNumber": excel_int(extraction.row_index + 1),
@@ -2192,7 +2282,7 @@ def build_output_dataframe(
     return output_df
 
 
-def write_output_excel(output_path: str, output_df: pd.DataFrame) -> None:
+def write_output_excel(output_path: str, output_df: pd.DataFrame, enable_filter: bool = False) -> None:
     if len(output_df.columns) != len(set(output_df.columns)):
         raise RuntimeError("Output DataFrame has duplicate columns")
     output_df.to_excel(output_path, index=False, engine="openpyxl")
@@ -2203,14 +2293,16 @@ def write_output_excel(output_path: str, output_df: pd.DataFrame) -> None:
     ws = wb.active
     ws.title = "Results"
 
-    apply_excel_formatting(ws)
+    apply_excel_formatting(ws, enable_filter=enable_filter)
 
     wb.save(output_path)
     logging.info("Formatted Excel output for review: freeze_panes=A2")
+    if enable_filter:
+        logging.info("Excel autofilter enabled.")
     logging.info("Saved Excel output to %s rows=%s", output_path, len(output_df))
 
 
-def apply_excel_formatting(ws: Any) -> None:
+def apply_excel_formatting(ws: Any, enable_filter: bool = False) -> None:
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
 
@@ -2220,6 +2312,8 @@ def apply_excel_formatting(ws: Any) -> None:
 
     ws.freeze_panes = "A2"
     ws.sheet_view.zoomScale = 90
+    if enable_filter:
+        ws.auto_filter.ref = ws.dimensions
 
     header_fill = PatternFill(fill_type="solid", fgColor="D9EAF7")
     for cell in ws[1]:
@@ -2312,6 +2406,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="For bot-protected sites, ask Claude to infer only a cautious niche/categories from domain/final URL. SourceQuality remains protected.",
     )
+    parser.add_argument(
+        "--classify-blocked-from-domain",
+        action="store_true",
+        help="For access-blocked sites, ask Claude to infer only a cautious niche/categories from domain/final URL. SourceQuality remains blocked.",
+    )
     parser.add_argument("--poll-interval", type=int, default=DEFAULT_POLL_INTERVAL, help="Batch polling interval seconds.")
     parser.add_argument("--submit-only", action="store_true", help="Create Anthropic batch and exit without polling/results.")
     parser.add_argument("--extract-only", action="store_true", help="Only fetch/crawl/extract and write analytics; do not call Anthropic.")
@@ -2319,6 +2418,11 @@ def parse_args() -> argparse.Namespace:
         "--debug-output",
         action="store_true",
         help="Include technical/debug columns in the output Excel.",
+    )
+    parser.add_argument(
+        "--excel-filter",
+        action="store_true",
+        help="Enable Excel autofilter on the output worksheet.",
     )
     parser.add_argument("--log-file", default=DEFAULT_LOG_FILE, help="Log file path.")
     parser.add_argument("--proxy", action="append", default=DEFAULT_PROXY, help="Proxy URL. Can be passed multiple times.")
@@ -2445,11 +2549,17 @@ def main() -> None:
         )
 
     protected_count = len([x for x in extractions if x.source_quality == "protected"])
+    blocked_count = len([x for x in extractions if x.source_quality == "blocked"])
     logging.info("Protected pages detected: %s", protected_count)
+    logging.info("Blocked/access-denied pages detected: %s", blocked_count)
     if args.classify_protected_from_domain:
         logging.info("Protected domain-only classification is enabled.")
     else:
         logging.info("Protected pages will not be sent to Claude.")
+    if args.classify_blocked_from_domain:
+        logging.info("Blocked domain-only classification is enabled.")
+    else:
+        logging.info("Blocked pages will not be sent to Claude.")
 
     if args.extract_only:
         output = build_output_dataframe(
@@ -2463,14 +2573,20 @@ def main() -> None:
             debug_output=args.debug_output,
             chrome_version_main=chrome_version_main,
         )
-        write_output_excel(args.output, output)
+        write_output_excel(args.output, output, enable_filter=args.excel_filter)
         return
 
     classifications_by_row: Dict[int, ClassificationResult] = {}
 
     # For rows that cannot be sent to Claude, write explicit fallback classifications.
     failed_extractions = [
-        x for x in extractions if not should_send_extraction_to_model(x, args.classify_protected_from_domain)
+        x
+        for x in extractions
+        if not should_send_extraction_to_model(
+            x,
+            args.classify_protected_from_domain,
+            args.classify_blocked_from_domain,
+        )
     ]
     for extraction in failed_extractions:
         classifications_by_row[extraction.row_index] = empty_classification_for_extraction(
@@ -2489,6 +2605,7 @@ def main() -> None:
             client=client,
             count_tokens=args.count_tokens,
             classify_protected_from_domain=args.classify_protected_from_domain,
+            classify_blocked_from_domain=args.classify_blocked_from_domain,
         )
         estimated_input_tokens = sum(x.estimated_input_tokens for x in extractions)
         exact_input_tokens = sum(x.exact_input_tokens for x in extractions)
@@ -2512,7 +2629,7 @@ def main() -> None:
                 debug_output=args.debug_output,
                 chrome_version_main=chrome_version_main,
             )
-            write_output_excel(args.output, output)
+            write_output_excel(args.output, output, enable_filter=args.excel_filter)
             return
 
         logging.info("Creating Anthropic batch with %s requests...", len(requests_payload))
@@ -2547,7 +2664,7 @@ def main() -> None:
                 debug_output=args.debug_output,
                 chrome_version_main=chrome_version_main,
             )
-            write_output_excel(args.output, output)
+            write_output_excel(args.output, output, enable_filter=args.excel_filter)
             return
     else:
         client = create_anthropic_client(args.api_key)
@@ -2599,7 +2716,7 @@ def main() -> None:
         debug_output=args.debug_output,
         chrome_version_main=chrome_version_main,
     )
-    write_output_excel(args.output, output)
+    write_output_excel(args.output, output, enable_filter=args.excel_filter)
     logging.info("Done.")
 
 
