@@ -9,7 +9,8 @@ Key design decisions:
 - Default model: claude-haiku-4-5. Optional: claude-sonnet-4-6.
 - Keeps Niche as a clean controlled taxonomy.
 - Keeps Categories as English search tags, including site-type / attribute-like tags when useful.
-- Adds extraction/fetch/model analytics columns so bad classification can be traced back to weak input.
+- Default Excel output uses business-friendly result columns. Use --debug-output to include
+  extraction/fetch/model analytics columns so bad classification can be traced back to weak input.
 - Uses Selenium only as a fallback for homepage by default. Internal Selenium fallback is opt-in.
 
 Install dependencies:
@@ -31,6 +32,12 @@ Try Sonnet for quality comparison:
 
 Extract only, no Claude batch:
     python parser_niche_and_categories_v2.py --input sites.xlsx --output extraction_debug.xlsx --max-sites 20 --extract-only
+
+Default output columns:
+    SourceRowNumber, Niche, Categories, Language, SourceQuality, FinalUrl, Error
+
+Use --debug-output to include technical diagnostics such as Selenium/fetch metrics, token usage,
+cost estimate, batch info, raw model output, and normalization warnings.
 """
 
 from __future__ import annotations
@@ -222,6 +229,8 @@ DEFAULT_MAX_PROMPT_CHARS = 20_000
 DEFAULT_POLL_INTERVAL = 30
 DEFAULT_LOG_FILE = "parser_v2.log"
 DEFAULT_PROXY: List[str] = []
+
+_UC_CHROME_DEL_PATCHED = False
 
 
 # ===================== DATA STRUCTURES =====================
@@ -450,6 +459,66 @@ def http_fetch(url: str, timeout: int, proxies: Optional[Dict[str, str]] = None)
 
 
 # ===================== SELENIUM FALLBACK =====================
+def patch_undetected_chromedriver_cleanup(uc: Any) -> None:
+    global _UC_CHROME_DEL_PATCHED
+    if _UC_CHROME_DEL_PATCHED:
+        return
+
+    original_del = getattr(uc.Chrome, "__del__", None)
+
+    def safe_del(self):
+        try:
+            if original_del is not None:
+                original_del(self)
+            else:
+                try:
+                    self.quit()
+                except Exception:
+                    pass
+        except OSError as e:
+            if getattr(e, "winerror", None) == 6:
+                logging.debug("Ignoring known undetected_chromedriver WinError 6 during Chrome.__del__ cleanup")
+                return
+            logging.debug("Ignoring undetected_chromedriver Chrome.__del__ OSError during cleanup: %s", e)
+        except Exception as e:
+            logging.debug("Ignoring undetected_chromedriver Chrome.__del__ error during cleanup: %s", e)
+
+    def safe_ensure_close(cls, self):
+        try:
+            if (
+                hasattr(self, "service")
+                and hasattr(self.service, "process")
+                and hasattr(self.service.process, "kill")
+            ):
+                self.service.process.kill()
+        except OSError as e:
+            if getattr(e, "winerror", None) == 6:
+                logging.debug("Ignoring known undetected_chromedriver WinError 6 during Chrome._ensure_close cleanup")
+                return
+            logging.debug("Ignoring undetected_chromedriver Chrome._ensure_close OSError during cleanup: %s", e)
+        except Exception as e:
+            logging.debug("Ignoring undetected_chromedriver Chrome._ensure_close error during cleanup: %s", e)
+
+    uc.Chrome.__del__ = safe_del
+    if hasattr(uc.Chrome, "_ensure_close"):
+        uc.Chrome._ensure_close = classmethod(safe_ensure_close)
+    _UC_CHROME_DEL_PATCHED = True
+
+
+def safe_quit_driver(driver: Any) -> None:
+    if driver is None:
+        return
+    try:
+        driver.quit()
+    except OSError as e:
+        if getattr(e, "winerror", None) == 6:
+            logging.debug("Ignoring known Selenium WinError 6 during driver.quit()")
+            return
+        logging.debug("Ignoring Selenium driver quit OSError: %s", e)
+    except Exception as e:
+        logging.debug("Ignoring Selenium driver quit error: %s", e)
+
+
 def check_selenium_availability(mode: str) -> SeleniumAvailability:
     if mode == "off":
         return SeleniumAvailability(
@@ -459,7 +528,9 @@ def check_selenium_availability(mode: str) -> SeleniumAvailability:
         )
 
     try:
-        import undetected_chromedriver as uc  # noqa: F401
+        import undetected_chromedriver as uc
+
+        patch_undetected_chromedriver_cleanup(uc)
         from selenium.webdriver.common.by import By  # noqa: F401
         from selenium.webdriver.support import expected_conditions as EC  # noqa: F401
         from selenium.webdriver.support.ui import WebDriverWait  # noqa: F401
@@ -493,6 +564,8 @@ def check_selenium_availability(mode: str) -> SeleniumAvailability:
 def selenium_fetch_once(url: str, timeout: int, proxy: Optional[str] = None) -> Tuple[Optional[str], str, str]:
     try:
         import undetected_chromedriver as uc
+
+        patch_undetected_chromedriver_cleanup(uc)
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.webdriver.support.ui import WebDriverWait
@@ -528,11 +601,7 @@ def selenium_fetch_once(url: str, timeout: int, proxy: Optional[str] = None) -> 
     except Exception as e:
         return None, url, f"selenium_exception:{type(e).__name__}:{e}"
     finally:
-        if driver is not None:
-            try:
-                driver.quit()
-            except Exception:
-                pass
+        safe_quit_driver(driver)
 
 
 def selenium_fetch_with_hard_timeout(
@@ -1342,14 +1411,18 @@ def read_batch_results(
 
 
 # ===================== EXCEL OUTPUT =====================
-RESULT_COLUMNS = [
+DEFAULT_RESULT_COLUMNS = [
     "SourceRowNumber",
     "Niche",
     "Categories",
     "Language",
-    "Error",
-    "HomepageFetchMethod",
+    "SourceQuality",
     "FinalUrl",
+    "Error",
+]
+
+DEBUG_RESULT_COLUMNS = [
+    "HomepageFetchMethod",
     "Redirected",
     "HttpStatus",
     "HomepageTextLength",
@@ -1359,7 +1432,6 @@ RESULT_COLUMNS = [
     "InternalPagesSeleniumSucceeded",
     "InternalPagesSucceeded",
     "TotalExtractedTextLength",
-    "SourceQuality",
     "ModelName",
     "BatchId",
     "BatchStatus",
@@ -1377,6 +1449,48 @@ RESULT_COLUMNS = [
     "NormalizationWarnings",
     "RawModelText",
 ]
+
+COLUMN_WIDTHS = {
+    "SourceRowNumber": 16,
+    "Niche": 28,
+    "Categories": 60,
+    "Language": 14,
+    "SourceQuality": 16,
+    "FinalUrl": 50,
+    "Error": 50,
+    "HomepageFetchMethod": 22,
+    "Redirected": 14,
+    "HttpStatus": 14,
+    "HomepageTextLength": 22,
+    "InternalPagesRequested": 24,
+    "InternalPagesHttpSucceeded": 28,
+    "InternalPagesSeleniumTried": 28,
+    "InternalPagesSeleniumSucceeded": 32,
+    "InternalPagesSucceeded": 24,
+    "TotalExtractedTextLength": 26,
+    "ModelName": 24,
+    "BatchId": 34,
+    "BatchStatus": 18,
+    "ModelError": 50,
+    "PromptChars": 16,
+    "EstimatedInputTokens": 24,
+    "ExactInputTokens": 20,
+    "ActualInputTokens": 20,
+    "OutputTokens": 16,
+    "EstimatedCostUsd": 20,
+    "TokenCountMethod": 20,
+    "ProcessingTimeMs": 20,
+    "RawNiche": 40,
+    "RawCategories": 60,
+    "NormalizationWarnings": 60,
+    "RawModelText": 60,
+}
+
+
+def get_result_columns(debug_output: bool) -> List[str]:
+    if debug_output:
+        return DEFAULT_RESULT_COLUMNS + DEBUG_RESULT_COLUMNS
+    return DEFAULT_RESULT_COLUMNS
 
 
 def detect_url_column(df: pd.DataFrame, explicit: Optional[str]) -> str:
@@ -1518,9 +1632,11 @@ def build_output_dataframe(
     batch_id: str,
     batch_status: str,
     output_scope: str = "processed",
+    debug_output: bool = False,
 ) -> pd.DataFrame:
     original_columns = list(df.columns)
-    fieldnames = original_columns + [col for col in RESULT_COLUMNS if col not in original_columns]
+    result_columns = get_result_columns(debug_output)
+    fieldnames = original_columns + [col for col in result_columns if col not in original_columns]
     if len(fieldnames) != len(set(fieldnames)):
         raise RuntimeError("Output DataFrame has duplicate columns")
 
@@ -1533,8 +1649,9 @@ def build_output_dataframe(
         raise RuntimeError(f"Unsupported output_scope: {output_scope}")
 
     logging.info(
-        "Building output dataframe: scope=%s processed_rows=%s output_rows=%s",
+        "Building output dataframe: scope=%s debug_output=%s processed_rows=%s output_rows=%s",
         output_scope,
+        debug_output,
         len(extractions_by_row),
         len(row_indexes),
     )
@@ -1576,7 +1693,7 @@ def build_output_dataframe(
                 )
             )
         else:
-            for col in RESULT_COLUMNS:
+            for col in result_columns:
                 output_row[col] = excel_int(input_index + 1) if col == "SourceRowNumber" else ""
 
         rows.append(output_row)
@@ -1593,7 +1710,69 @@ def write_output_excel(output_path: str, output_df: pd.DataFrame) -> None:
     if len(output_df.columns) != len(set(output_df.columns)):
         raise RuntimeError("Output DataFrame has duplicate columns")
     output_df.to_excel(output_path, index=False, engine="openpyxl")
+
+    from openpyxl import load_workbook
+
+    wb = load_workbook(output_path)
+    ws = wb.active
+    ws.title = "Results"
+
+    apply_excel_formatting(ws)
+
+    wb.save(output_path)
+    logging.info("Formatted Excel output for review: freeze_panes=A2 autofilter=enabled")
     logging.info("Saved Excel output to %s rows=%s", output_path, len(output_df))
+
+
+def apply_excel_formatting(ws: Any) -> None:
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    min_width = 12
+    max_width = 50
+    sample_limit = min(ws.max_row, 101)
+
+    ws.freeze_panes = "A2"
+    if ws.max_row and ws.max_column:
+        ws.auto_filter.ref = ws.dimensions
+    ws.sheet_view.zoomScale = 90
+
+    header_fill = PatternFill(fill_type="solid", fgColor="D9EAF7")
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.fill = header_fill
+    ws.row_dimensions[1].height = 36
+
+    headers_by_index = {cell.column: str(cell.value or "") for cell in ws[1]}
+    raw_model_text_col = None
+
+    for col_idx in range(1, ws.max_column + 1):
+        header = headers_by_index.get(col_idx, "")
+        col_letter = get_column_letter(col_idx)
+
+        if header in COLUMN_WIDTHS:
+            width = COLUMN_WIDTHS[header]
+        else:
+            sampled_lengths = [len(header)]
+            for row_idx in range(2, sample_limit + 1):
+                value = ws.cell(row=row_idx, column=col_idx).value
+                if value is None:
+                    continue
+                sampled_lengths.append(max(len(line) for line in str(value).splitlines() or [""]))
+            width = min(max(max(sampled_lengths) + 2, min_width), max_width)
+
+        ws.column_dimensions[col_letter].width = width
+        if header == "RawModelText":
+            raw_model_text_col = col_letter
+
+    for row_idx in range(2, ws.max_row + 1):
+        ws.row_dimensions[row_idx].height = 18
+        for cell in ws[row_idx]:
+            cell.alignment = Alignment(vertical="top", wrap_text=False)
+
+    if raw_model_text_col:
+        ws.column_dimensions[raw_model_text_col].hidden = True
 
 
 # ===================== MAIN FLOW =====================
@@ -1648,6 +1827,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--poll-interval", type=int, default=DEFAULT_POLL_INTERVAL, help="Batch polling interval seconds.")
     parser.add_argument("--submit-only", action="store_true", help="Create Anthropic batch and exit without polling/results.")
     parser.add_argument("--extract-only", action="store_true", help="Only fetch/crawl/extract and write analytics; do not call Anthropic.")
+    parser.add_argument(
+        "--debug-output",
+        action="store_true",
+        help="Include technical/debug columns in the output Excel.",
+    )
     parser.add_argument("--log-file", default=DEFAULT_LOG_FILE, help="Log file path.")
     parser.add_argument("--proxy", action="append", default=DEFAULT_PROXY, help="Proxy URL. Can be passed multiple times.")
     args = parser.parse_args()
@@ -1775,6 +1959,7 @@ def main() -> None:
             batch_id="",
             batch_status="extract_only",
             output_scope=args.output_scope,
+            debug_output=args.debug_output,
         )
         write_output_excel(args.output, output)
         return
@@ -1819,6 +2004,7 @@ def main() -> None:
                 batch_id="",
                 batch_status="no_valid_requests",
                 output_scope=args.output_scope,
+                debug_output=args.debug_output,
             )
             write_output_excel(args.output, output)
             return
@@ -1852,6 +2038,7 @@ def main() -> None:
                 batch_id=batch_id,
                 batch_status=batch_status,
                 output_scope=args.output_scope,
+                debug_output=args.debug_output,
             )
             write_output_excel(args.output, output)
             return
@@ -1902,6 +2089,7 @@ def main() -> None:
         batch_id=batch_id,
         batch_status=batch_status,
         output_scope=args.output_scope,
+        debug_output=args.debug_output,
     )
     write_output_excel(args.output, output)
     logging.info("Done.")

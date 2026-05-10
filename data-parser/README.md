@@ -33,6 +33,14 @@ Small normal test run:
 python data-parser/parser_niche_and_categories_v2.py --input sites.xlsx --output sites_with_categories_v2.xlsx --max-sites 20 --selenium-mode auto
 ```
 
+## Output Columns
+
+Default output contains only business-friendly parser columns:
+
+`SourceRowNumber`, `Niche`, `Categories`, `Language`, `SourceQuality`, `FinalUrl`, `Error`.
+
+Use `--debug-output` to include technical diagnostics such as Selenium/fetch metrics, token usage, cost estimate, batch info, raw model output, and normalization warnings.
+
 ## Selenium Fallback
 
 Selenium is an optional fallback for pages where regular HTTP fetching fails or returns weak text.
