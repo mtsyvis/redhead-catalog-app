@@ -367,10 +367,19 @@ def candidate_start_urls(value: Any) -> List[str]:
     if not normalized:
         return []
     parsed = urlparse(normalized)
-    if parsed.scheme.lower() == "https":
-        http_url = urlunparse(parsed._replace(scheme="http"))
-        return [normalized, http_url]
-    return [normalized]
+    if not parsed.netloc:
+        return [normalized]
+
+    https_url = urlunparse(parsed._replace(scheme="https"))
+    http_url = urlunparse(parsed._replace(scheme="http"))
+
+    result = []
+    seen = set()
+    for candidate in [https_url, http_url]:
+        if candidate not in seen:
+            result.append(candidate)
+            seen.add(candidate)
+    return result
 
 
 def same_site(url_a: str, url_b: str) -> bool:
