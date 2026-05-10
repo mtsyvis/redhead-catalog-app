@@ -1564,6 +1564,7 @@ def build_domain_only_prompt(
             "language": [
                 "Use UNKNOWN unless the domain/final URL strongly and unambiguously indicates the primary content language.",
                 "Do not infer language from TLD alone unless it is very strong and unambiguous.",
+                "Language must be the main content language as an ISO 639-1 uppercase code, e.g. EN, DE, FR."
             ],
         },
         "required_json_shape": {
