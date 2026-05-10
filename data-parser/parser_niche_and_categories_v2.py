@@ -48,6 +48,7 @@ import logging
 import os
 import random
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -56,6 +57,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from html import unescape
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import urljoin, urlparse, urlunparse, urldefrag
 
@@ -612,30 +614,144 @@ def check_selenium_availability(mode: str) -> SeleniumAvailability:
     return SeleniumAvailability(enabled=True, available=True)
 
 
-def detect_chrome_version_main() -> Optional[int]:
-    candidates = []
+def _existing_executable_path(path: Optional[str]) -> Optional[str]:
+    if not path:
+        return None
+    candidate = os.path.expandvars(str(path).strip().strip('"'))
+    if candidate and os.path.isfile(candidate):
+        return candidate
+    return None
+
+
+def find_chrome_executable() -> Optional[str]:
+    if sys.platform.startswith("win"):
+        try:
+            import winreg
+
+            registry_keys = [
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+            ]
+            for hive, key_path in registry_keys:
+                try:
+                    with winreg.OpenKey(hive, key_path) as key:
+                        value, _value_type = winreg.QueryValueEx(key, "")
+                    existing = _existing_executable_path(value)
+                    if existing:
+                        return existing
+                except OSError as e:
+                    logging.debug("Chrome registry lookup failed for %s: %s", key_path, e)
+        except Exception as e:
+            logging.debug("Chrome registry lookup unavailable: %s", e)
+
     for env_name in ["ProgramFiles", "ProgramFiles(x86)", "LocalAppData"]:
         base = os.environ.get(env_name)
         if base:
-            candidates.append(os.path.join(base, "Google", "Chrome", "Application", "chrome.exe"))
-    candidates.extend(["chrome", "google-chrome"])
+            existing = _existing_executable_path(os.path.join(base, "Google", "Chrome", "Application", "chrome.exe"))
+            if existing:
+                return existing
+
+    for command in ["chrome", "chrome.exe"]:
+        existing = _existing_executable_path(shutil.which(command))
+        if existing:
+            return existing
+
+    return None
+
+
+def get_windows_file_product_version(path: str) -> Optional[str]:
+    if not sys.platform.startswith("win"):
+        return None
+    try:
+        escaped_path = path.replace("'", "''")
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", f"(Get-Item -LiteralPath '{escaped_path}').VersionInfo.ProductVersion"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        output = completed.stdout.strip()
+        if output:
+            return output
+    except Exception as e:
+        logging.debug("Chrome ProductVersion lookup failed for %s: %s", path, e)
+    return None
+
+
+def infer_chrome_version_from_install_dir(chrome_exe_path: str) -> Optional[str]:
+    try:
+        install_dir = Path(chrome_exe_path).parent
+        version_dirs: List[Tuple[Tuple[int, int, int, int], str]] = []
+        for child in install_dir.iterdir():
+            if not child.is_dir():
+                continue
+            if not re.match(r"^\d+\.\d+\.\d+\.\d+$", child.name):
+                continue
+            try:
+                version_key = tuple(int(part) for part in child.name.split("."))
+            except ValueError:
+                continue
+            if len(version_key) == 4:
+                version_dirs.append((version_key, child.name))
+        if version_dirs:
+            return max(version_dirs, key=lambda item: item[0])[1]
+    except Exception as e:
+        logging.debug("Chrome install directory version inference failed for %s: %s", chrome_exe_path, e)
+    return None
+
+
+def parse_major_version(text: str) -> Optional[int]:
+    match = re.search(r"(\d+)\.", text or "")
+    return int(match.group(1)) if match else None
+
+
+def _run_chrome_version_command(candidate: str) -> Optional[int]:
+    try:
+        completed = subprocess.run(
+            [candidate, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return parse_major_version(f"{completed.stdout} {completed.stderr}")
+    except Exception as e:
+        logging.debug("Chrome version command failed for %s: %s", candidate, e)
+    return None
+
+
+def _detect_chrome_version_main(chrome_path: Optional[str]) -> Optional[int]:
+    candidates = []
+    if chrome_path:
+        candidates.append(chrome_path)
 
     for candidate in candidates:
-        try:
-            completed = subprocess.run(
-                [candidate, "--version"],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            output = f"{completed.stdout} {completed.stderr}"
-            match = re.search(r"(\d+)\.", output)
-            if match:
-                return int(match.group(1))
-        except Exception:
-            continue
+        product_version = get_windows_file_product_version(candidate)
+        major = parse_major_version(product_version or "")
+        if major:
+            return major
+
+        inferred_version = infer_chrome_version_from_install_dir(candidate)
+        major = parse_major_version(inferred_version or "")
+        if major:
+            return major
+
+        major = _run_chrome_version_command(candidate)
+        if major:
+            return major
+
+    for candidate in ["chrome", "chrome.exe", "google-chrome"]:
+        major = _run_chrome_version_command(candidate)
+        if major:
+            return major
+
     return None
+
+
+def detect_chrome_version_main() -> Optional[int]:
+    return _detect_chrome_version_main(find_chrome_executable())
 
 
 def resolve_chrome_version_main(cli_value: Optional[int]) -> Optional[int]:
@@ -643,12 +759,19 @@ def resolve_chrome_version_main(cli_value: Optional[int]) -> Optional[int]:
         logging.info("Using Chrome major version from --chrome-version-main: %s", cli_value)
         return cli_value
 
-    detected = detect_chrome_version_main()
+    chrome_path = find_chrome_executable()
+    if chrome_path:
+        logging.info("Detected Chrome executable: %s", chrome_path)
+
+    detected = _detect_chrome_version_main(chrome_path)
     if detected:
         logging.info("Detected Chrome major version: %s", detected)
         return detected
 
-    logging.info("Chrome major version was not detected; undetected_chromedriver will choose automatically")
+    logging.warning(
+        "Chrome major version was not detected; undetected_chromedriver will choose automatically. "
+        "If Selenium version mismatch happens, pass --chrome-version-main manually."
+    )
     return None
 
 
@@ -1602,6 +1725,7 @@ DEBUG_RESULT_COLUMNS = [
     "InternalPagesSeleniumTried",
     "InternalPagesSeleniumSucceeded",
     "InternalPagesSucceeded",
+    "ChromeVersionMainUsed",
     "TotalExtractedTextLength",
     "ModelName",
     "BatchId",
@@ -1638,6 +1762,7 @@ COLUMN_WIDTHS = {
     "InternalPagesSeleniumTried": 28,
     "InternalPagesSeleniumSucceeded": 32,
     "InternalPagesSucceeded": 24,
+    "ChromeVersionMainUsed": 24,
     "TotalExtractedTextLength": 26,
     "ModelName": 24,
     "BatchId": 34,
@@ -1750,6 +1875,7 @@ def build_result_values(
     batch_id: str,
     batch_status: str,
     extract_only: bool,
+    chrome_version_main: Optional[int] = None,
 ) -> Dict[str, Any]:
     homepage = extraction.homepage
     detected_language = homepage.html_lang if homepage and homepage.html_lang else LANGUAGE_UNKNOWN
@@ -1774,6 +1900,7 @@ def build_result_values(
         "InternalPagesSeleniumTried": excel_int(extraction.internal_pages_selenium_tried),
         "InternalPagesSeleniumSucceeded": excel_int(extraction.internal_pages_selenium_succeeded),
         "InternalPagesSucceeded": excel_int(extraction.internal_pages_succeeded),
+        "ChromeVersionMainUsed": excel_int(chrome_version_main),
         "TotalExtractedTextLength": excel_int(extraction.total_text_length),
         "SourceQuality": excel_text(extraction.source_quality),
         "ModelName": "" if extract_only else excel_text(classification.model_name or model_name),
@@ -1804,6 +1931,7 @@ def build_output_dataframe(
     batch_status: str,
     output_scope: str = "processed",
     debug_output: bool = False,
+    chrome_version_main: Optional[int] = None,
 ) -> pd.DataFrame:
     original_columns = list(df.columns)
     result_columns = get_result_columns(debug_output)
@@ -1861,6 +1989,7 @@ def build_output_dataframe(
                     batch_id=batch_id,
                     batch_status=batch_status,
                     extract_only=extract_only,
+                    chrome_version_main=chrome_version_main,
                 )
             )
         else:
@@ -2134,6 +2263,7 @@ def main() -> None:
             batch_status="extract_only",
             output_scope=args.output_scope,
             debug_output=args.debug_output,
+            chrome_version_main=chrome_version_main,
         )
         write_output_excel(args.output, output)
         return
@@ -2179,6 +2309,7 @@ def main() -> None:
                 batch_status="no_valid_requests",
                 output_scope=args.output_scope,
                 debug_output=args.debug_output,
+                chrome_version_main=chrome_version_main,
             )
             write_output_excel(args.output, output)
             return
@@ -2213,6 +2344,7 @@ def main() -> None:
                 batch_status=batch_status,
                 output_scope=args.output_scope,
                 debug_output=args.debug_output,
+                chrome_version_main=chrome_version_main,
             )
             write_output_excel(args.output, output)
             return
@@ -2264,6 +2396,7 @@ def main() -> None:
         batch_status=batch_status,
         output_scope=args.output_scope,
         debug_output=args.debug_output,
+        chrome_version_main=chrome_version_main,
     )
     write_output_excel(args.output, output)
     logging.info("Done.")
