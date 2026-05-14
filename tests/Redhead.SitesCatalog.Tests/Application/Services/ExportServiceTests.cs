@@ -60,6 +60,7 @@ public class ExportServiceTests : IDisposable
                 DR = 50,
                 Traffic = 10000,
                 Location = "US",
+                Language = "EN",
                 PriceUsd = 100m,
                 PriceCasino = 150m,
                 PriceCasinoStatus = ServiceAvailabilityStatus.Available,
@@ -110,6 +111,7 @@ public class ExportServiceTests : IDisposable
                 DR = 90,
                 Traffic = 100000,
                 Location = "US",
+                Language = "UNKNOWN",
                 PriceUsd = 500m,
                 PriceCasino = 600m,
                 PriceCasinoStatus = ServiceAvailabilityStatus.Available,
@@ -563,7 +565,8 @@ public class ExportServiceTests : IDisposable
                 "Categories",
                 "DF Links",
                 "Sponsored Tag",
-                "Term"
+                "Term",
+                "Language"
             ],
             headers);
     }
@@ -596,6 +599,7 @@ public class ExportServiceTests : IDisposable
                 "DF Links",
                 "Sponsored Tag",
                 "Term",
+                "Language",
                 "Status",
                 "Quarantine reason",
                 "Last Published",
@@ -677,6 +681,67 @@ public class ExportServiceTests : IDisposable
 
         Assert.Equal("Available", rows.Single(row => row["Domain"] == "example.com")["Status"]);
         Assert.Equal("Unavailable", rows.Single(row => row["Domain"] == "gambling.com")["Status"]);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_Language_WritesStoredValueAndUnknownForNull()
+    {
+        _context.Sites.Add(new Site
+        {
+            Domain = "multi-language.com",
+            DR = 10,
+            Traffic = 100,
+            Location = "US",
+            Language = "MULTI",
+            PriceUsd = 10m,
+            PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+            IsQuarantined = false,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+
+        Assert.Equal("EN", rows.Single(row => row["Domain"] == "example.com")["Language"]);
+        Assert.Equal("UNKNOWN", rows.Single(row => row["Domain"] == "test.com")["Language"]);
+        Assert.Equal("UNKNOWN", rows.Single(row => row["Domain"] == "gambling.com")["Language"]);
+        Assert.Equal("MULTI", rows.Single(row => row["Domain"] == "multi-language.com")["Language"]);
+    }
+
+    [Fact]
+    public async Task ExportMultiSearchAsExcelAsync_Language_IncludesColumnForFoundRowsAndKeepsNotFoundSheetDomainOnly()
+    {
+        var result = await _service.ExportMultiSearchAsExcelAsync(
+            "example.com test.com missing.com",
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var siteHeaders = await ReadSitesSheetHeaderFromStream(result.FileStream);
+        var siteRows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        var notFoundHeaders = XlsxTestWorkbook.ReadHeaders(result.FileStream, "Not found");
+        var notFoundRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Not found");
+
+        Assert.Equal("Language", siteHeaders[siteHeaders.IndexOf("Term") + 1]);
+        Assert.Equal("EN", siteRows.Single(row => row["Domain"] == "example.com")["Language"]);
+        Assert.Equal("UNKNOWN", siteRows.Single(row => row["Domain"] == "test.com")["Language"]);
+        Assert.Equal(["Domain"], notFoundHeaders);
+        Assert.Single(notFoundRows);
+        Assert.Equal("missing.com", notFoundRows[0]["Domain"]);
     }
 
     #endregion
@@ -954,6 +1019,7 @@ public class ExportServiceTests : IDisposable
             TrafficMin = 1000,
             PriceMax = 250m,
             Locations = ["US"],
+            Languages = ["EN", "UNKNOWN"],
             Niches = ["Casino", " crypto ", "casino"],
             CasinoAvailability = ServiceAvailabilityFilter.Available,
             LinkInsertAllowed = true,
@@ -996,6 +1062,9 @@ public class ExportServiceTests : IDisposable
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "niche" &&
             filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["casino", "crypto"]));
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "language" &&
+            filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["EN", "UNKNOWN"]));
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "stopList" &&
             filter.GetProperty("kind").GetString() == "boolean" &&
@@ -1202,6 +1271,7 @@ public class ExportServiceTests : IDisposable
             DR = double.Parse(row["DR"], CultureInfo.InvariantCulture),
             Traffic = long.Parse(row["Traffic"], CultureInfo.InvariantCulture),
             Location = row["Location"],
+            Language = row["Language"],
             PriceUsd = string.IsNullOrEmpty(row["Price USD"]) ? 0 : decimal.Parse(row["Price USD"], CultureInfo.InvariantCulture),
             PriceCasino = row["Casino"],
             PriceCrypto = row["Crypto"],
@@ -1240,6 +1310,7 @@ public class ExportServiceTests : IDisposable
         public double DR { get; set; }
         public long Traffic { get; set; }
         public string Location { get; set; } = string.Empty;
+        public string Language { get; set; } = string.Empty;
         public decimal PriceUsd { get; set; }
         public string PriceCasino { get; set; } = string.Empty;
         public string PriceCrypto { get; set; } = string.Empty;

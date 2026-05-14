@@ -127,6 +127,7 @@ public class SitesServiceTests : IDisposable
                 DR = 60,
                 Traffic = 30000,
                 Location = "CA",
+                Language = "MULTI",
                 PriceUsd = 150m,
                 PriceCasino = null,
                 PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
@@ -150,6 +151,7 @@ public class SitesServiceTests : IDisposable
                 DR = 20,
                 Traffic = 1000,
                 Location = "US",
+                Language = "DE",
                 PriceUsd = 50m,
                 PriceCasino = null,
                 PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
@@ -473,6 +475,84 @@ public class SitesServiceTests : IDisposable
         // Assert
         Assert.Equal(4, result.Total); // example.com, test.com, gambling.com, lowdr.com
         Assert.All(result.Items, site => Assert.Contains(site.Location, new[] { "US", "UK" }));
+    }
+
+    #endregion
+
+    #region Language Filter Tests
+
+    [Theory]
+    [InlineData("EN")]
+    [InlineData("en")]
+    [InlineData("en-US")]
+    [InlineData("english")]
+    public async Task GetSitesAsync_WithLanguageEnglishFilter_ReturnsOnlyEnSites(string language)
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Languages = new List<string> { language },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Single(result.Items);
+        Assert.Equal("example.com", result.Items[0].Domain);
+        Assert.Equal("EN", result.Items[0].Language);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithLanguageMultiFilter_ReturnsOnlyMultiSites()
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Languages = new List<string> { "MULTI" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Single(result.Items);
+        Assert.Equal("crypto.com", result.Items[0].Domain);
+        Assert.Equal("MULTI", result.Items[0].Language);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithLanguageUnknownFilter_ReturnsUnknownAndNullLanguageSites()
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Languages = new List<string> { "UNKNOWN" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Equal(["gambling.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
+        Assert.Contains(result.Items, site => site.Language == "UNKNOWN");
+        Assert.Contains(result.Items, site => site.Language is null);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleLanguageFilters_UsesAnySemantics()
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Languages = new List<string> { "EN", "DE", "UNKNOWN" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Equal(["example.com", "gambling.com", "lowdr.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
     }
 
     #endregion
@@ -1479,6 +1559,19 @@ public class SitesServiceTests : IDisposable
         Assert.Equal("UNKNOWN", site.Language);
         Assert.True(site.IsQuarantined);
         Assert.Equal("Under review", site.QuarantineReason);
+    }
+
+    [Fact]
+    public async Task MultiSearchSitesAsync_FoundRowsIncludeNullLanguage()
+    {
+        var result = await _service.MultiSearchSitesAsync(
+            new List<string> { "test.com", "missing.com" },
+            []);
+
+        var site = Assert.Single(result.Found);
+        Assert.Equal("test.com", site.Domain);
+        Assert.Null(site.Language);
+        Assert.Equal(["missing.com"], result.NotFound);
     }
 
     #endregion

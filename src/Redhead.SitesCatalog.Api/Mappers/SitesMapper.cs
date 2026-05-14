@@ -2,6 +2,7 @@ using System.Globalization;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 
@@ -36,6 +37,7 @@ public static class SitesMapper
             PriceMin = request.PriceMin,
             PriceMax = request.PriceMax,
             Locations = request.Locations,
+            Languages = ParseLanguageFilter(request.Languages),
             Niches = request.Niches,
             CasinoAllowed = request.CasinoAllowed,
             CryptoAllowed = request.CryptoAllowed,
@@ -49,6 +51,37 @@ public static class SitesMapper
             LastPublishedFrom = lastPublishedFrom,
             LastPublishedToExclusive = lastPublishedToExclusive
         };
+    }
+
+    private static List<string>? ParseLanguageFilter(IReadOnlyCollection<string>? rawValues)
+    {
+        if (rawValues is null || rawValues.Count == 0)
+        {
+            return null;
+        }
+
+        var normalizedValues = new List<string>();
+        foreach (var rawValue in rawValues)
+        {
+            if (string.IsNullOrWhiteSpace(rawValue))
+            {
+                continue;
+            }
+
+            var normalized = LanguageNormalizer.Normalize(rawValue);
+            if (normalized is null)
+            {
+                throw new RequestValidationException(
+                    $"Invalid language filter value '{rawValue}'. Allowed values: two-letter codes, UNKNOWN, or MULTI.");
+            }
+
+            if (!normalizedValues.Contains(normalized, StringComparer.Ordinal))
+            {
+                normalizedValues.Add(normalized);
+            }
+        }
+
+        return normalizedValues.Count == 0 ? null : normalizedValues;
     }
 
     /// <summary>

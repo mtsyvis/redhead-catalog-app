@@ -33,6 +33,7 @@ public class ExportService : IExportService
         "DF Links",
         "Sponsored Tag",
         "Term",
+        "Language",
     ];
 
     private static readonly string[] NonClientExportHeaders =
@@ -52,6 +53,7 @@ public class ExportService : IExportService
         "DF Links",
         "Sponsored Tag",
         "Term",
+        "Language",
         "Status",
         "Quarantine reason",
         "Last Published",
@@ -267,6 +269,7 @@ public class ExportService : IExportService
         if (query.TrafficMin.HasValue || query.TrafficMax.HasValue) { return true; }
         if (query.PriceMin.HasValue || query.PriceMax.HasValue) { return true; }
         if (query.Locations is { Count: > 0 }) { return true; }
+        if (query.Languages is { Count: > 0 }) { return true; }
         if (NicheNormalizer.NormalizeTokens(query.Niches ?? []).Length > 0) { return true; }
         if (query.CasinoAvailability.HasValue)
         {
@@ -388,7 +391,8 @@ public class ExportService : IExportService
             XlsxCell.Text(site.Categories),
             XlsxCell.Number(site.NumberDFLinks, XlsxCellStyle.Integer),
             XlsxCell.Text(site.SponsoredTag),
-            XlsxCell.Text(FormatTerm(site.TermType, site.TermValue, site.TermUnit))
+            XlsxCell.Text(FormatTerm(site.TermType, site.TermValue, site.TermUnit)),
+            XlsxCell.Text(FormatLanguage(site.Language))
         };
 
         if (isClientRole)
@@ -444,7 +448,8 @@ public class ExportService : IExportService
             28,
             16,
             16,
-            16
+            16,
+            14
         };
 
         if (!isClientRole)
@@ -502,6 +507,7 @@ public class ExportService : IExportService
             query.PriceMin,
             query.PriceMax,
             query.Locations,
+            query.Languages,
             query.Niches,
             query.CasinoAllowed,
             query.CryptoAllowed,
@@ -536,4 +542,6 @@ public class ExportService : IExportService
         return string.Empty;
     }
 
+    private static string FormatLanguage(string? language)
+        => language ?? LanguageNormalizer.Unknown;
 }

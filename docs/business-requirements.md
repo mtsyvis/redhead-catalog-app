@@ -291,6 +291,7 @@ Main filters:
 * Traffic range
 * Price range
 * Location multi-select
+* Language multi-select
 * Niche multi-select
 * Casino availability
 * Crypto availability

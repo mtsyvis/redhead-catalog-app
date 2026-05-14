@@ -41,6 +41,8 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             sitesQuery = sitesQuery.Where(s => query.Locations.Contains(s.Location));
         }
 
+        sitesQuery = ApplyLanguageFilter(sitesQuery, query.Languages);
+
         var nicheTokens = NormalizeNicheFilter(query.Niches);
         if (nicheTokens.Length > 0)
         {
@@ -70,6 +72,32 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         }
 
         return NicheNormalizer.NormalizeTokens(niches);
+    }
+
+    private static IQueryable<Site> ApplyLanguageFilter(IQueryable<Site> query, IReadOnlyCollection<string>? languages)
+    {
+        if (languages is null || languages.Count == 0)
+        {
+            return query;
+        }
+
+        var normalizedLanguages = languages
+            .Select(LanguageNormalizer.Normalize)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (normalizedLanguages.Length == 0)
+        {
+            return query;
+        }
+
+        if (normalizedLanguages.Contains(LanguageNormalizer.Unknown, StringComparer.Ordinal))
+        {
+            return query.Where(s => s.Language == null || normalizedLanguages.Contains(s.Language));
+        }
+
+        return query.Where(s => normalizedLanguages.Contains(s.Language));
     }
 
     private static Expression<Func<Site, bool>> BuildNichePredicate(IReadOnlyCollection<string> nicheTokens)

@@ -57,6 +57,7 @@ public static class ExportAnalyticsSnapshotBuilder
         AddNumberRange(filters, "traffic", query.TrafficMin, query.TrafficMax);
         AddNumberRange(filters, "priceUsd", query.PriceMin, query.PriceMax);
         AddMultiSelect(filters, "location", query.Locations);
+        AddMultiSelect(filters, "language", query.Languages);
 
         var niches = NicheNormalizer.NormalizeTokens(query.Niches ?? []);
         AddMultiSelect(filters, "niche", niches);

@@ -28,6 +28,7 @@ public class SitesMapperTests
             PriceMin = 100m,
             PriceMax = 500m,
             Locations = new List<string> { "US", "UK" },
+            Languages = new List<string> { "english", "de", "en-US", "UNKNOWN" },
             Niches = new List<string> { "crypto", "finance" },
             CasinoAllowed = true,
             CryptoAllowed = false,
@@ -59,6 +60,7 @@ public class SitesMapperTests
         Assert.Equal(2, query.Locations!.Count);
         Assert.Contains("US", query.Locations);
         Assert.Contains("UK", query.Locations);
+        Assert.Equal(["EN", "DE", "UNKNOWN"], query.Languages);
         Assert.Equal(["crypto", "finance"], query.Niches);
         Assert.True(query.CasinoAllowed);
         Assert.False(query.CryptoAllowed);
@@ -250,6 +252,20 @@ public class SitesMapperTests
 
         // Assert
         Assert.Contains("Invalid availability filter value", ex.Message);
+    }
+
+    [Fact]
+    public void ToQuery_WithInvalidLanguageFilter_ThrowsRequestValidationException()
+    {
+        var request = new SitesQueryRequest
+        {
+            Languages = new List<string> { "EN", "english-us" }
+        };
+
+        var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
+
+        Assert.Contains("Invalid language filter value", ex.Message);
+        Assert.Contains("english-us", ex.Message);
     }
 
     [Fact]

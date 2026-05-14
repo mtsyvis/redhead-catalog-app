@@ -32,6 +32,9 @@ public class SitesQuery
     // Location multi-select
     public List<string>? Locations { get; set; }
 
+    // Language multi-select
+    public List<string>? Languages { get; set; }
+
     // Niche multi-select
     public List<string>? Niches { get; set; }
 
