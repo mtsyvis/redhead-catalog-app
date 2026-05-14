@@ -5,7 +5,11 @@ using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
+
+using AppUpdateSiteRequest = Redhead.SitesCatalog.Application.Models.UpdateSiteRequest;
+using ApiUpdateSiteRequest = Redhead.SitesCatalog.Api.Models.Sites.UpdateSiteRequest;
 
 namespace Redhead.SitesCatalog.Tests;
 
@@ -136,6 +140,7 @@ public class SitesControllerTests
             DR = 50,
             Traffic = 10000,
             Location = "US",
+            Language = "EN",
             PriceUsd = 100.50m,
             PriceCasino = 150.00m,
             PriceCrypto = null,
@@ -157,6 +162,7 @@ public class SitesControllerTests
         Assert.Equal(50, site.DR);
         Assert.Equal(10000, site.Traffic);
         Assert.Equal("US", site.Location);
+        Assert.Equal("EN", site.Language);
         Assert.Equal(100.50m, site.PriceUsd);
         Assert.Equal(150.00m, site.PriceCasino);
         Assert.Null(site.PriceCrypto);
@@ -165,5 +171,78 @@ public class SitesControllerTests
         Assert.Null(site.PriceDating);
         Assert.Equal(2, site.NumberDFLinks);
         Assert.False(site.IsQuarantined);
+    }
+
+    [Fact]
+    public async Task UpdateSite_WithLanguage_NormalizesBeforeCallingService()
+    {
+        var sitesService = new Mock<ISitesService>();
+        AppUpdateSiteRequest? capturedRequest = null;
+        sitesService
+            .Setup(service => service.UpdateSiteAsync(
+                "example.com",
+                It.IsAny<AppUpdateSiteRequest>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, AppUpdateSiteRequest, CancellationToken>((_, request, _) => capturedRequest = request)
+            .ReturnsAsync((string _, AppUpdateSiteRequest request, CancellationToken _) => new SiteDto
+            {
+                Domain = "example.com",
+                DR = request.DR,
+                Traffic = request.Traffic,
+                Location = request.Location,
+                Language = request.Language,
+                PriceUsd = request.PriceUsd,
+                IsQuarantined = request.IsQuarantined,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+        var controller = new SitesController(sitesService.Object);
+        var request = BuildValidUpdateRequest();
+        request.Language = "english";
+
+        var result = await controller.UpdateSite("example.com", request, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<SiteResponse>(ok.Value);
+        Assert.Equal("EN", response.Language);
+        Assert.NotNull(capturedRequest);
+        Assert.Equal("EN", capturedRequest.Language);
+    }
+
+    [Fact]
+    public async Task UpdateSite_WithInvalidLanguage_ReturnsValidationErrorAndDoesNotCallService()
+    {
+        var sitesService = new Mock<ISitesService>();
+        var controller = new SitesController(sitesService.Object);
+        var request = BuildValidUpdateRequest();
+        request.Language = "english-us";
+
+        var result = await controller.UpdateSite("example.com", request, CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.NotNull(badRequest.Value);
+        sitesService.Verify(
+            service => service.UpdateSiteAsync(
+                It.IsAny<string>(),
+                It.IsAny<AppUpdateSiteRequest>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    private static ApiUpdateSiteRequest BuildValidUpdateRequest()
+    {
+        return new ApiUpdateSiteRequest
+        {
+            DR = 50,
+            Traffic = 10000,
+            Location = "US",
+            PriceUsd = 100m,
+            PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+            IsQuarantined = false
+        };
     }
 }

@@ -1,4 +1,5 @@
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
 
@@ -56,6 +57,17 @@ public static class SiteWriteValidator
         else if (location.Length > SiteFieldLimits.LocationMaxLength)
         {
             Add(errors, "location", $"Location must be at most {SiteFieldLimits.LocationMaxLength} characters.");
+        }
+
+        var language = LanguageNormalizer.Normalize(input.Language);
+        var trimmedLanguage = input.Language?.Trim();
+        if (trimmedLanguage is { Length: > SiteFieldLimits.LanguageMaxLength })
+        {
+            Add(errors, "language", $"Language must be at most {SiteFieldLimits.LanguageMaxLength} characters.");
+        }
+        else if (!string.IsNullOrWhiteSpace(input.Language) && language is null)
+        {
+            Add(errors, "language", "Language must be a two-letter code, UNKNOWN, or MULTI.");
         }
 
         var sponsoredTag = TrimToNull(input.SponsoredTag);
@@ -157,6 +169,7 @@ public static class SiteWriteValidator
                 DR = input.DR!.Value,
                 Traffic = input.Traffic!.Value,
                 Location = location,
+                Language = language,
                 SponsoredTag = sponsoredTag,
                 PriceUsd = input.PriceUsd,
                 PriceCasino = normalizedCasino.Price,

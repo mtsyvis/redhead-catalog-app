@@ -48,6 +48,7 @@ public class SitesService : ISitesService
                 DR = s.DR,
                 Traffic = s.Traffic,
                 Location = s.Location,
+                Language = s.Language,
                 SponsoredTag = s.SponsoredTag,
                 PriceUsd = s.PriceUsd,
                 PriceCasino = s.PriceCasino,
@@ -121,6 +122,7 @@ public class SitesService : ISitesService
                 DR = s.DR,
                 Traffic = s.Traffic,
                 Location = s.Location,
+                Language = s.Language,
                 SponsoredTag = s.SponsoredTag,
                 PriceUsd = s.PriceUsd,
                 PriceCasino = s.PriceCasino,
@@ -179,6 +181,7 @@ public class SitesService : ISitesService
         site.DR = request.DR;
         site.Traffic = request.Traffic;
         site.Location = request.Location;
+        site.Language = request.Language;
         site.SponsoredTag = request.SponsoredTag;
         site.PriceUsd = request.PriceUsd;
         site.PriceCasino = request.PriceCasino;
@@ -211,6 +214,7 @@ public class SitesService : ISitesService
             DR = site.DR,
             Traffic = site.Traffic,
             Location = site.Location,
+            Language = site.Language,
             SponsoredTag = site.SponsoredTag,
             PriceUsd = site.PriceUsd,
             PriceCasino = site.PriceCasino,

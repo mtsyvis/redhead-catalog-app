@@ -118,7 +118,7 @@ public class SitesController : ControllerBase
     }
 
     /// <summary>
-    /// Update site fields (Admin/SuperAdmin). Editable: DR, Traffic, Location, prices, Niche, Categories, quarantine.
+    /// Update site fields (Admin/SuperAdmin). Editable: DR, Traffic, Location, Language, prices, Niche, Categories, quarantine.
     /// Domain is read-only (route parameter). When IsQuarantined is false, reason is cleared.
     /// </summary>
     [HttpPut("{domain}")]
@@ -130,6 +130,7 @@ public class SitesController : ControllerBase
             DR = request.DR,
             Traffic = request.Traffic,
             Location = request.Location,
+            Language = request.Language,
             SponsoredTag = request.SponsoredTag,
             PriceUsd = request.PriceUsd,
             PriceCasino = request.PriceCasino,

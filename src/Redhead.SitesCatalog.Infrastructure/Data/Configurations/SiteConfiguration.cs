@@ -56,6 +56,9 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
 
         builder.HasIndex(s => s.Location);
 
+        builder.Property(s => s.Language)
+            .HasMaxLength(SiteFieldLimits.LanguageMaxLength);
+
         builder.Property(s => s.PriceUsd)
             .HasPrecision(18, 2);
 

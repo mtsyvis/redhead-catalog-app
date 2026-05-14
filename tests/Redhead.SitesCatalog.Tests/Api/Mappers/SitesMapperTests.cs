@@ -114,6 +114,7 @@ public class SitesMapperTests
             DR = 70,
             Traffic = 50000,
             Location = "US",
+            Language = "EN",
             PriceUsd = 200m,
             PriceCasino = 250m,
             PriceCasinoStatus = ServiceAvailabilityStatus.Available,
@@ -147,6 +148,7 @@ public class SitesMapperTests
         Assert.Equal(70, response.DR);
         Assert.Equal(50000, response.Traffic);
         Assert.Equal("US", response.Location);
+        Assert.Equal("EN", response.Language);
         Assert.Equal(200m, response.PriceUsd);
         Assert.Equal(250m, response.PriceCasino);
         Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceCasinoStatus);
@@ -182,6 +184,7 @@ public class SitesMapperTests
             DR = 50,
             Traffic = 10000,
             Location = "UK",
+            Language = null,
             PriceUsd = 100m,
             PriceCasino = null,
             PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
@@ -211,6 +214,7 @@ public class SitesMapperTests
 
         // Assert
         Assert.Equal("basic.com", response.Domain);
+        Assert.Null(response.Language);
         Assert.Null(response.PriceCasino);
         Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceCasinoStatus);
         Assert.Null(response.PriceCrypto);

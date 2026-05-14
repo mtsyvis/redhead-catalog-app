@@ -49,6 +49,7 @@ public class SitesServiceTests : IDisposable
                 DR = 50,
                 Traffic = 10000,
                 Location = "US",
+                Language = "EN",
                 PriceUsd = 100m,
                 PriceCasino = 150m,
                 PriceCasinoStatus = ServiceAvailabilityStatus.Available,
@@ -99,6 +100,7 @@ public class SitesServiceTests : IDisposable
                 DR = 90,
                 Traffic = 100000,
                 Location = "US",
+                Language = "UNKNOWN",
                 PriceUsd = 500m,
                 PriceCasino = 600m,
                 PriceCasinoStatus = ServiceAvailabilityStatus.Available,
@@ -199,6 +201,7 @@ public class SitesServiceTests : IDisposable
         Assert.Single(result.Items);
         Assert.Equal("example.com", result.Items[0].Domain);
         Assert.Equal(1, result.Total);
+        Assert.Equal("EN", result.Items[0].Language);
     }
 
     [Fact]
@@ -1473,6 +1476,7 @@ public class SitesServiceTests : IDisposable
         Assert.Equal("gambling.com", site.Domain);
         Assert.Equal(90, site.DR);
         Assert.Equal(100000, site.Traffic);
+        Assert.Equal("UNKNOWN", site.Language);
         Assert.True(site.IsQuarantined);
         Assert.Equal("Under review", site.QuarantineReason);
     }
@@ -1488,6 +1492,7 @@ public class SitesServiceTests : IDisposable
             DR = site.DR,
             Traffic = site.Traffic,
             Location = site.Location,
+            Language = site.Language,
             PriceUsd = site.PriceUsd,
             PriceCasino = site.PriceCasino,
             PriceCasinoStatus = site.PriceCasinoStatus,
@@ -1610,6 +1615,7 @@ public class SitesServiceTests : IDisposable
             DR = 60,
             Traffic = 20000,
             Location = "CA",
+            Language = "EN",
             PriceUsd = 150m,
             PriceCasino = 200m,
             PriceCasinoStatus = ServiceAvailabilityStatus.Available,
@@ -1637,6 +1643,7 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(60, updated.DR);
         Assert.Equal(20000L, updated.Traffic);
         Assert.Equal("CA", updated.Location);
+        Assert.Equal("EN", updated.Language);
         Assert.Equal(150m, updated.PriceUsd);
         Assert.Equal(200m, updated.PriceCasino);
         Assert.Null(updated.PriceCrypto);
@@ -1655,7 +1662,24 @@ public class SitesServiceTests : IDisposable
         var dbSite = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
         Assert.Equal(60, dbSite.DR);
         Assert.Equal("CA", dbSite.Location);
+        Assert.Equal("EN", dbSite.Language);
         Assert.Equal(["updated niche"], dbSite.NicheTokens);
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_NullLanguage_ClearsLanguage()
+    {
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Language = null;
+
+        var updated = await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Null(updated.Language);
+
+        var dbSite = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        Assert.Null(dbSite.Language);
     }
 
     [Fact]

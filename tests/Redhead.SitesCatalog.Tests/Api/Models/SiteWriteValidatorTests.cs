@@ -87,6 +87,70 @@ public class SiteWriteValidatorTests
         AssertError(result, "location");
     }
 
+    [Theory]
+    [InlineData("EN", "EN")]
+    [InlineData("en", "EN")]
+    [InlineData("En", "EN")]
+    [InlineData("en-US", "EN")]
+    [InlineData("en_US", "EN")]
+    [InlineData("english", "EN")]
+    [InlineData("English", "EN")]
+    [InlineData("unknown", "UNKNOWN")]
+    [InlineData("UNKNOWN", "UNKNOWN")]
+    [InlineData("multi", "MULTI")]
+    [InlineData("MULTI", "MULTI")]
+    [InlineData("de", "DE")]
+    public void ValidateAndNormalize_Language_NormalizesAcceptedValues(string language, string expected)
+    {
+        var request = BuildValidRequest();
+        request.Language = language;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.True(result.IsValid);
+        Assert.Equal(expected, result.NormalizedRequest!.Language);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ValidateAndNormalize_EmptyLanguage_NormalizesToNull(string? language)
+    {
+        var request = BuildValidRequest();
+        request.Language = language;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        Assert.True(result.IsValid);
+        Assert.Null(result.NormalizedRequest!.Language);
+    }
+
+    [Theory]
+    [InlineData("eng")]
+    [InlineData("e1")]
+    [InlineData("not-a-language")]
+    public void ValidateAndNormalize_InvalidLanguage_ReturnsError(string language)
+    {
+        var request = BuildValidRequest();
+        request.Language = language;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        AssertError(result, "language");
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_LanguageTooLong_ReturnsError()
+    {
+        var request = BuildValidRequest();
+        request.Language = new string('x', SiteFieldLimits.LanguageMaxLength + 1);
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        AssertError(result, "language");
+    }
+
     [Fact]
     public void ValidateAndNormalize_NullPriceUsd_WithNoOtherPrices_ReturnsCrossFieldError()
     {

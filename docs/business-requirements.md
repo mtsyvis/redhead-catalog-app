@@ -124,6 +124,7 @@ Core site fields:
 * `DR`
 * `Traffic`
 * `Location`
+* `Language`
 * `PriceUsd`
 * `PriceCasino`
 * `PriceCasinoStatus`
@@ -218,6 +219,16 @@ Rules:
 * UI must not mislead users by showing unavailable services as zero-price services.
 
 ### Additional site fields
+
+`Language` is optional and stores the main language classification for a site.
+
+Rules:
+
+* Empty `Language` means language data is not available yet or the site was not processed by the parser.
+* `UNKNOWN` means the site was processed but the language could not be determined.
+* `MULTI` means the site has multiple main languages.
+* Two-letter ISO-style language codes are stored uppercase, for example `EN`, `DE`, `FR`, `RU`, and `ID`.
+* Manual site edits must normalize supported language inputs and reject invalid values instead of converting them to `UNKNOWN`.
 
 `NumberDFLinks` is nullable. When present, it must be a positive whole number.
 
