@@ -6,6 +6,7 @@ export interface Site {
   dr: number;
   traffic: number;
   location: string;
+  language: string | null;
   priceUsd: number | null;
   priceCasino: number | null;
   priceCasinoStatus: ServiceAvailabilityStatus;
@@ -59,6 +60,7 @@ export interface SitesQueryParams {
   stopListDomains?: string[];
   location?: string[];
   niches?: string[];
+  languages?: string[];
   casinoAvailability?: ServiceAvailabilityFilter;
   cryptoAvailability?: ServiceAvailabilityFilter;
   linkInsertAvailability?: ServiceAvailabilityFilter;
@@ -101,6 +103,7 @@ export interface SitesFilters {
   stopListDomains: string[];
   location: string[];
   niches: string[];
+  languages: string[];
   casinoAvailability: ServiceAvailabilityFilter;
   cryptoAvailability: ServiceAvailabilityFilter;
   linkInsertAvailability: ServiceAvailabilityFilter;
@@ -140,6 +143,7 @@ export interface UpdateSitePayload {
   dr: number;
   traffic: number;
   location: string;
+  language: string | null;
   priceUsd: number | null;
   priceCasino: number | null;
   priceCasinoStatus: ServiceAvailabilityStatusValue;

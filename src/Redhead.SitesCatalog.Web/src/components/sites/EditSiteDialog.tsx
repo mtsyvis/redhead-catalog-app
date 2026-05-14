@@ -24,6 +24,7 @@ import {
   SERVICE_AVAILABILITY_STATUS,
   SERVICE_AVAILABILITY_STATUS_OPTIONS,
 } from '../../utils/serviceAvailability';
+import { LANGUAGE_OPTIONS, getLanguageOption } from '../../utils/language';
 import { TERM_TYPE } from '../../utils/term';
 import {
   buildUpdateSitePayload,
@@ -240,6 +241,12 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
   };
 
   const canSave = Boolean(site) && !saving && !fieldErrors.priceUsd?.length;
+  const currentLanguageOption = getLanguageOption(form.language);
+  const languageOptions =
+    currentLanguageOption &&
+    !LANGUAGE_OPTIONS.some((option) => option.value === currentLanguageOption.value)
+      ? [...LANGUAGE_OPTIONS, currentLanguageOption]
+      : LANGUAGE_OPTIONS;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -286,6 +293,24 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
               error={Boolean(fieldErrors.location?.length)}
               helperText={fieldErrors.location?.[0]}
             />
+
+            <TextField
+              select
+              label="Language"
+              value={form.language}
+              onChange={(e) => updateField('language', e.target.value)}
+              size="small"
+              fullWidth
+              error={Boolean(fieldErrors.language?.length)}
+              helperText={fieldErrors.language?.[0] ?? 'Optional'}
+            >
+              <MenuItem value="">Empty</MenuItem>
+              {languageOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
 
             <TextField
               label="Price USD"

@@ -21,6 +21,7 @@ import type { FilterOption, SitesFilters } from '../../types/sites.types';
 import { sitesService } from '../../services/sites.service';
 import { BrandButton } from '../common/BrandButton';
 import { SERVICE_AVAILABILITY_FILTER_OPTIONS } from '../../utils/serviceAvailability';
+import { LANGUAGE_OPTIONS, getLanguageOption } from '../../utils/language';
 import { LastPublishedRangeFilter } from './LastPublishedRangeFilter';
 import { StopListDialog } from './StopListDialog';
 import { pluralize } from '../../utils/pluralize';
@@ -46,6 +47,7 @@ const INITIAL_FILTERS: SitesFilters = {
   stopListDomains: [],
   location: [],
   niches: [],
+  languages: [],
   casinoAvailability: 'all',
   cryptoAvailability: 'all',
   linkInsertAvailability: 'all',
@@ -118,6 +120,7 @@ export function SitesFilters({
     if (!multiSearchMode && filters.stopListDomains.length > 0) count += 1;
     if (filters.location.length > 0) count += 1;
     if (filters.niches.length > 0) count += 1;
+    if (filters.languages.length > 0) count += 1;
     if (filters.casinoAvailability !== 'all') count += 1;
     if (filters.cryptoAvailability !== 'all') count += 1;
     if (filters.linkInsertAvailability !== 'all') count += 1;
@@ -143,6 +146,7 @@ export function SitesFilters({
       (!multiSearchMode && filters.stopListDomains.length > 0) ||
       filters.location.length > 0 ||
       filters.niches.length > 0 ||
+      filters.languages.length > 0 ||
       filters.casinoAvailability !== 'all' ||
       filters.cryptoAvailability !== 'all' ||
       filters.linkInsertAvailability !== 'all' ||
@@ -163,6 +167,9 @@ export function SitesFilters({
 
   const selectedNicheOptions = filters.niches.map(
     (value) => nicheOptions.find((option) => option.value === value) ?? { value, label: value }
+  );
+  const selectedLanguageOptions = filters.languages.map(
+    (value) => getLanguageOption(value) ?? { value, label: value }
   );
 
   const stopListCount = filters.stopListDomains.length;
@@ -436,6 +443,32 @@ export function SitesFilters({
                     <TextField
                       {...params}
                       placeholder={filters.niches.length === 0 ? 'Select niches' : ''}
+                    />
+                  )}
+                  disableCloseOnSelect
+                  limitTags={2}
+                />
+              </Box>
+
+              {/* Language Multi-Select */}
+              <Box sx={{ flex: 1, minWidth: '200px', maxWidth: '350px' }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Language
+                </Typography>
+                <Autocomplete
+                  multiple
+                  size="small"
+                  options={LANGUAGE_OPTIONS}
+                  value={selectedLanguageOptions}
+                  getOptionLabel={(option) => option.label}
+                  isOptionEqualToValue={(option, value) => option.value === value.value}
+                  onChange={(_, newValue) =>
+                    handleChange('languages', newValue.map((option) => option.value))
+                  }
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder={filters.languages.length === 0 ? 'Select languages' : ''}
                     />
                   )}
                   disableCloseOnSelect

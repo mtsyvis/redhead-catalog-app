@@ -8,12 +8,14 @@ import {
   normalizeServiceAvailabilityStatus,
   SERVICE_AVAILABILITY_STATUS,
 } from '../../utils/serviceAvailability';
+import { normalizeLanguageCode } from '../../utils/language';
 import { normalizeTermType, TERM_TYPE, TERM_UNIT } from '../../utils/term';
 
 export type EditSiteFormState = {
   dr: string;
   traffic: string;
   location: string;
+  language: string;
   priceUsd: string;
   priceCasino: string;
   priceCasinoStatus: ServiceAvailabilityStatusValue;
@@ -89,6 +91,7 @@ export const EMPTY_FORM_STATE: EditSiteFormState = {
   dr: '',
   traffic: '',
   location: '',
+  language: '',
   priceUsd: '',
   priceCasino: '',
   priceCasinoStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
@@ -121,6 +124,7 @@ export function createInitialFormState(site: Site): EditSiteFormState {
     dr: String(site.dr ?? ''),
     traffic: String(site.traffic ?? ''),
     location: site.location ?? '',
+    language: normalizeLanguageCode(site.language) ?? '',
     priceUsd: site.priceUsd == null ? '' : String(site.priceUsd),
     priceCasinoStatus: casinoStatus,
     priceCasino:
@@ -279,6 +283,7 @@ export function buildUpdateSitePayload(form: EditSiteFormState): UpdateSitePaylo
     dr: parseNumberOrNull(form.dr)!,
     traffic: parseNumberOrNull(form.traffic)!,
     location: form.location.trim(),
+    language: normalizeLanguageCode(form.language),
     priceUsd: parseNumberOrNull(form.priceUsd),
     priceCasino:
       form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available

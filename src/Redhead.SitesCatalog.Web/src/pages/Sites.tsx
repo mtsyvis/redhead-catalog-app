@@ -19,6 +19,7 @@ import { BrandButton } from '../components/common/BrandButton';
 import { formatOptionalServicePrice, matchesAvailabilityFilter } from '../utils/serviceAvailability';
 import { formatTerm } from '../utils/term';
 import { loadStoredStopListDomains, persistStopListDomains } from '../utils/stopList';
+import { formatLanguageCode } from '../utils/language';
 
 /** Row type for grid: normal site or not-found placeholder (domain only). */
 type NotFoundRow = { domain: string; _isNotFound: true };
@@ -59,6 +60,7 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
     if (f.priceMax !== '' && (s.priceUsd ?? 0) > Number(f.priceMax)) return false;
     if (f.location.length > 0 && !f.location.includes(s.location)) return false;
     if (f.niches.length > 0 && !f.niches.some((niche) => (s.nicheTokens ?? []).includes(niche))) return false;
+    if (f.languages.length > 0 && !f.languages.includes(formatLanguageCode(s.language))) return false;
     if (!matchesAvailabilityFilter(s.priceCasinoStatus, f.casinoAvailability)) return false;
     if (!matchesAvailabilityFilter(s.priceCryptoStatus, f.cryptoAvailability)) return false;
     if (!matchesAvailabilityFilter(s.priceLinkInsertStatus, f.linkInsertAvailability)) return false;
@@ -89,6 +91,7 @@ const INITIAL_FILTERS: FiltersType = {
   stopListDomains: [],
   location: [],
   niches: [],
+  languages: [],
   casinoAvailability: 'all',
   cryptoAvailability: 'all',
   linkInsertAvailability: 'all',
@@ -166,6 +169,7 @@ export function Sites() {
       filters.priceMax !== INITIAL_FILTERS.priceMax ||
       filters.location.length !== 0 ||
       filters.niches.length !== 0 ||
+      filters.languages.length !== 0 ||
       filters.casinoAvailability !== INITIAL_FILTERS.casinoAvailability ||
       filters.cryptoAvailability !== INITIAL_FILTERS.cryptoAvailability ||
       filters.linkInsertAvailability !== INITIAL_FILTERS.linkInsertAvailability ||
@@ -196,6 +200,7 @@ export function Sites() {
           : undefined,
       location: filters.location.length > 0 ? filters.location : undefined,
       niches: filters.niches.length > 0 ? filters.niches : undefined,
+      languages: filters.languages.length > 0 ? filters.languages : undefined,
       casinoAvailability: filters.casinoAvailability,
       cryptoAvailability: filters.cryptoAvailability,
       linkInsertAvailability: filters.linkInsertAvailability,
@@ -217,6 +222,7 @@ export function Sites() {
       filters.stopListDomains,
       filters.location,
       filters.niches,
+      filters.languages,
       filters.casinoAvailability,
       filters.cryptoAvailability,
       filters.linkInsertAvailability,
@@ -493,6 +499,16 @@ export function Sites() {
         if (isNotFoundRow(row)) return '—';
         const site = row as Site;
         return formatTerm(site.termType, site.termValue, site.termUnit);
+      },
+    },
+    {
+      field: 'language',
+      headerName: 'Language',
+      width: 100,
+      sortable: false,
+      valueFormatter: (value, row) => {
+        if (isNotFoundRow(row)) return '—';
+        return formatLanguageCode(value as string | null);
       },
     },
     {
