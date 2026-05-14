@@ -131,6 +131,92 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal(0, log.ErrorsCount);
     }
 
+    [Theory]
+    [InlineData("EN", "EN")]
+    [InlineData("en", "EN")]
+    [InlineData("En", "EN")]
+    [InlineData("en-US", "EN")]
+    [InlineData("en_US", "EN")]
+    [InlineData("english", "EN")]
+    [InlineData("English", "EN")]
+    [InlineData("DE", "DE")]
+    public async Task ImportAsync_LanguageColumn_NormalizesAcceptedValues(string rawLanguage, string expectedLanguage)
+    {
+        var domain = $"language-{rawLanguage.Replace("_", "-", StringComparison.Ordinal).ToLowerInvariant()}.com";
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"{domain},55,12000,US,100,150,200,250,175,225,Tech,News,3,Sponsored,2 years,{rawLanguage}\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync(domain);
+        Assert.Equal(expectedLanguage, site.Language);
+    }
+
+    [Theory]
+    [InlineData("UNKNOWN", "UNKNOWN")]
+    [InlineData("unknown", "UNKNOWN")]
+    [InlineData("MULTI", "MULTI")]
+    [InlineData("multi", "MULTI")]
+    public async Task ImportAsync_LanguageColumn_AcceptsSpecialValues(string rawLanguage, string expectedLanguage)
+    {
+        var domain = $"language-{rawLanguage.ToLowerInvariant()}.com";
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"{domain},55,12000,US,100,150,200,250,175,225,Tech,News,3,Sponsored,2 years,{rawLanguage}\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync(domain);
+        Assert.Equal(expectedLanguage, site.Language);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ImportAsync_EmptyLanguage_SavesNull(string rawLanguage)
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"empty-language.com,55,12000,US,100,150,200,250,175,225,Tech,News,3,Sponsored,2 years,{rawLanguage}\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("empty-language.com");
+        Assert.Null(site.Language);
+    }
+
+    [Theory]
+    [InlineData("ENG")]
+    [InlineData("english-US")]
+    [InlineData("many")]
+    [InlineData("123")]
+    public async Task ImportAsync_InvalidLanguage_IsInvalidRow(string rawLanguage)
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"bad-language.com,55,12000,US,100,150,200,250,175,225,Tech,News,3,Sponsored,2 years,{rawLanguage}\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads?.InvalidRows);
+
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows.Token);
+        Assert.Contains(invalidLines, line => line.Contains(rawLanguage, StringComparison.Ordinal));
+        Assert.Contains(invalidLines, line => line.Contains("Language must be a two-letter code, UNKNOWN, or MULTI.", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task ImportAsync_NicheTokens_AreDerivedFromImportedNiche()
     {
@@ -164,8 +250,8 @@ public sealed class SitesImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain;DR;Traffic;Location;PriceUsd;PriceCasino;PriceCrypto;PriceLinkInsert;PriceLinkInsertCasino;PriceDating;Niche;Categories;NumberDFLinks;SponsoredTag;Term\n" +
-            "semicolon.com;61;15000;DE;90;120;;;;;Finance;Blog;;;\n");
+            "Domain;DR;Traffic;Location;PriceUsd;PriceCasino;PriceCrypto;PriceLinkInsert;PriceLinkInsertCasino;PriceDating;Niche;Categories;NumberDFLinks;SponsoredTag;Term;Language\n" +
+            "semicolon.com;61;15000;DE;90;120;;;;;Finance;Blog;;;;\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -461,8 +547,8 @@ public sealed class SitesImportServiceTests : IDisposable
             .Select(x => x.TrimEnd('\r'))
             .ToArray();
 
-        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,NumberDFLinks,SponsoredTag,Term,Source Row Number,Error Details", lines[0]);
-        Assert.Equal(",55,12000,US,100,150,200,250,,,Tech,News,,,,2,Domain is required.", lines[1]);
+        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,NumberDFLinks,SponsoredTag,Term,Language,Source Row Number,Error Details", lines[0]);
+        Assert.Equal(",55,12000,US,100,150,200,250,,,Tech,News,,,,,2,Domain is required.", lines[1]);
     }
 
     [Fact]

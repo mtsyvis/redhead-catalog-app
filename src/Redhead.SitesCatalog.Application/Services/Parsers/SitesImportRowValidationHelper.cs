@@ -35,6 +35,7 @@ public static class SitesImportRowValidationHelper
         TermType? TermType,
         int? TermValue,
         TermUnit? TermUnit,
+        string? Language,
         string? Niche,
         string? Categories,
         string? SponsoredTag);
@@ -190,6 +191,7 @@ public static class SitesImportRowValidationHelper
             TermType = termParseResult.TermType,
             TermValue = termParseResult.TermValue,
             TermUnit = termParseResult.TermUnit,
+            Language = row.Language,
             Niche = row.Niche,
             Categories = row.Categories,
             SponsoredTag = row.SponsoredTag,
@@ -246,6 +248,7 @@ public static class SitesImportRowValidationHelper
             normalized.TermType,
             normalized.TermValue,
             normalized.TermUnit,
+            normalized.Language,
             normalized.Niche,
             normalized.Categories,
             normalized.SponsoredTag);
@@ -267,6 +270,7 @@ public static class SitesImportRowValidationHelper
                && string.IsNullOrWhiteSpace(row.PriceDatingRaw)
                && string.IsNullOrWhiteSpace(row.NumberDFLinksRaw)
                && string.IsNullOrWhiteSpace(row.TermRaw)
+               && string.IsNullOrWhiteSpace(row.Language)
                && string.IsNullOrWhiteSpace(row.Niche)
                && string.IsNullOrWhiteSpace(row.Categories)
                && string.IsNullOrWhiteSpace(row.SponsoredTag);

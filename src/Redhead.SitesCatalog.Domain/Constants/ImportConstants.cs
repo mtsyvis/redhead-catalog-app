@@ -106,10 +106,11 @@ public static class ImportConstants
         public const string NumberDFLinks = "NumberDFLinks";
         public const string SponsoredTag = "SponsoredTag";
         public const string Term = "Term";
+        public const string Language = "Language";
     }
 
     /// <summary>
-    /// Required column names for sites import, in exact order. All columns must be present;.
+    /// Required column names for sites import/update import, in exact order.
     /// </summary>
     public static readonly string[] SitesImportRequiredColumnOrder =
     {
@@ -128,5 +129,6 @@ public static class ImportConstants
         SitesImportColumns.NumberDFLinks,
         SitesImportColumns.SponsoredTag,
         SitesImportColumns.Term,
+        SitesImportColumns.Language,
     };
 }

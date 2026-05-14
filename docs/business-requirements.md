@@ -387,9 +387,12 @@ Required columns, in order:
 14. `SponsoredTag`
 15. `Term`
 
+16. `Language`
+
 Rules:
 
 * Add-only import.
+* `Language` must be placed after `Term`; empty values are stored as empty/null, accepted values are normalized, and invalid values are row-level errors.
 * Existing domains are skipped and reported.
 * New domains are inserted.
 * Domain is normalized before uniqueness checks.
@@ -404,9 +407,10 @@ Purpose: mass-update existing sites by domain.
 
 Rules:
 
-* Uses the same columns as sites import.
+* Uses the standardized sites import columns, including required `Language` after `Term`.
 * `Domain` is the lookup key and must never be changed by the import.
 * Updates existing sites only.
+* Empty `Language` values overwrite existing language with empty/null.
 * Unknown domains are reported as unmatched; they are not inserted.
 * Last valid row wins for duplicate domains in the file.
 * Invalid rows are reported and not applied.

@@ -329,6 +329,7 @@ public sealed class SitesImportService : ISitesImportService
             TermType = data.TermType,
             TermValue = data.TermValue,
             TermUnit = data.TermUnit,
+            Language = data.Language,
             Niche = data.Niche,
             NicheTokens = NicheNormalizer.NormalizeTokens(data.Niche),
             Categories = data.Categories,

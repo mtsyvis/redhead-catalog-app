@@ -113,6 +113,110 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportAsync_UpdatesExistingLanguage()
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "existing.com,55,12000,US,100,150,200,250,175,225,Tech,News,3,Sponsored,2 years,DE\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("existing.com");
+        Assert.Equal("DE", site.Language);
+        Assert.Equal(55, site.DR);
+        Assert.Equal(12000, site.Traffic);
+        Assert.Equal(175m, site.PriceLinkInsertCasino);
+        Assert.Equal(225m, site.PriceDating);
+        Assert.Equal(TermType.Finite, site.TermType);
+    }
+
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("english")]
+    public async Task ImportAsync_LanguageColumn_NormalizesEnglishValues(string rawLanguage)
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"existing.com,55,12000,US,100,150,200,250,175,225,Tech,News,3,Sponsored,2 years,{rawLanguage}\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("existing.com");
+        Assert.Equal("EN", site.Language);
+    }
+
+    [Fact]
+    public async Task ImportAsync_EmptyLanguage_OverwritesExistingLanguageToNull()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.Language = "DE";
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "existing.com,55,12000,US,100,150,200,250,175,225,Tech,News,3,Sponsored,2 years,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Null(updated.Language);
+    }
+
+    [Theory]
+    [InlineData("UNKNOWN", "UNKNOWN")]
+    [InlineData("unknown", "UNKNOWN")]
+    [InlineData("MULTI", "MULTI")]
+    [InlineData("multi", "MULTI")]
+    public async Task ImportAsync_LanguageColumn_AcceptsSpecialValues(string rawLanguage, string expectedLanguage)
+    {
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"existing.com,55,12000,US,100,150,200,250,175,225,Tech,News,3,Sponsored,2 years,{rawLanguage}\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("existing.com");
+        Assert.Equal(expectedLanguage, site.Language);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidLanguage_IsInvalidRow()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.Language = "DE";
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "existing.com,55,12000,US,100,150,200,250,175,225,Tech,News,3,Sponsored,2 years,ENG\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads?.InvalidRows);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal("DE", updated.Language);
+
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows.Token);
+        Assert.Contains(invalidLines, line => line.Contains("ENG", StringComparison.Ordinal));
+        Assert.Contains(invalidLines, line => line.Contains("Language must be a two-letter code, UNKNOWN, or MULTI.", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ImportAsync_RecalculatesNicheTokens()
     {
         using var stream = Utf8Csv(
@@ -149,8 +253,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     public async Task ImportAsync_SemicolonDelimitedFile_IsSupported()
     {
         using var stream = Utf8Csv(
-            "Domain;DR;Traffic;Location;PriceUsd;PriceCasino;PriceCrypto;PriceLinkInsert;PriceLinkInsertCasino;PriceDating;Niche;Categories;NumberDFLinks;SponsoredTag;Term\n" +
-            "existing.com;61;15000;DE;90;120;;;;;Finance;Blog;;;\n");
+            "Domain;DR;Traffic;Location;PriceUsd;PriceCasino;PriceCrypto;PriceLinkInsert;PriceLinkInsertCasino;PriceDating;Niche;Categories;NumberDFLinks;SponsoredTag;Term;Language\n" +
+            "existing.com;61;15000;DE;90;120;;;;;Finance;Blog;;;;\n");
 
         var result = await ImportAsync(stream);
 
@@ -564,8 +668,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
             .Select(x => x.TrimEnd('\r'))
             .ToArray();
 
-        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,NumberDFLinks,SponsoredTag,Term,Source Row Number,Error Details", lines[0]);
-        Assert.Equal(",55,12000,US,100,150,200,250,,,Tech,News,,,,2,Domain is required.", lines[1]);
+        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,NumberDFLinks,SponsoredTag,Term,Language,Source Row Number,Error Details", lines[0]);
+        Assert.Equal(",55,12000,US,100,150,200,250,,,Tech,News,,,,,2,Domain is required.", lines[1]);
     }
 
     [Fact]
@@ -594,8 +698,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
             .Select(x => x.TrimEnd('\r'))
             .ToArray();
 
-        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,NumberDFLinks,SponsoredTag,Term,Source Row Number", lines[0]);
-        Assert.Equal("missing-site.com,42,5000,UK,50,,,,,,,,,,,2", lines[1]);
+        Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,NumberDFLinks,SponsoredTag,Term,Language,Source Row Number", lines[0]);
+        Assert.Equal("missing-site.com,42,5000,UK,50,,,,,,,,,,,,2", lines[1]);
     }
 
     [Fact]

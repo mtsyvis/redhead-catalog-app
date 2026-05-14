@@ -51,6 +51,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         TermType? TermType,
         int? TermValue,
         TermUnit? TermUnit,
+        string? Language,
         string? Niche,
         string? Categories,
         string? SponsoredTag);
@@ -201,6 +202,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             site.TermType = update.TermType;
             site.TermValue = update.TermValue;
             site.TermUnit = update.TermUnit;
+            site.Language = update.Language;
             site.Niche = update.Niche;
             site.NicheTokens = NicheNormalizer.NormalizeTokens(update.Niche);
             site.Categories = update.Categories;
@@ -285,6 +287,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             data.TermType,
             data.TermValue,
             data.TermUnit,
+            data.Language,
             data.Niche,
             data.Categories,
             data.SponsoredTag);

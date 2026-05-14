@@ -21,6 +21,7 @@ public class SitesImportRowDto
     public string? NumberDFLinksRaw { get; set; }
     public int? NumberDFLinks { get; set; }
     public string? TermRaw { get; set; }
+    public string? Language { get; set; }
     public string? Niche { get; set; }
     public string? Categories { get; set; }
     public string? SponsoredTag { get; set; }

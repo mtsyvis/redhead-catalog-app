@@ -29,6 +29,7 @@ public static class SitesImportRowMapper
         var priceDatingRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceDating);
         var numberDFLinksRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.NumberDFLinks);
         var termRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.Term);
+        var language = TryGetValue(getValue, ImportConstants.SitesImportColumns.Language);
         var niche = TryGetValue(getValue, ImportConstants.SitesImportColumns.Niche);
         var categories = TryGetValue(getValue, ImportConstants.SitesImportColumns.Categories);
         var sponsoredTag = TryGetValue(getValue, ImportConstants.SitesImportColumns.SponsoredTag);
@@ -51,6 +52,7 @@ public static class SitesImportRowMapper
             NumberDFLinksRaw = numberDFLinksRaw,
             NumberDFLinks = ParseNullableIntStrict(numberDFLinksRaw),
             TermRaw = termRaw,
+            Language = language,
             Niche = niche,
             Categories = categories,
             SponsoredTag = sponsoredTag
