@@ -526,6 +526,12 @@ def http_fetch(url: str, timeout: int, proxies: Optional[Dict[str, str]] = None)
 
 
 # ===================== SELENIUM FALLBACK =====================
+# undetected_chromedriver patches/copies a shared driver binary during Chrome creation.
+# Creating several drivers concurrently can fail on Windows with FileExistsError/WinError 183.
+# Lock only driver creation; page loading remains concurrent.
+SELENIUM_DRIVER_CREATE_LOCK = threading.Lock()
+
+
 def patch_undetected_chromedriver_cleanup(uc: Any) -> None:
     global _UC_CHROME_DEL_PATCHED
     if _UC_CHROME_DEL_PATCHED:
@@ -893,12 +899,14 @@ def selenium_fetch_once(
     driver = None
     try:
         try:
-            driver = create_uc_driver(uc, proxy=proxy, chrome_version_main=chrome_version_main)
+            with SELENIUM_DRIVER_CREATE_LOCK:
+                driver = create_uc_driver(uc, proxy=proxy, chrome_version_main=chrome_version_main)
         except Exception as e:
             retry_version = parse_current_browser_major_from_error(str(e))
             if retry_version is not None and retry_version != chrome_version_main:
                 logging.warning("Retrying Selenium with detected Chrome major version from error: %s", retry_version)
-                driver = create_uc_driver(uc, proxy=proxy, chrome_version_main=retry_version)
+                with SELENIUM_DRIVER_CREATE_LOCK:
+                    driver = create_uc_driver(uc, proxy=proxy, chrome_version_main=retry_version)
             else:
                 raise
 
