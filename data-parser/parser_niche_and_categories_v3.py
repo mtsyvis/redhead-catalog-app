@@ -33,8 +33,8 @@ Example test run:
 
 Cost profiles:
     quality  = v2-like defaults: 3 internal pages, 10-20 categories, 900 max output tokens, 20k prompt chars
-    balanced = v3 default:       2 internal pages, 6-12 categories, 450 max output tokens, 10k prompt chars
-    cheap    = low-cost test:    1 internal page, 4-8 categories, 300 max output tokens, 6k prompt chars
+    balanced = v3 default:       2 internal pages, 7-15 categories, 600 max output tokens, 10k prompt chars
+    cheap    = low-cost test:    1 internal page, 7-14 categories, 500 max output tokens, 6k prompt chars
 
 By default, output contains only processed rows. Use --output-scope all to keep the full input file in the output.
 
@@ -259,16 +259,16 @@ COST_PROFILE_DEFAULTS: Dict[str, Dict[str, int]] = {
     },
     "balanced": {
         "internal_pages": 2,
-        "min_categories": 6,
-        "max_categories": 12,
-        "max_tokens": 450,
+        "min_categories": 7,
+        "max_categories": 15,
+        "max_tokens": 600,
         "max_prompt_chars": 10_000,
     },
     "cheap": {
         "internal_pages": 1,
-        "min_categories": 4,
-        "max_categories": 8,
-        "max_tokens": 300,
+        "min_categories": 7,
+        "max_categories": 14,
+        "max_tokens": 500,
         "max_prompt_chars": 6_000,
     },
 }
@@ -1520,7 +1520,8 @@ def trim_prompt_payload_to_limit(payload: Dict[str, Any], max_prompt_chars: int)
     if not max_prompt_chars or len(rendered) <= max_prompt_chars:
         return rendered
 
-    pages = payload.get("pages") or []
+    page_key = "extracted_pages" if "extracted_pages" in payload else "pages"
+    pages = payload.get(page_key) or []
     # Keep cost predictable. Homepage is highest priority; internal pages are dropped first.
     while len(pages) > 1:
         pages.pop()
@@ -1537,17 +1538,17 @@ def trim_prompt_payload_to_limit(payload: Dict[str, Any], max_prompt_chars: int)
         page["h1"] = trim_existing_prompt_items(page.get("h1"), limit=4, max_len=100)
         page["description"] = compact_text(str(page.get("description", "")), 220)
         page["keywords"] = compact_text(str(page.get("keywords", "")), 160)
-        payload["pages"] = [drop_empty_prompt_fields(page)]
+        payload[page_key] = [drop_empty_prompt_fields(page)]
         rendered = compact_json_dumps(payload)
         if len(rendered) <= max_prompt_chars:
             return rendered
 
         # Emergency mode: enough signal for coarse classification, but no long body text.
-        page = payload["pages"][0]
+        page = payload[page_key][0]
         page["paragraphs"] = trim_existing_prompt_items(page.get("paragraphs"), limit=3, max_len=160)
         page["nav"] = trim_existing_prompt_items(page.get("nav"), limit=8, max_len=60)
         page["h2"] = trim_existing_prompt_items(page.get("h2"), limit=3, max_len=80)
-        payload["pages"] = [drop_empty_prompt_fields(page)]
+        payload[page_key] = [drop_empty_prompt_fields(page)]
 
     return compact_json_dumps(payload)
 
@@ -1572,7 +1573,7 @@ def build_user_prompt(
           ],
           "niche": [
             "Niche must contain 1 to 3 strings.",
-            "Every Niche value must be copied exactly from niche_whitelist or special_niches.",
+            "Every Niche value must be copied exactly from niche_whitelist.",
             "Never invent niche values, sub-niches, variants, or more specific labels.",
             "If a specific topic is not in niche_whitelist, choose the closest broader exact whitelist value.",
             "If no whitelist value reasonably matches, use UNKNOWN."
@@ -1614,25 +1615,7 @@ def build_user_prompt(
             continue
         payload["extracted_pages"].append({"type": "internal", **page_to_prompt_payload(page)})
 
-    # Keep cost predictable. We include pages in priority order: homepage first, then selected internals.
-    # If the prompt is too large, drop internal pages from the end before submitting.
-    rendered = json.dumps(payload, ensure_ascii=False, indent=2)
-    if max_prompt_chars and len(rendered) > max_prompt_chars and len(payload["extracted_pages"]) > 1:
-        while len(payload["extracted_pages"]) > 1:
-            payload["extracted_pages"].pop()
-            rendered = json.dumps(payload, ensure_ascii=False, indent=2)
-            if len(rendered) <= max_prompt_chars:
-                break
-
-    # Last-resort trim for pathological homepages. Do not trim metadata/rules; only reduce text-heavy lists.
-    if max_prompt_chars and len(rendered) > max_prompt_chars and payload["extracted_pages"]:
-        page = payload["extracted_pages"][0]
-        page["paragraphs"] = page.get("paragraphs", [])[:6]
-        page["nav_items"] = page.get("nav_items", [])[:25]
-        page["h2"] = page.get("h2", [])[:8]
-        rendered = json.dumps(payload, ensure_ascii=False, indent=2)
-
-    return rendered
+    return trim_prompt_payload_to_limit(payload, max_prompt_chars)
 
 
 def build_domain_only_prompt(
@@ -1676,8 +1659,8 @@ def build_domain_only_prompt(
             ],
             "language": [
                 "Use UNKNOWN unless the domain/final URL strongly and unambiguously indicates the primary content language.",
+                "Language must be the main content language as an ISO 639-1 uppercase code, e.g. EN, DE, FR.",
                 "Do not infer language from TLD alone unless it is very strong and unambiguous.",
-                "Language must be the main content language as an ISO 639-1 uppercase code, e.g. EN, DE, FR."
             ],
         },
         "required_json_shape": {
@@ -1687,7 +1670,7 @@ def build_domain_only_prompt(
         },
     }
 
-    return json.dumps(payload, ensure_ascii=False, indent=2)
+    return compact_json_dumps(payload)
 
 
 def safe_load_json_object(text: str) -> Optional[Dict[str, Any]]:
