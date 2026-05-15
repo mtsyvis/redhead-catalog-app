@@ -19,7 +19,7 @@ import { BrandButton } from '../components/common/BrandButton';
 import { formatOptionalServicePrice, matchesAvailabilityFilter } from '../utils/serviceAvailability';
 import { formatTerm } from '../utils/term';
 import { loadStoredStopListDomains, persistStopListDomains } from '../utils/stopList';
-import { formatLanguageCode } from '../utils/language';
+import { formatLanguageCode, formatLanguageTableValue } from '../utils/language';
 
 /** Row type for grid: normal site or not-found placeholder (domain only). */
 type NotFoundRow = { domain: string; _isNotFound: true };
@@ -508,7 +508,7 @@ export function Sites() {
       sortable: false,
       valueFormatter: (value, row) => {
         if (isNotFoundRow(row)) return '—';
-        return formatLanguageCode(value as string | null);
+        return formatLanguageTableValue(value as string | null);
       },
     },
     {

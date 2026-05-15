@@ -35,6 +35,11 @@ export function formatLanguageCode(value: string | null | undefined): string {
   return normalizeLanguageCode(value) ?? 'UNKNOWN';
 }
 
+export function formatLanguageTableValue(value: string | null | undefined): string {
+  const normalized = normalizeLanguageCode(value);
+  return normalized === null || normalized === 'UNKNOWN' ? '—' : normalized;
+}
+
 export function getLanguageOption(value: string | null | undefined): FilterOption | null {
   const normalized = normalizeLanguageCode(value);
   if (normalized === null) return null;
