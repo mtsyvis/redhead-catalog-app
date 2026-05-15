@@ -40,6 +40,7 @@ public static class SitesImportRowMapper
             Domain = domain,
             DRRaw = drRaw,
             DR = ParseNullableDouble(drRaw),
+            TrafficRaw = trafficRaw,
             Traffic = ParseNullableLong(trafficRaw),
             Location = location,
             PriceUsdRaw = priceUsdRaw,

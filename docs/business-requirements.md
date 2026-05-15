@@ -189,7 +189,9 @@ Rules:
 * Empty `PriceUsd` must be stored as empty/null, not as `0`.
 * `PriceUsd` must be either empty/null or greater than `0`; `0` and negative values are invalid.
 * UI must display empty `PriceUsd` as `NO`.
-* During sites import and sites update import, if `PriceUsd` is empty, at least one service-specific price/availability value must still be valid and present.
+* During sites import, if `PriceUsd` is empty, at least one service-specific price/availability value must still be valid and present.
+* During sites update import, a present empty `PriceUsd` clears the existing value; a missing `PriceUsd` column leaves the existing value unchanged.
+* During sites update import, present price-column changes must not leave a matched site with no numeric price across `PriceUsd` and service-specific available prices.
 * During sites import and sites update import, if `PriceUsd` is provided, it must be greater than `0`.
 * Invalid price data must create row-level validation errors.
 * Empty input in an import file means empty value, not implicit zero.
@@ -408,13 +410,22 @@ Purpose: mass-update existing sites by domain.
 
 Rules:
 
-* Uses the standardized sites import columns, including required `Language` after `Term`.
+* Requires a `Domain` header and at least one supported update column.
+* Supports the same editable catalog columns as sites import, but the full standardized column set is not required.
+* Column order is flexible.
+* Unknown, duplicate, or blank headers are invalid.
 * `Domain` is the lookup key and must never be changed by the import.
 * Updates existing sites only.
+* Only columns present in the CSV are updated.
+* Missing columns leave existing values unchanged.
+* Present empty values are explicit updates and follow field-specific rules.
 * Empty `Language` values overwrite existing language with empty/null.
+* Present empty nullable fields clear existing values according to the field storage convention.
+* Present empty required fields such as `DR`, `Traffic`, and `Location` are row-level errors.
 * Unknown domains are reported as unmatched; they are not inserted.
 * Last valid row wins for duplicate domains in the file.
 * Invalid rows are reported and not applied.
+* Invalid and unmatched row downloads preserve the original uploaded headers.
 * Updates must preserve quarantine and last published fields unless explicitly part of the import behavior.
 
 ### Quarantine import

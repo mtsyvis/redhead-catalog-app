@@ -3,21 +3,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services.Parsers;
+using Redhead.SitesCatalog.Application.Services.UpdateImport;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
-using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
 /// <summary>
-/// Mass-update import of existing sites from CSV. Same columns as sites import.
+/// Mass-update import of existing sites from CSV. Only columns present in the file are updated.
 /// Domain is lookup key only (never updated). Last valid row wins for duplicate domains in file.
-/// Processing model:
-/// 1) Parse rows, validate, build per-domain update map (last valid row wins)
-/// 2) Load matching sites from DB in batches
-/// 3) Apply updates and persist once
 /// </summary>
 public sealed class SitesUpdateImportService : ISitesUpdateImportService
 {
@@ -27,34 +23,6 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
     private readonly ILogger<SitesUpdateImportService> _logger;
     private readonly IImportArtifactStorageService _importArtifactStorageService;
     private readonly INicheFilterOptionsCache _nicheFilterOptionsCache;
-
-    /// <summary>
-    /// Parsed update for one domain. Domain is lookup key only.
-    /// </summary>
-    private sealed record ParsedSiteUpdate(
-        string NormalizedDomain,
-        double DR,
-        long Traffic,
-        string Location,
-        decimal? PriceUsd,
-        decimal? PriceCasino,
-        ServiceAvailabilityStatus PriceCasinoStatus,
-        decimal? PriceCrypto,
-        ServiceAvailabilityStatus PriceCryptoStatus,
-        decimal? PriceLinkInsert,
-        ServiceAvailabilityStatus PriceLinkInsertStatus,
-        decimal? PriceLinkInsertCasino,
-        ServiceAvailabilityStatus PriceLinkInsertCasinoStatus,
-        decimal? PriceDating,
-        ServiceAvailabilityStatus PriceDatingStatus,
-        int? NumberDFLinks,
-        TermType? TermType,
-        int? TermValue,
-        TermUnit? TermUnit,
-        string? Language,
-        string? Niche,
-        string? Categories,
-        string? SponsoredTag);
 
     public SitesUpdateImportService(
         ApplicationDbContext context,
@@ -87,8 +55,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         var duplicateRowsCount = 0;
         var unmatchedDomainsCount = 0;
 
-        // Phase 1: parse CSV, validate, build per-domain map (only valid rows enter; last valid wins)
-        var updatesByDomain = new Dictionary<string, ParsedSiteUpdate>(StringComparer.Ordinal);
+        var updateCandidatesByDomain = new Dictionary<string, List<SitesUpdateImportRow>>(StringComparer.Ordinal);
         var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
         var unmatchedRowsPayload = new UnmatchedRowsImportArtifactPayload();
         var validRowsByDomain = new Dictionary<string, List<UnmatchedImportRowRecord>>(StringComparer.Ordinal);
@@ -98,17 +65,18 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         await using (var session = await CsvImportSession.OpenAsync(
                          fileStream,
                          expectedHeaderColumnsForDelimiterDetection: ImportConstants.SitesImportRequiredColumnOrder,
-                         requiredHeadersInStrictOrder: ImportConstants.SitesImportRequiredColumnOrder,
+                         validateHeader: SitesUpdateImportHeaderValidator.ValidateOrThrow,
                          ct: cancellationToken))
         {
             invalidRowsPayload.Headers = session.Header.ToArray();
             unmatchedRowsPayload.Headers = session.Header.ToArray();
+            var presentColumns = SitesUpdateImportHeaderValidator.BuildPresentColumnSet(session.Header);
 
             await foreach (var (row, rawValues) in ReadRowsAsync(session.Csv, session.Header.Length, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var (isEmpty, error, validatedData) = SitesImportRowValidationHelper.Validate(row);
+                var (isEmpty, error, update) = SitesUpdateImportRowValidator.Validate(row, presentColumns);
                 if (isEmpty)
                 {
                     continue;
@@ -123,55 +91,26 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                     continue;
                 }
 
-                if (validatedData is null)
+                if (update is null)
                 {
                     continue;
                 }
 
-                var domain = validatedData.NormalizedDomain;
-                var update = ToParsedSiteUpdate(validatedData);
-
-                if (updatesByDomain.ContainsKey(domain))
-                {
-                    duplicateRowsCount++;
-                }
-
-                updatesByDomain[domain] = update;
-
-                if (!validRowsByDomain.TryGetValue(domain, out var rows))
-                {
-                    rows = new List<UnmatchedImportRowRecord>();
-                    validRowsByDomain[domain] = rows;
-                }
-
-                rows.Add(new UnmatchedImportRowRecord
+                update = update with
                 {
                     SourceRowNumber = row.RowNumber,
                     RawValues = rawValues.ToList()
-                });
+                };
+
+                AddUpdateCandidate(updateCandidatesByDomain, update, ref duplicateRowsCount);
+                AddValidSourceRow(validRowsByDomain, update.NormalizedDomain, row.RowNumber, rawValues);
             }
         }
 
-        // Phase 2: load matching sites in batches
-        var domains = updatesByDomain.Keys.ToList();
-        var sitesByDomain = new Dictionary<string, Site>(StringComparer.Ordinal);
-
-        foreach (var chunk in Chunk(domains, BatchSize))
-        {
-            var sites = await _context.Sites
-                .Where(s => chunk.Contains(s.Domain))
-                .ToListAsync(cancellationToken);
-
-            foreach (var site in sites)
-            {
-                sitesByDomain[site.Domain] = site;
-            }
-        }
-
-        // Phase 3: apply updates, then save once
+        var sitesByDomain = await LoadSitesByDomainAsync(updateCandidatesByDomain.Keys.ToList(), cancellationToken);
         var now = DateTime.UtcNow;
 
-        foreach (var (domain, update) in updatesByDomain)
+        foreach (var (domain, candidates) in updateCandidatesByDomain)
         {
             if (!sitesByDomain.TryGetValue(domain, out var site))
             {
@@ -184,31 +123,14 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                 continue;
             }
 
-            site.DR = update.DR;
-            site.Traffic = update.Traffic;
-            site.Location = update.Location;
-            site.PriceUsd = update.PriceUsd;
-            site.PriceCasino = update.PriceCasino;
-            site.PriceCasinoStatus = update.PriceCasinoStatus;
-            site.PriceCrypto = update.PriceCrypto;
-            site.PriceCryptoStatus = update.PriceCryptoStatus;
-            site.PriceLinkInsert = update.PriceLinkInsert;
-            site.PriceLinkInsertStatus = update.PriceLinkInsertStatus;
-            site.PriceLinkInsertCasino = update.PriceLinkInsertCasino;
-            site.PriceLinkInsertCasinoStatus = update.PriceLinkInsertCasinoStatus;
-            site.PriceDating = update.PriceDating;
-            site.PriceDatingStatus = update.PriceDatingStatus;
-            site.NumberDFLinks = update.NumberDFLinks;
-            site.TermType = update.TermType;
-            site.TermValue = update.TermValue;
-            site.TermUnit = update.TermUnit;
-            site.Language = update.Language;
-            site.Niche = update.Niche;
-            site.NicheTokens = NicheNormalizer.NormalizeTokens(update.Niche);
-            site.Categories = update.Categories;
-            site.SponsoredTag = update.SponsoredTag;
-            site.UpdatedAtUtc = now;
+            var update = SelectLastValidCandidate(site, candidates, invalidRowsPayload, ref invalidRowsCount);
+            if (update is null)
+            {
+                continue;
+            }
 
+            SitesUpdateImportApplier.Apply(site, update);
+            site.UpdatedAtUtc = now;
             result.UpdatedCount++;
         }
 
@@ -235,6 +157,54 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             invalidRowsCount,
             duplicateDomainsInOrder);
         return result;
+    }
+
+    private async Task<Dictionary<string, Site>> LoadSitesByDomainAsync(
+        List<string> domains,
+        CancellationToken cancellationToken)
+    {
+        var sitesByDomain = new Dictionary<string, Site>(StringComparer.Ordinal);
+
+        foreach (var chunk in Chunk(domains, BatchSize))
+        {
+            var sites = await _context.Sites
+                .Where(s => chunk.Contains(s.Domain))
+                .ToListAsync(cancellationToken);
+
+            foreach (var site in sites)
+            {
+                sitesByDomain[site.Domain] = site;
+            }
+        }
+
+        return sitesByDomain;
+    }
+
+    private static SitesUpdateImportRow? SelectLastValidCandidate(
+        Site site,
+        IEnumerable<SitesUpdateImportRow> candidates,
+        InvalidRowsImportArtifactPayload invalidRowsPayload,
+        ref int invalidRowsCount)
+    {
+        SitesUpdateImportRow? update = null;
+        foreach (var candidate in candidates)
+        {
+            if (SitesUpdateImportApplier.TouchesPriceColumns(candidate)
+                && !SitesUpdateImportApplier.WouldKeepAtLeastOneNumericPrice(site, candidate))
+            {
+                invalidRowsCount++;
+                AddInvalidRow(
+                    invalidRowsPayload,
+                    candidate.SourceRowNumber,
+                    candidate.RawValues,
+                    "At least one numeric price is required.");
+                continue;
+            }
+
+            update = candidate;
+        }
+
+        return update;
     }
 
     private static async IAsyncEnumerable<(SitesImportRowDto Row, List<string> RawValues)> ReadRowsAsync(
@@ -265,32 +235,42 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         }
     }
 
-    private static ParsedSiteUpdate ToParsedSiteUpdate(SitesImportRowValidationHelper.ValidatedSitesRow data)
+    private static void AddUpdateCandidate(
+        IDictionary<string, List<SitesUpdateImportRow>> updateCandidatesByDomain,
+        SitesUpdateImportRow update,
+        ref int duplicateRowsCount)
     {
-        return new ParsedSiteUpdate(
-            data.NormalizedDomain,
-            data.DR,
-            data.Traffic,
-            data.Location,
-            data.PriceUsd,
-            data.PriceCasino,
-            data.PriceCasinoStatus,
-            data.PriceCrypto,
-            data.PriceCryptoStatus,
-            data.PriceLinkInsert,
-            data.PriceLinkInsertStatus,
-            data.PriceLinkInsertCasino,
-            data.PriceLinkInsertCasinoStatus,
-            data.PriceDating,
-            data.PriceDatingStatus,
-            data.NumberDFLinks,
-            data.TermType,
-            data.TermValue,
-            data.TermUnit,
-            data.Language,
-            data.Niche,
-            data.Categories,
-            data.SponsoredTag);
+        if (!updateCandidatesByDomain.TryGetValue(update.NormalizedDomain, out var candidates))
+        {
+            candidates = new List<SitesUpdateImportRow>();
+            updateCandidatesByDomain[update.NormalizedDomain] = candidates;
+        }
+
+        if (candidates.Count > 0)
+        {
+            duplicateRowsCount++;
+        }
+
+        candidates.Add(update);
+    }
+
+    private static void AddValidSourceRow(
+        IDictionary<string, List<UnmatchedImportRowRecord>> validRowsByDomain,
+        string domain,
+        int rowNumber,
+        IReadOnlyCollection<string> rawValues)
+    {
+        if (!validRowsByDomain.TryGetValue(domain, out var rows))
+        {
+            rows = new List<UnmatchedImportRowRecord>();
+            validRowsByDomain[domain] = rows;
+        }
+
+        rows.Add(new UnmatchedImportRowRecord
+        {
+            SourceRowNumber = rowNumber,
+            RawValues = rawValues.ToList()
+        });
     }
 
     private static IEnumerable<List<T>> Chunk<T>(List<T> source, int size)

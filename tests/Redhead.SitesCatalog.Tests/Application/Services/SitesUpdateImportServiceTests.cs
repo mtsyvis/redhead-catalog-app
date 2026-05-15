@@ -171,6 +171,141 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Null(updated.Language);
     }
 
+    [Fact]
+    public async Task ImportAsync_PartialLanguage_UpdatesOnlyLanguage()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.Language = "DE";
+        site.PriceUsd = 50m;
+        site.Niche = "General";
+        site.NicheTokens = NicheNormalizer.NormalizeTokens(site.Niche);
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv("Domain,Language\nexisting.com,en-US\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal("EN", updated.Language);
+        Assert.Equal(40, updated.DR);
+        Assert.Equal(5000, updated.Traffic);
+        Assert.Equal("US", updated.Location);
+        Assert.Equal(50m, updated.PriceUsd);
+        Assert.Equal("General", updated.Niche);
+        Assert.Equal(["general"], updated.NicheTokens);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialPriceUsd_UpdatesOnlyPriceUsd()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.PriceCasino = 150m;
+        site.PriceCasinoStatus = ServiceAvailabilityStatus.Available;
+        site.Language = "DE";
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv("Domain,PriceUsd\nexisting.com,125\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal(125m, updated.PriceUsd);
+        Assert.Equal(150m, updated.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, updated.PriceCasinoStatus);
+        Assert.Equal("DE", updated.Language);
+        Assert.Equal(40, updated.DR);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialNicheAndCategories_UpdatesOnlyThoseFields()
+    {
+        using var stream = Utf8Csv("Domain,Niche,Categories\nexisting.com,\"Crypto, Finance\",Directory\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal("Crypto, Finance", updated.Niche);
+        Assert.Equal(["crypto", "finance"], updated.NicheTokens);
+        Assert.Equal("Directory", updated.Categories);
+        Assert.Equal(40, updated.DR);
+        Assert.Equal(5000, updated.Traffic);
+        Assert.Equal(50m, updated.PriceUsd);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialMissingNiche_DoesNotRecalculateOrOverwriteNiche()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.Niche = "Old Niche";
+        site.NicheTokens = NicheNormalizer.NormalizeTokens(site.Niche);
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv("Domain,Language\nexisting.com,FR\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal("Old Niche", updated.Niche);
+        Assert.Equal(["old niche"], updated.NicheTokens);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialEmptyNullableColumn_ClearsExistingValue()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.Language = "DE";
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv("Domain,Language\nexisting.com,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Null(updated.Language);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialEmptyRequiredColumn_IsInvalidRow()
+    {
+        using var stream = Utf8Csv("Domain,DR\nexisting.com,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal(40, updated.DR);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialInvalidPresentValue_IsInvalidRow()
+    {
+        using var stream = Utf8Csv("Domain,PriceUsd\nexisting.com,abc\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal(50m, updated.PriceUsd);
+    }
+
     [Theory]
     [InlineData("UNKNOWN", "UNKNOWN")]
     [InlineData("unknown", "UNKNOWN")]
@@ -294,11 +429,29 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportAsync_InvalidHeaderOrder_ThrowsImportHeaderValidationException()
+    public async Task ImportAsync_FlexibleHeaderOrder_UpdatesMatchedSite()
     {
         using var stream = Utf8Csv(
-            "DR,Domain,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,NumberDFLinks,SponsoredTag,Term\n" +
-            "55,existing.com,12000,US,100,150,200,250,,,Tech,News,,,\n");
+            "Language,Domain,DR\n" +
+            "DE,existing.com,55\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("existing.com");
+        Assert.Equal("DE", site.Language);
+        Assert.Equal(55, site.DR);
+        Assert.Equal(5000, site.Traffic);
+    }
+
+    [Fact]
+    public async Task ImportAsync_MissingDomainHeader_ThrowsImportHeaderValidationException()
+    {
+        using var stream = Utf8Csv(
+            "DR,Traffic\n" +
+            "55,12000\n");
 
         var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
 
@@ -306,15 +459,43 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportAsync_MissingRequiredHeader_ThrowsImportHeaderValidationException()
+    public async Task ImportAsync_OnlyDomainHeader_ThrowsImportHeaderValidationException()
     {
-        using var stream = Utf8Csv(
-            "Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,NumberDFLinks,SponsoredTag,Term\n" +
-            "existing.com,55,12000,US,100,150,200,250,,,Tech,,,,\n");
+        using var stream = Utf8Csv("Domain\nexisting.com\n");
 
         var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
 
-        Assert.StartsWith("CSV header is invalid.", exception.Message);
+        Assert.Contains("At least one update column", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ImportAsync_UnknownHeader_ThrowsImportHeaderValidationException()
+    {
+        using var stream = Utf8Csv("Domain,UnknownColumn\nexisting.com,value\n");
+
+        var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
+
+        Assert.Contains("Unknown column", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ImportAsync_DuplicateHeader_ThrowsImportHeaderValidationException()
+    {
+        using var stream = Utf8Csv("Domain,Language,Language\nexisting.com,EN,DE\n");
+
+        var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
+
+        Assert.Contains("Duplicate column", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ImportAsync_BlankHeader_ThrowsImportHeaderValidationException()
+    {
+        using var stream = Utf8Csv("Domain,,Language\nexisting.com,,EN\n");
+
+        var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
+
+        Assert.Contains("is empty", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -440,6 +621,26 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.NotNull(log);
         Assert.Equal(1, log!.Duplicates);
         Assert.Equal(1, log.Matched);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialDuplicateDomains_LastValidPartialRowWinsWithoutMerging()
+    {
+        using var stream = Utf8Csv(
+            "Domain,Language,Niche\n" +
+            "existing.com,EN,\n" +
+            "existing.com,,Casino\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+
+        var site = await GetSiteAsync("existing.com");
+        Assert.Null(site.Language);
+        Assert.Equal("Casino", site.Niche);
+        Assert.Equal(["casino"], site.NicheTokens);
     }
 
     [Fact]
@@ -597,7 +798,6 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     [InlineData("bad-dr.com,101,12000,US,100,150,200,250,,,Tech,News,,,,", "DR must be between 0 and 100")]
     [InlineData("bad-traffic.com,55,,US,100,150,200,250,,,Tech,News,,,,", "Traffic is required")]
     [InlineData("bad-location.com,55,12000, ,100,150,200,250,,,Tech,News,,,,", "Location is required")]
-    [InlineData("bad-price.com,55,12000,US,,,,,,,Tech,News,,,,", "At least one numeric price")]
     [InlineData("bad-price-zero.com,55,12000,US,0,,,,,,Tech,News,,,", "Price USD must be greater than 0 or empty.")]
     [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,,,Tech,News,,,,", "Price must be >= 0")]
     [InlineData("bad-link-insert-casino.com,55,12000,US,100,150,200,250,-1,,Tech,News,,,,", "Price must be >= 0.")]
@@ -641,7 +841,6 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Contains("DR is required.", invalidRowLine, StringComparison.Ordinal);
         Assert.Contains("Traffic is required.", invalidRowLine, StringComparison.Ordinal);
         Assert.Contains("Location is required.", invalidRowLine, StringComparison.Ordinal);
-        Assert.Contains("At least one numeric price", invalidRowLine, StringComparison.Ordinal);
         Assert.Contains("; ", invalidRowLine, StringComparison.Ordinal);
     }
 
@@ -673,6 +872,27 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportAsync_PartialInvalidRowsDownloadContainsOriginalHeaders()
+    {
+        using var stream = Utf8Csv("Domain,DR\nexisting.com,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.NotNull(result.Downloads?.InvalidRows);
+
+        var download = _artifactStorageService.GetCsvDownload(result.Downloads.InvalidRows.Token);
+        Assert.NotNull(download);
+
+        var lines = Encoding.UTF8.GetString(download!.Content)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
+
+        Assert.Equal("Domain,DR,Source Row Number,Error Details", lines[0]);
+        Assert.Equal("existing.com,,2,DR is required.", lines[1]);
+    }
+
+    [Fact]
     public async Task ImportAsync_UnmatchedRows_UnmatchedRowsDownloadContainsOriginalHeadersAndSourceRowNumber()
     {
         using var stream = Utf8Csv(
@@ -700,6 +920,31 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
 
         Assert.Equal("Domain,DR,Traffic,Location,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating,Niche,Categories,NumberDFLinks,SponsoredTag,Term,Language,Source Row Number", lines[0]);
         Assert.Equal("missing-site.com,42,5000,UK,50,,,,,,,,,,,,2", lines[1]);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialUnmatchedRowsDownloadContainsOriginalHeaders()
+    {
+        using var stream = Utf8Csv(
+            "Language,Domain\n" +
+            "EN,missing-site.com\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Equal(1, result.UnmatchedRowsCount);
+        Assert.NotNull(result.Downloads?.UnmatchedRows);
+
+        var download = _artifactStorageService.GetCsvDownload(result.Downloads.UnmatchedRows.Token);
+        Assert.NotNull(download);
+
+        var lines = Encoding.UTF8.GetString(download!.Content)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimEnd('\r'))
+            .ToArray();
+
+        Assert.Equal("Language,Domain,Source Row Number", lines[0]);
+        Assert.Equal("EN,missing-site.com,2", lines[1]);
     }
 
     [Fact]
@@ -784,6 +1029,28 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
 
         Assert.Equal(1, result.UpdatedCount);
         var updated = await GetSiteAsync("existing.com");
+        Assert.Null(updated.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.NotAvailable, updated.PriceCasinoStatus);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialOptionalServiceUnavailableMarker_PreservesAvailabilitySemantics()
+    {
+        var site = await GetSiteAsync("existing.com");
+        site.PriceCasino = 111m;
+        site.PriceCasinoStatus = ServiceAvailabilityStatus.Available;
+        site.PriceUsd = 50m;
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv("Domain,PriceCasino\nexisting.com,N/A\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal(50m, updated.PriceUsd);
         Assert.Null(updated.PriceCasino);
         Assert.Equal(ServiceAvailabilityStatus.NotAvailable, updated.PriceCasinoStatus);
     }
@@ -970,18 +1237,63 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportAsync_EmptyPriceUsd_AllPricesAbsent_IsInvalidRow_SiteNotUpdated()
+    public async Task ImportAsync_PartialEmptyPriceUsd_ClearsOnlyPriceUsd()
     {
-        // "existing.com" is seeded with PriceUsd = 50m; import with all prices absent → rejected
-        using var stream = Utf8Csv(HeaderLine() + "existing.com,55,12000,US,,,,,,,,,,,\n");
+        var existing = await GetSiteAsync("existing.com");
+        existing.PriceCasino = 150m;
+        existing.PriceCasinoStatus = ServiceAvailabilityStatus.Available;
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv("Domain,PriceUsd\nexisting.com,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("existing.com");
+        Assert.Null(site.PriceUsd);
+        Assert.Equal(150m, site.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, site.PriceCasinoStatus);
+        Assert.Equal(40, site.DR);
+        Assert.Equal(5000, site.Traffic);
+        Assert.Equal("US", site.Location);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialEmptyPriceUsd_WhenNoOtherNumericPrice_IsInvalidRow()
+    {
+        using var stream = Utf8Csv("Domain,PriceUsd\nexisting.com,\n");
 
         var result = await ImportAsync(stream);
 
         Assert.Equal(0, result.UpdatedCount);
         Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads?.InvalidRows);
 
         var site = await GetSiteAsync("existing.com");
         Assert.Equal(50m, site.PriceUsd);
+
+        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows.Token);
+        Assert.Contains(invalidLines, line => line.Contains("At least one numeric price is required.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ImportAsync_DuplicateDomain_InvalidLaterPriceClear_DoesNotOverwriteEarlierValidUpdate()
+    {
+        using var stream = Utf8Csv(
+            "Domain,PriceUsd\n" +
+            "existing.com,100\n" +
+            "existing.com,\n");
+
+        var result = await ImportAsync(stream);
+
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+
+        var site = await GetSiteAsync("existing.com");
+        Assert.Equal(100m, site.PriceUsd);
     }
 
     #endregion

@@ -29,17 +29,32 @@ public sealed class CsvImportSession : IAsyncDisposable
         Delimiter = delimiter;
     }
 
-    public static async Task<CsvImportSession> OpenAsync(
+    public static Task<CsvImportSession> OpenAsync(
         Stream stream,
         string[] expectedHeaderColumnsForDelimiterDetection,
         string[] requiredHeadersInStrictOrder,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(requiredHeadersInStrictOrder);
+
+        return OpenAsync(
+            stream,
+            expectedHeaderColumnsForDelimiterDetection,
+            header => CsvImportHelper.ValidateHeaderStrictOrThrow(header, requiredHeadersInStrictOrder),
+            ct);
+    }
+
+    public static async Task<CsvImportSession> OpenAsync(
+        Stream stream,
+        string[] expectedHeaderColumnsForDelimiterDetection,
+        Action<string[]> validateHeader,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
         ArgumentNullException.ThrowIfNull(expectedHeaderColumnsForDelimiterDetection);
 
-        ArgumentNullException.ThrowIfNull(requiredHeadersInStrictOrder);
+        ArgumentNullException.ThrowIfNull(validateHeader);
 
         if (!stream.CanSeek)
         {
@@ -85,7 +100,7 @@ public sealed class CsvImportSession : IAsyncDisposable
                 throw new ImportHeaderValidationException("CSV header row is missing.");
             }
 
-            CsvImportHelper.ValidateHeaderStrictOrThrow(header, requiredHeadersInStrictOrder);
+            validateHeader(header);
 
             return new CsvImportSession(reader, csv, header, delimiter);
         }

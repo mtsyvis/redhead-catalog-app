@@ -120,7 +120,7 @@ public static class SiteWriteValidator
             input.PriceDatingStatus,
             "Price Dating");
 
-        if (!HasAnyNumericPrice(
+        if (!SitePriceValidationHelper.HasAnyNumericPrice(new SitePriceState(
                 input.PriceUsd,
                 normalizedCasino.Price,
                 normalizedCasino.Status,
@@ -131,7 +131,7 @@ public static class SiteWriteValidator
                 normalizedLinkInsertCasino.Price,
                 normalizedLinkInsertCasino.Status,
                 normalizedDating.Price,
-                normalizedDating.Status))
+                normalizedDating.Status)))
         {
             Add(errors, string.Empty, "At least one numeric price is required.");
         }
@@ -244,52 +244,6 @@ public static class SiteWriteValidator
         return price.HasValue
             ? ServiceAvailabilityStatus.Available
             : ServiceAvailabilityStatus.Unknown;
-    }
-
-    private static bool HasAnyNumericPrice(
-        decimal? priceUsd,
-        decimal? casinoPrice,
-        ServiceAvailabilityStatus casinoStatus,
-        decimal? cryptoPrice,
-        ServiceAvailabilityStatus cryptoStatus,
-        decimal? linkInsertPrice,
-        ServiceAvailabilityStatus linkInsertStatus,
-        decimal? linkInsertCasinoPrice,
-        ServiceAvailabilityStatus linkInsertCasinoStatus,
-        decimal? datingPrice,
-        ServiceAvailabilityStatus datingStatus)
-    {
-        if (priceUsd.HasValue && priceUsd.Value > 0)
-        {
-            return true;
-        }
-
-        if (casinoStatus == ServiceAvailabilityStatus.Available && casinoPrice.HasValue && casinoPrice.Value >= 0)
-        {
-            return true;
-        }
-
-        if (cryptoStatus == ServiceAvailabilityStatus.Available && cryptoPrice.HasValue && cryptoPrice.Value >= 0)
-        {
-            return true;
-        }
-
-        if (linkInsertStatus == ServiceAvailabilityStatus.Available && linkInsertPrice.HasValue && linkInsertPrice.Value >= 0)
-        {
-            return true;
-        }
-
-        if (linkInsertCasinoStatus == ServiceAvailabilityStatus.Available && linkInsertCasinoPrice.HasValue && linkInsertCasinoPrice.Value >= 0)
-        {
-            return true;
-        }
-
-        if (datingStatus == ServiceAvailabilityStatus.Available && datingPrice.HasValue && datingPrice.Value >= 0)
-        {
-            return true;
-        }
-
-        return false;
     }
 
     private static void ValidateTerm(

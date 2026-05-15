@@ -260,7 +260,7 @@ public static class SitesImportRowValidationHelper
     {
         return string.IsNullOrWhiteSpace(row.Domain)
                && string.IsNullOrWhiteSpace(row.DRRaw)
-               && row.Traffic is null
+               && string.IsNullOrWhiteSpace(row.TrafficRaw)
                && string.IsNullOrWhiteSpace(row.Location)
                && string.IsNullOrWhiteSpace(row.PriceUsdRaw)
                && string.IsNullOrWhiteSpace(row.PriceCasinoRaw)

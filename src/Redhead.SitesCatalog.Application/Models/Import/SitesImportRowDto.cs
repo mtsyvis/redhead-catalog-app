@@ -9,6 +9,7 @@ public class SitesImportRowDto
     public string? Domain { get; set; }
     public string? DRRaw { get; set; }
     public double? DR { get; set; }
+    public string? TrafficRaw { get; set; }
     public long? Traffic { get; set; }
     public string? Location { get; set; }
     public string? PriceUsdRaw { get; set; }
