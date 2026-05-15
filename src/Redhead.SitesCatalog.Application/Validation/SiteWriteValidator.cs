@@ -10,7 +10,9 @@ public static class SiteWriteValidator
     public const double DrMin = 0;
     public const double DrMax = 100;
 
-    public static SiteWriteValidationResult ValidateAndNormalize(SiteWriteInput? input)
+    public static SiteWriteValidationResult ValidateAndNormalize(
+        SiteWriteInput? input,
+        SiteWriteValidationContext context = SiteWriteValidationContext.ManualForm)
     {
         if (input == null)
         {
@@ -120,18 +122,19 @@ public static class SiteWriteValidator
             input.PriceDatingStatus,
             "Price Dating");
 
-        if (!SitePriceValidationHelper.HasAnyNumericPrice(new SitePriceState(
-                input.PriceUsd,
-                normalizedCasino.Price,
-                normalizedCasino.Status,
-                normalizedCrypto.Price,
-                normalizedCrypto.Status,
-                normalizedLinkInsert.Price,
-                normalizedLinkInsert.Status,
-                normalizedLinkInsertCasino.Price,
-                normalizedLinkInsertCasino.Status,
-                normalizedDating.Price,
-                normalizedDating.Status)))
+        if (context == SiteWriteValidationContext.ManualForm
+            && !SitePriceValidationHelper.HasAnyNumericPrice(new SitePriceState(
+                    input.PriceUsd,
+                    normalizedCasino.Price,
+                    normalizedCasino.Status,
+                    normalizedCrypto.Price,
+                    normalizedCrypto.Status,
+                    normalizedLinkInsert.Price,
+                    normalizedLinkInsert.Status,
+                    normalizedLinkInsertCasino.Price,
+                    normalizedLinkInsertCasino.Status,
+                    normalizedDating.Price,
+                    normalizedDating.Status)))
         {
             Add(errors, string.Empty, "At least one numeric price is required.");
         }

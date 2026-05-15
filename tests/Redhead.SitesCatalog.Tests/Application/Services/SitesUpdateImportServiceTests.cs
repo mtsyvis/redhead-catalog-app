@@ -1261,25 +1261,22 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportAsync_PartialEmptyPriceUsd_WhenNoOtherNumericPrice_IsInvalidRow()
+    public async Task ImportAsync_PartialEmptyPriceUsd_WhenNoOtherNumericPrice_ClearsPriceUsd()
     {
         using var stream = Utf8Csv("Domain,PriceUsd\nexisting.com,\n");
 
         var result = await ImportAsync(stream);
 
-        Assert.Equal(0, result.UpdatedCount);
-        Assert.Equal(1, result.InvalidRowsCount);
-        Assert.NotNull(result.Downloads?.InvalidRows);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Null(result.Downloads?.InvalidRows);
 
         var site = await GetSiteAsync("existing.com");
-        Assert.Equal(50m, site.PriceUsd);
-
-        var invalidLines = GetDownloadLines(result.Downloads.InvalidRows.Token);
-        Assert.Contains(invalidLines, line => line.Contains("At least one numeric price is required.", StringComparison.Ordinal));
+        Assert.Null(site.PriceUsd);
     }
 
     [Fact]
-    public async Task ImportAsync_DuplicateDomain_InvalidLaterPriceClear_DoesNotOverwriteEarlierValidUpdate()
+    public async Task ImportAsync_DuplicateDomain_LaterPriceClear_OverwritesEarlierUpdate()
     {
         using var stream = Utf8Csv(
             "Domain,PriceUsd\n" +
@@ -1289,11 +1286,11 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         var result = await ImportAsync(stream);
 
         Assert.Equal(1, result.UpdatedCount);
-        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.Equal(0, result.InvalidRowsCount);
         Assert.Equal(1, result.DuplicateDomainsCount);
 
         var site = await GetSiteAsync("existing.com");
-        Assert.Equal(100m, site.PriceUsd);
+        Assert.Null(site.PriceUsd);
     }
 
     #endregion

@@ -164,6 +164,18 @@ public class SiteWriteValidatorTests
     }
 
     [Fact]
+    public void ValidateAndNormalize_ImportContext_NullPriceUsd_WithNoOtherPrices_IsValid()
+    {
+        var request = BuildValidRequest();
+        request.PriceUsd = null;
+
+        var result = SiteWriteValidator.ValidateAndNormalize(request, SiteWriteValidationContext.Import);
+
+        Assert.True(result.IsValid);
+        Assert.Null(result.NormalizedRequest!.PriceUsd);
+    }
+
+    [Fact]
     public void ValidateAndNormalize_NullPriceUsd_WithNumericCasinoPrice_IsValid()
     {
         var request = BuildValidRequest();

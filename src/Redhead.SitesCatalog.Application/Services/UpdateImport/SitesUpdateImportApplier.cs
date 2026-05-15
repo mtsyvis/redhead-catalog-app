@@ -1,4 +1,3 @@
-using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -91,53 +90,5 @@ internal static class SitesUpdateImportApplier
         {
             site.SponsoredTag = update.SponsoredTag;
         }
-    }
-
-    public static bool TouchesPriceColumns(SitesUpdateImportRow update)
-    {
-        return update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceUsd)
-               || update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceCasino)
-               || update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceCrypto)
-               || update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceLinkInsert)
-               || update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceLinkInsertCasino)
-               || update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceDating);
-    }
-
-    public static bool WouldKeepAtLeastOneNumericPrice(Site site, SitesUpdateImportRow update)
-    {
-        return SitePriceValidationHelper.HasAnyNumericPrice(new SitePriceState(
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceUsd)
-                ? update.PriceUsd
-                : site.PriceUsd,
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceCasino)
-                ? update.PriceCasino
-                : site.PriceCasino,
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceCasino)
-                ? update.PriceCasinoStatus
-                : site.PriceCasinoStatus,
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceCrypto)
-                ? update.PriceCrypto
-                : site.PriceCrypto,
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceCrypto)
-                ? update.PriceCryptoStatus
-                : site.PriceCryptoStatus,
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceLinkInsert)
-                ? update.PriceLinkInsert
-                : site.PriceLinkInsert,
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceLinkInsert)
-                ? update.PriceLinkInsertStatus
-                : site.PriceLinkInsertStatus,
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceLinkInsertCasino)
-                ? update.PriceLinkInsertCasino
-                : site.PriceLinkInsertCasino,
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceLinkInsertCasino)
-                ? update.PriceLinkInsertCasinoStatus
-                : site.PriceLinkInsertCasinoStatus,
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceDating)
-                ? update.PriceDating
-                : site.PriceDating,
-            update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceDating)
-                ? update.PriceDatingStatus
-                : site.PriceDatingStatus));
     }
 }

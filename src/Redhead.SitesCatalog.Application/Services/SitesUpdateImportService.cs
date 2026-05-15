@@ -123,7 +123,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                 continue;
             }
 
-            var update = SelectLastValidCandidate(site, candidates, invalidRowsPayload, ref invalidRowsCount);
+            var update = SelectLastValidCandidate(candidates);
             if (update is null)
             {
                 continue;
@@ -180,27 +180,11 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         return sitesByDomain;
     }
 
-    private static SitesUpdateImportRow? SelectLastValidCandidate(
-        Site site,
-        IEnumerable<SitesUpdateImportRow> candidates,
-        InvalidRowsImportArtifactPayload invalidRowsPayload,
-        ref int invalidRowsCount)
+    private static SitesUpdateImportRow? SelectLastValidCandidate(IEnumerable<SitesUpdateImportRow> candidates)
     {
         SitesUpdateImportRow? update = null;
         foreach (var candidate in candidates)
         {
-            if (SitesUpdateImportApplier.TouchesPriceColumns(candidate)
-                && !SitesUpdateImportApplier.WouldKeepAtLeastOneNumericPrice(site, candidate))
-            {
-                invalidRowsCount++;
-                AddInvalidRow(
-                    invalidRowsPayload,
-                    candidate.SourceRowNumber,
-                    candidate.RawValues,
-                    "At least one numeric price is required.");
-                continue;
-            }
-
             update = candidate;
         }
 

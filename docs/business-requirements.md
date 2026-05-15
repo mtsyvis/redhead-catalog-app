@@ -189,9 +189,9 @@ Rules:
 * Empty `PriceUsd` must be stored as empty/null, not as `0`.
 * `PriceUsd` must be either empty/null or greater than `0`; `0` and negative values are invalid.
 * UI must display empty `PriceUsd` as `NO`.
-* During sites import, if `PriceUsd` is empty, at least one service-specific price/availability value must still be valid and present.
+* During sites import, price fields may all be empty or unavailable; valid rows are not rejected only because no numeric price is present.
 * During sites update import, a present empty `PriceUsd` clears the existing value; a missing `PriceUsd` column leaves the existing value unchanged.
-* During sites update import, present price-column changes must not leave a matched site with no numeric price across `PriceUsd` and service-specific available prices.
+* During sites update import, price fields may be omitted, cleared, or set unavailable according to field-level rules; update rows are not rejected only because no numeric price remains.
 * During sites import and sites update import, if `PriceUsd` is provided, it must be greater than `0`.
 * Invalid price data must create row-level validation errors.
 * Empty input in an import file means empty value, not implicit zero.

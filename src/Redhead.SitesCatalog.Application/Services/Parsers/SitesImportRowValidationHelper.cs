@@ -171,33 +171,35 @@ public static class SitesImportRowValidationHelper
             }, null);
         }
 
-        var writeValidationResult = SiteWriteValidator.ValidateAndNormalize(new SiteWriteInput
-        {
-            DR = row.DR,
-            Traffic = row.Traffic,
-            Location = row.Location,
-            PriceUsd = row.PriceUsd,
-            PriceCasino = casinoParseResult.Price,
-            PriceCasinoStatus = casinoParseResult.Status,
-            PriceCrypto = cryptoParseResult.Price,
-            PriceCryptoStatus = cryptoParseResult.Status,
-            PriceLinkInsert = linkInsertParseResult.Price,
-            PriceLinkInsertStatus = linkInsertParseResult.Status,
-            PriceLinkInsertCasino = linkInsertCasinoParseResult.Price,
-            PriceLinkInsertCasinoStatus = linkInsertCasinoParseResult.Status,
-            PriceDating = datingParseResult.Price,
-            PriceDatingStatus = datingParseResult.Status,
-            NumberDFLinks = row.NumberDFLinks,
-            TermType = termParseResult.TermType,
-            TermValue = termParseResult.TermValue,
-            TermUnit = termParseResult.TermUnit,
-            Language = row.Language,
-            Niche = row.Niche,
-            Categories = row.Categories,
-            SponsoredTag = row.SponsoredTag,
-            IsQuarantined = false,
-            QuarantineReason = null
-        });
+        var writeValidationResult = SiteWriteValidator.ValidateAndNormalize(
+            new SiteWriteInput
+            {
+                DR = row.DR,
+                Traffic = row.Traffic,
+                Location = row.Location,
+                PriceUsd = row.PriceUsd,
+                PriceCasino = casinoParseResult.Price,
+                PriceCasinoStatus = casinoParseResult.Status,
+                PriceCrypto = cryptoParseResult.Price,
+                PriceCryptoStatus = cryptoParseResult.Status,
+                PriceLinkInsert = linkInsertParseResult.Price,
+                PriceLinkInsertStatus = linkInsertParseResult.Status,
+                PriceLinkInsertCasino = linkInsertCasinoParseResult.Price,
+                PriceLinkInsertCasinoStatus = linkInsertCasinoParseResult.Status,
+                PriceDating = datingParseResult.Price,
+                PriceDatingStatus = datingParseResult.Status,
+                NumberDFLinks = row.NumberDFLinks,
+                TermType = termParseResult.TermType,
+                TermValue = termParseResult.TermValue,
+                TermUnit = termParseResult.TermUnit,
+                Language = row.Language,
+                Niche = row.Niche,
+                Categories = row.Categories,
+                SponsoredTag = row.SponsoredTag,
+                IsQuarantined = false,
+                QuarantineReason = null
+            },
+            SiteWriteValidationContext.Import);
 
         if (!writeValidationResult.IsValid)
         {
