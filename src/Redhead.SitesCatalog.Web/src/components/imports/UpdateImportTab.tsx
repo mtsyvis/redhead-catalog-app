@@ -1,3 +1,4 @@
+import type React from "react";
 import type { UpdateImportResult } from "../../services/import.service";
 import { useImportTab } from "../../hooks/useImportTab";
 import { ImportTabContent } from "./ImportTabContent";
@@ -8,15 +9,23 @@ import { MAX_IMPORT_FILE_SIZE_BYTES, FILE_TOO_LARGE_MESSAGE, ACCEPT_FILES } from
 
 type UpdateImportTabProps = {
   readonly runImport: (file: File) => Promise<UpdateImportResult>;
-  readonly instructions: {
+  readonly instructions?: {
     readonly description: React.ReactNode;
     readonly requiredColumns: readonly string[];
     readonly optionalNote?: React.ReactNode;
   };
+  readonly instructionsContent?: React.ReactNode;
+  readonly uploadHelper?: React.ReactNode;
   readonly resultTitle: string;
 };
 
-export function UpdateImportTab({ runImport, instructions, resultTitle }: UpdateImportTabProps) {
+export function UpdateImportTab({
+  runImport,
+  instructions,
+  instructionsContent,
+  uploadHelper,
+  resultTitle,
+}: UpdateImportTabProps) {
   const {
     file,
     loading,
@@ -33,11 +42,13 @@ export function UpdateImportTab({ runImport, instructions, resultTitle }: Update
   return (
     <ImportTabContent
       instructions={
-        <ImportInstructionsCard
-          description={instructions.description}
-          requiredColumns={instructions.requiredColumns}
-          optionalNote={instructions.optionalNote}
-        />
+        instructionsContent ?? (instructions ? (
+          <ImportInstructionsCard
+            description={instructions.description}
+            requiredColumns={instructions.requiredColumns}
+            optionalNote={instructions.optionalNote}
+          />
+        ) : null)
       }
       uploadSection={
         <ImportUploadSection
@@ -45,6 +56,7 @@ export function UpdateImportTab({ runImport, instructions, resultTitle }: Update
           loading={loading}
           accept={ACCEPT_FILES}
           maxFileSizeBytes={MAX_IMPORT_FILE_SIZE_BYTES}
+          helperContent={uploadHelper}
           onFileChange={handleFileChange}
           onSubmit={handleSubmit}
         />

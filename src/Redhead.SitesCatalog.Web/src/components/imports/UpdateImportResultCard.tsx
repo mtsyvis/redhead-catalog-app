@@ -124,7 +124,7 @@ export function UpdateImportResultCard({
             {canDownloadUnmatchedRows && (
               <ImportResultDownloadAction
                 label="Download unmatched rows"
-                helperText="Includes row number from the source file."
+                helperText="Includes domains that were not found in the catalog."
                 onClick={onDownloadUnmatchedRows}
                 disabled={downloadingAction !== null}
               />

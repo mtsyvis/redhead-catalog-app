@@ -12,6 +12,7 @@ export interface ImportUploadSectionProps {
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   submitLabel?: string;
   loadingLabel?: string;
+  helperContent?: React.ReactNode;
 }
 
 const DEFAULT_SUBMIT_LABEL = 'Import';
@@ -26,6 +27,7 @@ export function ImportUploadSection({
   onSubmit,
   submitLabel = DEFAULT_SUBMIT_LABEL,
   loadingLabel = DEFAULT_LOADING_LABEL,
+  helperContent,
 }: ImportUploadSectionProps) {
   const isTooLarge =
     file !== null && maxFileSizeBytes !== undefined ? file.size > maxFileSizeBytes : false;
@@ -36,6 +38,8 @@ export function ImportUploadSection({
     <Paper sx={{ p: 3, mb: 3 }}>
       <form onSubmit={onSubmit}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {helperContent}
+
           <BrandButton
             component="label"
             startIcon={<UploadFileIcon />}
@@ -69,4 +73,3 @@ export function ImportUploadSection({
     </Paper>
   );
 }
-

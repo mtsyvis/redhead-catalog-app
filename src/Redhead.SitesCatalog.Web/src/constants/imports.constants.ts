@@ -32,9 +32,11 @@ export const SITES_IMPORT_INSTRUCTIONS = {
 };
 
 export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
-  description: 'Upload a CSV file to update existing sites.',
-  requiredColumns: [
-    'Domain',
+  title: 'Update existing sites',
+  description:
+    'Upload a CSV with Domain and only the fields you want to change. Missing columns stay unchanged.',
+  requiredColumn: 'Domain',
+  allowedUpdateColumns: [
     'DR',
     'Traffic',
     'Location',
@@ -51,7 +53,7 @@ export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
     'Term',
     'Language',
   ],
-  optionalNote: 'PriceCasino, PriceCrypto, PriceLinkInsert, PriceLinkInsertCasino, PriceDating, Niche, Categories, NumberDFLinks, SponsoredTag, Term, and Language may be empty.',
+  starterTemplate: 'Domain,Language,PriceUsd,Term\nexample.com,EN,120,1 year',
 };
 
 export const QUARANTINE_IMPORT_INSTRUCTIONS = {

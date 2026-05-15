@@ -67,7 +67,7 @@ export function importSites(file: File) {
 }
 
 /**
- * Mass-update existing sites from CSV (same columns as sites import). Domain is lookup key only.
+ * Mass-update existing sites from CSV. Domain is lookup key; included update columns are applied.
  */
 export function importSitesUpdate(file: File) {
   return runImportRequest<UpdateImportResult>('/api/import/sites-update', file);

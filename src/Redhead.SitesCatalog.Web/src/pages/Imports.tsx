@@ -15,7 +15,6 @@ import { ImportInstructionsCard } from '../components/imports/ImportInstructions
 import {
   LAST_PUBLISHED_IMPORT_INSTRUCTIONS,
   QUARANTINE_IMPORT_INSTRUCTIONS,
-  SITES_UPDATE_IMPORT_INSTRUCTIONS,
   SITES_IMPORT_INSTRUCTIONS,
 } from '../constants/imports.constants';
 import { useImportTab } from '../hooks/useImportTab';
@@ -23,6 +22,10 @@ import { ImportUploadSection } from '../components/imports/ImportUploadSection';
 import { ImportTabContent } from '../components/imports/ImportTabContent';
 import { SitesImportResultCard } from '../components/imports/SitesImportResultCard';
 import { UpdateImportTab } from '../components/imports/UpdateImportTab';
+import {
+  SitesUpdateImportInstructions,
+  SitesUpdateImportUploadNotes,
+} from '../components/imports/SitesUpdateImportInstructions';
 
 function SitesImportTab() {
   const {
@@ -88,11 +91,8 @@ export function Imports() {
       {tab === 1 && <UpdateImportTab
         resultTitle="Sites update import result"
         runImport={importSitesUpdate}
-        instructions= {{
-          description: SITES_UPDATE_IMPORT_INSTRUCTIONS.description,
-          requiredColumns: SITES_UPDATE_IMPORT_INSTRUCTIONS.requiredColumns,
-          optionalNote: SITES_UPDATE_IMPORT_INSTRUCTIONS.optionalNote,
-        }}
+        instructionsContent={<SitesUpdateImportInstructions />}
+        uploadHelper={<SitesUpdateImportUploadNotes />}
       />}
       {tab === 2 && <UpdateImportTab
         resultTitle="Quarantine import result"
