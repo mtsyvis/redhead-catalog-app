@@ -60,6 +60,7 @@ export interface SitesQueryParams {
   stopListDomains?: string[];
   location?: string[];
   niches?: string[];
+  categorySearchTerms?: string[];
   languages?: string[];
   casinoAvailability?: ServiceAvailabilityFilter;
   cryptoAvailability?: ServiceAvailabilityFilter;
@@ -103,6 +104,7 @@ export interface SitesFilters {
   stopListDomains: string[];
   location: string[];
   niches: string[];
+  categorySearchTerms: string[];
   languages: string[];
   casinoAvailability: ServiceAvailabilityFilter;
   cryptoAvailability: ServiceAvailabilityFilter;

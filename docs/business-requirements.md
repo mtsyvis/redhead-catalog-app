@@ -240,6 +240,8 @@ Rules:
 * Each term is matched as a literal case-insensitive substring in the full `Categories` text.
 * Multiple category terms use OR semantics; the category search filter is combined with other active filters using AND.
 * Empty category search terms are ignored.
+* In the frontend, category search input accepts comma, Enter, and newline-separated terms.
+* Spaces inside category search phrases are preserved.
 
 `NumberDFLinks` is nullable. When present, it must be a positive whole number.
 

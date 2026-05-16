@@ -60,6 +60,14 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
     if (f.priceMax !== '' && (s.priceUsd ?? 0) > Number(f.priceMax)) return false;
     if (f.location.length > 0 && !f.location.includes(s.location)) return false;
     if (f.niches.length > 0 && !f.niches.some((niche) => (s.nicheTokens ?? []).includes(niche))) return false;
+    if (
+      f.categorySearchTerms.length > 0 &&
+      !f.categorySearchTerms.some((term) =>
+        (s.categories ?? '').toLowerCase().includes(term.toLowerCase())
+      )
+    ) {
+      return false;
+    }
     if (f.languages.length > 0 && !f.languages.includes(formatLanguageCode(s.language))) return false;
     if (!matchesAvailabilityFilter(s.priceCasinoStatus, f.casinoAvailability)) return false;
     if (!matchesAvailabilityFilter(s.priceCryptoStatus, f.cryptoAvailability)) return false;
@@ -91,6 +99,7 @@ const INITIAL_FILTERS: FiltersType = {
   stopListDomains: [],
   location: [],
   niches: [],
+  categorySearchTerms: [],
   languages: [],
   casinoAvailability: 'all',
   cryptoAvailability: 'all',
@@ -169,6 +178,7 @@ export function Sites() {
       filters.priceMax !== INITIAL_FILTERS.priceMax ||
       filters.location.length !== 0 ||
       filters.niches.length !== 0 ||
+      filters.categorySearchTerms.length !== 0 ||
       filters.languages.length !== 0 ||
       filters.casinoAvailability !== INITIAL_FILTERS.casinoAvailability ||
       filters.cryptoAvailability !== INITIAL_FILTERS.cryptoAvailability ||
@@ -200,6 +210,8 @@ export function Sites() {
           : undefined,
       location: filters.location.length > 0 ? filters.location : undefined,
       niches: filters.niches.length > 0 ? filters.niches : undefined,
+      categorySearchTerms:
+        filters.categorySearchTerms.length > 0 ? filters.categorySearchTerms : undefined,
       languages: filters.languages.length > 0 ? filters.languages : undefined,
       casinoAvailability: filters.casinoAvailability,
       cryptoAvailability: filters.cryptoAvailability,
@@ -222,6 +234,7 @@ export function Sites() {
       filters.stopListDomains,
       filters.location,
       filters.niches,
+      filters.categorySearchTerms,
       filters.languages,
       filters.casinoAvailability,
       filters.cryptoAvailability,
@@ -260,13 +273,13 @@ export function Sites() {
     loadSites();
   }, [loadSites, multiSearchMode]);
 
-  const handleFiltersApply = () => {
+  const handleFiltersApply = (appliedFilters: FiltersType = filters) => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
     if (!multiSearchMode) {
-      setDebouncedSearch(filters.search);
+      setDebouncedSearch(appliedFilters.search);
     }
     if (multiSearchMode) {
-      const query = filters.search.trim();
+      const query = appliedFilters.search.trim();
       if (!query) return;
       setMultiSearchLoading(true);
       sitesService

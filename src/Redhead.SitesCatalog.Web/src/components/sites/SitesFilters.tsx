@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   TextField,
@@ -25,11 +25,15 @@ import { LANGUAGE_OPTIONS, getLanguageOption } from '../../utils/language';
 import { LastPublishedRangeFilter } from './LastPublishedRangeFilter';
 import { StopListDialog } from './StopListDialog';
 import { pluralize } from '../../utils/pluralize';
+import {
+  CategoriesSearchFilter,
+  type CategoriesSearchFilterHandle,
+} from './CategoriesSearchFilter';
 
 interface SitesFiltersProps {
   filters: SitesFilters;
   onFiltersChange: (filters: SitesFilters) => void;
-  onApply: () => void;
+  onApply: (filters?: SitesFilters) => void;
   multiSearchMode?: boolean;
   onMultiSearchModeChange?: (enabled: boolean) => void;
   canFilterQuarantine?: boolean;
@@ -47,6 +51,7 @@ const INITIAL_FILTERS: SitesFilters = {
   stopListDomains: [],
   location: [],
   niches: [],
+  categorySearchTerms: [],
   languages: [],
   casinoAvailability: 'all',
   cryptoAvailability: 'all',
@@ -60,6 +65,10 @@ const INITIAL_FILTERS: SitesFilters = {
 
 const FILTER_GROUP_GAP = 5;
 
+function areStringArraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 export function SitesFilters({
   filters,
   onFiltersChange,
@@ -72,6 +81,7 @@ export function SitesFilters({
   const [nicheOptions, setNicheOptions] = useState<FilterOption[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [stopListDialogOpen, setStopListDialogOpen] = useState(false);
+  const categoriesSearchFilterRef = useRef<CategoriesSearchFilterHandle>(null);
 
   useEffect(() => {
     const loadLocations = async () => {
@@ -108,7 +118,20 @@ export function SitesFilters({
 
   const handleClear = () => {
     onFiltersChange(INITIAL_FILTERS);
-    onApply();
+    onApply(INITIAL_FILTERS);
+  };
+
+  const handleApply = () => {
+    const categorySearchTerms =
+      categoriesSearchFilterRef.current?.commitPendingInput() ?? filters.categorySearchTerms;
+    const nextFilters = areStringArraysEqual(categorySearchTerms, filters.categorySearchTerms)
+      ? filters
+      : { ...filters, categorySearchTerms };
+
+    if (nextFilters !== filters) {
+      onFiltersChange(nextFilters);
+    }
+    onApply(nextFilters);
   };
 
   const getAdvancedActiveFilterCount = () => {
@@ -120,6 +143,7 @@ export function SitesFilters({
     if (!multiSearchMode && filters.stopListDomains.length > 0) count += 1;
     if (filters.location.length > 0) count += 1;
     if (filters.niches.length > 0) count += 1;
+    if (filters.categorySearchTerms.length > 0) count += 1;
     if (filters.languages.length > 0) count += 1;
     if (filters.casinoAvailability !== 'all') count += 1;
     if (filters.cryptoAvailability !== 'all') count += 1;
@@ -146,6 +170,7 @@ export function SitesFilters({
       (!multiSearchMode && filters.stopListDomains.length > 0) ||
       filters.location.length > 0 ||
       filters.niches.length > 0 ||
+      filters.categorySearchTerms.length > 0 ||
       filters.languages.length > 0 ||
       filters.casinoAvailability !== 'all' ||
       filters.cryptoAvailability !== 'all' ||
@@ -220,7 +245,7 @@ export function SitesFilters({
             onChange={(e) => handleChange('search', e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !multiSearchMode) {
-                onApply();
+                handleApply();
               }
             }}
             InputProps={{
@@ -239,7 +264,7 @@ export function SitesFilters({
             />
           )}
         </Box>
-        <BrandButton kind="primary" onClick={onApply} sx={{ minWidth: 120 }}>
+        <BrandButton kind="primary" onClick={handleApply} sx={{ minWidth: 120 }}>
           Search
         </BrandButton>
       </Box>
@@ -478,7 +503,18 @@ export function SitesFilters({
 
             </Box>
 
-            {/* Row 3: Service Availability */}
+            {/* Row 3: Categories */}
+            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <Box sx={{ flex: 1, minWidth: '280px' }}>
+                <CategoriesSearchFilter
+                  ref={categoriesSearchFilterRef}
+                  value={filters.categorySearchTerms}
+                  onChange={(terms) => handleChange('categorySearchTerms', terms)}
+                />
+              </Box>
+            </Box>
+
+            {/* Row 4: Service Availability */}
             <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               {/* Optional Service Availability */}
               <Box sx={{ flex: '0 0 auto' }}>
@@ -635,7 +671,7 @@ export function SitesFilters({
               >
                 Clear All
               </BrandButton>
-              <BrandButton kind="primary" onClick={onApply} disabled={!!lastPublishedRangeError}>
+              <BrandButton kind="primary" onClick={handleApply} disabled={!!lastPublishedRangeError}>
                 Apply Filters
               </BrandButton>
             </Box>
