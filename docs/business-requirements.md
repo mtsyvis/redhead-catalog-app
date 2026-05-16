@@ -232,6 +232,15 @@ Rules:
 * Two-letter ISO-style language codes are stored uppercase, for example `EN`, `DE`, `FR`, `RU`, and `ID`.
 * Manual site edits must normalize supported language inputs and reject invalid values instead of converting them to `UNKNOWN`.
 
+`Categories` stores AI-generated category phrases as one comma-separated text value.
+
+Rules:
+
+* Categories search accepts multiple already-parsed terms.
+* Each term is matched as a literal case-insensitive substring in the full `Categories` text.
+* Multiple category terms use OR semantics; the category search filter is combined with other active filters using AND.
+* Empty category search terms are ignored.
+
 `NumberDFLinks` is nullable. When present, it must be a positive whole number.
 
 Term is stored as `TermType`, `TermValue`, and `TermUnit`.
@@ -295,6 +304,7 @@ Main filters:
 * Location multi-select
 * Language multi-select
 * Niche multi-select
+* Categories substring search
 * Casino availability
 * Crypto availability
 * Link Insert availability

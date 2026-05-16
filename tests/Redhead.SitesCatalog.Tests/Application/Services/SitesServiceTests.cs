@@ -25,7 +25,7 @@ public class SitesServiceTests : IDisposable
 
         _context = new ApplicationDbContext(options);
         _memoryCache = new MemoryCache(new MemoryCacheOptions());
-        var queryBuilder = new SitesQueryBuilder();
+        var queryBuilder = new SitesQueryBuilder(_context);
         var nicheFilterOptionsCache = new NicheFilterOptionsCache(_context, _memoryCache);
         _service = new SitesService(_context, queryBuilder, nicheFilterOptionsCache);
 
@@ -164,7 +164,7 @@ public class SitesServiceTests : IDisposable
                 PriceDating = null,
                 PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
                 Niche = "General",
-                Categories = "General",
+                Categories = "Sports Betting, General",
                 IsQuarantined = false,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
@@ -710,6 +710,162 @@ public class SitesServiceTests : IDisposable
             result.Select(option => option.Value).ToArray());
         Assert.Equal("Mental Health", result.Single(option => option.Value == "mental health").Label);
         Assert.DoesNotContain(result, option => option.Value is "n/a" or "na" or "-" or "none" or "null");
+    }
+
+    #endregion
+
+    #region Category Search Filter Tests
+
+    [Fact]
+    public async Task GetSitesAsync_WithSingleCategorySearchTerm_ReturnsMatchingSites()
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            CategorySearchTerms = ["tech"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Single(result.Items);
+        Assert.Equal("example.com", result.Items[0].Domain);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleCategorySearchTerms_UsesAnySemantics()
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            CategorySearchTerms = ["news", "crypto"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Equal(["crypto.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithCategoryPhrase_PreservesSpaces()
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            CategorySearchTerms = ["sports betting"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Single(result.Items);
+        Assert.Equal("lowdr.com", result.Items[0].Domain);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithCategorySearchTerm_IsCaseInsensitive()
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            CategorySearchTerms = ["gAmBlInG"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Single(result.Items);
+        Assert.Equal("gambling.com", result.Items[0].Domain);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithCategorySearchTerm_DoesNotMatchNullOrEmptyCategories()
+    {
+        _context.Sites.AddRange(
+            SiteForCategorySearch("empty-categories.com", string.Empty),
+            SiteForCategorySearch("null-categories.com", null));
+        await _context.SaveChangesAsync();
+
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            CategorySearchTerms = ["technology"],
+            Page = 1,
+            PageSize = 20,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Single(result.Items);
+        Assert.Equal("example.com", result.Items[0].Domain);
+        Assert.DoesNotContain(result.Items, site => site.Domain is "empty-categories.com" or "null-categories.com");
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithOnlyEmptyCategorySearchTerms_DoesNotApplyCategoryFilter()
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            CategorySearchTerms = ["", " ", null!],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Equal(5, result.Total);
+    }
+
+    [Theory]
+    [InlineData("%", "percent-category.com")]
+    [InlineData("_", "underscore-category.com")]
+    [InlineData("\\", "slash-category.com")]
+    public async Task GetSitesAsync_WithCategoryWildcardCharacters_TreatsThemLiterally(
+        string term,
+        string expectedDomain)
+    {
+        _context.Sites.AddRange(
+            SiteForCategorySearch("plain-category.com", "plain category"),
+            SiteForCategorySearch("percent-category.com", "literal % category"),
+            SiteForCategorySearch("underscore-category.com", "literal _ category"),
+            SiteForCategorySearch("slash-category.com", @"literal \ category"));
+        await _context.SaveChangesAsync();
+
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            CategorySearchTerms = [term],
+            Page = 1,
+            PageSize = 20,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Equal([expectedDomain], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_CategorySearchFilterCombinesWithOtherFiltersUsingAnd()
+    {
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            CategorySearchTerms = ["technology", "news"],
+            Locations = ["US"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        Assert.Single(result.Items);
+        Assert.Equal("example.com", result.Items[0].Domain);
     }
 
     #endregion
@@ -1811,7 +1967,7 @@ public class SitesServiceTests : IDisposable
     public async Task UpdateSiteAsync_InvalidatesNicheOptionsCache()
     {
         var nicheOptionsCacheMock = new Mock<INicheFilterOptionsCache>();
-        var service = new SitesService(_context, new SitesQueryBuilder(), nicheOptionsCacheMock.Object);
+        var service = new SitesService(_context, new SitesQueryBuilder(_context), nicheOptionsCacheMock.Object);
         var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
         var request = RequestFrom(site);
         request.Niche = "Updated Cache Niche";
@@ -1989,6 +2145,24 @@ public class SitesServiceTests : IDisposable
         PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
         PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
         PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+        IsQuarantined = false,
+        CreatedAtUtc = DateTime.UtcNow,
+        UpdatedAtUtc = DateTime.UtcNow
+    };
+
+    private static Site SiteForCategorySearch(string domain, string? categories) => new()
+    {
+        Domain = domain,
+        DR = 50,
+        Traffic = 10000,
+        Location = "US",
+        PriceUsd = 100m,
+        PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+        Categories = categories,
         IsQuarantined = false,
         CreatedAtUtc = DateTime.UtcNow,
         UpdatedAtUtc = DateTime.UtcNow

@@ -133,6 +133,12 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(s => s.Categories)
             .HasColumnType("text");
 
+        builder.HasIndex(s => s.Categories)
+            .HasDatabaseName("IX_Sites_Categories_Trgm")
+            .HasMethod("gin")
+            .HasOperators("gin_trgm_ops")
+            .HasFilter("\"Categories\" IS NOT NULL");
+
         builder.Property(s => s.SponsoredTag)
             .HasMaxLength(SiteFieldLimits.SponsoredTagMaxLength);
 

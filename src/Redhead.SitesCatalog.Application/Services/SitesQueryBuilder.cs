@@ -1,9 +1,12 @@
 using System.Linq.Expressions;
+using System.Reflection;
+using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
@@ -12,6 +15,32 @@ namespace Redhead.SitesCatalog.Application.Services;
 /// </summary>
 public class SitesQueryBuilder : ISitesQueryBuilder
 {
+    private static readonly MethodInfo ILikeMethod = typeof(NpgsqlDbFunctionsExtensions)
+        .GetMethods()
+        .Single(method =>
+            method.Name == nameof(NpgsqlDbFunctionsExtensions.ILike) &&
+            method.GetParameters() is
+            [
+                { ParameterType: var dbFunctionsType },
+                { ParameterType: var matchExpressionType },
+                { ParameterType: var patternType },
+                { ParameterType: var escapeCharacterType }
+            ] &&
+            dbFunctionsType == typeof(DbFunctions) &&
+            matchExpressionType == typeof(string) &&
+            patternType == typeof(string) &&
+            escapeCharacterType == typeof(string));
+
+    private static readonly MethodInfo StringIndexOfMethod = typeof(string)
+        .GetMethod(nameof(string.IndexOf), [typeof(string), typeof(StringComparison)])!;
+
+    private readonly ApplicationDbContext? _context;
+
+    public SitesQueryBuilder(ApplicationDbContext? context = null)
+    {
+        _context = context;
+    }
+
     public IQueryable<Site> BuildQuery(IQueryable<Site> baseQuery, SitesQuery query)
     {
         var sitesQuery = baseQuery;
@@ -49,6 +78,8 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             sitesQuery = sitesQuery.Where(BuildNichePredicate(nicheTokens));
         }
 
+        sitesQuery = ApplyCategorySearchFilter(sitesQuery, query.CategorySearchTerms);
+
         // Apply allowed flags filters
         sitesQuery = ApplyAllowedFilters(sitesQuery, query);
 
@@ -72,6 +103,80 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         }
 
         return NicheNormalizer.NormalizeTokens(niches);
+    }
+
+    private IQueryable<Site> ApplyCategorySearchFilter(
+        IQueryable<Site> query,
+        IReadOnlyCollection<string?>? categorySearchTerms)
+    {
+        var terms = CategorySearchTermParser.NormalizeAndValidate(categorySearchTerms);
+        if (terms is null || terms.Count == 0)
+        {
+            return query;
+        }
+
+        return IsInMemoryProvider()
+            ? query.Where(BuildInMemoryCategorySearchPredicate(terms))
+            : query.Where(BuildPostgresCategorySearchPredicate(terms));
+    }
+
+    private static Expression<Func<Site, bool>> BuildPostgresCategorySearchPredicate(IReadOnlyList<string> terms)
+    {
+        var site = Expression.Parameter(typeof(Site), "site");
+        var categories = Expression.Property(site, nameof(Site.Categories));
+        Expression body = Expression.Constant(false);
+
+        foreach (var term in terms)
+        {
+            var pattern = $"%{CategorySearchTermParser.EscapeLikeTerm(term)}%";
+            var ilike = Expression.Call(
+                ILikeMethod,
+                Expression.Property(null, typeof(EF), nameof(EF.Functions)),
+                categories,
+                Expression.Constant(pattern),
+                Expression.Constant(@"\"));
+            body = Expression.OrElse(body, ilike);
+        }
+
+        body = Expression.AndAlso(
+            Expression.NotEqual(categories, Expression.Constant(null, typeof(string))),
+            body);
+
+        return Expression.Lambda<Func<Site, bool>>(body, site);
+    }
+
+    // Unit tests only. The in-memory provider does not support translating the ILike method, so we build a predicate using string.IndexOf for case-insensitive search.
+    private static Expression<Func<Site, bool>> BuildInMemoryCategorySearchPredicate(IReadOnlyList<string> terms)
+    {
+        var site = Expression.Parameter(typeof(Site), "site");
+        var categories = Expression.Property(site, nameof(Site.Categories));
+        Expression body = Expression.Constant(false);
+
+        foreach (var term in terms)
+        {
+            var contains = Expression.GreaterThanOrEqual(
+                Expression.Call(
+                    categories,
+                    StringIndexOfMethod,
+                    Expression.Constant(term),
+                    Expression.Constant(StringComparison.OrdinalIgnoreCase)),
+                Expression.Constant(0));
+            body = Expression.OrElse(body, contains);
+        }
+
+        body = Expression.AndAlso(
+            Expression.NotEqual(categories, Expression.Constant(null, typeof(string))),
+            body);
+
+        return Expression.Lambda<Func<Site, bool>>(body, site);
+    }
+
+    private bool IsInMemoryProvider()
+    {
+        return string.Equals(
+            _context?.Database.ProviderName,
+            "Microsoft.EntityFrameworkCore.InMemory",
+            StringComparison.Ordinal);
     }
 
     private static IQueryable<Site> ApplyLanguageFilter(IQueryable<Site> query, IReadOnlyCollection<string>? languages)

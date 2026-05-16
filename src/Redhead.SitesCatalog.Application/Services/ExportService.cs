@@ -271,6 +271,7 @@ public class ExportService : IExportService
         if (query.Locations is { Count: > 0 }) { return true; }
         if (query.Languages is { Count: > 0 }) { return true; }
         if (NicheNormalizer.NormalizeTokens(query.Niches ?? []).Length > 0) { return true; }
+        if (CategorySearchTermParser.NormalizeAndValidate(query.CategorySearchTerms) is { Count: > 0 }) { return true; }
         if (query.CasinoAvailability.HasValue)
         {
             if (query.CasinoAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
@@ -509,6 +510,7 @@ public class ExportService : IExportService
             query.Locations,
             query.Languages,
             query.Niches,
+            query.CategorySearchTerms,
             query.CasinoAllowed,
             query.CryptoAllowed,
             query.LinkInsertAllowed,

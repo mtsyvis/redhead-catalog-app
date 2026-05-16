@@ -30,6 +30,7 @@ public class SitesMapperTests
             Locations = new List<string> { "US", "UK" },
             Languages = new List<string> { "english", "de", "en-US", "UNKNOWN" },
             Niches = new List<string> { "crypto", "finance" },
+            CategorySearchTerms = new List<string?> { " sports betting ", "Crypto" },
             CasinoAllowed = true,
             CryptoAllowed = false,
             LinkInsertAllowed = true,
@@ -62,6 +63,7 @@ public class SitesMapperTests
         Assert.Contains("UK", query.Locations);
         Assert.Equal(["EN", "DE", "UNKNOWN"], query.Languages);
         Assert.Equal(["crypto", "finance"], query.Niches);
+        Assert.Equal(["sports betting", "Crypto"], query.CategorySearchTerms);
         Assert.True(query.CasinoAllowed);
         Assert.False(query.CryptoAllowed);
         Assert.True(query.LinkInsertAllowed);
@@ -101,6 +103,7 @@ public class SitesMapperTests
         Assert.Null(query.Search);
         Assert.Null(query.StopListDomains);
         Assert.Null(query.Locations);
+        Assert.Null(query.CategorySearchTerms);
         Assert.Null(query.CasinoAllowed);
         Assert.Null(query.CryptoAllowed);
         Assert.Null(query.LinkInsertAllowed);
@@ -332,6 +335,65 @@ public class SitesMapperTests
         var query = SitesMapper.ToQuery(request);
 
         Assert.Equal(1000, query.StopListDomains!.Count);
+    }
+
+    [Fact]
+    public void ToQuery_WithCategorySearchTerms_TrimsIgnoresEmptyAndDeduplicatesCaseInsensitively()
+    {
+        var request = new SitesQueryRequest
+        {
+            CategorySearchTerms = new List<string?> { " sports betting ", "", "SPORTS BETTING", null, "crypto_news" }
+        };
+
+        var query = SitesMapper.ToQuery(request);
+
+        Assert.Equal(["sports betting", "crypto_news"], query.CategorySearchTerms);
+    }
+
+    [Fact]
+    public void ToQuery_WithMoreThan30UniqueCategorySearchTerms_ThrowsRequestValidationException()
+    {
+        var request = new SitesQueryRequest
+        {
+            CategorySearchTerms = Enumerable.Range(0, 31)
+                .Select(i => (string?)$"category {i}")
+                .ToList()
+        };
+
+        var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
+
+        Assert.Contains("at most 30 unique terms", ex.Message);
+    }
+
+    [Fact]
+    public void ToQuery_CategorySearchTermLimit_IsCountedAfterDeduplication()
+    {
+        var terms = Enumerable.Range(0, 30)
+            .Select(i => (string?)$"category {i}")
+            .ToList();
+        terms.Add("CATEGORY 0");
+
+        var request = new SitesQueryRequest
+        {
+            CategorySearchTerms = terms
+        };
+
+        var query = SitesMapper.ToQuery(request);
+
+        Assert.Equal(30, query.CategorySearchTerms!.Count);
+    }
+
+    [Fact]
+    public void ToQuery_WithTooLongCategorySearchTerm_ThrowsRequestValidationException()
+    {
+        var request = new SitesQueryRequest
+        {
+            CategorySearchTerms = new List<string?> { new('x', 81) }
+        };
+
+        var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
+
+        Assert.Contains("at most 80 characters", ex.Message);
     }
 
     #region LastPublishedMonth mapping and validation

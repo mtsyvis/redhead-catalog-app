@@ -528,6 +528,14 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
 
                     b.HasKey("Domain");
 
+                    var categoriesTrgmIndex = b.HasIndex("Categories")
+                        .HasDatabaseName("IX_Sites_Categories_Trgm")
+                        .HasFilter("\"Categories\" IS NOT NULL");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(categoriesTrgmIndex, "gin");
+
+                    NpgsqlIndexBuilderExtensions.HasOperators(categoriesTrgmIndex, new[] { "gin_trgm_ops" });
+
                     b.HasIndex("DR");
 
                     b.HasIndex("IsQuarantined");

@@ -39,6 +39,7 @@ public static class SitesMapper
             Locations = request.Locations,
             Languages = ParseLanguageFilter(request.Languages),
             Niches = request.Niches,
+            CategorySearchTerms = CategorySearchTermParser.NormalizeAndValidate(request.CategorySearchTerms),
             CasinoAllowed = request.CasinoAllowed,
             CryptoAllowed = request.CryptoAllowed,
             LinkInsertAllowed = request.LinkInsertAllowed,

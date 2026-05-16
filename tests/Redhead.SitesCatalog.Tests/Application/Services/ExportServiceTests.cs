@@ -26,7 +26,7 @@ public class ExportServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        var queryBuilder = new SitesQueryBuilder();
+        var queryBuilder = new SitesQueryBuilder(_context);
         _service = new ExportService(_context, queryBuilder);
 
         SeedTestData();
@@ -344,6 +344,52 @@ public class ExportServiceTests : IDisposable
         var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Single(sites);
         Assert.Equal("gambling.com", sites[0].Domain);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithCategorySearchFilter_ExportsOnlyMatchingSites()
+    {
+        var query = new SitesQuery
+        {
+            CategorySearchTerms = ["gambling"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
+        Assert.Single(sites);
+        Assert.Equal("gambling.com", sites[0].Domain);
+    }
+
+    [Fact]
+    public async Task ExportMultiSearchAsExcelAsync_WithCategorySearchFilter_ExportsOnlyFilteredFoundSites()
+    {
+        var query = DefaultQuery();
+        query.CategorySearchTerms = ["news"];
+
+        var result = await _service.ExportMultiSearchAsExcelAsync(
+            "example.com test.com missing.com",
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        var siteRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
+        var sheetNames = XlsxTestWorkbook.GetSheetNames(result.FileStream);
+
+        Assert.Equal(["test.com"], siteRows.Select(row => row["Domain"]).ToArray());
+        Assert.DoesNotContain("Not found", sheetNames);
     }
 
     [Fact]
@@ -1021,6 +1067,7 @@ public class ExportServiceTests : IDisposable
             Locations = ["US"],
             Languages = ["EN", "UNKNOWN"],
             Niches = ["Casino", " crypto ", "casino"],
+            CategorySearchTerms = [" Sports Betting ", "crypto", "SPORTS BETTING"],
             CasinoAvailability = ServiceAvailabilityFilter.Available,
             LinkInsertAllowed = true,
             StopListDomains = ["test.com"],
@@ -1062,6 +1109,11 @@ public class ExportServiceTests : IDisposable
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "niche" &&
             filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["casino", "crypto"]));
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "categories" &&
+            filter.GetProperty("kind").GetString() == "textSearch" &&
+            filter.GetProperty("operator").GetString() == "containsAny" &&
+            filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["Sports Betting", "crypto"]));
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "language" &&
             filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["EN", "UNKNOWN"]));

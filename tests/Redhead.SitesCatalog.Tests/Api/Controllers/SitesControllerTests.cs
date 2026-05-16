@@ -35,6 +35,7 @@ public class SitesControllerTests
         Assert.Null(query.PriceMin);
         Assert.Null(query.PriceMax);
         Assert.Null(query.Locations);
+        Assert.Null(query.CategorySearchTerms);
         Assert.Null(query.CasinoAllowed);
         Assert.Null(query.CryptoAllowed);
         Assert.Null(query.LinkInsertAllowed);

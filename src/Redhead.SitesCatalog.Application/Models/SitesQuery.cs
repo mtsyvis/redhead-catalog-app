@@ -38,6 +38,9 @@ public class SitesQuery
     // Niche multi-select
     public List<string>? Niches { get; set; }
 
+    // Categories substring search terms
+    public List<string>? CategorySearchTerms { get; set; }
+
     // Allowed flags
     public bool? CasinoAllowed { get; set; }
     public bool? CryptoAllowed { get; set; }

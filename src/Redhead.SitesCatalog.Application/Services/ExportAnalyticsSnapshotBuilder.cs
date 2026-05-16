@@ -61,6 +61,7 @@ public static class ExportAnalyticsSnapshotBuilder
 
         var niches = NicheNormalizer.NormalizeTokens(query.Niches ?? []);
         AddMultiSelect(filters, "niche", niches);
+        AddCategorySearch(filters, query.CategorySearchTerms);
 
         AddAvailability(filters, "priceCasinoAvailability", query.CasinoAvailability, query.CasinoAllowed);
         AddAvailability(filters, "priceCryptoAvailability", query.CryptoAvailability, query.CryptoAllowed);
@@ -205,6 +206,23 @@ public static class ExportAnalyticsSnapshotBuilder
             Kind: "multiSelect",
             Operator: "anyOf",
             Value: activeValues));
+    }
+
+    private static void AddCategorySearch(
+        List<FilterSnapshotItemDto> filters,
+        IReadOnlyCollection<string?>? terms)
+    {
+        var activeTerms = CategorySearchTermParser.NormalizeAndValidate(terms);
+        if (activeTerms is null || activeTerms.Count == 0)
+        {
+            return;
+        }
+
+        filters.Add(new FilterSnapshotItemDto(
+            Field: "categories",
+            Kind: "textSearch",
+            Operator: "containsAny",
+            Value: activeTerms));
     }
 
     private static void AddAvailability(

@@ -54,6 +54,12 @@ public class SitesQueryRequest
     // Niche multi-select
     public List<string>? Niches { get; set; }
 
+    /// <summary>
+    /// Category keywords or phrases. Each term is matched as a literal case-insensitive substring in Categories.
+    /// Multiple terms use OR semantics and are combined with other filters using AND.
+    /// </summary>
+    public List<string?>? CategorySearchTerms { get; set; }
+
     // Allowed flags (null = ignore, true = must have value)
     public bool? CasinoAllowed { get; set; }
     public bool? CryptoAllowed { get; set; }
