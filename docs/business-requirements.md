@@ -34,6 +34,8 @@ General rules:
 * Disabled users cannot log in or access API endpoints.
 * Users are soft-disabled with `IsActive = false`; physical deletion is not allowed.
 * Authorization must be enforced server-side. UI hiding is only a convenience layer.
+* The admin users list is paginated and can be filtered by all users, client users, or internal users.
+* Internal users in the admin users list means any user whose role is not `Client`.
 
 ### SuperAdmin
 

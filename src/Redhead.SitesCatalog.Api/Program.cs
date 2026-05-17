@@ -19,6 +19,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddScoped<ISitesQueryBuilder, SitesQueryBuilder>();
 builder.Services.AddScoped<INicheFilterOptionsCache, NicheFilterOptionsCache>();
 builder.Services.AddScoped<ISitesService, SitesService>();
+builder.Services.AddScoped<IAdminUsersListService, AdminUsersListService>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<ISitesImportService, SitesImportService>();
 builder.Services.AddScoped<IQuarantineImportService, QuarantineImportService>();

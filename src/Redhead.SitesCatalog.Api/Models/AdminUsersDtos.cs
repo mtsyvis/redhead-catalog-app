@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Api.Models;
@@ -24,6 +26,20 @@ public record UserListItem(
     int? EffectiveExportLimitRows,
     bool IsExportLimitOverridden,
     bool IsExportLimitEditable);
+
+public class UserListRequest
+{
+    public string UserType { get; set; } = AdminUsersListUserTypes.All;
+    public int Page { get; set; } = PaginationDefaults.DefaultPage;
+    public int PageSize { get; set; } = PaginationDefaults.DefaultPageSize;
+}
+
+public record UserListResponse(
+    IReadOnlyList<UserListItem> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    int TotalPages);
 
 public record ResetPasswordResponse(string TemporaryPassword);
 

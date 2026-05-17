@@ -1,14 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Services;
+using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
-using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -18,16 +17,16 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 public class AdminUsersController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly ApplicationDbContext _context;
+    private readonly IAdminUsersListService _usersListService;
     private readonly ILogger<AdminUsersController> _logger;
 
     public AdminUsersController(
         UserManager<ApplicationUser> userManager,
-        ApplicationDbContext context,
+        IAdminUsersListService usersListService,
         ILogger<AdminUsersController> logger)
     {
         _userManager = userManager;
-        _context = context;
+        _usersListService = usersListService;
         _logger = logger;
     }
 
@@ -84,45 +83,18 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<UserListItem>>> ListUsers(CancellationToken cancellationToken)
+    public async Task<ActionResult<UserListResponse>> ListUsers(
+        [FromQuery] UserListRequest request,
+        CancellationToken cancellationToken)
     {
-        var users = _userManager.Users.ToList();
-        var roleSettingsList = await _context.RoleSettings.ToListAsync(cancellationToken);
-        var roleSettingsMap = roleSettingsList.ToDictionary(rs => rs.RoleName);
-
-        var list = new List<UserListItem>();
-        foreach (var user in users)
+        var validationError = AdminUsersListRequestValidation.Validate(request);
+        if (validationError != null)
         {
-            var roles = await _userManager.GetRolesAsync(user);
-            var role = roles.FirstOrDefault() ?? string.Empty;
-            var isSuperAdmin = string.Equals(role, AppRoles.SuperAdmin, StringComparison.Ordinal);
-
-            var roleSettings = roleSettingsMap.TryGetValue(role, out var rs)
-                ? rs
-                : new RoleSettings { RoleName = role, ExportLimitMode = ExportLimitMode.Disabled };
-
-            var effectivePolicy = EffectiveExportPolicyResolver.Resolve(role, roleSettings, user);
-
-            list.Add(new UserListItem(
-                Id: user.Id,
-                Email: user.Email ?? string.Empty,
-                Role: role,
-                IsActive: user.IsActive,
-                ExportLimitOverrideMode: isSuperAdmin ? null : user.ExportLimitOverrideMode,
-                ExportLimitRowsOverride: isSuperAdmin ? null : user.ExportLimitRowsOverride,
-                EffectiveExportLimitMode: effectivePolicy.Mode,
-                EffectiveExportLimitRows: effectivePolicy.Rows,
-                IsExportLimitOverridden: effectivePolicy.IsOverridden,
-                IsExportLimitEditable: !isSuperAdmin));
+            return BadRequest(new MessageResponse(validationError));
         }
 
-        var orderedList = list
-            .OrderBy(item => item.IsActive ? 0 : 1)
-            .ThenBy(item => GetRoleOrder(item.Role))
-            .ThenBy(item => item.Email, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        return Ok(orderedList);
+        var result = await _usersListService.ListUsersAsync(ToQuery(request), cancellationToken);
+        return Ok(ToResponse(result));
     }
 
     [HttpPost("{id}/reset-password")]
@@ -232,12 +204,38 @@ public class AdminUsersController : ControllerBase
         return NoContent();
     }
 
-    private static int GetRoleOrder(string role) => role switch
+    private static AdminUsersListQuery ToQuery(UserListRequest request)
     {
-        AppRoles.SuperAdmin => 0,
-        AppRoles.Admin => 1,
-        AppRoles.Internal => 2,
-        AppRoles.Client => 3,
-        _ => int.MaxValue,
-    };
+        return new AdminUsersListQuery
+        {
+            UserType = AdminUsersListRequestValidation.NormalizeUserType(request.UserType),
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+    }
+
+    private static UserListResponse ToResponse(AdminUsersListResult result)
+    {
+        return new UserListResponse(
+            Items: result.Items.Select(ToResponseItem).ToList(),
+            Page: result.Page,
+            PageSize: result.PageSize,
+            TotalCount: result.TotalCount,
+            TotalPages: result.TotalPages);
+    }
+
+    private static UserListItem ToResponseItem(AdminUserListItemDto item)
+    {
+        return new UserListItem(
+            Id: item.Id,
+            Email: item.Email,
+            Role: item.Role,
+            IsActive: item.IsActive,
+            ExportLimitOverrideMode: item.ExportLimitOverrideMode,
+            ExportLimitRowsOverride: item.ExportLimitRowsOverride,
+            EffectiveExportLimitMode: item.EffectiveExportLimitMode,
+            EffectiveExportLimitRows: item.EffectiveExportLimitRows,
+            IsExportLimitOverridden: item.IsExportLimitOverridden,
+            IsExportLimitEditable: item.IsExportLimitEditable);
+    }
 }
