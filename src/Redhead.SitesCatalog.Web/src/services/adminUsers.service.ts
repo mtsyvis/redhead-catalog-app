@@ -1,6 +1,7 @@
 import { ApiClient } from './api.client';
 import type {
-  UserListItem,
+  UserListQueryParams,
+  UserListResponse,
   CreateUserRequest,
   CreateUserResponse,
   ResetPasswordResponse,
@@ -8,8 +9,14 @@ import type {
 } from '../types/adminUsers.types';
 
 export const adminUsersService = {
-  list(): Promise<UserListItem[]> {
-    return ApiClient.get<UserListItem[]>('/api/admin/users');
+  list(params: UserListQueryParams): Promise<UserListResponse> {
+    const query = new URLSearchParams({
+      userType: params.userType,
+      page: String(params.page),
+      pageSize: String(params.pageSize),
+    });
+
+    return ApiClient.get<UserListResponse>(`/api/admin/users?${query.toString()}`);
   },
 
   create(data: CreateUserRequest): Promise<CreateUserResponse> {

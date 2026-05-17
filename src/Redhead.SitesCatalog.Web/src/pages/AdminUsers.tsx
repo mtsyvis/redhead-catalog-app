@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
   Box,
@@ -6,12 +6,6 @@ import {
   Typography,
   TextField,
   Alert,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   MenuItem,
   Select,
   FormControl,
@@ -22,13 +16,17 @@ import {
   DialogContent,
   DialogActions,
   Chip,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
+import { DataGrid } from '@mui/x-data-grid';
+import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { PageShell } from '../components/layout/PageShell';
 import { BrandButton } from '../components/common/BrandButton';
 import { useAuth } from '../contexts/AuthContext';
 import { adminUsersService } from '../services/adminUsers.service';
 import { roleSettingsService } from '../services/roleSettings.service';
-import type { UserListItem as UserListItemType } from '../types/adminUsers.types';
+import type { UserListItem as UserListItemType, UserTypeFilter } from '../types/adminUsers.types';
 import { ROLES } from '../types/adminUsers.types';
 import type { RoleSettingItem } from '../types/roleSettings.types';
 import type { ExportLimitMode } from '../utils/exportLimit';
@@ -36,6 +34,12 @@ import { formatExportLimit } from '../utils/exportLimit';
 import { ApiClientError } from '../services/api.client';
 
 type ExportLimitOverrideOption = 'role-default' | ExportLimitMode;
+
+const USER_TYPE_OPTIONS: Array<{ value: UserTypeFilter; label: string; emptyMessage: string }> = [
+  { value: 'all', label: 'All users', emptyMessage: 'No users found.' },
+  { value: 'internal', label: 'Internal users', emptyMessage: 'No internal users found.' },
+  { value: 'clients', label: 'Clients', emptyMessage: 'No clients found.' },
+];
 
 function parsePositiveInt(value: string): number | null {
   const trimmed = value.trim();
@@ -48,6 +52,12 @@ function parsePositiveInt(value: string): number | null {
 export const AdminUsers: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserListItemType[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [userType, setUserType] = useState<UserTypeFilter>('all');
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 25,
+  });
   const [roleSettings, setRoleSettings] = useState<RoleSettingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,26 +87,46 @@ export const AdminUsers: React.FC = () => {
   const isSuperAdmin = currentUser?.roles?.includes('SuperAdmin');
   const allowedRoles = isSuperAdmin ? ROLES : ROLES.filter((r) => r !== 'SuperAdmin');
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (fallbackToPreviousPage = false) => {
     setLoading(true);
     setError(null);
     try {
-      const [list, settings] = await Promise.all([
-        adminUsersService.list(),
-        roleSettingsService.list(),
-      ]);
-      setUsers(list);
-      setRoleSettings(settings);
+      const response = await adminUsersService.list({
+        userType,
+        page: paginationModel.page + 1,
+        pageSize: paginationModel.pageSize,
+      });
+
+      if (fallbackToPreviousPage && response.items.length === 0 && response.page > 1) {
+        setPaginationModel((prev) => ({ ...prev, page: response.page - 2 }));
+        return;
+      }
+
+      setUsers(response.items);
+      setTotalCount(response.totalCount);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
       setLoading(false);
+    }
+  }, [paginationModel.page, paginationModel.pageSize, userType]);
+
+  const loadRoleSettings = useCallback(async () => {
+    try {
+      const settings = await roleSettingsService.list();
+      setRoleSettings(settings);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load role settings');
     }
   }, []);
 
   React.useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  React.useEffect(() => {
+    loadRoleSettings();
+  }, [loadRoleSettings]);
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -119,9 +149,9 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
-  const handleResetPasswordClick = (u: UserListItemType) => {
+  const handleResetPasswordClick = useCallback((u: UserListItemType) => {
     setResetPasswordConfirmUser(u);
-  };
+  }, []);
 
   const handleResetPasswordConfirm = async () => {
     if (!resetPasswordConfirmUser) return;
@@ -135,6 +165,7 @@ export const AdminUsers: React.FC = () => {
         email: user.email,
         password: res.temporaryPassword,
       });
+      await loadUsers(true);
     } catch {
       setError('Failed to reset password');
     } finally {
@@ -142,9 +173,9 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
-  const handleDisableClick = (u: UserListItemType) => {
+  const handleDisableClick = useCallback((u: UserListItemType) => {
     setDisableConfirmUser(u);
-  };
+  }, []);
 
   const handleDisableConfirm = async () => {
     if (!disableConfirmUser) return;
@@ -153,7 +184,7 @@ export const AdminUsers: React.FC = () => {
     try {
       await adminUsersService.disable(userId);
       setDisableConfirmUser(null);
-      await loadUsers();
+      await loadUsers(true);
     } catch {
       setError('Failed to disable user');
     } finally {
@@ -161,7 +192,7 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
-  const handleOpenEditExportLimit = (u: UserListItemType) => {
+  const handleOpenEditExportLimit = useCallback((u: UserListItemType) => {
     setEditExportLimitUser(u);
     if (u.exportLimitOverrideMode === null) {
       setExportLimitOption('role-default');
@@ -175,7 +206,7 @@ export const AdminUsers: React.FC = () => {
       );
     }
     setExportLimitError(null);
-  };
+  }, []);
 
   const handleExportLimitOptionChange = (option: ExportLimitOverrideOption) => {
     setExportLimitOption(option);
@@ -211,7 +242,7 @@ export const AdminUsers: React.FC = () => {
     try {
       await adminUsersService.updateExportLimit(editExportLimitUser.id, { overrideMode, overrideRows });
       setEditExportLimitUser(null);
-      await loadUsers();
+      await loadUsers(true);
     } catch (err) {
       setExportLimitError(
         err instanceof ApiClientError ? err.message : 'Failed to save export limit.',
@@ -221,10 +252,10 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
-  const canModifyUser = (targetRole: string): boolean => {
+  const canModifyUser = useCallback((targetRole: string): boolean => {
     if (isSuperAdmin) return true;
     return targetRole !== 'SuperAdmin' && targetRole !== 'Admin';
-  };
+  }, [isSuperAdmin]);
 
   const copyPassword = () => {
     if (tempPasswordDialog) {
@@ -254,6 +285,174 @@ export const AdminUsers: React.FC = () => {
     if (!item) return '—';
     return `Role default: ${formatExportLimit(item.exportLimitMode, item.exportLimitRows)}`;
   };
+
+  const handleUserTypeChange = (_event: React.MouseEvent<HTMLElement>, nextUserType: UserTypeFilter | null) => {
+    if (nextUserType === null) return;
+    setUserType(nextUserType);
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
+  };
+
+  const handleShowAllUsers = () => {
+    setUserType('all');
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
+  };
+
+  const handlePaginationModelChange = (model: GridPaginationModel) => {
+    setPaginationModel((prev) => ({
+      page: model.pageSize !== prev.pageSize ? 0 : model.page,
+      pageSize: model.pageSize,
+    }));
+  };
+
+  const selectedUserTypeOption = USER_TYPE_OPTIONS.find((option) => option.value === userType) ?? USER_TYPE_OPTIONS[0];
+
+  const NoRowsOverlay = () => (
+    <Box
+      sx={{
+        height: '100%',
+        minHeight: 120,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1.5,
+        p: 2,
+      }}
+    >
+      <Typography variant="body2" color="text.secondary">
+        {selectedUserTypeOption.emptyMessage}
+      </Typography>
+      {userType !== 'all' && (
+        <BrandButton kind="outline" size="small" onClick={handleShowAllUsers}>
+          Show all users
+        </BrandButton>
+      )}
+    </Box>
+  );
+
+  const columns = useMemo<GridColDef<UserListItemType>[]>(
+    () => [
+      {
+        field: 'email',
+        headerName: 'Email',
+        flex: 1,
+        minWidth: 240,
+        sortable: false,
+      },
+      {
+        field: 'role',
+        headerName: 'Role',
+        width: 130,
+        sortable: false,
+      },
+      {
+        field: 'isActive',
+        headerName: 'Status',
+        width: 130,
+        sortable: false,
+        renderCell: (params) => (
+          <Chip
+            label={params.row.isActive ? 'Active' : 'Disabled'}
+            color={params.row.isActive ? 'success' : 'default'}
+            size="small"
+          />
+        ),
+      },
+      {
+        field: 'effectiveExportLimitMode',
+        headerName: 'Export limit',
+        minWidth: 230,
+        flex: 0.7,
+        sortable: false,
+        renderCell: (params) => {
+          const u = params.row;
+          return (
+            <Box sx={{ py: 1 }}>
+              <Typography variant="body2">
+                {formatExportLimit(u.effectiveExportLimitMode, u.effectiveExportLimitRows)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {!u.isExportLimitEditable
+                  ? 'Fixed for SuperAdmin'
+                  : u.isExportLimitOverridden
+                    ? 'Personal override'
+                    : 'Inherited from role'}
+              </Typography>
+            </Box>
+          );
+        },
+      },
+      ...(isSuperAdmin
+        ? [
+            {
+              field: 'actions',
+              headerName: 'Actions',
+              width: 390,
+              sortable: false,
+              align: 'right' as const,
+              headerAlign: 'right' as const,
+              renderCell: (params: { row: UserListItemType }) => {
+                const u = params.row;
+                return (
+                  <Box
+                    sx={{
+                      display: 'inline-flex',
+                      flexWrap: 'wrap',
+                      gap: 1,
+                      justifyContent: 'flex-end',
+                      py: 1,
+                    }}
+                  >
+                    {u.isActive && canModifyUser(u.role) && (
+                      <>
+                        <BrandButton
+                          kind="outline"
+                          size="small"
+                          onClick={() => handleResetPasswordClick(u)}
+                          disabled={actionLoadingId === u.id}
+                        >
+                          {actionLoadingId === u.id ? (
+                            <CircularProgress size={18} />
+                          ) : (
+                            'Reset password'
+                          )}
+                        </BrandButton>
+                        <BrandButton
+                          kind="outline"
+                          size="small"
+                          onClick={() => handleDisableClick(u)}
+                          disabled={actionLoadingId === u.id}
+                        >
+                          Disable
+                        </BrandButton>
+                      </>
+                    )}
+                    {u.isActive && u.isExportLimitEditable && (
+                      <BrandButton
+                        kind="outline"
+                        size="small"
+                        onClick={() => handleOpenEditExportLimit(u)}
+                        disabled={actionLoadingId === u.id}
+                      >
+                        Edit export limit
+                      </BrandButton>
+                    )}
+                  </Box>
+                );
+              },
+            } satisfies GridColDef<UserListItemType>,
+          ]
+        : []),
+    ],
+    [
+      actionLoadingId,
+      canModifyUser,
+      handleDisableClick,
+      handleOpenEditExportLimit,
+      handleResetPasswordClick,
+      isSuperAdmin,
+    ],
+  );
 
   if (!isAdmin) {
     return <Navigate to="/sites" replace />;
@@ -313,95 +512,74 @@ export const AdminUsers: React.FC = () => {
         </Paper>
       )}
 
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        All users
-      </Typography>
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Email</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Export limit</TableCell>
-                {isSuperAdmin && <TableCell align="right">Actions</TableCell>}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell>{u.email}</TableCell>
-                  <TableCell>{u.role}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={u.isActive ? 'Active' : 'Disabled'}
-                      color={u.isActive ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {formatExportLimit(u.effectiveExportLimitMode, u.effectiveExportLimitRows)}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {!u.isExportLimitEditable
-                        ? 'Fixed for SuperAdmin'
-                        : u.isExportLimitOverridden
-                          ? 'Personal override'
-                          : 'Inherited from role'}
-                    </Typography>
-                  </TableCell>
-                  {isSuperAdmin && (
-                    <TableCell align="right">
-                      <Box sx={{ display: 'inline-flex', gap: 1, justifyContent: 'flex-end' }}>
-                        {u.isActive && canModifyUser(u.role) && (
-                          <>
-                            <BrandButton
-                              kind="outline"
-                              size="small"
-                              onClick={() => handleResetPasswordClick(u)}
-                              disabled={actionLoadingId === u.id}
-                            >
-                              {actionLoadingId === u.id ? (
-                                <CircularProgress size={18} />
-                              ) : (
-                                'Reset password'
-                              )}
-                            </BrandButton>
-                            <BrandButton
-                              kind="outline"
-                              size="small"
-                              onClick={() => handleDisableClick(u)}
-                              disabled={actionLoadingId === u.id}
-                            >
-                              Disable
-                            </BrandButton>
-                          </>
-                        )}
-                        {u.isActive && u.isExportLimitEditable && (
-                          <BrandButton
-                            kind="outline"
-                            size="small"
-                            onClick={() => handleOpenEditExportLimit(u)}
-                            disabled={actionLoadingId === u.id}
-                          >
-                            Edit export limit
-                          </BrandButton>
-                        )}
-                      </Box>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2 }}>
+        <Typography variant="h6">
+          {selectedUserTypeOption.label}
+        </Typography>
+        <ToggleButtonGroup
+          value={userType}
+          exclusive
+          size="small"
+          onChange={handleUserTypeChange}
+          aria-label="User type"
+          sx={{
+            flexWrap: 'wrap',
+            '& .MuiToggleButton-root': {
+              px: 2,
+              py: 0.75,
+              textTransform: 'none',
+              borderColor: 'divider',
+            },
+          }}
+        >
+          {USER_TYPE_OPTIONS.map((option) => (
+            <ToggleButton key={option.value} value={option.value}>
+              {option.label}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </Box>
+
+      <Paper>
+        <DataGrid
+          rows={users}
+          columns={columns}
+          getRowId={(row) => row.id}
+          rowCount={totalCount}
+          loading={loading}
+          pageSizeOptions={[10, 25, 50, 100]}
+          paginationModel={paginationModel}
+          paginationMode="server"
+          onPaginationModelChange={handlePaginationModelChange}
+          disableRowSelectionOnClick
+          disableColumnMenu
+          autoHeight
+          getRowHeight={() => 'auto'}
+          slots={{ noRowsOverlay: NoRowsOverlay }}
+          sx={{
+            '& .MuiDataGrid-cell': {
+              display: 'flex',
+              alignItems: 'center',
+              py: 1,
+            },
+            '& .MuiDataGrid-cell:focus': {
+              outline: 'none',
+            },
+            '& .MuiDataGrid-cell:focus-within': {
+              outline: 'none',
+            },
+            '& .MuiDataGrid-columnHeader': {
+              backgroundColor: 'action.hover',
+            },
+            '& .MuiDataGrid-columnHeader:focus': {
+              outline: 'none',
+            },
+            '& .MuiDataGrid-columnHeader:focus-within': {
+              outline: 'none',
+            },
+          }}
+        />
+      </Paper>
 
       <Dialog
         open={!!resetPasswordConfirmUser}

@@ -13,6 +13,22 @@ export interface UserListItem {
   isExportLimitEditable: boolean;
 }
 
+export type UserTypeFilter = 'all' | 'internal' | 'clients';
+
+export interface UserListQueryParams {
+  userType: UserTypeFilter;
+  page: number;
+  pageSize: number;
+}
+
+export interface UserListResponse {
+  items: UserListItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+}
+
 export interface CreateUserRequest {
   email: string;
   role: string;
