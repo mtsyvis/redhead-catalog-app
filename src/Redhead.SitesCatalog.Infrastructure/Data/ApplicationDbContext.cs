@@ -16,6 +16,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ExportLog> ExportLogs => Set<ExportLog>();
     public DbSet<ExportAnalyticsSnapshot> ExportAnalyticsSnapshots => Set<ExportAnalyticsSnapshot>();
     public DbSet<ImportLog> ImportLogs => Set<ImportLog>();
+    public DbSet<GoogleDriveConnection> GoogleDriveConnections => Set<GoogleDriveConnection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

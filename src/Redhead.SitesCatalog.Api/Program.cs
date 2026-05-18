@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Api.Middleware;
+using Redhead.SitesCatalog.Api.Options;
+using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -12,6 +14,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient();
+
+builder.Services.Configure<GoogleDriveOptions>(
+    builder.Configuration.GetSection(GoogleDriveOptions.SectionName));
+builder.Services.Configure<FrontendOptions>(
+    builder.Configuration.GetSection(FrontendOptions.SectionName));
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -26,6 +34,9 @@ builder.Services.AddScoped<IQuarantineImportService, QuarantineImportService>();
 builder.Services.AddScoped<ILastPublishedImportService, LastPublishedImportService>();
 builder.Services.AddScoped<ISitesUpdateImportService, SitesUpdateImportService>();
 builder.Services.AddSingleton<IImportArtifactStorageService, ImportArtifactStorageService>();
+builder.Services.AddScoped<IGoogleDriveIntegrationService, GoogleDriveIntegrationService>();
+builder.Services.AddSingleton<IGoogleDriveOAuthStateService, GoogleDriveOAuthStateService>();
+builder.Services.AddSingleton<IGoogleDriveTokenProtector, GoogleDriveTokenProtector>();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));

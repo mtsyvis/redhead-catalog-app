@@ -115,6 +115,12 @@ POSTGRES_PASSWORD=<strong database password>
 SEED_SUPERADMIN_EMAIL=<initial super admin email>
 SEED_SUPERADMIN_PASSWORD=<strong initial super admin password>
 APP_DOMAIN=catalog.rhda.us
+GOOGLE_DRIVE_CLIENT_ID=<Google OAuth client id>
+GOOGLE_DRIVE_CLIENT_SECRET=<Google OAuth client secret>
+GOOGLE_DRIVE_REDIRECT_URI=https://catalog.rhda.us/api/integrations/google-drive/callback
+GOOGLE_DRIVE_APP_NAME=Redhead Catalog
+GOOGLE_DRIVE_EXPORT_FOLDER_NAME=Redhead Catalog Exports
+FRONTEND_BASE_URL=https://catalog.rhda.us
 ```
 
 The app receives these values through Docker Compose:
@@ -125,6 +131,12 @@ ASPNETCORE_URLS=http://+:8080
 ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=redhead_sites_catalog;Username=postgres;Password=${POSTGRES_PASSWORD}
 SeedData__SuperAdmin__Email=${SEED_SUPERADMIN_EMAIL}
 SeedData__SuperAdmin__Password=${SEED_SUPERADMIN_PASSWORD}
+GoogleDrive__ClientId=${GOOGLE_DRIVE_CLIENT_ID}
+GoogleDrive__ClientSecret=${GOOGLE_DRIVE_CLIENT_SECRET}
+GoogleDrive__RedirectUri=${GOOGLE_DRIVE_REDIRECT_URI}
+GoogleDrive__AppName=${GOOGLE_DRIVE_APP_NAME}
+GoogleDrive__ExportFolderName=${GOOGLE_DRIVE_EXPORT_FOLDER_NAME}
+Frontend__BaseUrl=${FRONTEND_BASE_URL}
 ```
 
 Security rules:
@@ -132,6 +144,7 @@ Security rules:
 * Never commit `.env`.
 * Never commit production passwords or database dumps.
 * Do not reuse weak seed passwords.
+* Google Drive OAuth uses `https://www.googleapis.com/auth/drive.file`; do not configure broad Drive access.
 * After first successful production setup, rotate or remove temporary bootstrap credentials if the application flow allows it.
 
 ## First deployment checklist

@@ -1,0 +1,14 @@
+namespace Redhead.SitesCatalog.Api.Services;
+
+public sealed class GoogleDriveIntegrationException : Exception
+{
+    public GoogleDriveIntegrationException(string message)
+        : base(message)
+    {
+    }
+
+    public GoogleDriveIntegrationException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}

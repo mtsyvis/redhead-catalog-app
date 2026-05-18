@@ -505,6 +505,20 @@ Rules:
 * If export is truncated by limit, the user must be informed.
 * Disabled export must be enforced by backend, not only by hiding the button.
 
+### Google Drive export connection
+
+Users may optionally connect their own Google Drive account after logging in with their Redhead account. This is separate from authentication and must not be implemented as Google sign-in, Google registration, or external login.
+
+Rules:
+
+* Google Drive connection is optional per user.
+* The connection uses the minimal Google Drive OAuth scope: `https://www.googleapis.com/auth/drive.file`.
+* The broad `https://www.googleapis.com/auth/drive` scope is out of scope and must not be used.
+* Future Google Drive exports should save files to a dedicated folder in the user's My Drive.
+* The dedicated folder name comes from configuration and defaults to `Redhead Catalog Exports`.
+* Shared Drive support is out of scope.
+* Folder picker support is out of scope.
+
 ## Admin UI
 
 Admin UI exists to manage users, role export limits, and imports.

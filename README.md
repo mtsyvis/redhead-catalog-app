@@ -214,6 +214,12 @@ POSTGRES_PASSWORD
 SEED_SUPERADMIN_EMAIL
 SEED_SUPERADMIN_PASSWORD
 APP_DOMAIN
+GOOGLE_DRIVE_CLIENT_ID
+GOOGLE_DRIVE_CLIENT_SECRET
+GOOGLE_DRIVE_REDIRECT_URI
+GOOGLE_DRIVE_APP_NAME
+GOOGLE_DRIVE_EXPORT_FOLDER_NAME
+FRONTEND_BASE_URL
 ```
 
 The app also supports standard ASP.NET Core environment variable binding, for example:
@@ -222,9 +228,17 @@ The app also supports standard ASP.NET Core environment variable binding, for ex
 ConnectionStrings__DefaultConnection
 SeedData__SuperAdmin__Email
 SeedData__SuperAdmin__Password
+GoogleDrive__ClientId
+GoogleDrive__ClientSecret
+GoogleDrive__RedirectUri
+GoogleDrive__AppName
+GoogleDrive__ExportFolderName
+Frontend__BaseUrl
 ASPNETCORE_ENVIRONMENT
 ASPNETCORE_URLS
 ```
+
+Google Drive integration is an optional connection for authenticated users, not Google login. Use the minimal Drive scope `https://www.googleapis.com/auth/drive.file`; do not configure the broad Drive scope.
 
 ## Quality gates
 
