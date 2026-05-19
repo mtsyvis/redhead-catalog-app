@@ -2,8 +2,10 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Mappers;
+using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Models.Export;
 using Redhead.SitesCatalog.Api.Models.Sites;
+using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -17,10 +19,14 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 public class ExportController : ControllerBase
 {
     private readonly IExportService _exportService;
+    private readonly IGoogleDriveExportService _googleDriveExportService;
 
-    public ExportController(IExportService exportService)
+    public ExportController(
+        IExportService exportService,
+        IGoogleDriveExportService googleDriveExportService)
     {
         _exportService = exportService;
+        _googleDriveExportService = googleDriveExportService;
     }
 
     /// <summary>
@@ -28,7 +34,7 @@ public class ExportController : ControllerBase
     /// </summary>
     [HttpPost("sites.xlsx")]
     public async Task<IActionResult> ExportSitesFromBody(
-        [FromBody] SitesQueryRequest request,
+        [FromBody] ExportSitesRequest request,
         CancellationToken cancellationToken)
     {
         if (request == null)
@@ -39,44 +45,44 @@ public class ExportController : ControllerBase
         return await ExportSitesCore(request, cancellationToken);
     }
 
-    private async Task<IActionResult> ExportSitesCore(
-        SitesQueryRequest request,
+    /// <summary>
+    /// Export sites as Excel and upload the same workbook to the connected user's Google Drive export folder.
+    /// Accepts the same body as /api/export/sites.xlsx.
+    /// Multi-search exports may use SearchText plus optional Filters, matching /api/export/sites-multi-search.xlsx.
+    /// </summary>
+    [HttpPost("/api/sites/export/google-drive")]
+    public async Task<IActionResult> ExportSitesToGoogleDrive(
+        [FromBody] GoogleDriveExportRequest request,
         CancellationToken cancellationToken)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var userEmail = User.FindFirstValue(ClaimTypes.Email);
-        var userRole = User.FindFirstValue(ClaimTypes.Role);
+        if (request == null)
+        {
+            return BadRequest();
+        }
 
-        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(userEmail) || string.IsNullOrEmpty(userRole))
+        try
+        {
+            var userContext = GetRequiredUserContext();
+            var result = request.SearchText != null
+                ? await ExportMultiSearchToGoogleDriveAsync(request, userContext, cancellationToken)
+                : await ExportSitesToGoogleDriveAsync(request, userContext, cancellationToken);
+
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
         {
             return Unauthorized("User information not found");
         }
-
-        SitesQuery query;
-        try
-        {
-            query = SitesMapper.ToQuery(request);
-        }
         catch (RequestValidationException ex)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Validation Error",
-                Status = StatusCodes.Status400BadRequest,
-                Detail = ex.Message
-            });
+            return ValidationProblem(ex);
         }
-
-        var result = await _exportService.ExportSitesAsExcelAsync(
-            query,
-            userId,
-            userEmail,
-            userRole,
-            cancellationToken);
-
-        AddExportHeaders(result);
-
-        return File(result.FileStream, ExportConstants.ExcelContentType, ExportConstants.SitesFileName);
+        catch (GoogleDriveExportException ex)
+        {
+            return StatusCode(
+                ex.StatusCode,
+                new ApiErrorResponse(ex.ErrorCode, ex.StatusCode));
+        }
     }
 
     /// <summary>
@@ -87,74 +93,148 @@ public class ExportController : ControllerBase
         [FromBody] ExportMultiSearchRequest request,
         CancellationToken cancellationToken)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var userEmail = User.FindFirstValue(ClaimTypes.Email);
-        var userRole = User.FindFirstValue(ClaimTypes.Role);
-
-        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(userEmail) || string.IsNullOrEmpty(userRole))
-        {
-            return Unauthorized("User information not found");
-        }
-
         if (request == null)
         {
             return BadRequest();
         }
 
-        if (request.Filters?.StopListDomains is { Count: > 0 })
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Validation Error",
-                Status = StatusCodes.Status400BadRequest,
-                Detail = StopListConstants.MultiSearchNotSupportedMessage
-            });
-        }
-
-        SitesQuery query;
         try
         {
-            query = request.Filters != null ? SitesMapper.ToQuery(request.Filters) : new SitesQuery();
-        }
-        catch (RequestValidationException ex)
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Validation Error",
-                Status = StatusCodes.Status400BadRequest,
-                Detail = ex.Message
-            });
-        }
-
-        query.Search = null;
-        query.SortBy = request.SortBy ?? query.SortBy;
-        query.SortDir = request.SortDir ?? query.SortDir;
-
-        ExportResult result;
-        try
-        {
-            result = await _exportService.ExportMultiSearchAsExcelAsync(
-                request.QueryText,
+            var userContext = GetRequiredUserContext();
+            var query = ToMultiSearchQuery(request);
+            var result = await _exportService.ExportMultiSearchAsExcelAsync(
+                request.SearchText,
                 query,
-                userId,
-                userEmail,
-                userRole,
+                userContext.UserId,
+                userContext.UserEmail,
+                userContext.UserRole,
                 cancellationToken);
+
+            AddExportHeaders(result);
+
+            return File(result.FileStream, ExportConstants.ExcelContentType, ExportConstants.SitesFileName);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized("User information not found");
         }
         catch (RequestValidationException ex)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Validation Error",
-                Status = StatusCodes.Status400BadRequest,
-                Detail = ex.Message
-            });
+            return ValidationProblem(ex);
+        }
+    }
+
+    private async Task<IActionResult> ExportSitesCore(
+        ExportSitesRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userContext = GetRequiredUserContext();
+            var query = ToSitesQuery(request);
+            var result = await _exportService.ExportSitesAsExcelAsync(
+                query,
+                userContext.UserId,
+                userContext.UserEmail,
+                userContext.UserRole,
+                cancellationToken);
+
+            AddExportHeaders(result);
+
+            return File(result.FileStream, ExportConstants.ExcelContentType, ExportConstants.SitesFileName);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized("User information not found");
+        }
+        catch (RequestValidationException ex)
+        {
+            return ValidationProblem(ex);
+        }
+    }
+
+    private async Task<GoogleDriveExportResponse> ExportSitesToGoogleDriveAsync(
+        GoogleDriveExportRequest request,
+        UserExportContext userContext,
+        CancellationToken cancellationToken)
+    {
+        var query = ToSitesQuery(request);
+
+        return await _googleDriveExportService.ExportSitesAsync(
+            query,
+            userContext.UserId,
+            userContext.UserEmail,
+            userContext.UserRole,
+            cancellationToken);
+    }
+
+    private async Task<GoogleDriveExportResponse> ExportMultiSearchToGoogleDriveAsync(
+        GoogleDriveExportRequest request,
+        UserExportContext userContext,
+        CancellationToken cancellationToken)
+    {
+        var query = ToMultiSearchQuery(request);
+
+        return await _googleDriveExportService.ExportMultiSearchAsync(
+            request.SearchText ?? string.Empty,
+            query,
+            userContext.UserId,
+            userContext.UserEmail,
+            userContext.UserRole,
+            cancellationToken);
+    }
+
+    private static SitesQuery ToMultiSearchQuery(ExportMultiSearchRequest request)
+        => ToMultiSearchQuery(request.Filters);
+
+    private static SitesQuery ToMultiSearchQuery(GoogleDriveExportRequest request)
+        => ToMultiSearchQuery(request.Filters);
+
+    private static SitesQuery ToMultiSearchQuery(SitesQueryRequest? filters)
+    {
+        if (filters?.StopListDomains is { Count: > 0 })
+        {
+            throw new RequestValidationException(StopListConstants.MultiSearchNotSupportedMessage);
         }
 
-        AddExportHeaders(result);
-
-        return File(result.FileStream, ExportConstants.ExcelContentType, ExportConstants.SitesFileName);
+        var query = filters != null ? SitesMapper.ToQuery(filters) : new SitesQuery();
+        query.Search = null;
+        return query;
     }
+
+    private static SitesQuery ToSitesQuery(ExportSitesRequest request)
+        => SitesMapper.ToQuery(request.Filters ?? new SitesQueryRequest());
+
+    private static SitesQuery ToSitesQuery(GoogleDriveExportRequest request)
+        => SitesMapper.ToQuery(request.Filters ?? new SitesQueryRequest());
+
+    private UserExportContext GetRequiredUserContext()
+    {
+        var user = ControllerContext.HttpContext?.User;
+        if (user == null)
+        {
+            throw new UnauthorizedAccessException();
+        }
+
+        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userEmail = user.FindFirstValue(ClaimTypes.Email);
+        var userRole = user.FindFirstValue(ClaimTypes.Role);
+
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(userEmail) || string.IsNullOrEmpty(userRole))
+        {
+            throw new UnauthorizedAccessException();
+        }
+
+        return new UserExportContext(userId, userEmail, userRole);
+    }
+
+    private BadRequestObjectResult ValidationProblem(RequestValidationException ex)
+        => BadRequest(new ProblemDetails
+        {
+            Title = "Validation Error",
+            Status = StatusCodes.Status400BadRequest,
+            Detail = ex.Message
+        });
 
     private void AddExportHeaders(ExportResult result)
     {
@@ -166,4 +246,6 @@ public class ExportController : ControllerBase
             Response.Headers["X-Export-Limit-Rows"] = result.LimitRows.Value.ToString();
         }
     }
+
+    private readonly record struct UserExportContext(string UserId, string UserEmail, string UserRole);
 }

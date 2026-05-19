@@ -180,6 +180,27 @@ When a task changes observable behavior, update or add relevant tests.
 
 Use the existing test style unless there is a clear reason to change it.
 
+New unit tests must follow the Arrange, Act, Assert structure and include explicit comments:
+
+```csharp
+// Arrange
+
+// Act
+
+// Assert
+```
+
+Keep each section focused so the setup, behavior under test, and expectations are easy to scan.
+
+Prefer these unit-test patterns where they improve clarity:
+
+* Use SUT factory helpers such as `CreateService(...)` or `CreateController(...)` when a test needs repeated setup.
+* Use small test data builders or explicit helper methods for large entities such as `Site` or `ApplicationUser`; keep important per-test values visible at the call site.
+* Use parameterized tests (`[Theory]`, `[InlineData]`, `[MemberData]`) for validation, parsing, normalization, and other input/output rule matrices.
+* Prefer state/output verification for business behavior. Use Moq `Verify` only when the dependency interaction is the behavior being tested.
+* For generated artifacts such as Excel files, read the generated artifact back and assert stable observable content such as sheets, headers, metadata, and rows.
+* Keep test helpers boring and local unless reuse is clear. Avoid hiding business-critical setup in overly magical factories.
+
 If tests are not added or updated for a behavior change, explain why in the final response.
 
 ## Final response format

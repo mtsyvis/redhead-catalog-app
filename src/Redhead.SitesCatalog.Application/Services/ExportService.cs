@@ -131,7 +131,7 @@ public class ExportService : IExportService
     }
 
     public async Task<ExportResult> ExportMultiSearchAsExcelAsync(
-        string queryText,
+        string searchText,
         SitesQuery query,
         string userId,
         string userEmail,
@@ -143,7 +143,7 @@ public class ExportService : IExportService
             throw new RequestValidationException(StopListConstants.MultiSearchNotSupportedMessage);
         }
 
-        var parseResult = MultiSearchParser.Parse(queryText);
+        var parseResult = MultiSearchParser.Parse(searchText);
 
         var roleSettings = await _context.RoleSettings
             .FirstOrDefaultAsync(rs => rs.RoleName == userRole, cancellationToken);

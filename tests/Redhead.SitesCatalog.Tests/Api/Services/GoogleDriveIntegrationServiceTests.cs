@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Moq;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Options;
 using Redhead.SitesCatalog.Api.Services;
@@ -14,11 +15,14 @@ public sealed class GoogleDriveIntegrationServiceTests
     [Fact]
     public async Task GetStatusAsync_WhenNoConnectionExists_ReturnsNotConnected()
     {
+        // Arrange
         await using var db = CreateDbContext();
         var sut = CreateService(db);
 
+        // Act
         var status = await sut.GetStatusAsync("user-1", CancellationToken.None);
 
+        // Assert
         Assert.False(status.Connected);
         Assert.Null(status.GoogleEmail);
         Assert.Null(status.ConnectedAtUtc);
@@ -31,6 +35,7 @@ public sealed class GoogleDriveIntegrationServiceTests
     [Fact]
     public async Task GetStatusAsync_WhenActiveConnectionExists_ReturnsConnectedWithoutTokenShape()
     {
+        // Arrange
         await using var db = CreateDbContext();
         var connectedAt = DateTime.UtcNow.AddMinutes(-5);
         db.GoogleDriveConnections.Add(new GoogleDriveConnection
@@ -48,8 +53,10 @@ public sealed class GoogleDriveIntegrationServiceTests
         await db.SaveChangesAsync();
         var sut = CreateService(db);
 
+        // Act
         var status = await sut.GetStatusAsync("user-1", CancellationToken.None);
 
+        // Assert
         Assert.True(status.Connected);
         Assert.Equal("person@example.com", status.GoogleEmail);
         Assert.Equal(connectedAt, status.ConnectedAtUtc);
@@ -63,6 +70,7 @@ public sealed class GoogleDriveIntegrationServiceTests
     [Fact]
     public async Task DisconnectAsync_WhenActiveConnectionExists_SoftRevokesConnection()
     {
+        // Arrange
         await using var db = CreateDbContext();
         db.GoogleDriveConnections.Add(new GoogleDriveConnection
         {
@@ -76,8 +84,10 @@ public sealed class GoogleDriveIntegrationServiceTests
         await db.SaveChangesAsync();
         var sut = CreateService(db);
 
+        // Act
         await sut.DisconnectAsync("user-1", CancellationToken.None);
 
+        // Assert
         var connection = await db.GoogleDriveConnections.SingleAsync();
         Assert.NotNull(connection.RevokedAtUtc);
 
@@ -100,6 +110,7 @@ public sealed class GoogleDriveIntegrationServiceTests
         => new(
             db,
             new StubHttpClientFactory(),
+            Mock.Of<IGoogleDriveApiClient>(),
             new GoogleDriveOAuthStateService(
                 DataProtectionProvider.Create(CreateDataProtectionDirectory()),
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(

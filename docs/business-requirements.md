@@ -501,6 +501,7 @@ Rules:
 * Export workbooks include a `Not found` sheet only for multi-search exports that have not-found domains included by the export rules.
 * Export must enforce the user's effective export policy.
 * Export actions should be logged.
+* Current export logs do not distinguish regular download delivery from Google Drive delivery.
 * Client-role exports create a separate analytics snapshot of active filters, sorting, and available search context for future analysis. These snapshots must not store exported site IDs or exported domains.
 * If export is truncated by limit, the user must be informed.
 * Disabled export must be enforced by backend, not only by hiding the button.
@@ -514,8 +515,11 @@ Rules:
 * Google Drive connection is optional per user.
 * The connection uses the minimal Google Drive OAuth scope: `https://www.googleapis.com/auth/drive.file`.
 * The broad `https://www.googleapis.com/auth/drive` scope is out of scope and must not be used.
-* Future Google Drive exports should save files to a dedicated folder in the user's My Drive.
+* Google Drive exports use the same Sites Excel export behavior as regular downloads, including filters, sorting, single search, multi-search, export limits, permissions, export logging, and client analytics snapshots.
+* Google Drive exports save files to a dedicated folder in the user's My Drive.
 * The dedicated folder name comes from configuration and defaults to `Redhead Catalog Exports`.
+* If the stored export folder id is missing or no longer points to an available folder, the backend should create a dedicated My Drive folder with the configured name before upload.
+* Exports must fail clearly instead of silently saving to Drive root when the dedicated folder cannot be ensured.
 * Shared Drive support is out of scope.
 * Folder picker support is out of scope.
 

@@ -131,10 +131,15 @@ export interface MultiSearchResponse {
  * Request body for POST /api/export/sites-multi-search.xlsx
  */
 export interface ExportMultiSearchPayload {
-  queryText: string;
+  searchText: string;
   filters: SitesQueryParams;
-  sortBy?: string;
-  sortDir?: string;
+}
+
+/**
+ * Request body for POST /api/export/sites.xlsx
+ */
+export interface ExportSitesPayload {
+  filters: SitesQueryParams;
 }
 
 /**

@@ -321,10 +321,8 @@ export function Sites() {
       let metadata;
       if (multiSearchResult !== null) {
         metadata = await sitesService.exportSitesMultiSearch({
-          queryText: filters.search.trim(),
+          searchText: filters.search.trim(),
           filters: params,
-          sortBy: params.sortBy,
-          sortDir: params.sortDir,
         });
       } else {
         metadata = await sitesService.exportSites(params);

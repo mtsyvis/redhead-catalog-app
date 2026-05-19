@@ -7,6 +7,7 @@ import type {
   FilterOptionsResponse,
   MultiSearchResponse,
   ExportMultiSearchPayload,
+  ExportSitesPayload,
   UpdateSitePayload,
 } from '../types/sites.types';
 
@@ -31,7 +32,7 @@ class SitesService {
   }
 
   /**
-   * Multi-search by domains/URLs (exact match, max 500). Uses same search box input as queryText.
+   * Multi-search by domains/URLs (exact match, max 500).
    */
   async multiSearch(queryText: string): Promise<MultiSearchResponse> {
     return apiClient.post<MultiSearchResponse, { queryText: string }>(
@@ -73,7 +74,7 @@ class SitesService {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
+      body: JSON.stringify({ filters: params } satisfies ExportSitesPayload),
     });
 
     if (!response.ok) {

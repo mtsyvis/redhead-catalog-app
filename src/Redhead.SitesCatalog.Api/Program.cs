@@ -34,7 +34,9 @@ builder.Services.AddScoped<IQuarantineImportService, QuarantineImportService>();
 builder.Services.AddScoped<ILastPublishedImportService, LastPublishedImportService>();
 builder.Services.AddScoped<ISitesUpdateImportService, SitesUpdateImportService>();
 builder.Services.AddSingleton<IImportArtifactStorageService, ImportArtifactStorageService>();
+builder.Services.AddScoped<IGoogleDriveApiClient, GoogleDriveApiClient>();
 builder.Services.AddScoped<IGoogleDriveIntegrationService, GoogleDriveIntegrationService>();
+builder.Services.AddScoped<IGoogleDriveExportService, GoogleDriveExportService>();
 builder.Services.AddSingleton<IGoogleDriveOAuthStateService, GoogleDriveOAuthStateService>();
 builder.Services.AddSingleton<IGoogleDriveTokenProtector, GoogleDriveTokenProtector>();
 

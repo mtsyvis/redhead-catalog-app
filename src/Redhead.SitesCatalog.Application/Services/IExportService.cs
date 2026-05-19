@@ -19,10 +19,10 @@ public interface IExportService
 
     /// <summary>
     /// Export multi-search as Excel: filtered Found (effective policy limit) + matching Not found domains.
-    /// query must have Search = null (domain list comes from queryText).
+    /// query must have Search = null (domain list comes from searchText).
     /// </summary>
     Task<ExportResult> ExportMultiSearchAsExcelAsync(
-        string queryText,
+        string searchText,
         SitesQuery query,
         string userId,
         string userEmail,

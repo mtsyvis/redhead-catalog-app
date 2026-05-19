@@ -1,5 +1,3 @@
-using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.WebUtilities;
@@ -16,14 +14,12 @@ public sealed class GoogleDriveIntegrationService : IGoogleDriveIntegrationServi
 {
     private const string AuthorizationEndpoint = "https://accounts.google.com/o/oauth2/v2/auth";
     private const string TokenEndpoint = "https://oauth2.googleapis.com/token";
-    private const string DriveAboutEndpoint = "https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)";
-    private const string DriveFilesEndpoint = "https://www.googleapis.com/drive/v3/files";
-    private const string FolderMimeType = "application/vnd.google-apps.folder";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly ApplicationDbContext _context;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IGoogleDriveApiClient _googleDriveApiClient;
     private readonly IGoogleDriveOAuthStateService _stateService;
     private readonly IGoogleDriveTokenProtector _tokenProtector;
     private readonly GoogleDriveOptions _googleDriveOptions;
@@ -31,12 +27,14 @@ public sealed class GoogleDriveIntegrationService : IGoogleDriveIntegrationServi
     public GoogleDriveIntegrationService(
         ApplicationDbContext context,
         IHttpClientFactory httpClientFactory,
+        IGoogleDriveApiClient googleDriveApiClient,
         IGoogleDriveOAuthStateService stateService,
         IGoogleDriveTokenProtector tokenProtector,
         IOptions<GoogleDriveOptions> googleDriveOptions)
     {
         _context = context;
         _httpClientFactory = httpClientFactory;
+        _googleDriveApiClient = googleDriveApiClient;
         _stateService = stateService;
         _tokenProtector = tokenProtector;
         _googleDriveOptions = googleDriveOptions.Value;
@@ -139,7 +137,7 @@ public sealed class GoogleDriveIntegrationService : IGoogleDriveIntegrationServi
             throw new GoogleDriveIntegrationException("Google token response did not include a refresh token.");
         }
 
-        var driveUser = await FetchDriveUserAsync(tokenResponse.AccessToken, cancellationToken);
+        var driveUser = await _googleDriveApiClient.FetchDriveUserAsync(tokenResponse.AccessToken, cancellationToken);
         var now = DateTime.UtcNow;
         var connection = activeConnection ?? new GoogleDriveConnection
         {
@@ -155,7 +153,7 @@ public sealed class GoogleDriveIntegrationService : IGoogleDriveIntegrationServi
         connection.RevokedAtUtc = null;
         connection.LastError = null;
 
-        var folder = await EnsureExportFolderAsync(
+        var folder = await _googleDriveApiClient.EnsureExportFolderAsync(
             tokenResponse.AccessToken,
             connection.ExportFolderId,
             GetExportFolderName(options),
@@ -219,92 +217,6 @@ public sealed class GoogleDriveIntegrationService : IGoogleDriveIntegrationServi
             ?? throw new GoogleDriveIntegrationException("Google token response could not be read.");
     }
 
-    private async Task<GoogleDriveUser> FetchDriveUserAsync(
-        string accessToken,
-        CancellationToken cancellationToken)
-    {
-        using var request = CreateAuthorizedGetRequest(DriveAboutEndpoint, accessToken);
-        using var response = await _httpClientFactory.CreateClient().SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return new GoogleDriveUser(null);
-        }
-
-        var about = await DeserializeJsonResponseAsync<GoogleDriveAboutResponse>(response, cancellationToken);
-        return new GoogleDriveUser(about?.User?.EmailAddress);
-    }
-
-    private async Task<GoogleDriveFolder> EnsureExportFolderAsync(
-        string accessToken,
-        string? existingFolderId,
-        string folderName,
-        CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrWhiteSpace(existingFolderId))
-        {
-            var existingFolder = await TryGetExistingFolderAsync(accessToken, existingFolderId, cancellationToken);
-            if (existingFolder != null)
-            {
-                return existingFolder;
-            }
-        }
-
-        return await CreateFolderAsync(accessToken, folderName, cancellationToken);
-    }
-
-    private async Task<GoogleDriveFolder?> TryGetExistingFolderAsync(
-        string accessToken,
-        string folderId,
-        CancellationToken cancellationToken)
-    {
-        var url = $"{DriveFilesEndpoint}/{Uri.EscapeDataString(folderId)}?fields=id,name,mimeType,trashed";
-        using var request = CreateAuthorizedGetRequest(url, accessToken);
-        using var response = await _httpClientFactory.CreateClient().SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            return null;
-        }
-
-        var file = await DeserializeJsonResponseAsync<GoogleDriveFileResponse>(response, cancellationToken);
-        if (file == null ||
-            file.Trashed ||
-            !string.Equals(file.MimeType, FolderMimeType, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        return new GoogleDriveFolder(file.Id, file.Name);
-    }
-
-    private async Task<GoogleDriveFolder> CreateFolderAsync(
-        string accessToken,
-        string folderName,
-        CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{DriveFilesEndpoint}?fields=id,name");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new GoogleDriveCreateFolderRequest(folderName, FolderMimeType), JsonOptions),
-            Encoding.UTF8,
-            "application/json");
-
-        using var response = await _httpClientFactory.CreateClient().SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new GoogleDriveIntegrationException("Google Drive export folder could not be created.");
-        }
-
-        var folder = await DeserializeJsonResponseAsync<GoogleDriveFileResponse>(response, cancellationToken)
-            ?? throw new GoogleDriveIntegrationException("Google Drive folder response could not be read.");
-
-        if (string.IsNullOrWhiteSpace(folder.Id))
-        {
-            throw new GoogleDriveIntegrationException("Google Drive folder response did not include a folder id.");
-        }
-
-        return new GoogleDriveFolder(folder.Id, string.IsNullOrWhiteSpace(folder.Name) ? folderName : folder.Name);
-    }
-
     private GoogleDriveOptions GetValidatedGoogleOptions()
     {
         if (string.IsNullOrWhiteSpace(_googleDriveOptions.ClientId) ||
@@ -331,13 +243,6 @@ public sealed class GoogleDriveIntegrationService : IGoogleDriveIntegrationServi
                 .Distinct(StringComparer.Ordinal)
                 .Order(StringComparer.Ordinal));
 
-    private static HttpRequestMessage CreateAuthorizedGetRequest(string url, string accessToken)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        return request;
-    }
-
     private static async Task<T?> DeserializeJsonResponseAsync<T>(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
@@ -346,28 +251,8 @@ public sealed class GoogleDriveIntegrationService : IGoogleDriveIntegrationServi
         return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken);
     }
 
-    private sealed record GoogleDriveUser(string? EmailAddress);
-
-    private sealed record GoogleDriveFolder(string Id, string? Name);
-
     private sealed record GoogleTokenResponse(
         [property: JsonPropertyName("access_token")] string? AccessToken,
         [property: JsonPropertyName("refresh_token")] string? RefreshToken,
         [property: JsonPropertyName("scope")] string? Scope);
-
-    private sealed record GoogleDriveAboutResponse(
-        [property: JsonPropertyName("user")] GoogleDriveAboutUser? User);
-
-    private sealed record GoogleDriveAboutUser(
-        [property: JsonPropertyName("emailAddress")] string? EmailAddress);
-
-    private sealed record GoogleDriveFileResponse(
-        [property: JsonPropertyName("id")] string Id,
-        [property: JsonPropertyName("name")] string? Name,
-        [property: JsonPropertyName("mimeType")] string? MimeType,
-        [property: JsonPropertyName("trashed")] bool Trashed);
-
-    private sealed record GoogleDriveCreateFolderRequest(
-        [property: JsonPropertyName("name")] string Name,
-        [property: JsonPropertyName("mimeType")] string MimeType);
 }
