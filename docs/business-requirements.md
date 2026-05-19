@@ -523,6 +523,7 @@ Rules:
 * Users do not choose a destination folder in the export UI.
 * The frontend should ask users to connect Google Drive before the first Google Drive export and should ask them to reconnect if access expires or is revoked.
 * After a successful Google Drive export, the frontend should open the created Google Drive file automatically when the browser allows it and should always provide an `Open file` fallback action.
+* Public OAuth verification pages are available without login at `/oauth-home`, `/privacy-policy`, and `/terms-of-service`.
 * If the stored export folder id is missing or no longer points to an available folder, the backend should create a dedicated My Drive folder with the configured name before upload.
 * Exports must fail clearly instead of silently saving to Drive root when the dedicated folder cannot be ensured.
 * Shared Drive support is out of scope.

@@ -13,6 +13,7 @@ import { Sites } from './pages/Sites';
 import { Imports } from './pages/Imports';
 import { AdminUsers } from './pages/AdminUsers';
 import { RoleSettings } from './pages/RoleSettings';
+import { OAuthHome, PrivacyPolicy, TermsOfService } from './pages/OAuthVerificationPages';
 
 /**
  * Main App component
@@ -25,8 +26,11 @@ const App: React.FC = () => {
       <BrowserRouter basename="/">
         <AuthProvider>
           <Routes>
-            {/* Public route */}
+            {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/oauth-home" element={<OAuthHome />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
 
             {/* Protected routes */}
             <Route

@@ -6,6 +6,7 @@ const brand = {
   accentEnd: '#FF7C32',
 };
 
+const appBorderRadius = 20;
 const accentGradient = `linear-gradient(0.25turn, rgba(255,69,91,1) 0%, rgba(255,124,50,1) 100%)`; // как на лендинге :contentReference[oaicite:1]{index=1}
 
 declare module '@mui/material/styles' {
@@ -45,7 +46,7 @@ export const theme = createTheme({
     },
   },
   shape: {
-    borderRadius: 20,
+    borderRadius: appBorderRadius,
   },
   components: {
     MuiCssBaseline: {
@@ -61,7 +62,7 @@ export const theme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
-          borderRadius: 20,
+          borderRadius: appBorderRadius,
           backgroundColor: '#fff',
         },
         notchedOutline: {
@@ -78,7 +79,7 @@ export const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 28,
+          borderRadius: appBorderRadius,
           border: '1px solid rgba(0,0,0,0.06)',
           boxShadow: '0 18px 60px rgba(0,0,0,0.12)',
         },
@@ -88,7 +89,7 @@ export const theme = createTheme({
     MuiButton: {
       styleOverrides: {
         root: {
-          borderRadius: 20,
+          borderRadius: appBorderRadius,
           transitionDuration: '0.2s',
           transitionTimingFunction: 'ease-in-out',
           transitionProperty: 'background-color,color,border-color,box-shadow,opacity,transform,gap',
@@ -99,7 +100,7 @@ export const theme = createTheme({
   custom: {
     accentGradient,
     ink: brand.ink,
-    radius: 20,
-    cardRadius: 28,
+    radius: appBorderRadius,
+    cardRadius: appBorderRadius,
   },
 });
