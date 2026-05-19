@@ -8,6 +8,8 @@ import type {
   MultiSearchResponse,
   ExportMultiSearchPayload,
   ExportSitesPayload,
+  GoogleDriveExportPayload,
+  GoogleDriveExportResponse,
   UpdateSitePayload,
 } from '../types/sites.types';
 
@@ -128,6 +130,18 @@ class SitesService {
     window.URL.revokeObjectURL(downloadUrl);
 
     return metadata;
+  }
+
+  /**
+   * Export sites as Excel and save the workbook to the connected user's Google Drive folder.
+   */
+  async exportSitesToGoogleDrive(
+    payload: GoogleDriveExportPayload
+  ): Promise<GoogleDriveExportResponse> {
+    return apiClient.post<GoogleDriveExportResponse, GoogleDriveExportPayload>(
+      `${this.baseUrl}/export/google-drive`,
+      payload
+    );
   }
 }
 

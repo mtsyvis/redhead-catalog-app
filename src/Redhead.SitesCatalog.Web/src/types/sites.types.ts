@@ -143,6 +143,27 @@ export interface ExportSitesPayload {
 }
 
 /**
+ * Request body for POST /api/sites/export/google-drive.
+ */
+export interface GoogleDriveExportPayload {
+  filters: SitesQueryParams;
+  searchText?: string;
+}
+
+/**
+ * Response from POST /api/sites/export/google-drive.
+ */
+export interface GoogleDriveExportResponse {
+  fileId: string;
+  fileName: string;
+  webViewLink: string | null;
+  rowsExported: number;
+  wasTruncated: boolean;
+  exportedAtUtc: string;
+  destinationLabel: string;
+}
+
+/**
  * Payload for PUT /api/sites/{domain} (Admin/SuperAdmin). priceUsd may be null; at least one
  * numeric price among priceUsd or service-specific prices is required by the backend.
  */

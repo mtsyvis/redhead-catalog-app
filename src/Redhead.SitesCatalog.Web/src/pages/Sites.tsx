@@ -1,13 +1,27 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, Paper, Typography, Alert, Snackbar, Popover, List, ListItem, ListItemText } from '@mui/material';
+import {
+  Alert,
+  Box,
+  List,
+  ListItem,
+  ListItemText,
+  Paper,
+  Popover,
+  Typography,
+} from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import type { GridColDef, GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
-import DownloadIcon from '@mui/icons-material/Download';
+import type { GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
 import { PageShell } from '../components/layout/PageShell';
 import { SitesFilters } from '../components/sites/SitesFilters';
 import { EditSiteDialog } from '../components/sites/EditSiteDialog';
-import { StatusBadge } from '../components/sites/StatusBadge';
+import { SitesExportMenu } from '../components/sites/SitesExportMenu';
+import { GoogleDriveConnectionDialog } from '../components/sites/GoogleDriveConnectionDialog';
+import { SitesSnackbar } from '../components/sites/SitesSnackbar';
+import type { SitesSnackbarState } from '../components/sites/SitesSnackbar';
+import { useSitesColumns } from '../components/sites/useSitesColumns';
+import { isNotFoundRow, useSitesGridRows } from '../components/sites/useSitesGridRows';
 import { useUserRoles } from '../hooks/useUserRoles';
+import { useSitesExport } from '../hooks/useSitesExport';
 import type {
   Site,
   SitesFilters as FiltersType,
@@ -16,77 +30,7 @@ import type {
 } from '../types/sites.types';
 import { sitesService } from '../services/sites.service';
 import { BrandButton } from '../components/common/BrandButton';
-import { formatOptionalServicePrice, matchesAvailabilityFilter } from '../utils/serviceAvailability';
-import { formatTerm } from '../utils/term';
 import { loadStoredStopListDomains, persistStopListDomains } from '../utils/stopList';
-import { formatLanguageCode, formatLanguageTableValue } from '../utils/language';
-
-/** Row type for grid: normal site or not-found placeholder (domain only). */
-type NotFoundRow = { domain: string; _isNotFound: true };
-type GridRow = Site | NotFoundRow;
-
-function isNotFoundRow(row: GridRow): row is NotFoundRow {
-  return '_isNotFound' in row && row._isNotFound === true;
-}
-
-function formatCell<T>(row: GridRow, value: T, format: (v: T) => string): string {
-  return isNotFoundRow(row) ? '—' : format(value);
-}
-
-function formatPrice(row: GridRow, value: number | null): string {
-  return formatCell(row, value, (v) => (v == null ? 'NO' : `$${v}`));
-}
-
-function formatOptionalServiceCell(
-  row: GridRow,
-  price: number | null,
-  status: Site['priceCasinoStatus']
-): string {
-  return formatCell(row, price, (v) => formatOptionalServicePrice(status, v));
-}
-
-function formatNullableInteger(row: GridRow, value: number | null): string {
-  return formatCell(row, value, (v) => (v == null ? '—' : String(v)));
-}
-
-/** Client-side filter for multi-search found rows (same logic as server filters, excluding search). */
-function filterSites(sites: Site[], f: FiltersType): Site[] {
-  return sites.filter((s) => {
-    if (f.drMin !== '' && s.dr < Number(f.drMin)) return false;
-    if (f.drMax !== '' && s.dr > Number(f.drMax)) return false;
-    if (f.trafficMin !== '' && s.traffic < Number(f.trafficMin)) return false;
-    if (f.trafficMax !== '' && s.traffic > Number(f.trafficMax)) return false;
-    if (f.priceMin !== '' && (s.priceUsd ?? 0) < Number(f.priceMin)) return false;
-    if (f.priceMax !== '' && (s.priceUsd ?? 0) > Number(f.priceMax)) return false;
-    if (f.location.length > 0 && !f.location.includes(s.location)) return false;
-    if (f.niches.length > 0 && !f.niches.some((niche) => (s.nicheTokens ?? []).includes(niche))) return false;
-    if (
-      f.categorySearchTerms.length > 0 &&
-      !f.categorySearchTerms.some((term) =>
-        (s.categories ?? '').toLowerCase().includes(term.toLowerCase())
-      )
-    ) {
-      return false;
-    }
-    if (f.languages.length > 0 && !f.languages.includes(formatLanguageCode(s.language))) return false;
-    if (!matchesAvailabilityFilter(s.priceCasinoStatus, f.casinoAvailability)) return false;
-    if (!matchesAvailabilityFilter(s.priceCryptoStatus, f.cryptoAvailability)) return false;
-    if (!matchesAvailabilityFilter(s.priceLinkInsertStatus, f.linkInsertAvailability)) return false;
-    if (!matchesAvailabilityFilter(s.priceLinkInsertCasinoStatus, f.linkInsertCasinoAvailability)) return false;
-    if (!matchesAvailabilityFilter(s.priceDatingStatus, f.datingAvailability)) return false;
-    if (f.quarantine === 'only' && !s.isQuarantined) return false;
-    if (f.quarantine === 'exclude' && s.isQuarantined) return false;
-    if (f.lastPublishedFromMonth) {
-      if (s.lastPublishedDate == null) return false;
-      if (s.lastPublishedDate.substring(0, 7) < f.lastPublishedFromMonth) return false;
-    }
-    if (f.lastPublishedToMonth) {
-      if (s.lastPublishedDate == null) return false;
-      if (s.lastPublishedDate.substring(0, 7) > f.lastPublishedToMonth) return false;
-    }
-    return true;
-  });
-}
 
 const INITIAL_FILTERS: FiltersType = {
   search: '',
@@ -122,7 +66,6 @@ export function Sites() {
   const [sites, setSites] = useState<Site[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState<FiltersType>(() => createInitialFilters());
   const [debouncedSearch, setDebouncedSearch] = useState(INITIAL_FILTERS.search);
   const [multiSearchMode, setMultiSearchMode] = useState(false);
@@ -131,7 +74,7 @@ export function Sites() {
   const [filterOptionsRefreshKey, setFilterOptionsRefreshKey] = useState(0);
   const [duplicatesAnchor, setDuplicatesAnchor] = useState<HTMLElement | null>(null);
   const [editSite, setEditSite] = useState<Site | null>(null);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+  const [snackbar, setSnackbar] = useState<SitesSnackbarState>({
     open: false,
     message: '',
     severity: 'success',
@@ -248,6 +191,22 @@ export function Sites() {
     ]
   );
 
+  const {
+    exporting,
+    googleDriveStatus,
+    googleDriveDialog,
+    connectingGoogleDrive,
+    handleDownloadExport,
+    handleSaveToGoogleDrive,
+    handleConnectGoogleDrive,
+    closeGoogleDriveDialog,
+  } = useSitesExport({
+    buildSitesQueryParams,
+    multiSearchResult,
+    searchText: filters.search,
+    showSnackbar: setSnackbar,
+  });
+
   const loadSites = useCallback(async () => {
     setLoading(true);
     try {
@@ -313,45 +272,13 @@ export function Sites() {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
   };
 
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      const params = buildSitesQueryParams(1, 1000000);
-
-      let metadata;
-      if (multiSearchResult !== null) {
-        metadata = await sitesService.exportSitesMultiSearch({
-          searchText: filters.search.trim(),
-          filters: params,
-        });
-      } else {
-        metadata = await sitesService.exportSites(params);
-      }
-
-      if (metadata.truncated) {
-        setSnackbar({
-          open: true,
-          message: `Export completed with limit applied: ${metadata.exportedRows} of ${metadata.requestedRows} rows downloaded.`,
-          severity: 'success',
-        });
-      } else {
-        setSnackbar({ open: true, message: 'Export completed successfully', severity: 'success' });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Export failed';
-      setSnackbar({ open: true, message, severity: 'error' });
-    } finally {
-      setExporting(false);
-    }
-  };
-
   const handleCloseSnackbar = () => {
     setSnackbar((s) => ({ ...s, open: false }));
   };
 
-  const handleOpenEdit = (site: Site) => {
+  const handleOpenEdit = useCallback((site: Site) => {
     setEditSite(site);
-  };
+  }, []);
 
   const handleCloseEdit = () => {
     setEditSite(null);
@@ -369,232 +296,22 @@ export function Sites() {
     }
   };
 
-  const isMultiSearchView = multiSearchResult !== null;
-  const gridRows: GridRow[] = useMemo(() => {
-    if (multiSearchResult === null) {
-      return sites;
-    }
-    const filtered = filterSites(multiSearchResult.found, filters);
-    const field = sortModel[0]?.field ?? 'domain';
-    const dir = sortModel[0]?.sort ?? 'asc';
-    const sorted = [...filtered].sort((a, b) => {
-      const av = a[field as keyof Site];
-      const bv = b[field as keyof Site];
-      if (av == null && bv == null) return 0;
-      if (av == null) return dir === 'asc' ? 1 : -1;
-      if (bv == null) return dir === 'asc' ? -1 : 1;
-      const cmp = typeof av === 'string' ? (av as string).localeCompare(bv as string) : (av as number) - (bv as number);
-      return dir === 'asc' ? cmp : -cmp;
-    });
-    const notFoundRows: NotFoundRow[] = gridFiltersActive
-      ? []
-      : multiSearchResult.notFound.map((d) => ({ domain: d, _isNotFound: true as const }));
-    return [...sorted, ...notFoundRows];
-  }, [multiSearchResult, filters, sortModel, sites, gridFiltersActive]);
+  const { gridRows, gridRowCount, gridLoading, isMultiSearchView } = useSitesGridRows({
+    sites,
+    total,
+    loading,
+    multiSearchLoading,
+    multiSearchResult,
+    filters,
+    sortModel,
+    gridFiltersActive,
+  });
 
-  const gridRowCount = isMultiSearchView ? gridRows.length : total;
-  const gridLoading = loading || multiSearchLoading;
-
-  const columns: GridColDef<GridRow>[] = [
-    {
-      field: 'domain',
-      headerName: 'Domain',
-      flex: 1,
-      minWidth: 200,
-    },
-    {
-      field: 'dr',
-      headerName: 'DR',
-      width: 80,
-      type: 'number',
-      valueFormatter: (value, row) =>
-        formatCell(row, value as number | null, (v) => (v == null ? '' : String(v))),
-    },
-    {
-      field: 'traffic',
-      headerName: 'Traffic',
-      width: 120,
-      type: 'number',
-      valueFormatter: (value, row) => {
-        if (isNotFoundRow(row)) return '—';
-        if (value == null) return '';
-        return new Intl.NumberFormat('en-US').format(value as number);
-      },
-    },
-    {
-      field: 'location',
-      headerName: 'Location',
-      width: 120,
-      valueFormatter: (value, row) => formatCell(row, value as string, (v) => v ?? '—'),
-    },
-    {
-      field: 'priceUsd',
-      headerName: 'Price USD',
-      width: 100,
-      type: 'number',
-      valueFormatter: (value, row) => formatPrice(row, value as number | null),
-    },
-    {
-      field: 'priceCasino',
-      headerName: 'Casino',
-      width: 100,
-      type: 'number',
-      valueFormatter: (value, row) =>
-        formatOptionalServiceCell(row, value as number | null, (row as Site).priceCasinoStatus),
-    },
-    {
-      field: 'priceCrypto',
-      headerName: 'Crypto',
-      width: 100,
-      type: 'number',
-      valueFormatter: (value, row) =>
-        formatOptionalServiceCell(row, value as number | null, (row as Site).priceCryptoStatus),
-    },
-    {
-      field: 'priceLinkInsert',
-      headerName: 'Link Insert',
-      width: 100,
-      type: 'number',
-      valueFormatter: (value, row) =>
-        formatOptionalServiceCell(row, value as number | null, (row as Site).priceLinkInsertStatus),
-    },
-    {
-      field: 'priceLinkInsertCasino',
-      headerName: 'Link Insert Casino',
-      width: 150,
-      type: 'number',
-      valueFormatter: (value, row) =>
-        formatOptionalServiceCell(row, value as number | null, (row as Site).priceLinkInsertCasinoStatus),
-    },
-    {
-      field: 'priceDating',
-      headerName: 'Dating',
-      width: 100,
-      type: 'number',
-      valueFormatter: (value, row) =>
-        formatOptionalServiceCell(row, value as number | null, (row as Site).priceDatingStatus),
-    },
-    {
-      field: 'niche',
-      headerName: 'Niche',
-      width: 150,
-      sortable: false,
-      valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
-    },
-    {
-      field: 'categories',
-      headerName: 'Categories',
-      width: 150,
-      sortable: false,
-      valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
-    },
-    {
-      field: 'numberDFLinks',
-      headerName: 'DF Links',
-      width: 110,
-      type: 'number',
-      valueFormatter: (value, row) => formatNullableInteger(row, value as number | null),
-    },
-    {
-      field: 'sponsoredTag',
-      headerName: 'Sponsored Tag',
-      width: 150,
-      sortable: false,
-      valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
-    },
-    {
-      field: 'term',
-      headerName: 'Term',
-      width: 120,
-      valueFormatter: (_value, row) => {
-        if (isNotFoundRow(row)) return '—';
-        const site = row as Site;
-        return formatTerm(site.termType, site.termValue, site.termUnit);
-      },
-    },
-    {
-      field: 'language',
-      headerName: 'Language',
-      width: 100,
-      sortable: false,
-      valueFormatter: (value, row) => {
-        if (isNotFoundRow(row)) return '—';
-        return formatLanguageTableValue(value as string | null);
-      },
-    },
-    {
-      field: 'isQuarantined',
-      headerName: 'Status',
-      width: 110,
-      sortable: false,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params) => {
-        if (isNotFoundRow(params.row)) return '—';
-        const isQuarantined = params.value as boolean;
-        return (
-            <StatusBadge isAvailable={!isQuarantined} />
-        );
-      },
-    },
-    {
-      field: 'lastPublishedDate',
-      headerName: 'Last Published',
-      width: 150,
-      valueFormatter: (_value, row) => {
-        if (isNotFoundRow(row)) return '—';
-        const site = row as Site;
-        if (site.lastPublishedDate == null) {
-          return 'Before January 2026';
-        }
-        const d = new Date(site.lastPublishedDate);
-        if (site.lastPublishedDateIsMonthOnly) {
-          return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-        }
-        const day = String(d.getUTCDate()).padStart(2, '0');
-        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-        const year = d.getUTCFullYear();
-        return `${day}.${month}.${year}`;
-      },
-    },
-    ...(!isClient
-      ? [
-          {
-            field: 'quarantineReason',
-            headerName: 'Quarantine reason',
-            width: 160,
-            sortable: false,
-            valueFormatter: (_value, row) => {
-              if (isNotFoundRow(row)) return '—';
-              const site = row as Site;
-              return site.isQuarantined ? (site.quarantineReason || '—') : '—';
-            },
-          } as GridColDef<GridRow>,
-        ]
-      : []),
-    ...(isAdmin
-      ? [
-          {
-            field: 'actions',
-            headerName: 'Actions',
-            width: 90,
-            sortable: false,
-            renderCell: (params: { row: GridRow }) => {
-              if (isNotFoundRow(params.row)) return null;
-              return (
-                <BrandButton
-                  kind="outline"
-                  size="small"
-                  onClick={() => handleOpenEdit(params.row as Site)}
-                >
-                  Edit
-                </BrandButton>
-              );
-            },
-          } as GridColDef<GridRow>,
-        ]
-      : []),
-  ];
+  const columns = useSitesColumns({
+    isAdmin,
+    isClient,
+    onEdit: handleOpenEdit,
+  });
 
   return (
     <PageShell maxWidth="xl">
@@ -603,14 +320,12 @@ export function Sites() {
           <Typography variant="h4">
             Sites Catalog
           </Typography>
-          <BrandButton
-            kind="outline"
-            startIcon={<DownloadIcon />}
-            onClick={handleExport}
-            disabled={exporting || loading}
-          >
-            {exporting ? 'Exporting...' : 'Export Excel'}
-          </BrandButton>
+          <SitesExportMenu
+            exporting={exporting}
+            loading={loading}
+            onDownloadExcel={handleDownloadExport}
+            onSaveToGoogleDrive={handleSaveToGoogleDrive}
+          />
         </Box>
 
         <SitesFilters
@@ -710,16 +425,15 @@ export function Sites() {
           </List>
         </Popover>
 
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={6000}
-          onClose={handleCloseSnackbar}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
+        <SitesSnackbar snackbar={snackbar} onClose={handleCloseSnackbar} />
+
+        <GoogleDriveConnectionDialog
+          dialog={googleDriveDialog}
+          status={googleDriveStatus}
+          connecting={connectingGoogleDrive}
+          onClose={closeGoogleDriveDialog}
+          onConnect={handleConnectGoogleDrive}
+        />
 
         <EditSiteDialog
           open={Boolean(editSite)}

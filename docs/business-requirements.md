@@ -505,6 +505,8 @@ Rules:
 * Client-role exports create a separate analytics snapshot of active filters, sorting, and available search context for future analysis. These snapshots must not store exported site IDs or exported domains.
 * If export is truncated by limit, the user must be informed.
 * Disabled export must be enforced by backend, not only by hiding the button.
+* The Sites export UI offers both `Download Excel` and `Save to Google Drive`.
+* The existing Excel download export must remain available and unchanged when Google Drive is not connected or unavailable.
 
 ### Google Drive export connection
 
@@ -518,6 +520,9 @@ Rules:
 * Google Drive exports use the same Sites Excel export behavior as regular downloads, including filters, sorting, single search, multi-search, export limits, permissions, export logging, and client analytics snapshots.
 * Google Drive exports save files to a dedicated folder in the user's My Drive.
 * The dedicated folder name comes from configuration and defaults to `Redhead Catalog Exports`.
+* Users do not choose a destination folder in the export UI.
+* The frontend should ask users to connect Google Drive before the first Google Drive export and should ask them to reconnect if access expires or is revoked.
+* After a successful Google Drive export, the frontend should open the created Google Drive file automatically when the browser allows it and should always provide an `Open file` fallback action.
 * If the stored export folder id is missing or no longer points to an available folder, the backend should create a dedicated My Drive folder with the configured name before upload.
 * Exports must fail clearly instead of silently saving to Drive root when the dedicated folder cannot be ensured.
 * Shared Drive support is out of scope.
