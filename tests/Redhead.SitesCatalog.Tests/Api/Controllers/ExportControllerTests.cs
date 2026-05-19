@@ -6,7 +6,8 @@ using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Models.Export;
 using Redhead.SitesCatalog.Api.Models.Sites;
-using Redhead.SitesCatalog.Api.Services;
+using Redhead.SitesCatalog.Application.Exceptions;
+using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -45,7 +46,7 @@ public sealed class ExportControllerTests
         var objectResult = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, objectResult.StatusCode);
         var error = Assert.IsType<ApiErrorResponse>(objectResult.Value);
-        Assert.Equal("GoogleDriveNotConnected", error.Error);
+        Assert.Equal(GoogleDriveExportException.NotConnectedErrorCode, error.Error);
     }
 
     [Fact]

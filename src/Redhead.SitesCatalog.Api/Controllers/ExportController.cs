@@ -5,7 +5,8 @@ using Redhead.SitesCatalog.Api.Mappers;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Models.Export;
 using Redhead.SitesCatalog.Api.Models.Sites;
-using Redhead.SitesCatalog.Api.Services;
+using Redhead.SitesCatalog.Application.Exceptions;
+using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -79,9 +80,10 @@ public class ExportController : ControllerBase
         }
         catch (GoogleDriveExportException ex)
         {
+            var statusCode = GetGoogleDriveExportStatusCode(ex);
             return StatusCode(
-                ex.StatusCode,
-                new ApiErrorResponse(ex.ErrorCode, ex.StatusCode));
+                statusCode,
+                new ApiErrorResponse(ex.ErrorCode, statusCode));
         }
     }
 
@@ -235,6 +237,16 @@ public class ExportController : ControllerBase
             Status = StatusCodes.Status400BadRequest,
             Detail = ex.Message
         });
+
+    private static int GetGoogleDriveExportStatusCode(GoogleDriveExportException ex)
+        => ex.ErrorCode switch
+        {
+            GoogleDriveExportException.NotConnectedErrorCode => StatusCodes.Status409Conflict,
+            GoogleDriveExportException.ReconnectRequiredErrorCode => StatusCodes.Status409Conflict,
+            GoogleDriveExportException.ConfigurationMissingErrorCode => StatusCodes.Status500InternalServerError,
+            GoogleDriveExportException.UploadFailedErrorCode => StatusCodes.Status502BadGateway,
+            _ => StatusCodes.Status500InternalServerError
+        };
 
     private void AddExportHeaders(ExportResult result)
     {

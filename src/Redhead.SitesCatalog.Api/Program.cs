@@ -2,11 +2,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Api.Middleware;
 using Redhead.SitesCatalog.Api.Options;
-using Redhead.SitesCatalog.Api.Services;
+using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
+using Redhead.SitesCatalog.Infrastructure.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Infrastructure.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 

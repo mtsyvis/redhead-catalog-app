@@ -2,9 +2,10 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Options;
-using Redhead.SitesCatalog.Api.Services;
+using Redhead.SitesCatalog.Application.Exceptions;
+using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Infrastructure.Exceptions;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
