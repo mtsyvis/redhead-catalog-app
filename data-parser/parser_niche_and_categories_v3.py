@@ -44,6 +44,12 @@ Try Sonnet for quality comparison:
 Extract only, no Claude batch:
     python parser_niche_and_categories_v3.py --input sites.xlsx --output extraction_debug.xlsx --max-sites 20 --extract-only
 
+Diagnostic visible Selenium run:
+    python parser_niche_and_categories_v3.py --input protected_sample.xlsx --output visible_test.xlsx --max-sites 100 --selenium-mode required --selenium-visible --debug-output --extract-only
+
+Persistent profile diagnostic run:
+    python parser_niche_and_categories_v3.py --input protected_sample.xlsx --output profile_test.xlsx --max-sites 100 --selenium-mode required --selenium-visible --selenium-user-data-dir "C:\\selenium-profiles\\redhead-parser-profile" --concurrency 1 --debug-output --extract-only
+
 Default output columns:
     SourceRowNumber, Niche, Categories, Language, SourceQuality, FinalUrl, Error
 
@@ -317,6 +323,14 @@ class SiteExtraction:
     internal_pages_selenium_succeeded: int = 0
     processing_time_ms: int = 0
     source_quality: str = "failed"  # good / limited / poor / protected / blocked / failed
+    homepage_http_bot_protection_detected: bool = False
+    homepage_selenium_bot_protection_detected: bool = False
+    homepage_selenium_challenge_wait_attempted: bool = False
+    homepage_bot_protection_solved_by_selenium: bool = False
+    selenium_challenge_attempts: int = 0
+    selenium_challenge_wait_ms: int = 0
+    selenium_headless: Optional[bool] = None
+    selenium_user_data_dir: str = ""
     prompt_chars: int = 0
     estimated_input_tokens: int = 0
     exact_input_tokens: int = 0
@@ -368,6 +382,30 @@ class SeleniumAvailability:
     available: bool
     error: str = ""
     user_message: str = ""
+
+
+@dataclass
+class SeleniumFetchResult:
+    html: Optional[str]
+    final_url: str
+    error: str = ""
+    bot_protection_detected: bool = False
+    challenge_wait_attempted: bool = False
+    challenge_attempts: int = 0
+    challenge_wait_ms: int = 0
+
+
+@dataclass
+class PageFetchResult:
+    page: Optional[PageExtract]
+    links: List[str]
+    error: str = ""
+    http_bot_protection_detected: bool = False
+    selenium_bot_protection_detected: bool = False
+    selenium_challenge_wait_attempted: bool = False
+    bot_protection_solved_by_selenium: bool = False
+    selenium_challenge_attempts: int = 0
+    selenium_challenge_wait_ms: int = 0
 
 
 # ===================== LOGGING / CHECKPOINT =====================
@@ -608,10 +646,17 @@ def get_selenium_page_source(driver: Any) -> str:
         return ""
 
 
-def build_chrome_options(uc: Any, proxy: Optional[str] = None) -> Any:
+def build_chrome_options(
+    uc: Any,
+    proxy: Optional[str] = None,
+    *,
+    headless: bool = True,
+    user_data_dir: Optional[str] = None,
+) -> Any:
     options = uc.ChromeOptions()
     options.page_load_strategy = "eager"
-    options.add_argument("--headless=new")
+    if headless:
+        options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
@@ -624,6 +669,8 @@ def build_chrome_options(uc: Any, proxy: Optional[str] = None) -> Any:
     options.add_argument("--disable-default-apps")
     if proxy:
         options.add_argument(f"--proxy-server={proxy}")
+    if user_data_dir:
+        options.add_argument(f"--user-data-dir={user_data_dir}")
     return options
 
 
@@ -631,10 +678,13 @@ def create_uc_driver(
     uc: Any,
     proxy: Optional[str] = None,
     chrome_version_main: Optional[int] = None,
+    *,
+    headless: bool = True,
+    user_data_dir: Optional[str] = None,
 ) -> Any:
     kwargs = {
-        "options": build_chrome_options(uc, proxy),
-        "headless": True,
+        "options": build_chrome_options(uc, proxy, headless=headless, user_data_dir=user_data_dir),
+        "headless": headless,
         "use_subprocess": True,
     }
     if chrome_version_main is not None:
@@ -877,7 +927,10 @@ def selenium_fetch_once(
     timeout: int,
     proxy: Optional[str] = None,
     chrome_version_main: Optional[int] = None,
-) -> Tuple[Optional[str], str, str]:
+    *,
+    headless: bool = True,
+    user_data_dir: Optional[str] = None,
+) -> SeleniumFetchResult:
     try:
         import undetected_chromedriver as uc
 
@@ -888,25 +941,42 @@ def selenium_fetch_once(
         from selenium.webdriver.support.ui import WebDriverWait
     except ModuleNotFoundError as e:
         if getattr(e, "name", "") == "distutils":
-            return None, url, (
-                "selenium_import_failed:distutils_missing:"
-                "Python 3.12 removed distutils. Use Python 3.11 or install setuptools/wheel."
+            return SeleniumFetchResult(
+                None,
+                url,
+                (
+                    "selenium_import_failed:distutils_missing:"
+                    "Python 3.12 removed distutils. Use Python 3.11 or install setuptools/wheel."
+                ),
             )
-        return None, url, f"selenium_import_failed:{type(e).__name__}:{e}"
+        return SeleniumFetchResult(None, url, f"selenium_import_failed:{type(e).__name__}:{e}")
     except Exception as e:
-        return None, url, f"selenium_import_failed:{type(e).__name__}:{e}"
+        return SeleniumFetchResult(None, url, f"selenium_import_failed:{type(e).__name__}:{e}")
 
     driver = None
+    start_time = time.monotonic()
     try:
         try:
             with SELENIUM_DRIVER_CREATE_LOCK:
-                driver = create_uc_driver(uc, proxy=proxy, chrome_version_main=chrome_version_main)
+                driver = create_uc_driver(
+                    uc,
+                    proxy=proxy,
+                    chrome_version_main=chrome_version_main,
+                    headless=headless,
+                    user_data_dir=user_data_dir,
+                )
         except Exception as e:
             retry_version = parse_current_browser_major_from_error(str(e))
             if retry_version is not None and retry_version != chrome_version_main:
                 logging.warning("Retrying Selenium with detected Chrome major version from error: %s", retry_version)
                 with SELENIUM_DRIVER_CREATE_LOCK:
-                    driver = create_uc_driver(uc, proxy=proxy, chrome_version_main=retry_version)
+                    driver = create_uc_driver(
+                        uc,
+                        proxy=proxy,
+                        chrome_version_main=retry_version,
+                        headless=headless,
+                        user_data_dir=user_data_dir,
+                    )
             else:
                 raise
 
@@ -933,24 +1003,73 @@ def selenium_fetch_once(
 
         time.sleep(0.2)
         html = get_selenium_page_source(driver)
+        bot_protection_detected = is_bot_protection_html(html)
+        challenge_wait_attempted = False
+        challenge_attempts = 1 if bot_protection_detected else 0
+        challenge_wait_start = time.monotonic() if bot_protection_detected else None
+        deadline = start_time + max(0, timeout)
+
+        while bot_protection_detected and time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            challenge_wait_attempted = True
+            time.sleep(min(1.5, remaining))
+            next_html = get_selenium_page_source(driver)
+            if next_html:
+                html = next_html
+            bot_protection_detected = is_bot_protection_html(html)
+            if bot_protection_detected:
+                challenge_attempts += 1
+            elif html and len(html) >= 200:
+                break
+
+        challenge_wait_ms = 0
+        if challenge_wait_start is not None:
+            challenge_wait_ms = int((time.monotonic() - challenge_wait_start) * 1000)
+
         try:
             final_url = driver.current_url or url
         except Exception as e:
             logging.debug("Could not read Selenium current_url: %s", e)
             final_url = url
 
-        if html and len(html) >= 200:
+        if html and (len(html) >= 200 or bot_protection_detected):
+            result = SeleniumFetchResult(
+                html,
+                final_url,
+                bot_protection_detected=bot_protection_detected,
+                challenge_wait_attempted=challenge_wait_attempted,
+                challenge_attempts=challenge_attempts,
+                challenge_wait_ms=challenge_wait_ms,
+            )
             if page_load_timed_out:
-                return html, final_url, "selenium_page_load_timeout_but_source_available"
-            return html, final_url, ""
+                result.error = "selenium_page_load_timeout_but_source_available"
+            return result
 
         if page_load_timed_out:
-            return None, final_url, "selenium_page_load_timeout_no_usable_source"
-        return None, final_url, "selenium_no_usable_source"
+            return SeleniumFetchResult(
+                None,
+                final_url,
+                "selenium_page_load_timeout_no_usable_source",
+                bot_protection_detected=bot_protection_detected,
+                challenge_wait_attempted=challenge_wait_attempted,
+                challenge_attempts=challenge_attempts,
+                challenge_wait_ms=challenge_wait_ms,
+            )
+        return SeleniumFetchResult(
+            None,
+            final_url,
+            "selenium_no_usable_source",
+            bot_protection_detected=bot_protection_detected,
+            challenge_wait_attempted=challenge_wait_attempted,
+            challenge_attempts=challenge_attempts,
+            challenge_wait_ms=challenge_wait_ms,
+        )
     except Exception as e:
         if type(e).__name__ == "TimeoutException":
-            return None, url, "selenium_page_load_timeout_no_usable_source"
-        return None, url, format_selenium_error(e)
+            return SeleniumFetchResult(None, url, "selenium_page_load_timeout_no_usable_source")
+        return SeleniumFetchResult(None, url, format_selenium_error(e))
     finally:
         safe_quit_driver(driver)
 
@@ -961,26 +1080,28 @@ def selenium_fetch_with_hard_timeout(
     hard_timeout: int,
     proxy: Optional[str] = None,
     chrome_version_main: Optional[int] = None,
-) -> Tuple[Optional[str], str, str]:
-    result: Dict[str, Any] = {"html": None, "final_url": url, "error": ""}
+    *,
+    headless: bool = True,
+    user_data_dir: Optional[str] = None,
+) -> SeleniumFetchResult:
+    result: Dict[str, Any] = {"value": SeleniumFetchResult(None, url, "")}
 
     def run() -> None:
-        html, final_url, err = selenium_fetch_once(
+        result["value"] = selenium_fetch_once(
             url,
             timeout=timeout,
             proxy=proxy,
             chrome_version_main=chrome_version_main,
+            headless=headless,
+            user_data_dir=user_data_dir,
         )
-        result["html"] = html
-        result["final_url"] = final_url
-        result["error"] = err
 
     thread = threading.Thread(target=run, daemon=True)
     thread.start()
     thread.join(timeout=hard_timeout)
     if thread.is_alive():
-        return None, url, f"selenium_hard_timeout_{hard_timeout}s"
-    return result["html"], result["final_url"], result["error"]
+        return SeleniumFetchResult(None, url, f"selenium_hard_timeout_{hard_timeout}s")
+    return result["value"]
 
 
 # ===================== HTML EXTRACTION =====================
@@ -1235,6 +1356,10 @@ def is_bot_protection_text(text: str) -> bool:
     return any(pattern in normalized for pattern in BOT_PROTECTION_PATTERNS)
 
 
+def is_bot_protection_html(html: str) -> bool:
+    return is_bot_protection_text(html)
+
+
 def is_bot_protection_page(page: Optional[PageExtract]) -> bool:
     if not page:
         return False
@@ -1316,38 +1441,98 @@ def fetch_page(
     proxies: Sequence[str],
     min_text_chars: int,
     chrome_version_main: Optional[int] = None,
-) -> Tuple[Optional[PageExtract], List[str], str]:
+    selenium_headless: bool = True,
+    selenium_user_data_dir: Optional[str] = None,
+) -> PageFetchResult:
     proxy = choose_proxy(proxies)
     proxy_dict = {"http": proxy, "https": proxy} if proxy else None
+    http_bot_protection_detected = False
+    http_protected_page: Optional[PageExtract] = None
+    http_protected_links: List[str] = []
 
     html, status, final_url, err = http_fetch(url, timeout=request_timeout, proxies=proxy_dict)
     if html:
         page, links = parse_html(html, url=url, fetch_method="http", http_status=status, final_url=final_url)
         if is_bot_protection_page(page):
-            return page, links, ""
+            http_bot_protection_detected = True
+            http_protected_page = page
+            http_protected_links = links
+            err = "http_bot_protection_challenge"
+            if not use_selenium_fallback:
+                return PageFetchResult(
+                    page,
+                    links,
+                    "",
+                    http_bot_protection_detected=http_bot_protection_detected,
+                )
         if is_blocked_page(page):
-            return page, links, ""
-        if page.text_length >= min_text_chars or not use_selenium_fallback:
-            return page, links, ""
-        # Text exists but is too weak. Let Selenium try to render it.
-        err = f"weak_http_text:{page.text_length}"
+            return PageFetchResult(page, links, "", http_bot_protection_detected=http_bot_protection_detected)
+        if not http_bot_protection_detected:
+            if page.text_length >= min_text_chars or not use_selenium_fallback:
+                return PageFetchResult(page, links, "")
+            # Text exists but is too weak. Let Selenium try to render it.
+            err = f"weak_http_text:{page.text_length}"
 
     if not use_selenium_fallback:
-        return None, [], err or "http_failed"
+        return PageFetchResult(None, [], err or "http_failed")
 
     selenium_proxy = choose_proxy(proxies)
-    html2, final_url2, selenium_err = selenium_fetch_with_hard_timeout(
+    selenium_result = selenium_fetch_with_hard_timeout(
         url,
         timeout=selenium_timeout,
         hard_timeout=selenium_hard_timeout,
         proxy=selenium_proxy,
         chrome_version_main=chrome_version_main,
+        headless=selenium_headless,
+        user_data_dir=selenium_user_data_dir,
     )
-    if html2:
-        page2, links2 = parse_html(html2, url=url, fetch_method="selenium", http_status=status, final_url=final_url2)
+    if selenium_result.html:
+        page2, links2 = parse_html(
+            selenium_result.html,
+            url=url,
+            fetch_method="selenium",
+            http_status=status,
+            final_url=selenium_result.final_url,
+        )
+        selenium_bot_protection_detected = (
+            selenium_result.bot_protection_detected or is_bot_protection_page(page2)
+        )
+        if selenium_bot_protection_detected:
+            return PageFetchResult(
+                page2,
+                links2,
+                "",
+                http_bot_protection_detected=http_bot_protection_detected,
+                selenium_bot_protection_detected=True,
+                selenium_challenge_wait_attempted=selenium_result.challenge_wait_attempted,
+                selenium_challenge_attempts=selenium_result.challenge_attempts,
+                selenium_challenge_wait_ms=selenium_result.challenge_wait_ms,
+            )
         if page2.text_length > 0:
-            return page2, links2, ""
-    return None, [], selenium_err or err or "fetch_failed"
+            return PageFetchResult(
+                page2,
+                links2,
+                "",
+                http_bot_protection_detected=http_bot_protection_detected,
+                selenium_bot_protection_detected=False,
+                selenium_challenge_wait_attempted=selenium_result.challenge_wait_attempted,
+                bot_protection_solved_by_selenium=http_bot_protection_detected,
+                selenium_challenge_attempts=selenium_result.challenge_attempts,
+                selenium_challenge_wait_ms=selenium_result.challenge_wait_ms,
+            )
+
+    if http_protected_page:
+        return PageFetchResult(
+            http_protected_page,
+            http_protected_links,
+            selenium_result.error or "",
+            http_bot_protection_detected=http_bot_protection_detected,
+            selenium_bot_protection_detected=selenium_result.bot_protection_detected,
+            selenium_challenge_wait_attempted=selenium_result.challenge_wait_attempted,
+            selenium_challenge_attempts=selenium_result.challenge_attempts,
+            selenium_challenge_wait_ms=selenium_result.challenge_wait_ms,
+        )
+    return PageFetchResult(None, [], selenium_result.error or err or "fetch_failed")
 
 
 def evaluate_source_quality(extraction: SiteExtraction, min_text_chars: int) -> str:
@@ -1379,6 +1564,8 @@ def crawl_site(
         original_url=str(original_url or "").strip(),
         normalized_start_url=normalize_input_url(original_url),
         internal_pages_requested=max(0, args.internal_pages),
+        selenium_headless=not args.selenium_visible,
+        selenium_user_data_dir=args.selenium_user_data_dir or "",
     )
 
     candidates = candidate_start_urls(original_url)
@@ -1393,7 +1580,7 @@ def crawl_site(
     selenium_availability: SeleniumAvailability = args.selenium_availability
     homepage_selenium_enabled = args.selenium_mode != "off" and selenium_availability.available
     for candidate in candidates:
-        page, links, err = fetch_page(
+        fetch_result = fetch_page(
             candidate,
             request_timeout=args.request_timeout,
             selenium_timeout=args.selenium_timeout,
@@ -1402,7 +1589,18 @@ def crawl_site(
             proxies=args.proxies,
             min_text_chars=args.min_text_chars,
             chrome_version_main=chrome_version_main,
+            selenium_headless=not args.selenium_visible,
+            selenium_user_data_dir=args.selenium_user_data_dir,
         )
+        page = fetch_result.page
+        links = fetch_result.links
+        err = fetch_result.error
+        extraction.homepage_http_bot_protection_detected = fetch_result.http_bot_protection_detected
+        extraction.homepage_selenium_bot_protection_detected = fetch_result.selenium_bot_protection_detected
+        extraction.homepage_selenium_challenge_wait_attempted = fetch_result.selenium_challenge_wait_attempted
+        extraction.homepage_bot_protection_solved_by_selenium = fetch_result.bot_protection_solved_by_selenium
+        extraction.selenium_challenge_attempts = fetch_result.selenium_challenge_attempts
+        extraction.selenium_challenge_wait_ms = fetch_result.selenium_challenge_wait_ms
         if page:
             homepage = page
             homepage_links = links
@@ -1474,16 +1672,24 @@ def crawl_site(
         if internal_selenium_enabled and selenium_internal_remaining > 0:
             extraction.internal_pages_selenium_tried += 1
             selenium_internal_remaining -= 1
-            html2, final_url2, selenium_err = selenium_fetch_with_hard_timeout(
+            selenium_result = selenium_fetch_with_hard_timeout(
                 link,
                 timeout=args.selenium_timeout,
                 hard_timeout=args.selenium_hard_timeout,
                 proxy=choose_proxy(args.proxies),
                 chrome_version_main=chrome_version_main,
+                headless=not args.selenium_visible,
+                user_data_dir=args.selenium_user_data_dir,
             )
-            if html2:
-                page2, _links2 = parse_html(html2, url=link, fetch_method="selenium", http_status=status, final_url=final_url2)
-                if is_bot_protection_page(page2):
+            if selenium_result.html:
+                page2, _links2 = parse_html(
+                    selenium_result.html,
+                    url=link,
+                    fetch_method="selenium",
+                    http_status=status,
+                    final_url=selenium_result.final_url,
+                )
+                if selenium_result.bot_protection_detected or is_bot_protection_page(page2):
                     page2.error = append_error(page2.error, "bot_protection_challenge")
                     extraction.internal_pages.append(page2)
                     logging.debug("Internal bot protection detected for %s final_url=%s", link, page2.final_url)
@@ -1497,7 +1703,7 @@ def crawl_site(
                     extraction.internal_pages.append(page2)
                     extraction.internal_pages_selenium_succeeded += 1
                     continue
-            logging.debug("Internal Selenium failed for %s: %s", link, selenium_err)
+            logging.debug("Internal Selenium failed for %s: %s", link, selenium_result.error)
         else:
             logging.debug("Internal HTTP failed/weak for %s: %s", link, err)
 
@@ -1614,12 +1820,20 @@ def build_user_prompt(
         },
         "extracted_pages": [],
     }
-    if extraction.homepage:
+    if (
+        extraction.homepage
+        and not page_has_error(extraction.homepage, "bot_protection_challenge")
+        and not page_has_error(extraction.homepage, "access_blocked_page")
+        and not is_bot_protection_page(extraction.homepage)
+        and not is_blocked_page(extraction.homepage)
+    ):
         payload["extracted_pages"].append({"type": "homepage", **page_to_prompt_payload(extraction.homepage)})
     for page in extraction.internal_pages:
         if page_has_error(page, "bot_protection_challenge"):
             continue
         if page_has_error(page, "access_blocked_page"):
+            continue
+        if is_bot_protection_page(page) or is_blocked_page(page):
             continue
         payload["extracted_pages"].append({"type": "internal", **page_to_prompt_payload(page)})
 
@@ -2101,6 +2315,14 @@ DEBUG_RESULT_COLUMNS = [
     "Redirected",
     "HttpStatus",
     "HomepageTextLength",
+    "HomepageHttpBotProtectionDetected",
+    "HomepageSeleniumBotProtectionDetected",
+    "HomepageSeleniumChallengeWaitAttempted",
+    "HomepageBotProtectionSolvedBySelenium",
+    "SeleniumChallengeAttempts",
+    "SeleniumChallengeWaitMs",
+    "SeleniumHeadless",
+    "SeleniumUserDataDir",
     "InternalPagesRequested",
     "InternalPagesHttpSucceeded",
     "InternalPagesSeleniumTried",
@@ -2138,6 +2360,14 @@ COLUMN_WIDTHS = {
     "Redirected": 14,
     "HttpStatus": 14,
     "HomepageTextLength": 22,
+    "HomepageHttpBotProtectionDetected": 34,
+    "HomepageSeleniumBotProtectionDetected": 38,
+    "HomepageSeleniumChallengeWaitAttempted": 40,
+    "HomepageBotProtectionSolvedBySelenium": 38,
+    "SeleniumChallengeAttempts": 28,
+    "SeleniumChallengeWaitMs": 26,
+    "SeleniumHeadless": 18,
+    "SeleniumUserDataDir": 50,
     "InternalPagesRequested": 24,
     "InternalPagesHttpSucceeded": 28,
     "InternalPagesSeleniumTried": 28,
@@ -2285,6 +2515,14 @@ def build_result_values(
         "Redirected": excel_bool(homepage.redirected if homepage else None),
         "HttpStatus": excel_int(homepage.http_status if homepage and homepage.http_status is not None else None),
         "HomepageTextLength": excel_int(homepage.text_length if homepage else 0),
+        "HomepageHttpBotProtectionDetected": excel_bool(extraction.homepage_http_bot_protection_detected),
+        "HomepageSeleniumBotProtectionDetected": excel_bool(extraction.homepage_selenium_bot_protection_detected),
+        "HomepageSeleniumChallengeWaitAttempted": excel_bool(extraction.homepage_selenium_challenge_wait_attempted),
+        "HomepageBotProtectionSolvedBySelenium": excel_bool(extraction.homepage_bot_protection_solved_by_selenium),
+        "SeleniumChallengeAttempts": excel_int(extraction.selenium_challenge_attempts),
+        "SeleniumChallengeWaitMs": excel_int(extraction.selenium_challenge_wait_ms),
+        "SeleniumHeadless": excel_bool(extraction.selenium_headless),
+        "SeleniumUserDataDir": excel_text(extraction.selenium_user_data_dir),
         "InternalPagesRequested": excel_int(extraction.internal_pages_requested),
         "InternalPagesHttpSucceeded": excel_int(extraction.internal_pages_http_succeeded),
         "InternalPagesSeleniumTried": excel_int(extraction.internal_pages_selenium_tried),
@@ -2477,8 +2715,39 @@ def apply_cost_profile_defaults(args: argparse.Namespace) -> None:
         if not _cli_option_was_provided(option_names):
             setattr(args, attr, profile[attr])
 
+
+def resolve_selenium_user_data_dir(args: argparse.Namespace) -> None:
+    raw_path = (args.selenium_user_data_dir or "").strip()
+    if not raw_path:
+        args.selenium_user_data_dir = ""
+        return
+    resolved = Path(os.path.expandvars(raw_path)).expanduser().resolve()
+    resolved.mkdir(parents=True, exist_ok=True)
+    args.selenium_user_data_dir = str(resolved)
+    logging.info("Using Selenium Chrome user data dir: %s", args.selenium_user_data_dir)
+    if args.concurrency > 1:
+        logging.warning(
+            "--selenium-user-data-dir is set while --concurrency=%s. "
+            "One Chrome profile should not be shared by multiple concurrent Chrome instances.",
+            args.concurrency,
+        )
+
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Classify website Niche/Categories/Language with Claude Batch API.")
+    parser = argparse.ArgumentParser(
+        description="Classify website Niche/Categories/Language with Claude Batch API.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Diagnostic visible Selenium run:\n"
+            "  python parser_niche_and_categories_v3.py --input protected_sample.xlsx --output visible_test.xlsx "
+            "--max-sites 100 --selenium-mode required --selenium-visible --debug-output --extract-only\n\n"
+            "Persistent profile diagnostic run:\n"
+            "  python parser_niche_and_categories_v3.py --input protected_sample.xlsx --output profile_test.xlsx "
+            "--max-sites 100 --selenium-mode required --selenium-visible "
+            "--selenium-user-data-dir \"C:\\\\selenium-profiles\\\\redhead-parser-profile\" "
+            "--concurrency 1 --debug-output --extract-only"
+        ),
+    )
     parser.add_argument("--input", default=DEFAULT_INPUT, help="Input Excel file path.")
     parser.add_argument("--output", default=DEFAULT_OUTPUT, help="Output Excel file path.")
     parser.add_argument("--url-column", default=DEFAULT_URL_COLUMN, help="Optional URL column name. Auto-detects Website/URL/Domain by default.")
@@ -2509,6 +2778,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--selenium-hard-timeout", type=int, default=DEFAULT_SELENIUM_HARD_TIMEOUT, help="Hard timeout for one Selenium fetch.")
     parser.add_argument("--selenium-internal-fallback", action="store_true", help="Allow Selenium fallback for weak/failed internal pages.")
     parser.add_argument("--selenium-internal-limit", type=int, default=DEFAULT_SELENIUM_INTERNAL_LIMIT, help="Max internal pages per site that may use Selenium if fallback enabled.")
+    parser.add_argument("--selenium-visible", action="store_true", help="Run Selenium with a visible Chrome window instead of headless mode.")
+    parser.add_argument("--selenium-user-data-dir", default="", help="Chrome user data directory for Selenium diagnostics. Directory is created if needed.")
     parser.add_argument(
         "--chrome-version-main",
         type=int,
@@ -2638,8 +2909,13 @@ def log_usage_summary(classifications_by_row: Dict[int, ClassificationResult], m
 def main() -> None:
     args = parse_args()
     setup_logging(args.log_file)
+    resolve_selenium_user_data_dir(args)
 
     logging.info("parser_v3 starting. model=%s max_sites=%s cost_profile=%s", args.model, args.max_sites, args.cost_profile)
+    logging.info(
+        "Selenium browser mode: %s",
+        "visible" if args.selenium_visible else "headless",
+    )
     logging.info(
         "Cost settings: internal_pages=%s max_prompt_chars=%s min_categories=%s max_categories=%s max_tokens=%s",
         args.internal_pages,
