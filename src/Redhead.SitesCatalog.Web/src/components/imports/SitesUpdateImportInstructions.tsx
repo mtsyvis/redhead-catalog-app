@@ -33,6 +33,12 @@ const EXAMPLES = [
     note:
       'Only PriceUsd and Term change. Empty PriceUsd clears it if the field allows clearing.',
   },
+  {
+    title: 'Set service availability',
+    csv: 'Domain,PriceCasino\nexample.com,YES\nanother-site.com,NO',
+    note:
+      'YES means available with unknown price. Empty cells in included service columns clear that service to Unknown.',
+  },
 ];
 
 function CsvSnippet({ children }: { readonly children: string }) {

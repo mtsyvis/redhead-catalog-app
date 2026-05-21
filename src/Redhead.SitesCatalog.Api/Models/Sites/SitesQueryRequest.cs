@@ -60,29 +60,21 @@ public class SitesQueryRequest
     /// </summary>
     public List<string?>? CategorySearchTerms { get; set; }
 
-    // Allowed flags (null = ignore, true = must have value)
-    public bool? CasinoAllowed { get; set; }
-    public bool? CryptoAllowed { get; set; }
-    public bool? LinkInsertAllowed { get; set; }
-
     /// <summary>
     /// Optional availability filter for PriceCasino status.
     /// Allowed values: all, available, notAvailable, unknown.
-    /// If set, takes precedence over CasinoAllowed.
     /// </summary>
     public string? CasinoAvailability { get; set; }
 
     /// <summary>
     /// Optional availability filter for PriceCrypto status.
     /// Allowed values: all, available, notAvailable, unknown.
-    /// If set, takes precedence over CryptoAllowed.
     /// </summary>
     public string? CryptoAvailability { get; set; }
 
     /// <summary>
     /// Optional availability filter for PriceLinkInsert status.
     /// Allowed values: all, available, notAvailable, unknown.
-    /// If set, takes precedence over LinkInsertAllowed.
     /// </summary>
     public string? LinkInsertAvailability { get; set; }
 

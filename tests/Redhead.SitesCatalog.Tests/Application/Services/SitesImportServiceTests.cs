@@ -469,11 +469,12 @@ public sealed class SitesImportServiceTests : IDisposable
     [InlineData("bad-traffic.com,55,,US,100,150,200,250,,,Tech,News,,,,", "Traffic is required.")]
     [InlineData("bad-location.com,55,12000, ,100,150,200,250,,,Tech,News,,,,", "Location is required.")]
     [InlineData("bad-price-zero.com,55,12000,US,0,,,,,,Tech,News,,,", "Price USD must be greater than 0 or empty.")]
-    [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,,,Tech,News,,,,", "Price must be >= 0.")]
-    [InlineData("bad-crypto.com,55,12000,US,100,150,-1,250,,,Tech,News,,,,", "Price must be >= 0.")]
-    [InlineData("bad-link-insert.com,55,12000,US,100,150,200,-1,,,Tech,News,,,,", "Price must be >= 0.")]
-    [InlineData("bad-link-insert-casino.com,55,12000,US,100,150,200,250,-1,,Tech,News,,,,", "Price must be >= 0.")]
-    [InlineData("bad-dating.com,55,12000,US,100,150,200,250,,-1,Tech,News,,,,", "Price must be >= 0.")]
+    [InlineData("bad-casino-zero.com,55,12000,US,100,0,200,250,,,Tech,News,,,,", "Optional service price must be greater than 0.")]
+    [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,,,Tech,News,,,,", "Optional service price must be greater than 0.")]
+    [InlineData("bad-crypto.com,55,12000,US,100,150,-1,250,,,Tech,News,,,,", "Optional service price must be greater than 0.")]
+    [InlineData("bad-link-insert.com,55,12000,US,100,150,200,-1,,,Tech,News,,,,", "Optional service price must be greater than 0.")]
+    [InlineData("bad-link-insert-casino.com,55,12000,US,100,150,200,250,-1,,Tech,News,,,,", "Optional service price must be greater than 0.")]
+    [InlineData("bad-dating.com,55,12000,US,100,150,200,250,,-1,Tech,News,,,,", "Optional service price must be greater than 0.")]
     [InlineData("bad-df-zero.com,55,12000,US,100,150,200,250,,,Tech,News,0,Sponsored,", "Number DF Links must be greater than 0.")]
     [InlineData("bad-df-format.com,55,12000,US,100,150,200,250,,,Tech,News,abc,Sponsored,", "Invalid NumberDFLinks value.")]
     [InlineData("bad-term-main.com,55,12000,US,100,150,200,250,,,Tech,News,,Sponsored,1 month", "Invalid Term value.")]
@@ -575,6 +576,56 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal(TermType.Permanent, site.TermType);
         Assert.Null(site.TermValue);
         Assert.Null(site.TermUnit);
+    }
+
+    [Fact]
+    public async Task ImportAsync_YesOptionalValue_IsParsedAsAvailableWithUnknownPrice()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "yes-marker.com,55,12000,US,100,YES,yes,Yes,YES,yes,Tech,News,,Sponsored,permanent\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("yes-marker.com");
+        Assert.Null(site.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, site.PriceCasinoStatus);
+        Assert.Null(site.PriceCrypto);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, site.PriceCryptoStatus);
+        Assert.Null(site.PriceLinkInsert);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, site.PriceLinkInsertStatus);
+        Assert.Null(site.PriceLinkInsertCasino);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, site.PriceLinkInsertCasinoStatus);
+        Assert.Null(site.PriceDating);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, site.PriceDatingStatus);
+    }
+
+    [Theory]
+    [InlineData("Y")]
+    [InlineData("+")]
+    [InlineData("AVAILABLE")]
+    [InlineData("OK")]
+    public async Task ImportAsync_UnsupportedYesLikeOptionalValue_IsInvalid(string rawValue)
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"bad-yes-like.com,55,12000,US,100,{rawValue},,,,,Tech,News,,Sponsored,permanent\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains("Invalid optional service value.", StringComparison.Ordinal));
     }
 
     [Fact]

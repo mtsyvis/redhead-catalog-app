@@ -799,9 +799,10 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     [InlineData("bad-traffic.com,55,,US,100,150,200,250,,,Tech,News,,,,", "Traffic is required")]
     [InlineData("bad-location.com,55,12000, ,100,150,200,250,,,Tech,News,,,,", "Location is required")]
     [InlineData("bad-price-zero.com,55,12000,US,0,,,,,,Tech,News,,,", "Price USD must be greater than 0 or empty.")]
-    [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,,,Tech,News,,,,", "Price must be >= 0")]
-    [InlineData("bad-link-insert-casino.com,55,12000,US,100,150,200,250,-1,,Tech,News,,,,", "Price must be >= 0.")]
-    [InlineData("bad-dating.com,55,12000,US,100,150,200,250,,-1,Tech,News,,,,", "Price must be >= 0.")]
+    [InlineData("bad-casino-zero.com,55,12000,US,100,0,200,250,,,Tech,News,,,,", "Optional service price must be greater than 0.")]
+    [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,,,Tech,News,,,,", "Optional service price must be greater than 0.")]
+    [InlineData("bad-link-insert-casino.com,55,12000,US,100,150,200,250,-1,,Tech,News,,,,", "Optional service price must be greater than 0.")]
+    [InlineData("bad-dating.com,55,12000,US,100,150,200,250,,-1,Tech,News,,,,", "Optional service price must be greater than 0.")]
     [InlineData("bad-df-zero.com,55,12000,US,100,150,200,250,,,Tech,News,0,Sponsored,", "Number DF Links must be greater than 0.")]
     [InlineData("bad-df-format.com,55,12000,US,100,150,200,250,,,Tech,News,abc,Sponsored,", "Invalid NumberDFLinks value.")]
     [InlineData("bad-term-main.com,55,12000,US,100,150,200,250,,,Tech,News,,Sponsored,1 month", "Invalid Term value.")]
@@ -1056,6 +1057,31 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportAsync_PartialOptionalServiceYes_SetsAvailableWithUnknownPrice()
+    {
+        // Arrange
+        var site = await GetSiteAsync("existing.com");
+        site.PriceCasino = 111m;
+        site.PriceCasinoStatus = ServiceAvailabilityStatus.Available;
+        site.PriceUsd = 50m;
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv("Domain,PriceCasino\nexisting.com,YES\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal(50m, updated.PriceUsd);
+        Assert.Null(updated.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, updated.PriceCasinoStatus);
+    }
+
+    [Fact]
     public async Task ImportAsync_EmptyOptionalValue_OverPricedRow_SetsUnknown()
     {
         var site = await GetSiteAsync("existing.com");
@@ -1073,6 +1099,53 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         var updated = await GetSiteAsync("existing.com");
         Assert.Null(updated.PriceCasino);
         Assert.Equal(ServiceAvailabilityStatus.Unknown, updated.PriceCasinoStatus);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialPresentEmptyOptionalValue_ClearsToUnknown()
+    {
+        // Arrange
+        var site = await GetSiteAsync("existing.com");
+        site.PriceCasino = 222m;
+        site.PriceCasinoStatus = ServiceAvailabilityStatus.Available;
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv("Domain,PriceCasino\nexisting.com,\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Null(updated.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, updated.PriceCasinoStatus);
+    }
+
+    [Fact]
+    public async Task ImportAsync_PartialMissingOptionalValue_DoesNotChangeExistingService()
+    {
+        // Arrange
+        var site = await GetSiteAsync("existing.com");
+        site.PriceCasino = 222m;
+        site.PriceCasinoStatus = ServiceAvailabilityStatus.Available;
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv("Domain,PriceUsd\nexisting.com,125\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var updated = await GetSiteAsync("existing.com");
+        Assert.Equal(125m, updated.PriceUsd);
+        Assert.Equal(222m, updated.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, updated.PriceCasinoStatus);
     }
 
     [Fact]

@@ -2,11 +2,15 @@ import { useMemo } from 'react';
 import type { GridSortModel } from '@mui/x-data-grid';
 import type {
   MultiSearchResponse,
+  ServiceAvailabilityStatus,
   Site,
   SitesFilters as FiltersType,
 } from '../../types/sites.types';
 import { formatLanguageCode } from '../../utils/language';
-import { matchesAvailabilityFilter } from '../../utils/serviceAvailability';
+import {
+  getOptionalServiceSortRank,
+  matchesAvailabilityFilter,
+} from '../../utils/serviceAvailability';
 
 export type NotFoundRow = { domain: string; _isNotFound: true };
 export type GridRow = Site | NotFoundRow;
@@ -65,6 +69,31 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
   });
 }
 
+const OPTIONAL_SERVICE_STATUS_FIELDS: Record<string, keyof Site> = {
+  priceCasino: 'priceCasinoStatus',
+  priceCrypto: 'priceCryptoStatus',
+  priceLinkInsert: 'priceLinkInsertStatus',
+  priceLinkInsertCasino: 'priceLinkInsertCasinoStatus',
+  priceDating: 'priceDatingStatus',
+};
+
+function compareOptionalServicePrice(a: Site, b: Site, field: keyof Site, dir: 'asc' | 'desc'): number {
+  const statusField = OPTIONAL_SERVICE_STATUS_FIELDS[field as string];
+  const leftStatus = a[statusField] as ServiceAvailabilityStatus;
+  const rightStatus = b[statusField] as ServiceAvailabilityStatus;
+  const rankDiff = getOptionalServiceSortRank(leftStatus) - getOptionalServiceSortRank(rightStatus);
+  if (rankDiff !== 0) return rankDiff;
+
+  const av = a[field] as number | null;
+  const bv = b[field] as number | null;
+  if (av == null && bv == null) return a.domain.localeCompare(b.domain);
+  if (av == null) return 1;
+  if (bv == null) return -1;
+
+  const priceDiff = dir === 'asc' ? av - bv : bv - av;
+  return priceDiff === 0 ? a.domain.localeCompare(b.domain) : priceDiff;
+}
+
 export function useSitesGridRows({
   sites,
   total,
@@ -84,6 +113,10 @@ export function useSitesGridRows({
     const field = sortModel[0]?.field ?? 'domain';
     const dir = sortModel[0]?.sort ?? 'asc';
     const sorted = [...filtered].sort((a, b) => {
+      if (field in OPTIONAL_SERVICE_STATUS_FIELDS) {
+        return compareOptionalServicePrice(a, b, field as keyof Site, dir);
+      }
+
       const av = a[field as keyof Site];
       const bv = b[field as keyof Site];
       if (av == null && bv == null) return 0;

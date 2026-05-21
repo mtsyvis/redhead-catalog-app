@@ -4,5 +4,6 @@ public enum ServiceAvailabilityStatus : short
 {
     Unknown = 0,
     Available = 1,
-    NotAvailable = 2
+    NotAvailable = 2,
+    AvailableWithUnknownPrice = 3
 }

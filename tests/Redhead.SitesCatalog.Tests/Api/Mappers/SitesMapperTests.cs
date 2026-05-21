@@ -31,9 +31,6 @@ public class SitesMapperTests
             Languages = new List<string> { "english", "de", "en-US", "UNKNOWN" },
             Niches = new List<string> { "crypto", "finance" },
             CategorySearchTerms = new List<string?> { " sports betting ", "Crypto" },
-            CasinoAllowed = true,
-            CryptoAllowed = false,
-            LinkInsertAllowed = true,
             CasinoAvailability = "notAvailable",
             CryptoAvailability = "unknown",
             LinkInsertAvailability = "available",
@@ -64,9 +61,6 @@ public class SitesMapperTests
         Assert.Equal(["EN", "DE", "UNKNOWN"], query.Languages);
         Assert.Equal(["crypto", "finance"], query.Niches);
         Assert.Equal(["sports betting", "Crypto"], query.CategorySearchTerms);
-        Assert.True(query.CasinoAllowed);
-        Assert.False(query.CryptoAllowed);
-        Assert.True(query.LinkInsertAllowed);
         Assert.Equal(ServiceAvailabilityFilter.NotAvailable, query.CasinoAvailability);
         Assert.Equal(ServiceAvailabilityFilter.Unknown, query.CryptoAvailability);
         Assert.Equal(ServiceAvailabilityFilter.Available, query.LinkInsertAvailability);
@@ -86,10 +80,7 @@ public class SitesMapperTests
             SortBy = null,
             SortDir = null,
             Search = null,
-            Locations = null,
-            CasinoAllowed = null,
-            CryptoAllowed = null,
-            LinkInsertAllowed = null
+            Locations = null
         };
 
         // Act
@@ -104,9 +95,6 @@ public class SitesMapperTests
         Assert.Null(query.StopListDomains);
         Assert.Null(query.Locations);
         Assert.Null(query.CategorySearchTerms);
-        Assert.Null(query.CasinoAllowed);
-        Assert.Null(query.CryptoAllowed);
-        Assert.Null(query.LinkInsertAllowed);
     }
 
     [Fact]

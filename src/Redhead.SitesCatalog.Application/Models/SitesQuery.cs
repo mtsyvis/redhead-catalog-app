@@ -41,10 +41,6 @@ public class SitesQuery
     // Categories substring search terms
     public List<string>? CategorySearchTerms { get; set; }
 
-    // Allowed flags
-    public bool? CasinoAllowed { get; set; }
-    public bool? CryptoAllowed { get; set; }
-    public bool? LinkInsertAllowed { get; set; }
     public ServiceAvailabilityFilter? CasinoAvailability { get; set; }
     public ServiceAvailabilityFilter? CryptoAvailability { get; set; }
     public ServiceAvailabilityFilter? LinkInsertAvailability { get; set; }

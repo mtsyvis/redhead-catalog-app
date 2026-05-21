@@ -28,6 +28,11 @@ public static class OptionalServiceValueParser
         }
 
         var trimmed = rawValue.Trim();
+        if (string.Equals(trimmed, "YES", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ParseResult(true, ServiceAvailabilityStatus.AvailableWithUnknownPrice, null, null);
+        }
+
         var normalizedMarker = NormalizeMarker(trimmed);
 
         if (NotAvailableMarkers.Contains(normalizedMarker))
@@ -41,12 +46,12 @@ public static class OptionalServiceValueParser
                 false,
                 ServiceAvailabilityStatus.Unknown,
                 null,
-                "Invalid optional service value. Use a number, empty cell, or a supported not-available marker (NO, N/A, NA, -, NONE, NOT AVAILABLE).");
+                "Invalid optional service value. Use a positive number, YES, empty cell, or a supported not-available marker (NO, N/A, NA, -, NONE, NOT AVAILABLE).");
         }
 
-        if (parsedPrice < 0)
+        if (parsedPrice <= 0)
         {
-            return new ParseResult(false, ServiceAvailabilityStatus.Unknown, null, "Price must be >= 0.");
+            return new ParseResult(false, ServiceAvailabilityStatus.Unknown, null, "Optional service price must be greater than 0.");
         }
 
         return new ParseResult(true, ServiceAvailabilityStatus.Available, parsedPrice, null);

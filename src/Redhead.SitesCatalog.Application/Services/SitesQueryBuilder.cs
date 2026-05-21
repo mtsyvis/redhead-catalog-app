@@ -80,8 +80,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
 
         sitesQuery = ApplyCategorySearchFilter(sitesQuery, query.CategorySearchTerms);
 
-        // Apply allowed flags filters
-        sitesQuery = ApplyAllowedFilters(sitesQuery, query);
+        sitesQuery = ApplyAvailabilityFilters(sitesQuery, query);
 
         // Apply quarantine filter
         sitesQuery = ApplyQuarantineFilter(sitesQuery, query.Quarantine);
@@ -261,23 +260,20 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         return query;
     }
 
-    private static IQueryable<Site> ApplyAllowedFilters(IQueryable<Site> query, SitesQuery filters)
+    private static IQueryable<Site> ApplyAvailabilityFilters(IQueryable<Site> query, SitesQuery filters)
     {
-        // New explicit availability filters take precedence over legacy boolean flags.
         if (filters.CasinoAvailability.HasValue)
         {
             query = filters.CasinoAvailability.Value switch
             {
                 ServiceAvailabilityFilter.All => query,
-                ServiceAvailabilityFilter.Available => query.Where(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Available),
+                ServiceAvailabilityFilter.Available => query.Where(s =>
+                    s.PriceCasinoStatus == ServiceAvailabilityStatus.Available
+                    || s.PriceCasinoStatus == ServiceAvailabilityStatus.AvailableWithUnknownPrice),
                 ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.NotAvailable),
                 ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Unknown),
                 _ => query
             };
-        }
-        else if (filters.CasinoAllowed == true)
-        {
-            query = query.Where(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Available);
         }
 
         if (filters.CryptoAvailability.HasValue)
@@ -285,15 +281,13 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             query = filters.CryptoAvailability.Value switch
             {
                 ServiceAvailabilityFilter.All => query,
-                ServiceAvailabilityFilter.Available => query.Where(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Available),
+                ServiceAvailabilityFilter.Available => query.Where(s =>
+                    s.PriceCryptoStatus == ServiceAvailabilityStatus.Available
+                    || s.PriceCryptoStatus == ServiceAvailabilityStatus.AvailableWithUnknownPrice),
                 ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.NotAvailable),
                 ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Unknown),
                 _ => query
             };
-        }
-        else if (filters.CryptoAllowed == true)
-        {
-            query = query.Where(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Available);
         }
 
         if (filters.LinkInsertAvailability.HasValue)
@@ -301,15 +295,13 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             query = filters.LinkInsertAvailability.Value switch
             {
                 ServiceAvailabilityFilter.All => query,
-                ServiceAvailabilityFilter.Available => query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available),
+                ServiceAvailabilityFilter.Available => query.Where(s =>
+                    s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available
+                    || s.PriceLinkInsertStatus == ServiceAvailabilityStatus.AvailableWithUnknownPrice),
                 ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.NotAvailable),
                 ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Unknown),
                 _ => query
             };
-        }
-        else if (filters.LinkInsertAllowed == true)
-        {
-            query = query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available);
         }
 
         if (filters.LinkInsertCasinoAvailability.HasValue)
@@ -317,7 +309,9 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             query = filters.LinkInsertCasinoAvailability.Value switch
             {
                 ServiceAvailabilityFilter.All => query,
-                ServiceAvailabilityFilter.Available => query.Where(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Available),
+                ServiceAvailabilityFilter.Available => query.Where(s =>
+                    s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Available
+                    || s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.AvailableWithUnknownPrice),
                 ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.NotAvailable),
                 ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Unknown),
                 _ => query
@@ -329,7 +323,9 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             query = filters.DatingAvailability.Value switch
             {
                 ServiceAvailabilityFilter.All => query,
-                ServiceAvailabilityFilter.Available => query.Where(s => s.PriceDatingStatus == ServiceAvailabilityStatus.Available),
+                ServiceAvailabilityFilter.Available => query.Where(s =>
+                    s.PriceDatingStatus == ServiceAvailabilityStatus.Available
+                    || s.PriceDatingStatus == ServiceAvailabilityStatus.AvailableWithUnknownPrice),
                 ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceDatingStatus == ServiceAvailabilityStatus.NotAvailable),
                 ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceDatingStatus == ServiceAvailabilityStatus.Unknown),
                 _ => query
@@ -396,50 +392,20 @@ public class SitesQueryBuilder : ISitesQueryBuilder
                 ? query.OrderBy(s => s.PriceUsd == null ? 1 : 0).ThenByDescending(s => s.PriceUsd)
                 : query.OrderBy(s => s.PriceUsd == null ? 1 : 0).ThenBy(s => s.PriceUsd),
             SortFields.PriceCasino => direction == SortingDefaults.Descending
-                ? query
-                    .OrderBy(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
-                    .ThenByDescending(s => s.PriceCasino)
-                    .ThenBy(s => s.Domain)
-                : query
-                    .OrderBy(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
-                    .ThenBy(s => s.PriceCasino)
-                    .ThenBy(s => s.Domain),
+                ? ApplyServicePriceSorting(query, nameof(Site.PriceCasino), nameof(Site.PriceCasinoStatus), descending: true)
+                : ApplyServicePriceSorting(query, nameof(Site.PriceCasino), nameof(Site.PriceCasinoStatus), descending: false),
             SortFields.PriceCrypto => direction == SortingDefaults.Descending
-                ? query
-                    .OrderBy(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
-                    .ThenByDescending(s => s.PriceCrypto)
-                    .ThenBy(s => s.Domain)
-                : query
-                    .OrderBy(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
-                    .ThenBy(s => s.PriceCrypto)
-                    .ThenBy(s => s.Domain),
+                ? ApplyServicePriceSorting(query, nameof(Site.PriceCrypto), nameof(Site.PriceCryptoStatus), descending: true)
+                : ApplyServicePriceSorting(query, nameof(Site.PriceCrypto), nameof(Site.PriceCryptoStatus), descending: false),
             SortFields.PriceLinkInsert => direction == SortingDefaults.Descending
-                ? query
-                    .OrderBy(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
-                    .ThenByDescending(s => s.PriceLinkInsert)
-                    .ThenBy(s => s.Domain)
-                : query
-                    .OrderBy(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
-                    .ThenBy(s => s.PriceLinkInsert)
-                    .ThenBy(s => s.Domain),
+                ? ApplyServicePriceSorting(query, nameof(Site.PriceLinkInsert), nameof(Site.PriceLinkInsertStatus), descending: true)
+                : ApplyServicePriceSorting(query, nameof(Site.PriceLinkInsert), nameof(Site.PriceLinkInsertStatus), descending: false),
             SortFields.PriceLinkInsertCasino => direction == SortingDefaults.Descending
-                ? query
-                    .OrderBy(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
-                    .ThenByDescending(s => s.PriceLinkInsertCasino)
-                    .ThenBy(s => s.Domain)
-                : query
-                    .OrderBy(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
-                    .ThenBy(s => s.PriceLinkInsertCasino)
-                    .ThenBy(s => s.Domain),
+                ? ApplyServicePriceSorting(query, nameof(Site.PriceLinkInsertCasino), nameof(Site.PriceLinkInsertCasinoStatus), descending: true)
+                : ApplyServicePriceSorting(query, nameof(Site.PriceLinkInsertCasino), nameof(Site.PriceLinkInsertCasinoStatus), descending: false),
             SortFields.PriceDating => direction == SortingDefaults.Descending
-                ? query
-                    .OrderBy(s => s.PriceDatingStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
-                    .ThenByDescending(s => s.PriceDating)
-                    .ThenBy(s => s.Domain)
-                : query
-                    .OrderBy(s => s.PriceDatingStatus == ServiceAvailabilityStatus.Available ? 0 : 1)
-                    .ThenBy(s => s.PriceDating)
-                    .ThenBy(s => s.Domain),
+                ? ApplyServicePriceSorting(query, nameof(Site.PriceDating), nameof(Site.PriceDatingStatus), descending: true)
+                : ApplyServicePriceSorting(query, nameof(Site.PriceDating), nameof(Site.PriceDatingStatus), descending: false),
             SortFields.NumberDFLinks => direction == SortingDefaults.Descending
                 ? query.OrderBy(s => s.NumberDFLinks == null ? 1 : 0).ThenByDescending(s => s.NumberDFLinks).ThenBy(s => s.Domain)
                 : query.OrderBy(s => s.NumberDFLinks == null ? 1 : 0).ThenBy(s => s.NumberDFLinks).ThenBy(s => s.Domain),
@@ -471,5 +437,26 @@ public class SitesQueryBuilder : ISitesQueryBuilder
                     .ThenBy(s => s.Domain),
             _ => query.OrderBy(s => s.Domain)
         };
+    }
+
+    private static IOrderedQueryable<Site> ApplyServicePriceSorting(
+        IQueryable<Site> query,
+        string pricePropertyName,
+        string statusPropertyName,
+        bool descending)
+    {
+        var ordered = query.OrderBy(s =>
+            EF.Property<ServiceAvailabilityStatus>(s, statusPropertyName) == ServiceAvailabilityStatus.Available ? 0 :
+            EF.Property<ServiceAvailabilityStatus>(s, statusPropertyName) == ServiceAvailabilityStatus.AvailableWithUnknownPrice ? 1 :
+            EF.Property<ServiceAvailabilityStatus>(s, statusPropertyName) == ServiceAvailabilityStatus.NotAvailable ? 2 :
+            3);
+
+        return descending
+            ? ordered
+                .ThenByDescending(s => EF.Property<decimal?>(s, pricePropertyName))
+                .ThenBy(s => s.Domain)
+            : ordered
+                .ThenBy(s => EF.Property<decimal?>(s, pricePropertyName))
+                .ThenBy(s => s.Domain);
     }
 }

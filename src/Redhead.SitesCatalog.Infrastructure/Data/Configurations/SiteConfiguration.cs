@@ -17,19 +17,19 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
                 "\"PriceUsd\" IS NULL OR \"PriceUsd\" > 0");
             tableBuilder.HasCheckConstraint(
                 "CK_Sites_PriceCasino_StatusConsistency",
-                "(\"PriceCasinoStatus\" = 1 AND \"PriceCasino\" IS NOT NULL AND \"PriceCasino\" >= 0) OR (\"PriceCasinoStatus\" IN (0, 2) AND \"PriceCasino\" IS NULL)");
+                "(\"PriceCasinoStatus\" = 1 AND \"PriceCasino\" IS NOT NULL AND \"PriceCasino\" > 0) OR (\"PriceCasinoStatus\" IN (0, 2, 3) AND \"PriceCasino\" IS NULL)");
             tableBuilder.HasCheckConstraint(
                 "CK_Sites_PriceCrypto_StatusConsistency",
-                "(\"PriceCryptoStatus\" = 1 AND \"PriceCrypto\" IS NOT NULL AND \"PriceCrypto\" >= 0) OR (\"PriceCryptoStatus\" IN (0, 2) AND \"PriceCrypto\" IS NULL)");
+                "(\"PriceCryptoStatus\" = 1 AND \"PriceCrypto\" IS NOT NULL AND \"PriceCrypto\" > 0) OR (\"PriceCryptoStatus\" IN (0, 2, 3) AND \"PriceCrypto\" IS NULL)");
             tableBuilder.HasCheckConstraint(
                 "CK_Sites_PriceLinkInsert_StatusConsistency",
-                "(\"PriceLinkInsertStatus\" = 1 AND \"PriceLinkInsert\" IS NOT NULL AND \"PriceLinkInsert\" >= 0) OR (\"PriceLinkInsertStatus\" IN (0, 2) AND \"PriceLinkInsert\" IS NULL)");
+                "(\"PriceLinkInsertStatus\" = 1 AND \"PriceLinkInsert\" IS NOT NULL AND \"PriceLinkInsert\" > 0) OR (\"PriceLinkInsertStatus\" IN (0, 2, 3) AND \"PriceLinkInsert\" IS NULL)");
             tableBuilder.HasCheckConstraint(
                 "CK_Sites_PriceLinkInsertCasino_StatusConsistency",
-                "(\"PriceLinkInsertCasinoStatus\" = 1 AND \"PriceLinkInsertCasino\" IS NOT NULL AND \"PriceLinkInsertCasino\" >= 0) OR (\"PriceLinkInsertCasinoStatus\" IN (0, 2) AND \"PriceLinkInsertCasino\" IS NULL)");
+                "(\"PriceLinkInsertCasinoStatus\" = 1 AND \"PriceLinkInsertCasino\" IS NOT NULL AND \"PriceLinkInsertCasino\" > 0) OR (\"PriceLinkInsertCasinoStatus\" IN (0, 2, 3) AND \"PriceLinkInsertCasino\" IS NULL)");
             tableBuilder.HasCheckConstraint(
                 "CK_Sites_PriceDating_StatusConsistency",
-                "(\"PriceDatingStatus\" = 1 AND \"PriceDating\" IS NOT NULL AND \"PriceDating\" >= 0) OR (\"PriceDatingStatus\" IN (0, 2) AND \"PriceDating\" IS NULL)");
+                "(\"PriceDatingStatus\" = 1 AND \"PriceDating\" IS NOT NULL AND \"PriceDating\" > 0) OR (\"PriceDatingStatus\" IN (0, 2, 3) AND \"PriceDating\" IS NULL)");
             tableBuilder.HasCheckConstraint(
                 "CK_Sites_NumberDFLinks_PositiveOrNull",
                 "\"NumberDFLinks\" IS NULL OR \"NumberDFLinks\" > 0");

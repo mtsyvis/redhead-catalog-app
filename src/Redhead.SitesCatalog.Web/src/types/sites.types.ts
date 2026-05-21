@@ -194,8 +194,16 @@ export interface UpdateSitePayload {
   quarantineReason: string | null;
 }
 
-export type ServiceAvailabilityStatus = 'Unknown' | 'Available' | 'NotAvailable' | 0 | 1 | 2;
-export type ServiceAvailabilityStatusValue = 0 | 1 | 2;
+export type ServiceAvailabilityStatus =
+  | 'Unknown'
+  | 'Available'
+  | 'NotAvailable'
+  | 'AvailableWithUnknownPrice'
+  | 0
+  | 1
+  | 2
+  | 3;
+export type ServiceAvailabilityStatusValue = 0 | 1 | 2 | 3;
 export type ServiceAvailabilityFilter = 'all' | 'available' | 'notAvailable' | 'unknown';
 export type TermType = 'Permanent' | 'Finite' | 1 | 2;
 export type TermTypeValue = 1 | 2;

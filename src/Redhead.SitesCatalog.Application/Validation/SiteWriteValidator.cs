@@ -215,12 +215,22 @@ public static class SiteWriteValidator
                 return (null, status);
             }
 
-            if (price.Value < 0)
+            if (price.Value <= 0)
             {
-                Add(errors, priceFieldKey, $"{displayName} must be 0 or greater when status is Available.");
+                Add(errors, priceFieldKey, $"{displayName} must be greater than 0 when status is Available.");
             }
 
             return (price, status);
+        }
+
+        if (status == ServiceAvailabilityStatus.AvailableWithUnknownPrice)
+        {
+            if (price.HasValue)
+            {
+                Add(errors, priceFieldKey, $"{displayName} must be empty when status is AvailableWithUnknownPrice.");
+            }
+
+            return (null, status);
         }
 
         if (status != ServiceAvailabilityStatus.Unknown && status != ServiceAvailabilityStatus.NotAvailable)

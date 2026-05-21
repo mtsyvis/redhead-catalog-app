@@ -18,6 +18,50 @@ public class OptionalServiceValueParserTests
     }
 
     [Theory]
+    [InlineData("YES")]
+    [InlineData("yes")]
+    [InlineData(" Yes ")]
+    public void Parse_YesValue_ReturnsAvailableWithUnknownPrice(string rawValue)
+    {
+        // Arrange
+        // Act
+        var result = OptionalServiceValueParser.Parse(rawValue);
+
+        // Assert
+        Assert.True(result.IsValid);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, result.Status);
+        Assert.Null(result.Price);
+    }
+
+    [Theory]
+    [InlineData("Y")]
+    [InlineData("+")]
+    [InlineData("AVAILABLE")]
+    [InlineData("OK")]
+    public void Parse_UnsupportedYesLikeValue_ReturnsError(string rawValue)
+    {
+        // Arrange
+        // Act
+        var result = OptionalServiceValueParser.Parse(rawValue);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.NotNull(result.ErrorMessage);
+    }
+
+    [Fact]
+    public void Parse_ZeroPrice_ReturnsError()
+    {
+        // Arrange
+        // Act
+        var result = OptionalServiceValueParser.Parse("0");
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Equal("Optional service price must be greater than 0.", result.ErrorMessage);
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]

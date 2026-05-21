@@ -63,11 +63,11 @@ public static class ExportAnalyticsSnapshotBuilder
         AddMultiSelect(filters, "niche", niches);
         AddCategorySearch(filters, query.CategorySearchTerms);
 
-        AddAvailability(filters, "priceCasinoAvailability", query.CasinoAvailability, query.CasinoAllowed);
-        AddAvailability(filters, "priceCryptoAvailability", query.CryptoAvailability, query.CryptoAllowed);
-        AddAvailability(filters, "priceLinkInsertAvailability", query.LinkInsertAvailability, query.LinkInsertAllowed);
-        AddAvailability(filters, "priceLinkInsertCasinoAvailability", query.LinkInsertCasinoAvailability, legacyAllowed: null);
-        AddAvailability(filters, "priceDatingAvailability", query.DatingAvailability, legacyAllowed: null);
+        AddAvailability(filters, "priceCasinoAvailability", query.CasinoAvailability);
+        AddAvailability(filters, "priceCryptoAvailability", query.CryptoAvailability);
+        AddAvailability(filters, "priceLinkInsertAvailability", query.LinkInsertAvailability);
+        AddAvailability(filters, "priceLinkInsertCasinoAvailability", query.LinkInsertCasinoAvailability);
+        AddAvailability(filters, "priceDatingAvailability", query.DatingAvailability);
         AddQuarantine(filters, query.Quarantine);
         AddLastPublishedDate(filters, query.LastPublishedFrom, query.LastPublishedToExclusive);
 
@@ -228,32 +228,18 @@ public static class ExportAnalyticsSnapshotBuilder
     private static void AddAvailability(
         List<FilterSnapshotItemDto> filters,
         string field,
-        ServiceAvailabilityFilter? availability,
-        bool? legacyAllowed)
+        ServiceAvailabilityFilter? availability)
     {
-        if (availability.HasValue)
+        if (!availability.HasValue || availability.Value == ServiceAvailabilityFilter.All)
         {
-            if (availability.Value == ServiceAvailabilityFilter.All)
-            {
-                return;
-            }
-
-            filters.Add(new FilterSnapshotItemDto(
-                Field: field,
-                Kind: "availability",
-                Operator: "eq",
-                Value: FormatAvailability(availability.Value)));
             return;
         }
 
-        if (legacyAllowed == true)
-        {
-            filters.Add(new FilterSnapshotItemDto(
-                Field: field,
-                Kind: "availability",
-                Operator: "eq",
-                Value: "available"));
-        }
+        filters.Add(new FilterSnapshotItemDto(
+            Field: field,
+            Kind: "availability",
+            Operator: "eq",
+            Value: FormatAvailability(availability.Value)));
     }
 
     private static void AddQuarantine(List<FilterSnapshotItemDto> filters, string? quarantine)

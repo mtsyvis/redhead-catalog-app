@@ -261,7 +261,7 @@ public class ExportService : IExportService
     }
 
     /// <summary>
-    /// True when any filter differs from defaults (same definition as UI: range, location, allowed flags, quarantine).
+    /// True when any filter differs from defaults (same definition as UI: range, location, availability, quarantine).
     /// </summary>
     private static bool AreFiltersActive(SitesQuery query)
     {
@@ -276,27 +276,15 @@ public class ExportService : IExportService
         {
             if (query.CasinoAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
         }
-        else if (query.CasinoAllowed == true)
-        {
-            return true;
-        }
 
         if (query.CryptoAvailability.HasValue)
         {
             if (query.CryptoAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
         }
-        else if (query.CryptoAllowed == true)
-        {
-            return true;
-        }
 
         if (query.LinkInsertAvailability.HasValue)
         {
             if (query.LinkInsertAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
-        }
-        else if (query.LinkInsertAllowed == true)
-        {
-            return true;
         }
         if (query.LinkInsertCasinoAvailability.HasValue &&
             query.LinkInsertCasinoAvailability.Value != ServiceAvailabilityFilter.All)
@@ -426,6 +414,7 @@ public class ExportService : IExportService
         return status switch
         {
             ServiceAvailabilityStatus.Available when price.HasValue => XlsxCell.Number(price, XlsxCellStyle.Decimal),
+            ServiceAvailabilityStatus.AvailableWithUnknownPrice => XlsxCell.Text("YES"),
             ServiceAvailabilityStatus.NotAvailable => XlsxCell.Text("NO"),
             _ => XlsxCell.Blank()
         };
@@ -511,9 +500,6 @@ public class ExportService : IExportService
             query.Languages,
             query.Niches,
             query.CategorySearchTerms,
-            query.CasinoAllowed,
-            query.CryptoAllowed,
-            query.LinkInsertAllowed,
             query.CasinoAvailability,
             query.CryptoAvailability,
             query.LinkInsertAvailability,

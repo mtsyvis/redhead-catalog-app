@@ -71,8 +71,9 @@ function validatePriceUsdField(input: string): string | null {
 
 export function getServiceStateHint(status: ServiceAvailabilityStatusValue): string {
   if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) return 'Will be shown as NO';
+  if (status === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice) return 'Will be shown as YES';
   if (status === SERVICE_AVAILABILITY_STATUS.Unknown) return 'Will be shown as —';
-  return 'Enter a non-negative price';
+  return 'Enter a price greater than 0';
 }
 
 export function clearFieldError(
@@ -172,9 +173,9 @@ function validateOptionalServicePrice(
 ): void {
   const parsed = parseNumberOrNull(price);
   if (parsed === null) {
-    errors[fieldKey] = ['Required when status is Available.'];
-  } else if (parsed < 0) {
-    errors[fieldKey] = ['Must be 0 or greater.'];
+    errors[fieldKey] = ['Required when status is Available with price.'];
+  } else if (parsed <= 0) {
+    errors[fieldKey] = ['Must be greater than 0.'];
   }
 }
 

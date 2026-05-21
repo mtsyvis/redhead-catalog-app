@@ -338,6 +338,65 @@ public class SiteWriteValidatorTests
     [InlineData("priceLinkInsert", "PriceLinkInsert")]
     [InlineData("priceLinkInsertCasino", "PriceLinkInsertCasino")]
     [InlineData("priceDating", "PriceDating")]
+    public void ValidateAndNormalize_AvailableStatusWithZeroPrice_ReturnsError(string expectedField, string service)
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        SetOptionalService(request, service, 0m, ServiceAvailabilityStatus.Available);
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        AssertError(result, expectedField);
+    }
+
+    [Theory]
+    [InlineData("PriceCasino")]
+    [InlineData("PriceCrypto")]
+    [InlineData("PriceLinkInsert")]
+    [InlineData("PriceLinkInsertCasino")]
+    [InlineData("PriceDating")]
+    public void ValidateAndNormalize_AvailableWithUnknownPriceWithoutPrice_IsValid(string service)
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        SetOptionalService(request, service, null, ServiceAvailabilityStatus.AvailableWithUnknownPrice);
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.True(result.IsValid);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, GetOptionalServiceStatus(result.NormalizedRequest!, service));
+        Assert.Null(GetOptionalServicePrice(result.NormalizedRequest!, service));
+    }
+
+    [Theory]
+    [InlineData("priceCasino", "PriceCasino")]
+    [InlineData("priceCrypto", "PriceCrypto")]
+    [InlineData("priceLinkInsert", "PriceLinkInsert")]
+    [InlineData("priceLinkInsertCasino", "PriceLinkInsertCasino")]
+    [InlineData("priceDating", "PriceDating")]
+    public void ValidateAndNormalize_AvailableWithUnknownPriceWithPrice_ReturnsError(string expectedField, string service)
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        SetOptionalService(request, service, 5m, ServiceAvailabilityStatus.AvailableWithUnknownPrice);
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        AssertError(result, expectedField);
+    }
+
+    [Theory]
+    [InlineData("priceCasino", "PriceCasino")]
+    [InlineData("priceCrypto", "PriceCrypto")]
+    [InlineData("priceLinkInsert", "PriceLinkInsert")]
+    [InlineData("priceLinkInsertCasino", "PriceLinkInsertCasino")]
+    [InlineData("priceDating", "PriceDating")]
     public void ValidateAndNormalize_NonAvailableStatusWithPrice_ReturnsError(string expectedField, string service)
     {
         var request = BuildValidRequest();
@@ -584,6 +643,26 @@ public class SiteWriteValidatorTests
         Assert.False(result.IsValid);
         Assert.Contains(fieldName, result.FieldErrors.Keys);
     }
+
+    private static decimal? GetOptionalServicePrice(UpdateSiteRequest request, string service)
+        => service switch
+        {
+            "PriceCasino" => request.PriceCasino,
+            "PriceCrypto" => request.PriceCrypto,
+            "PriceLinkInsertCasino" => request.PriceLinkInsertCasino,
+            "PriceDating" => request.PriceDating,
+            _ => request.PriceLinkInsert
+        };
+
+    private static ServiceAvailabilityStatus GetOptionalServiceStatus(UpdateSiteRequest request, string service)
+        => service switch
+        {
+            "PriceCasino" => request.PriceCasinoStatus,
+            "PriceCrypto" => request.PriceCryptoStatus,
+            "PriceLinkInsertCasino" => request.PriceLinkInsertCasinoStatus,
+            "PriceDating" => request.PriceDatingStatus,
+            _ => request.PriceLinkInsertStatus
+        };
 
     private static SiteWriteInput BuildValidRequest()
     {

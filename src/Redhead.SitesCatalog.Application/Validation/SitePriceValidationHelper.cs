@@ -31,5 +31,5 @@ public static class SitePriceValidationHelper
         => price.HasValue && price.Value > 0;
 
     private static bool HasAvailableServicePrice(decimal? price, ServiceAvailabilityStatus status)
-        => status == ServiceAvailabilityStatus.Available && price.HasValue && price.Value >= 0;
+        => status == ServiceAvailabilityStatus.Available && price.HasValue && price.Value > 0;
 }

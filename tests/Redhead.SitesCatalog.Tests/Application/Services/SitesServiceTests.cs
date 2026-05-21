@@ -870,73 +870,7 @@ public class SitesServiceTests : IDisposable
 
     #endregion
 
-    #region Allowed Flags Tests
-
-    [Fact]
-    public async Task GetSitesAsync_WithCasinoAllowed_ReturnsOnlyCasinoSites()
-    {
-        // Arrange
-        var query = new SitesQuery
-        {
-            CasinoAllowed = true,
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        // Act
-        var result = await _service.GetSitesAsync(query);
-
-        // Assert
-        Assert.Equal(2, result.Total); // example.com, gambling.com
-        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Available, site.PriceCasinoStatus));
-    }
-
-    [Fact]
-    public async Task GetSitesAsync_WithCryptoAllowed_ReturnsOnlyCryptoSites()
-    {
-        // Arrange
-        var query = new SitesQuery
-        {
-            CryptoAllowed = true,
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        // Act
-        var result = await _service.GetSitesAsync(query);
-
-        // Assert
-        Assert.Equal(3, result.Total); // example.com, test.com, crypto.com
-        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Available, site.PriceCryptoStatus));
-    }
-
-    [Fact]
-    public async Task GetSitesAsync_WithLinkInsertAllowed_ReturnsOnlyLinkInsertSites()
-    {
-        // Arrange
-        var query = new SitesQuery
-        {
-            LinkInsertAllowed = true,
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        // Act
-        var result = await _service.GetSitesAsync(query);
-
-        // Assert
-        Assert.Equal(3, result.Total); // example.com, gambling.com, lowdr.com
-        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Available, site.PriceLinkInsertStatus));
-    }
+    #region Availability Filter Tests
 
     [Fact]
     public async Task GetSitesAsync_WithCasinoAvailabilityNotAvailable_ReturnsOnlyNotAvailableSites()
@@ -955,6 +889,46 @@ public class SitesServiceTests : IDisposable
 
         Assert.Single(result.Items);
         Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceCasinoStatus));
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithCasinoAvailabilityAvailable_IncludesKnownAndUnknownPriceAvailableSites()
+    {
+        // Arrange
+        _context.Sites.Add(new Site
+        {
+            Domain = "yes-casino.com",
+            DR = 40,
+            Traffic = 4000,
+            Location = "US",
+            PriceUsd = 100m,
+            PriceCasino = null,
+            PriceCasinoStatus = ServiceAvailabilityStatus.AvailableWithUnknownPrice,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+            IsQuarantined = false,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        var query = new SitesQuery
+        {
+            CasinoAvailability = ServiceAvailabilityFilter.Available,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["example.com", "gambling.com", "yes-casino.com"], result.Items.Select(site => site.Domain).ToArray());
     }
 
     [Fact]
@@ -1031,77 +1005,6 @@ public class SitesServiceTests : IDisposable
 
         Assert.Equal(2, result.Items.Count);
         Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Unknown, site.PriceDatingStatus));
-    }
-
-    [Fact]
-    public async Task GetSitesAsync_WhenBothLegacyAndNewFiltersProvided_NewAvailabilityWins()
-    {
-        var query = new SitesQuery
-        {
-            CasinoAllowed = true,
-            CasinoAvailability = ServiceAvailabilityFilter.NotAvailable,
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        var result = await _service.GetSitesAsync(query);
-
-        Assert.Single(result.Items);
-        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceCasinoStatus));
-    }
-
-    [Fact]
-    public async Task GetSitesAsync_WithMultipleAllowedFlags_AppliesAndLogic()
-    {
-        // Arrange
-        var query = new SitesQuery
-        {
-            CasinoAllowed = true,
-            CryptoAllowed = true,
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        // Act
-        var result = await _service.GetSitesAsync(query);
-
-        // Assert
-        Assert.Single(result.Items); // Only example.com has both
-        Assert.NotNull(result.Items[0].PriceCasino);
-        Assert.NotNull(result.Items[0].PriceCrypto);
-    }
-
-    [Fact]
-    public async Task GetSitesAsync_WithAllThreeAllowedFlags_ReturnsOnlyFullySupportedSites()
-    {
-        // Arrange
-        var query = new SitesQuery
-        {
-            CasinoAllowed = true,
-            CryptoAllowed = true,
-            LinkInsertAllowed = true,
-            Page = 1,
-            PageSize = 10,
-            SortBy = SortFields.Domain,
-            SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.All
-        };
-
-        // Act
-        var result = await _service.GetSitesAsync(query);
-
-        // Assert
-        Assert.Single(result.Items); // Only example.com has all three
-        Assert.Equal("example.com", result.Items[0].Domain);
-        Assert.NotNull(result.Items[0].PriceCasino);
-        Assert.NotNull(result.Items[0].PriceCrypto);
-        Assert.NotNull(result.Items[0].PriceLinkInsert);
     }
 
     #endregion
@@ -1272,12 +1175,12 @@ public class SitesServiceTests : IDisposable
         {
             SortFields.PriceCasino,
             SortingDefaults.Ascending,
-            new[] { "example.com", "gambling.com", "crypto.com", "lowdr.com", "test.com" }
+            new[] { "example.com", "gambling.com", "test.com", "crypto.com", "lowdr.com" }
         },
         {
             SortFields.PriceCasino,
             SortingDefaults.Descending,
-            new[] { "gambling.com", "example.com", "crypto.com", "lowdr.com", "test.com" }
+            new[] { "gambling.com", "example.com", "test.com", "crypto.com", "lowdr.com" }
         },
         {
             SortFields.PriceCrypto,
@@ -1302,12 +1205,12 @@ public class SitesServiceTests : IDisposable
         {
             SortFields.PriceLinkInsertCasino,
             SortingDefaults.Ascending,
-            new[] { "lowdr.com", "example.com", "crypto.com", "gambling.com", "test.com" }
+            new[] { "lowdr.com", "example.com", "gambling.com", "test.com", "crypto.com" }
         },
         {
             SortFields.PriceLinkInsertCasino,
             SortingDefaults.Descending,
-            new[] { "example.com", "lowdr.com", "crypto.com", "gambling.com", "test.com" }
+            new[] { "example.com", "lowdr.com", "gambling.com", "test.com", "crypto.com" }
         },
         {
             SortFields.PriceDating,
@@ -1330,6 +1233,30 @@ public class SitesServiceTests : IDisposable
     {
         var domains = await GetSortedDomainsAsync(sortBy, sortDir);
 
+        Assert.Equal(expectedDomains, domains);
+    }
+
+    [Theory]
+    [InlineData(SortingDefaults.Ascending, new[] { "known-cheap.com", "known-expensive.com", "yes-price.com", "no-price.com", "unknown-price.com" })]
+    [InlineData(SortingDefaults.Descending, new[] { "known-expensive.com", "known-cheap.com", "yes-price.com", "no-price.com", "unknown-price.com" })]
+    public async Task GetSitesAsync_SortByServicePrice_OrdersKnownPricesYesUnavailableUnknown(
+        string sortDir,
+        string[] expectedDomains)
+    {
+        // Arrange
+        _context.Sites.RemoveRange(_context.Sites);
+        _context.Sites.AddRange(
+            SiteWithServiceState("known-expensive.com", 200m, ServiceAvailabilityStatus.Available),
+            SiteWithServiceState("known-cheap.com", 100m, ServiceAvailabilityStatus.Available),
+            SiteWithServiceState("yes-price.com", null, ServiceAvailabilityStatus.AvailableWithUnknownPrice),
+            SiteWithServiceState("no-price.com", null, ServiceAvailabilityStatus.NotAvailable),
+            SiteWithServiceState("unknown-price.com", null, ServiceAvailabilityStatus.Unknown));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var domains = await GetSortedDomainsAsync(SortFields.PriceCasino, sortDir);
+
+        // Assert
         Assert.Equal(expectedDomains, domains);
     }
 
@@ -1569,7 +1496,7 @@ public class SitesServiceTests : IDisposable
         {
             DrMin = 50,
             Locations = new List<string> { "US" },
-            CryptoAllowed = true,
+            CryptoAvailability = ServiceAvailabilityFilter.Available,
             Quarantine = QuarantineFilterValues.Exclude,
             Page = 1,
             PageSize = 10,
@@ -2141,6 +2068,27 @@ public class SitesServiceTests : IDisposable
         DR = 50, Traffic = 10000, Location = "US",
         PriceUsd = null,
         PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+        IsQuarantined = false,
+        CreatedAtUtc = DateTime.UtcNow,
+        UpdatedAtUtc = DateTime.UtcNow
+    };
+
+    private static Site SiteWithServiceState(
+        string domain,
+        decimal? priceCasino,
+        ServiceAvailabilityStatus priceCasinoStatus) => new()
+    {
+        Domain = domain,
+        DR = 50,
+        Traffic = 10000,
+        Location = "US",
+        PriceUsd = 100m,
+        PriceCasino = priceCasino,
+        PriceCasinoStatus = priceCasinoStatus,
         PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
         PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
         PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,

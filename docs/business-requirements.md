@@ -213,14 +213,20 @@ Each service-specific price has an availability status:
 * `Unknown`
 * `Available`
 * `NotAvailable`
+* `AvailableWithUnknownPrice`
 
 Rules:
 
-* A numeric value means the service is available with that price.
+* Empty import input means unknown/no data: status `Unknown`, price empty/null.
+* A positive numeric import value means the service is available with that known price: status `Available`, price greater than `0`.
+* `YES` in an import, case-insensitive, means the service is available but the exact price is unknown: status `AvailableWithUnknownPrice`, price empty/null.
 * Text markers such as `NO`, `N/A`, `NA`, `–`, `NONE`, `NOT AVAILABLE` mean the service is not available.
-* Invalid text that is not a supported not-available marker and not a number must be a validation error.
+* Invalid text that is not `YES`, a supported not-available marker, or a positive number must be a validation error.
+* Service-specific price `0` and negative prices are invalid.
+* Status and price must be consistent: `Available` requires a positive price; `AvailableWithUnknownPrice`, `NotAvailable`, and `Unknown` require an empty/null price.
 * Do not represent service availability only as nullable decimal; availability and price are separate concepts.
 * UI must not mislead users by showing unavailable services as zero-price services.
+* UI and exports show `YES` for `AvailableWithUnknownPrice`, `NO` for `NotAvailable`, and empty/placeholder values for `Unknown`.
 
 ### Additional site fields
 
@@ -295,7 +301,7 @@ Rules:
 * Data grid uses server-side paging, sorting, filtering, and search.
 * Large result sets must not be fully loaded into the browser.
 * Nullable or unavailable values should use clear placeholders such as `-`.
-* Sorting by service-specific price fields keeps available services first in both ascending and descending order; not-available and unknown services sort after available services.
+* Sorting by service-specific price fields keeps available services first in both ascending and descending order. Known numeric prices sort first by price, available-with-unknown-price (`YES`) sorts after known prices, not-available sorts after `YES`, and unknown sorts last.
 * Row edit actions are visible only to roles allowed to edit, and backend authorization must enforce the same rule.
 
 Main filters:
