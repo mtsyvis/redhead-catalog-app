@@ -18,6 +18,10 @@ public record CreateUserResponse(
 public record UserListItem(
     string Id,
     string Email,
+    string? FirstName,
+    string? LastName,
+    string DisplayName,
+    bool MustCompleteProfile,
     string Role,
     bool IsActive,
     ExportLimitMode? ExportLimitOverrideMode,

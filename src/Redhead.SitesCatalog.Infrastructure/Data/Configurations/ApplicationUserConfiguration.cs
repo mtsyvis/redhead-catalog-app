@@ -33,5 +33,13 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
 
         builder.Property(u => u.ExportLimitRowsOverride)
             .IsRequired(false);
+
+        builder.Property(u => u.FirstName)
+            .HasMaxLength(100)
+            .IsRequired(false);
+
+        builder.Property(u => u.LastName)
+            .HasMaxLength(100)
+            .IsRequired(false);
     }
 }

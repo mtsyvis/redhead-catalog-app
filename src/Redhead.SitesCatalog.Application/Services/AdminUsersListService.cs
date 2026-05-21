@@ -4,6 +4,7 @@ using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
+using Redhead.SitesCatalog.Application.Validation;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
@@ -59,6 +60,8 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 Id = user.Id,
                 Email = user.Email ?? string.Empty,
                 NormalizedEmail = user.NormalizedEmail ?? user.Email ?? string.Empty,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
                 Role = role.Name ?? string.Empty,
                 IsActive = user.IsActive,
                 ExportLimitOverrideMode = user.ExportLimitOverrideMode,
@@ -117,6 +120,10 @@ public sealed class AdminUsersListService : IAdminUsersListService
         {
             Id = user.Id,
             Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            DisplayName = UserProfileNameValidator.GetDisplayName(user.FirstName, user.LastName, user.Email),
+            MustCompleteProfile = !UserProfileNameValidator.IsProfileComplete(user.FirstName, user.LastName),
             Role = role,
             IsActive = user.IsActive,
             ExportLimitOverrideMode = isSuperAdmin ? null : user.ExportLimitOverrideMode,
@@ -145,6 +152,8 @@ public sealed class AdminUsersListService : IAdminUsersListService
         public string Id { get; init; } = string.Empty;
         public string Email { get; init; } = string.Empty;
         public string NormalizedEmail { get; init; } = string.Empty;
+        public string? FirstName { get; init; }
+        public string? LastName { get; init; }
         public string Role { get; init; } = string.Empty;
         public bool IsActive { get; init; }
         public ExportLimitMode? ExportLimitOverrideMode { get; init; }

@@ -40,6 +40,41 @@ public sealed class AdminUsersControllerTests
     }
 
     [Fact]
+    public async Task ListUsers_IncludesProfileNamesAndCompletionStatus()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(
+            db,
+            "client-1",
+            "client@example.com",
+            AppRoles.Client,
+            firstName: "Ada",
+            lastName: "Lovelace");
+        await AddUserAsync(db, "internal-1", "internal@example.com", AppRoles.Internal);
+
+        var sut = CreateController(db);
+
+        // Act
+        var result = await sut.ListUsers(new UserListRequest { UserType = "all" }, CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        var client = payload.Items.Single(item => item.Id == "client-1");
+        Assert.Equal("Ada", client.FirstName);
+        Assert.Equal("Lovelace", client.LastName);
+        Assert.Equal("Ada Lovelace", client.DisplayName);
+        Assert.False(client.MustCompleteProfile);
+
+        var existingUserWithoutNames = payload.Items.Single(item => item.Id == "internal-1");
+        Assert.Null(existingUserWithoutNames.FirstName);
+        Assert.Null(existingUserWithoutNames.LastName);
+        Assert.Equal("internal@example.com", existingUserWithoutNames.DisplayName);
+        Assert.True(existingUserWithoutNames.MustCompleteProfile);
+    }
+
+    [Fact]
     public async Task ListUsers_WithAllFilter_ReturnsAllUsers()
     {
         await using var db = CreateDbContext();
@@ -202,6 +237,43 @@ public sealed class AdminUsersControllerTests
         Assert.Equal("new-user@example.com", payload.Email);
         Assert.Equal(AppRoles.Client, payload.Role);
         Assert.False(string.IsNullOrWhiteSpace(payload.TemporaryPassword));
+        Assert.Null(userManager.CreatedUser?.FirstName);
+        Assert.Null(userManager.CreatedUser?.LastName);
+    }
+
+    [Fact]
+    public async Task UpdateUserExportLimit_DoesNotChangeTargetUserProfileNames()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            FirstName = "Ada",
+            LastName = "Lovelace",
+            ExportLimitOverrideMode = null,
+            ExportLimitRowsOverride = null
+        };
+        var userManager = new StubUserManager
+        {
+            TargetUserById = targetUser,
+            CurrentRoles = new List<string> { AppRoles.Client }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserExportLimit(
+            targetUser.Id,
+            new UpdateUserExportLimitRequest(ExportLimitMode.Limited, 500),
+            CancellationToken.None);
+
+        // Assert
+        Assert.IsType<NoContentResult>(result);
+        Assert.Equal("Ada", targetUser.FirstName);
+        Assert.Equal("Lovelace", targetUser.LastName);
+        Assert.Equal(ExportLimitMode.Limited, targetUser.ExportLimitOverrideMode);
+        Assert.Equal(500, targetUser.ExportLimitRowsOverride);
     }
 
     private static ApplicationDbContext CreateDbContext()
@@ -249,7 +321,9 @@ public sealed class AdminUsersControllerTests
         string id,
         string email,
         string roleName,
-        bool isActive = true)
+        bool isActive = true,
+        string? firstName = null,
+        string? lastName = null)
     {
         var role = await db.Roles.SingleOrDefaultAsync(r => r.Name == roleName);
         if (role == null)
@@ -271,7 +345,9 @@ public sealed class AdminUsersControllerTests
             Email = email,
             NormalizedEmail = email.ToUpperInvariant(),
             EmailConfirmed = true,
-            IsActive = isActive
+            IsActive = isActive,
+            FirstName = firstName,
+            LastName = lastName
         });
 
         db.UserRoles.Add(new IdentityUserRole<string>
@@ -288,6 +364,7 @@ public sealed class AdminUsersControllerTests
         public ApplicationUser? CurrentUser { get; init; }
         public IList<string> CurrentRoles { get; init; } = new List<string>();
         public ApplicationUser? ExistingUserByEmail { get; set; }
+        public ApplicationUser? TargetUserById { get; init; }
         public ApplicationUser? CreatedUser { get; private set; }
 
         public StubUserManager()
@@ -313,6 +390,9 @@ public sealed class AdminUsersControllerTests
         public override Task<ApplicationUser?> FindByEmailAsync(string email)
             => Task.FromResult(ExistingUserByEmail);
 
+        public override Task<ApplicationUser?> FindByIdAsync(string userId)
+            => Task.FromResult(TargetUserById?.Id == userId ? TargetUserById : null);
+
         public override Task<IdentityResult> CreateAsync(ApplicationUser user, string password)
         {
             user.Id = "created-user-1";
@@ -321,6 +401,9 @@ public sealed class AdminUsersControllerTests
         }
 
         public override Task<IdentityResult> AddToRoleAsync(ApplicationUser user, string role)
+            => Task.FromResult(IdentityResult.Success);
+
+        public override Task<IdentityResult> UpdateAsync(ApplicationUser user)
             => Task.FromResult(IdentityResult.Success);
     }
 

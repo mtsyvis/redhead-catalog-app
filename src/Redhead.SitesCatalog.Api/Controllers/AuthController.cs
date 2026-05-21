@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Models;
+using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Domain.Entities;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
@@ -12,15 +13,18 @@ public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly IAccountSetupService _accountSetupService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
+        IAccountSetupService accountSetupService,
         ILogger<AuthController> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
+        _accountSetupService = accountSetupService;
         _logger = logger;
     }
 
@@ -54,7 +58,7 @@ public class AuthController : ControllerBase
         {
             _logger.LogInformation("Successful login for {Email}", user.Email);
             var roles = await _userManager.GetRolesAsync(user);
-            return Ok(new LoginResponse(user.Email!, user.MustChangePassword, roles));
+            return Ok(ToLoginResponse(user, roles));
         }
 
         if (result.IsLockedOut)
@@ -104,8 +108,29 @@ public class AuthController : ControllerBase
             user.Id,
             user.Email!,
             user.MustChangePassword,
+            !user.HasCompleteProfile,
+            user.FirstName,
+            user.LastName,
+            user.DisplayName,
             user.IsActive,
             roles));
+    }
+
+    [HttpPost("complete-account-setup")]
+    [Authorize]
+    public async Task<ActionResult<CompleteAccountSetupResponse>> CompleteAccountSetup(
+        [FromBody] CompleteAccountSetupRequest request)
+    {
+        var user = await _userManager.GetUserAsync(User);
+
+        if (user == null)
+        {
+            _logger.LogWarning("CompleteAccountSetup failed: User not found in context");
+            return Unauthorized();
+        }
+
+        var result = await _accountSetupService.CompleteAsync(user, request);
+        return ToActionResult(result);
     }
 
     [HttpPost("change-password")]
@@ -139,4 +164,31 @@ public class AuthController : ControllerBase
 
         return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
     }
+
+    private static LoginResponse ToLoginResponse(ApplicationUser user, IList<string> roles)
+    {
+        return new LoginResponse(
+            user.Email!,
+            user.MustChangePassword,
+            !user.HasCompleteProfile,
+            user.FirstName,
+            user.LastName,
+            user.DisplayName,
+            roles);
+    }
+
+    private ActionResult<CompleteAccountSetupResponse> ToActionResult(
+        AccountSetupCompletionResult result)
+        => result.Status switch
+        {
+            AccountSetupCompletionStatus.Success => Ok(result.Response),
+            AccountSetupCompletionStatus.ValidationFailed => BadRequest(
+                new ValidationProblemDetails(result.ValidationErrors.ToDictionary(
+                    error => error.Key,
+                    error => error.Value))),
+            AccountSetupCompletionStatus.PasswordChangeFailed => BadRequest(new { errors = result.Errors }),
+            AccountSetupCompletionStatus.UserUpdateFailed => BadRequest(
+                new MessageResponse(string.Join(" ", result.Errors))),
+            _ => BadRequest(new MessageResponse("Account setup could not be completed."))
+        };
 }

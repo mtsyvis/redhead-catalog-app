@@ -31,6 +31,11 @@ General rules:
 * Users authenticate with email and password.
 * There is no public self-registration.
 * Each user has one role.
+* Each user stores `FirstName` and `LastName` as separate optional fields.
+* A user's profile is complete only when both `FirstName` and `LastName` are non-empty after trimming.
+* New and existing users with missing profile names must complete their profile after login.
+* Display name is derived from `FirstName` + `LastName` when both are present; otherwise email is used as the fallback display value.
+* Users can update only their own profile names.
 * Disabled users cannot log in or access API endpoints.
 * Users are soft-disabled with `IsActive = false`; physical deletion is not allowed.
 * Authorization must be enforced server-side. UI hiding is only a convenience layer.
@@ -91,6 +96,8 @@ Rules:
 * Temporary password is displayed once after creation or reset.
 * Temporary password must not be logged or stored in plain text.
 * New users must change password on first login.
+* New users are created without first or last name in the admin create-user flow and must complete profile names during account setup.
+* Account setup can complete password change, profile names, or both depending on the user's current required setup state.
 * After password reset, `MustChangePassword` must be set to `true` again.
 * While `MustChangePassword = true`, the user must be forced to the change-password flow and blocked from normal app pages.
 
@@ -544,6 +551,8 @@ Rules:
 * Admin navigation should show only sections the current user can access.
 * Backend policies remain authoritative even if navigation hides a section.
 * User creation UI is available only to `SuperAdmin`.
+* Admin users list should show user profile name and profile completion status.
+* Admins must not edit another user's `FirstName` or `LastName`.
 * Role settings editing is available only to `SuperAdmin`.
 * Per-user export override editing is available only to `SuperAdmin`.
 * `SuperAdmin` export settings are shown as unlimited and not editable.

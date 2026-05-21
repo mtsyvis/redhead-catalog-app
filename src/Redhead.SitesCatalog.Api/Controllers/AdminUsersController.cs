@@ -230,6 +230,10 @@ public class AdminUsersController : ControllerBase
         return new UserListItem(
             Id: item.Id,
             Email: item.Email,
+            FirstName: item.FirstName,
+            LastName: item.LastName,
+            DisplayName: item.DisplayName,
+            MustCompleteProfile: item.MustCompleteProfile,
             Role: item.Role,
             IsActive: item.IsActive,
             ExportLimitOverrideMode: item.ExportLimitOverrideMode,
