@@ -192,10 +192,13 @@ export function SitesTableViewToolbar({
   );
 
   const drawerHasChanges = useMemo(
-    () =>
-      tableViews.density !== tableViews.activeSettings.density ||
-      !areColumnListsEqual(drawerVisibleColumnIds, tableViews.activeSettings.visibleColumnIds),
-    [drawerVisibleColumnIds, tableViews.activeSettings, tableViews.density]
+    () => !areColumnListsEqual(drawerVisibleColumnIds, tableViews.visibleColumnIds),
+    [drawerVisibleColumnIds, tableViews.visibleColumnIds]
+  );
+
+  const drawerCanReset = useMemo(
+    () => !areColumnListsEqual(drawerVisibleColumnIds, tableViews.activeSettings.visibleColumnIds),
+    [drawerVisibleColumnIds, tableViews.activeSettings.visibleColumnIds]
   );
 
   const columnLabelsById = useMemo(
@@ -332,24 +335,9 @@ export function SitesTableViewToolbar({
     }
   };
 
-  const handleSaveDrawer = async () => {
-    const settings = buildSettings(drawerVisibleColumnIds);
-
-    if (!isCustomView) {
-      openNameDialog('saveAs', '', settings, true);
-      return;
-    }
-
-    setActionLoading(true);
-    try {
-      await tableViews.updateCustomView(tableViews.activeView.key, undefined, settings);
-      setColumnsDrawerOpen(false);
-      onSuccess('Table view saved');
-    } catch (error) {
-      onError(getErrorMessage(error, 'Failed to save table view'));
-    } finally {
-      setActionLoading(false);
-    }
+  const handleApplyDrawer = () => {
+    tableViews.updateDraftVisibleColumns(getOrderedDrawerVisibleColumnIds());
+    setColumnsDrawerOpen(false);
   };
 
   const handleDeleteView = async () => {
@@ -375,6 +363,13 @@ export function SitesTableViewToolbar({
 
   const resetDrawerDraft = () => {
     setDrawerVisibleColumnIds(tableViews.activeSettings.visibleColumnIds);
+  };
+
+  const getOrderedDrawerVisibleColumnIds = () => {
+    const visibleColumnIds = new Set(drawerVisibleColumnIds);
+    return tableViews.allowedViewColumns
+      .filter((column) => column.required || visibleColumnIds.has(column.id))
+      .map((column) => column.id);
   };
 
   const resetToolbarDraft = () => {
@@ -740,7 +735,7 @@ export function SitesTableViewToolbar({
             size="small"
             variant="text"
             onClick={resetDrawerDraft}
-            disabled={actionLoading || !drawerHasChanges}
+            disabled={actionLoading || !drawerCanReset}
             sx={{ color: 'text.secondary' }}
           >
             Reset
@@ -755,16 +750,14 @@ export function SitesTableViewToolbar({
           >
             Cancel
           </Button>
-          {drawerHasChanges && (
-            <BrandButton
-              size="small"
-              kind="primary"
-              onClick={handleSaveDrawer}
-              disabled={actionLoading}
-            >
-              {isCustomView ? 'Save changes' : 'Save as custom view'}
-            </BrandButton>
-          )}
+          <BrandButton
+            size="small"
+            kind="primary"
+            onClick={handleApplyDrawer}
+            disabled={actionLoading || !drawerHasChanges}
+          >
+            Apply
+          </BrandButton>
         </Stack>
       </Drawer>
 
@@ -973,7 +966,9 @@ function ColumnChangeList({ title, labels }: { title: string; labels: string[] }
 }
 
 function areColumnListsEqual(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((columnId, index) => columnId === right[index]);
+  if (left.length !== right.length) return false;
+  const rightColumnIds = new Set(right);
+  return left.every((columnId) => rightColumnIds.has(columnId));
 }
 
 function pluralize(word: string, count: number): string {

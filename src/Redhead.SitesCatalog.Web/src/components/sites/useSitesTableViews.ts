@@ -374,7 +374,9 @@ function sanitizeVisibleColumns(
 }
 
 function areColumnListsEqual(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((columnId, index) => columnId === right[index]);
+  if (left.length !== right.length) return false;
+  const rightColumnIds = new Set(right);
+  return left.every((columnId) => rightColumnIds.has(columnId));
 }
 
 export function getColumnLabel(column: SitesColumnMetadata): string {

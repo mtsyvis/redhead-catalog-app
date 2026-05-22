@@ -319,6 +319,8 @@ Rules:
 * Custom table views are stored per user and per table; users can create, update, rename, duplicate, and delete custom views.
 * Custom view names must be unique per user/table ignoring case.
 * The active table view selection is stored per user/table.
+* Column visibility changes can be applied temporarily to the current table view without saving or creating a custom view.
+* Unsaved table view changes are saved or reset from the view-changed workflow, not automatically when applying columns.
 * The `Domain` column is always visible and cannot be hidden.
 * Workflow/system columns such as row actions are not saved in table views.
 * If active filters target hidden columns, the UI should warn the user and offer to show those columns or clear only those hidden-column filters.
