@@ -312,7 +312,7 @@ Rules:
 * Data grid uses server-side paging, sorting, filtering, and search.
 * Large result sets must not be fully loaded into the browser.
 * Nullable or unavailable values should use clear placeholders such as `-`.
-* Users can select table views that control presentation only: visible columns, column order, and density.
+* Users can select table views that control presentation only: visible columns, column order, density, and column widths.
 * Table views must not save or reset filters, sorting, pagination, search text, or selected rows.
 * System table views are readonly and defined by the frontend.
 * Available system table views are `Default`, `Pricing`, `SEO`, and `Full`.

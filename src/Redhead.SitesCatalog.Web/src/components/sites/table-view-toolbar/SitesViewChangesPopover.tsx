@@ -44,6 +44,7 @@ export function SitesViewChangesPopover({
 
       <ColumnChangeList title="Added columns" labels={changes.added} />
       <ColumnChangeList title="Hidden columns" labels={changes.hidden} />
+      <ColumnChangeList title="Resized columns" labels={changes.resized} />
 
       {changes.reordered && (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>

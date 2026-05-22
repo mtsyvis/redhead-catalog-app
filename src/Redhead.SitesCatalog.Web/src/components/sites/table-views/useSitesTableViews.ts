@@ -9,6 +9,7 @@ import type {
 } from '../../../types/tableViews.types';
 import {
   createSitesViewSettings,
+  normalizeSitesColumnWidth,
   normalizeSitesVisibleColumnIds,
   SITES_TABLE_KEY,
   sitesColumnRegistry,
@@ -37,6 +38,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
   const [customViews, setCustomViews] = useState<TableCustomView[]>([]);
   const [draftVisibleColumnIds, setDraftVisibleColumnIds] = useState<string[]>([]);
   const [draftDensity, setDraftDensity] = useState<TableViewDensity>('standard');
+  const [draftColumnWidths, setDraftColumnWidths] = useState<Record<string, number>>({});
 
   const allowedViewColumns = useMemo(
     () =>
@@ -69,6 +71,19 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
     [effectiveSystemViews]
   );
 
+  const createSanitizedSettings = useCallback(
+    (
+      visibleColumnIdsInput: string[],
+      density: TableViewDensity,
+      columnWidths: Record<string, number> = {}
+    ): TableViewSettings =>
+      sanitizeSettings(
+        createSitesViewSettings(visibleColumnIdsInput, density, columnWidths),
+        allowedViewColumns
+      ),
+    [allowedViewColumns]
+  );
+
   const resolveView = useCallback(
     (viewType: TableViewType, viewKey: string, views: TableCustomView[]) => {
       if (viewType === 'custom') {
@@ -79,6 +94,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
             active: { type: 'custom' as const, key: customView.id, name: customView.name },
             visibleColumnIds: settings.visibleColumnIds,
             density: settings.density,
+            columnWidths: settings.columnWidths,
           };
         }
       }
@@ -88,9 +104,11 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
         active: { type: 'system' as const, key: systemView.key, name: systemView.name },
         visibleColumnIds: systemView.visibleColumnIds,
         density: systemView.density,
+        columnWidths: createSanitizedSettings(systemView.visibleColumnIds, systemView.density)
+          .columnWidths,
       };
     },
-    [allowedViewColumns, getSystemView]
+    [allowedViewColumns, createSanitizedSettings, getSystemView]
   );
 
   useEffect(() => {
@@ -112,13 +130,19 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
         setActiveViewState(resolved.active);
         setDraftVisibleColumnIds(resolved.visibleColumnIds);
         setDraftDensity(resolved.density);
+        setDraftColumnWidths(resolved.columnWidths);
       } catch (error) {
         if (ignore) return;
         const fallback = getSystemView('default');
+        const fallbackSettings = createSanitizedSettings(
+          fallback.visibleColumnIds,
+          fallback.density
+        );
         setCustomViews([]);
         setActiveViewState({ type: 'system', key: fallback.key, name: fallback.name });
-        setDraftVisibleColumnIds(fallback.visibleColumnIds);
-        setDraftDensity(fallback.density);
+        setDraftVisibleColumnIds(fallbackSettings.visibleColumnIds);
+        setDraftDensity(fallbackSettings.density);
+        setDraftColumnWidths(fallbackSettings.columnWidths);
         setLoadError(
           error instanceof Error ? error.message : 'Table view preferences could not be loaded'
         );
@@ -134,7 +158,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
     return () => {
       ignore = true;
     };
-  }, [getSystemView, resolveView]);
+  }, [createSanitizedSettings, getSystemView, resolveView]);
 
   const columnVisibilityModel = useMemo<GridColumnVisibilityModel>(() => {
     const visible = new Set(normalizeSitesVisibleColumnIds(draftVisibleColumnIds, allowedViewColumns));
@@ -143,12 +167,6 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
       allowedViewColumns.map((column) => [column.id, column.required || visible.has(column.id)])
     );
   }, [allowedViewColumns, draftVisibleColumnIds]);
-
-  const createSanitizedSettings = useCallback(
-    (visibleColumnIdsInput: string[], density: TableViewDensity): TableViewSettings =>
-      sanitizeSettings(createSitesViewSettings(visibleColumnIdsInput, density), allowedViewColumns),
-    [allowedViewColumns]
-  );
 
   const activeSettings = useMemo(() => {
     if (activeView.type === 'custom') {
@@ -176,8 +194,9 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
   const hasUnsavedChanges = useMemo(
     () =>
       draftDensity !== activeSettings.density ||
-      !areColumnListsEqual(visibleColumnIds, activeSettings.visibleColumnIds),
-    [activeSettings, draftDensity, visibleColumnIds]
+      !areColumnListsEqual(visibleColumnIds, activeSettings.visibleColumnIds) ||
+      !areColumnWidthsEqual(draftColumnWidths, activeSettings.columnWidths, allowedViewColumns),
+    [activeSettings, allowedViewColumns, draftColumnWidths, draftDensity, visibleColumnIds]
   );
 
   const setActiveView = useCallback(
@@ -187,6 +206,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
       setActiveViewState(resolved.active);
       setDraftVisibleColumnIds(resolved.visibleColumnIds);
       setDraftDensity(resolved.density);
+      setDraftColumnWidths(resolved.columnWidths);
     },
     [customViews, resolveView]
   );
@@ -202,11 +222,29 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
     setDraftDensity(density);
   }, []);
 
+  const updateDraftColumnWidth = useCallback(
+    (columnId: string, width: number) => {
+      const column = allowedViewColumns.find((item) => item.id === columnId);
+      const normalizedWidth = normalizeSitesColumnWidth(column, width);
+      if (normalizedWidth == null) return;
+
+      setDraftColumnWidths((current) => {
+        if (current[columnId] === normalizedWidth) return current;
+        return {
+          ...current,
+          [columnId]: normalizedWidth,
+        };
+      });
+    },
+    [allowedViewColumns]
+  );
+
   const updateDraftSettings = useCallback(
     (settings: TableViewSettings) => {
       const sanitized = sanitizeSettings(settings, allowedViewColumns);
       setDraftVisibleColumnIds(sanitized.visibleColumnIds);
       setDraftDensity(sanitized.density);
+      setDraftColumnWidths(sanitized.columnWidths);
     },
     [allowedViewColumns]
   );
@@ -214,13 +252,14 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
   const resetDraftToActive = useCallback(() => {
     setDraftVisibleColumnIds(activeSettings.visibleColumnIds);
     setDraftDensity(activeSettings.density);
+    setDraftColumnWidths(activeSettings.columnWidths);
   }, [activeSettings]);
 
   const createCustomView = useCallback(
     async (name: string, settingsOverride?: TableViewSettings) => {
       const settings = settingsOverride
         ? sanitizeSettings(settingsOverride, allowedViewColumns)
-        : createSanitizedSettings(visibleColumnIds, draftDensity);
+        : createSanitizedSettings(visibleColumnIds, draftDensity, draftColumnWidths);
       const created = await tableViewsService.createCustomView(SITES_TABLE_KEY, {
         name,
         settings,
@@ -236,12 +275,14 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
       setActiveViewState({ type: 'custom', key: created.id, name: created.name });
       setDraftVisibleColumnIds(settings.visibleColumnIds);
       setDraftDensity(settings.density);
+      setDraftColumnWidths(settings.columnWidths);
       return created;
     },
     [
       allowedViewColumns,
       createSanitizedSettings,
       customViews,
+      draftColumnWidths,
       draftDensity,
       visibleColumnIds,
     ]
@@ -267,6 +308,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
         if (sanitizedSettings) {
           setDraftVisibleColumnIds(sanitized.visibleColumnIds);
           setDraftDensity(sanitized.density);
+          setDraftColumnWidths(sanitized.columnWidths);
         }
       }
       return updated;
@@ -280,12 +322,17 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
       setCustomViews((views) => views.filter((view) => view.id !== id));
       if (activeView.type === 'custom' && activeView.key === id) {
         const fallback = getSystemView('default');
+        const fallbackSettings = createSanitizedSettings(
+          fallback.visibleColumnIds,
+          fallback.density
+        );
         setActiveViewState({ type: 'system', key: fallback.key, name: fallback.name });
-        setDraftVisibleColumnIds(fallback.visibleColumnIds);
-        setDraftDensity(fallback.density);
+        setDraftVisibleColumnIds(fallbackSettings.visibleColumnIds);
+        setDraftDensity(fallbackSettings.density);
+        setDraftColumnWidths(fallbackSettings.columnWidths);
       }
     },
-    [activeView, getSystemView]
+    [activeView, createSanitizedSettings, getSystemView]
   );
 
   return {
@@ -298,10 +345,12 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
     activeSettings,
     visibleColumnIds,
     density: draftDensity,
+    columnWidths: draftColumnWidths,
     columnVisibilityModel,
     setActiveView,
     updateDraftVisibleColumns,
     updateDraftDensity,
+    updateDraftColumnWidth,
     updateDraftSettings,
     resetDraftToActive,
     createCustomView,
@@ -328,10 +377,30 @@ function sanitizeSettings(
       ? settings.density
       : 'standard';
 
-  return createSitesViewSettings(
+  const allowedColumnById = new Map(allowedViewColumns.map((column) => [column.id, column]));
+  const columnWidths: Record<string, number> = {};
+
+  if (settings?.columnWidths && typeof settings.columnWidths === 'object') {
+    for (const [columnId, width] of Object.entries(settings.columnWidths)) {
+      const normalizedWidth = normalizeSitesColumnWidth(allowedColumnById.get(columnId), width);
+      if (normalizedWidth != null) {
+        columnWidths[columnId] = normalizedWidth;
+      }
+    }
+  }
+
+  const normalized = createSitesViewSettings(
     normalizeSitesVisibleColumnIds(visibleColumnIds, allowedViewColumns),
-    density
+    density,
+    columnWidths
   );
+
+  return {
+    ...normalized,
+    columnWidths: Object.fromEntries(
+      allowedViewColumns.map((column) => [column.id, normalized.columnWidths[column.id]])
+    ),
+  };
 }
 
 function areColumnListsEqual(left: string[], right: string[]): boolean {
@@ -341,4 +410,12 @@ function areColumnListsEqual(left: string[], right: string[]): boolean {
 
 export function getColumnLabel(column: SitesColumnMetadata): string {
   return column.label;
+}
+
+function areColumnWidthsEqual(
+  left: Record<string, number>,
+  right: Record<string, number>,
+  allowedViewColumns: SitesColumnMetadata[]
+): boolean {
+  return allowedViewColumns.every((column) => left[column.id] === right[column.id]);
 }

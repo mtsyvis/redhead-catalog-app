@@ -12,6 +12,9 @@ export interface SitesColumnMetadata {
   systemOnly?: boolean;
   hiddenForClient?: boolean;
   width?: number;
+  minWidth?: number;
+  maxWidth?: number;
+  resizable?: boolean;
 }
 
 export interface SitesSystemView {
@@ -33,6 +36,7 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     defaultVisible: true,
     includeInViews: true,
     width: 240,
+    minWidth: 200,
   },
   {
     id: 'dr',
@@ -41,6 +45,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     defaultVisible: true,
     includeInViews: true,
     width: 80,
+    minWidth: 70,
+    maxWidth: 120,
   },
   {
     id: 'traffic',
@@ -49,6 +55,7 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     defaultVisible: true,
     includeInViews: true,
     width: 120,
+    minWidth: 100,
   },
   {
     id: 'location',
@@ -57,6 +64,7 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     defaultVisible: true,
     includeInViews: true,
     width: 120,
+    minWidth: 100,
   },
   {
     id: 'priceUsd',
@@ -64,7 +72,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Prices',
     defaultVisible: true,
     includeInViews: true,
-    width: 100,
+    width: 120,
+    minWidth: 100,
   },
   {
     id: 'priceCasino',
@@ -72,7 +81,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Prices',
     defaultVisible: true,
     includeInViews: true,
-    width: 100,
+    width: 120,
+    minWidth: 100,
   },
   {
     id: 'priceCrypto',
@@ -80,7 +90,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Prices',
     defaultVisible: true,
     includeInViews: true,
-    width: 100,
+    width: 120,
+    minWidth: 100,
   },
   {
     id: 'priceLinkInsert',
@@ -88,7 +99,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Prices',
     defaultVisible: true,
     includeInViews: true,
-    width: 100,
+    width: 130,
+    minWidth: 110,
   },
   {
     id: 'priceLinkInsertCasino',
@@ -96,13 +108,15 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Prices',
     includeInViews: true,
     width: 150,
+    minWidth: 130,
   },
   {
     id: 'priceDating',
     label: 'Dating',
     group: 'Prices',
     includeInViews: true,
-    width: 100,
+    width: 120,
+    minWidth: 100,
   },
   {
     id: 'niche',
@@ -110,7 +124,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Main',
     defaultVisible: true,
     includeInViews: true,
-    width: 150,
+    width: 180,
+    minWidth: 130,
   },
   {
     id: 'categories',
@@ -118,7 +133,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Main',
     defaultVisible: true,
     includeInViews: true,
-    width: 150,
+    width: 220,
+    minWidth: 150,
   },
   {
     id: 'numberDFLinks',
@@ -126,6 +142,7 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'SEO metrics',
     includeInViews: true,
     width: 110,
+    minWidth: 90,
   },
   {
     id: 'sponsoredTag',
@@ -133,6 +150,7 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Publication',
     includeInViews: true,
     width: 150,
+    minWidth: 120,
   },
   {
     id: 'term',
@@ -140,6 +158,7 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Publication',
     includeInViews: true,
     width: 120,
+    minWidth: 100,
   },
   {
     id: 'language',
@@ -147,6 +166,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Main',
     includeInViews: true,
     width: 100,
+    minWidth: 90,
+    maxWidth: 140,
   },
   {
     id: 'isQuarantined',
@@ -155,6 +176,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     defaultVisible: true,
     includeInViews: true,
     width: 110,
+    minWidth: 100,
+    maxWidth: 150,
   },
   {
     id: 'lastPublishedDate',
@@ -162,7 +185,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Publication',
     defaultVisible: true,
     includeInViews: true,
-    width: 150,
+    width: 180,
+    minWidth: 160,
   },
   {
     id: 'quarantineReason',
@@ -170,7 +194,8 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Admin',
     includeInViews: true,
     hiddenForClient: true,
-    width: 160,
+    width: 220,
+    minWidth: 150,
   },
   {
     id: 'actions',
@@ -178,7 +203,10 @@ export const sitesColumnRegistry: SitesColumnMetadata[] = [
     group: 'Admin',
     includeInViews: false,
     systemOnly: true,
-    width: 90,
+    width: 56,
+    minWidth: 56,
+    maxWidth: 56,
+    resizable: false,
   },
 ];
 
@@ -245,13 +273,20 @@ export const sitesSystemViews: SitesSystemView[] = [
 
 export function createSitesViewSettings(
   visibleColumnIds: string[],
-  density: TableViewDensity
+  density: TableViewDensity,
+  columnWidthsInput: Record<string, number> = {}
 ): TableViewSettings {
-  const columnWidths = Object.fromEntries(
-    sitesColumnRegistry
-      .filter((column) => column.includeInViews && column.width)
-      .map((column) => [column.id, column.width as number])
-  );
+  const columnWidths = createDefaultSitesColumnWidths();
+
+  for (const [columnId, width] of Object.entries(columnWidthsInput)) {
+    const metadata = sitesColumnRegistry.find(
+      (column) => column.id === columnId && column.includeInViews && !column.systemOnly
+    );
+    const normalizedWidth = normalizeSitesColumnWidth(metadata, width);
+    if (metadata && normalizedWidth != null) {
+      columnWidths[columnId] = normalizedWidth;
+    }
+  }
 
   return {
     schemaVersion: TABLE_VIEW_SCHEMA_VERSION,
@@ -259,6 +294,27 @@ export function createSitesViewSettings(
     density,
     columnWidths,
   };
+}
+
+export function createDefaultSitesColumnWidths(): Record<string, number> {
+  return Object.fromEntries(
+    sitesColumnRegistry
+      .filter((column) => column.includeInViews && !column.systemOnly && column.width)
+      .map((column) => [column.id, column.width as number])
+  );
+}
+
+export function normalizeSitesColumnWidth(
+  column: SitesColumnMetadata | undefined,
+  width: number
+): number | null {
+  if (!column || column.systemOnly || !column.includeInViews || !Number.isFinite(width)) {
+    return null;
+  }
+
+  const minWidth = column.minWidth ?? 50;
+  const maxWidth = column.maxWidth ?? 1000;
+  return Math.min(maxWidth, Math.max(minWidth, Math.round(width)));
 }
 
 export function normalizeSitesVisibleColumnIds(

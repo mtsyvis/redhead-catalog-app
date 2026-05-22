@@ -9,12 +9,17 @@ import { formatTerm } from '../../../utils/term';
 import { StatusBadge } from '../feedback/StatusBadge';
 import type { GridRow } from './useSitesGridRows';
 import { isNotFoundRow } from './useSitesGridRows';
-import { sitesColumnRegistry } from '../table-views/sitesTableColumns';
+import {
+  normalizeSitesColumnWidth,
+  sitesColumnRegistry,
+} from '../table-views/sitesTableColumns';
+import type { SitesColumnMetadata } from '../table-views/sitesTableColumns';
 
 interface UseSitesColumnsOptions {
   isAdmin: boolean;
   isClient: boolean;
   visibleColumnIds: string[];
+  columnWidths: Record<string, number>;
   onEdit: (site: Site) => void;
 }
 
@@ -38,16 +43,27 @@ function formatNullableInteger(row: GridRow, value: number | null): string {
   return formatCell(row, value, (v) => (v == null ? '—' : String(v)));
 }
 
-const columnMetadata = Object.fromEntries(sitesColumnRegistry.map((column) => [column.id, column]));
+const columnMetadata: Record<string, SitesColumnMetadata> = Object.fromEntries(
+  sitesColumnRegistry.map((column) => [column.id, column])
+);
 
 function gridColumnDefaults(
-  field: string
-): Pick<GridColDef<GridRow>, 'headerName' | 'width' | 'hideable'> {
+  field: string,
+  columnWidths: Record<string, number>
+): Pick<
+  GridColDef<GridRow>,
+  'headerName' | 'width' | 'minWidth' | 'maxWidth' | 'hideable' | 'resizable'
+> {
   const metadata = columnMetadata[field];
+  const width = normalizeSitesColumnWidth(metadata, columnWidths[field]) ?? metadata?.width;
+
   return {
     headerName: metadata?.label ?? field,
-    width: metadata?.width,
+    width,
+    minWidth: metadata?.minWidth,
+    maxWidth: metadata?.maxWidth,
     hideable: !metadata?.required && !metadata?.systemOnly,
+    resizable: metadata?.resizable ?? !metadata?.systemOnly,
   };
 }
 
@@ -55,26 +71,25 @@ export function useSitesColumns({
   isAdmin,
   isClient,
   visibleColumnIds,
+  columnWidths,
   onEdit,
 }: UseSitesColumnsOptions) {
   return useMemo<GridColDef<GridRow>[]>(
     () => {
       const allColumns: GridColDef<GridRow>[] = [
         {
-          ...gridColumnDefaults('domain'),
+          ...gridColumnDefaults('domain', columnWidths),
           field: 'domain',
-          flex: 1,
-          minWidth: 200,
         },
         {
-          ...gridColumnDefaults('dr'),
+          ...gridColumnDefaults('dr', columnWidths),
           field: 'dr',
           type: 'number',
           valueFormatter: (value, row) =>
             formatCell(row, value as number | null, (v) => (v == null ? '' : String(v))),
         },
         {
-          ...gridColumnDefaults('traffic'),
+          ...gridColumnDefaults('traffic', columnWidths),
           field: 'traffic',
           type: 'number',
           valueFormatter: (value, row) => {
@@ -84,32 +99,32 @@ export function useSitesColumns({
           },
         },
         {
-          ...gridColumnDefaults('location'),
+          ...gridColumnDefaults('location', columnWidths),
           field: 'location',
           valueFormatter: (value, row) => formatCell(row, value as string, (v) => v ?? '—'),
         },
         {
-          ...gridColumnDefaults('priceUsd'),
+          ...gridColumnDefaults('priceUsd', columnWidths),
           field: 'priceUsd',
           type: 'number',
           valueFormatter: (value, row) => formatPrice(row, value as number | null),
         },
         {
-          ...gridColumnDefaults('priceCasino'),
+          ...gridColumnDefaults('priceCasino', columnWidths),
           field: 'priceCasino',
           type: 'number',
           valueFormatter: (value, row) =>
             formatOptionalServiceCell(row, value as number | null, (row as Site).priceCasinoStatus),
         },
         {
-          ...gridColumnDefaults('priceCrypto'),
+          ...gridColumnDefaults('priceCrypto', columnWidths),
           field: 'priceCrypto',
           type: 'number',
           valueFormatter: (value, row) =>
             formatOptionalServiceCell(row, value as number | null, (row as Site).priceCryptoStatus),
         },
         {
-          ...gridColumnDefaults('priceLinkInsert'),
+          ...gridColumnDefaults('priceLinkInsert', columnWidths),
           field: 'priceLinkInsert',
           type: 'number',
           valueFormatter: (value, row) =>
@@ -120,7 +135,7 @@ export function useSitesColumns({
             ),
         },
         {
-          ...gridColumnDefaults('priceLinkInsertCasino'),
+          ...gridColumnDefaults('priceLinkInsertCasino', columnWidths),
           field: 'priceLinkInsertCasino',
           type: 'number',
           valueFormatter: (value, row) =>
@@ -131,38 +146,38 @@ export function useSitesColumns({
             ),
         },
         {
-          ...gridColumnDefaults('priceDating'),
+          ...gridColumnDefaults('priceDating', columnWidths),
           field: 'priceDating',
           type: 'number',
           valueFormatter: (value, row) =>
             formatOptionalServiceCell(row, value as number | null, (row as Site).priceDatingStatus),
         },
         {
-          ...gridColumnDefaults('niche'),
+          ...gridColumnDefaults('niche', columnWidths),
           field: 'niche',
           sortable: false,
           valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
         },
         {
-          ...gridColumnDefaults('categories'),
+          ...gridColumnDefaults('categories', columnWidths),
           field: 'categories',
           sortable: false,
           valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
         },
         {
-          ...gridColumnDefaults('numberDFLinks'),
+          ...gridColumnDefaults('numberDFLinks', columnWidths),
           field: 'numberDFLinks',
           type: 'number',
           valueFormatter: (value, row) => formatNullableInteger(row, value as number | null),
         },
         {
-          ...gridColumnDefaults('sponsoredTag'),
+          ...gridColumnDefaults('sponsoredTag', columnWidths),
           field: 'sponsoredTag',
           sortable: false,
           valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
         },
         {
-          ...gridColumnDefaults('term'),
+          ...gridColumnDefaults('term', columnWidths),
           field: 'term',
           valueFormatter: (_value, row) => {
             if (isNotFoundRow(row)) return '—';
@@ -171,7 +186,7 @@ export function useSitesColumns({
           },
         },
         {
-          ...gridColumnDefaults('language'),
+          ...gridColumnDefaults('language', columnWidths),
           field: 'language',
           sortable: false,
           valueFormatter: (value, row) => {
@@ -180,7 +195,7 @@ export function useSitesColumns({
           },
         },
         {
-          ...gridColumnDefaults('isQuarantined'),
+          ...gridColumnDefaults('isQuarantined', columnWidths),
           field: 'isQuarantined',
           sortable: false,
           align: 'center',
@@ -192,7 +207,7 @@ export function useSitesColumns({
           },
         },
         {
-          ...gridColumnDefaults('lastPublishedDate'),
+          ...gridColumnDefaults('lastPublishedDate', columnWidths),
           field: 'lastPublishedDate',
           valueFormatter: (_value, row) => {
             if (isNotFoundRow(row)) return '—';
@@ -213,7 +228,7 @@ export function useSitesColumns({
         ...(!isClient
           ? [
               {
-                ...gridColumnDefaults('quarantineReason'),
+                ...gridColumnDefaults('quarantineReason', columnWidths),
                 field: 'quarantineReason',
                 sortable: false,
                 valueFormatter: (_value, row) => {
@@ -227,7 +242,7 @@ export function useSitesColumns({
         ...(isAdmin
           ? [
               {
-                ...gridColumnDefaults('actions'),
+                ...gridColumnDefaults('actions', columnWidths),
                 field: 'actions',
                 headerName: '',
                 sortable: false,
@@ -277,6 +292,6 @@ export function useSitesColumns({
         .map((field) => columnsByField.get(field))
         .filter((column): column is GridColDef<GridRow> => Boolean(column));
     },
-    [isAdmin, isClient, onEdit, visibleColumnIds]
+    [columnWidths, isAdmin, isClient, onEdit, visibleColumnIds]
   );
 }

@@ -25,5 +25,6 @@ export interface SitesTableViewToolbarProps {
 export interface ViewColumnChanges {
   added: string[];
   hidden: string[];
+  resized: string[];
   reordered: boolean;
 }

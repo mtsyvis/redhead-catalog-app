@@ -10,7 +10,11 @@ import {
   Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import type { GridSortModel, GridPaginationModel } from '@mui/x-data-grid';
+import type {
+  GridColumnResizeParams,
+  GridPaginationModel,
+  GridSortModel,
+} from '@mui/x-data-grid';
 import { PageShell } from '../components/layout/PageShell';
 import { SitesFilters } from '../components/sites/filters/SitesFilters';
 import { EditSiteDialog } from '../components/sites/dialogs/EditSiteDialog';
@@ -88,6 +92,7 @@ export function Sites() {
   const { user } = useAuth();
   const canExport = !user?.isExportDisabled;
   const tableViews = useSitesTableViews({ isClient });
+  const { updateDraftColumnWidth } = tableViews;
 
   useEffect(() => {
     persistStopListDomains(filters.stopListDomains);
@@ -328,8 +333,16 @@ export function Sites() {
     isAdmin,
     isClient,
     visibleColumnIds: tableViews.visibleColumnIds,
+    columnWidths: tableViews.columnWidths,
     onEdit: handleOpenEdit,
   });
+
+  const handleColumnWidthChange = useCallback(
+    (params: GridColumnResizeParams) => {
+      updateDraftColumnWidth(params.colDef.field, params.width);
+    },
+    [updateDraftColumnWidth]
+  );
 
   const hiddenFilteredColumnIds = useMemo(() => {
     const activeColumnIds = new Set<string>();
@@ -521,6 +534,7 @@ export function Sites() {
             sortingMode="server"
             sortModel={sortModel}
             onSortModelChange={setSortModel}
+            onColumnWidthChange={handleColumnWidthChange}
             density={tableViews.density}
             columnVisibilityModel={tableViews.columnVisibilityModel}
             disableRowSelectionOnClick

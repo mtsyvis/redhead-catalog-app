@@ -119,16 +119,30 @@ export function SitesTableViewToolbar({
       hidden: tableViews.activeSettings.visibleColumnIds
         .filter((columnId) => !visibleColumnIds.has(columnId))
         .map((columnId) => columnById.get(columnId)?.label ?? columnId),
+      resized: tableViews.allowedViewColumns
+        .filter(
+          (column) =>
+            tableViews.columnWidths[column.id] !== tableViews.activeSettings.columnWidths[column.id]
+        )
+        .map((column) => column.label),
       reordered:
         haveSameColumnSet(tableViews.visibleColumnIds, tableViews.activeSettings.visibleColumnIds) &&
         !areColumnListsEqual(tableViews.visibleColumnIds, tableViews.activeSettings.visibleColumnIds),
     };
-  }, [columnById, tableViews.activeSettings.visibleColumnIds, tableViews.visibleColumnIds]);
+  }, [
+    columnById,
+    tableViews.activeSettings.columnWidths,
+    tableViews.activeSettings.visibleColumnIds,
+    tableViews.allowedViewColumns,
+    tableViews.columnWidths,
+    tableViews.visibleColumnIds,
+  ]);
 
   const hasOnlyDisplaySettingChanges =
     tableViews.hasUnsavedChanges &&
     viewColumnChanges.added.length === 0 &&
     viewColumnChanges.hidden.length === 0 &&
+    viewColumnChanges.resized.length === 0 &&
     !viewColumnChanges.reordered;
 
   const openColumnsDrawer = () => {
@@ -155,7 +169,7 @@ export function SitesTableViewToolbar({
   };
 
   const buildSettings = (visibleColumnIds = tableViews.visibleColumnIds) =>
-    createSitesViewSettings(visibleColumnIds, tableViews.density);
+    createSitesViewSettings(visibleColumnIds, tableViews.density, tableViews.columnWidths);
 
   const getErrorMessage = (error: unknown, fallback: string) => {
     if (error instanceof ApiClientError) {
