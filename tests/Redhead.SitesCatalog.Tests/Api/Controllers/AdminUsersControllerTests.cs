@@ -1,15 +1,21 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Moq;
 using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.Models;
+using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
+using Redhead.SitesCatalog.Infrastructure.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Infrastructure.Options;
 
 namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 
@@ -72,6 +78,181 @@ public sealed class AdminUsersControllerTests
         Assert.Null(existingUserWithoutNames.LastName);
         Assert.Equal("internal@example.com", existingUserWithoutNames.DisplayName);
         Assert.True(existingUserWithoutNames.MustCompleteProfile);
+    }
+
+    [Theory]
+    [InlineData(AppRoles.SuperAdmin)]
+    [InlineData(AppRoles.Admin)]
+    public async Task GetUser_WhenCurrentUserHasAdminAccess_ReturnsReadonlyDetails(string currentRole)
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(
+            db,
+            "client-1",
+            "client@example.com",
+            AppRoles.Client,
+            firstName: "Ada",
+            lastName: "Lovelace");
+        var sut = CreateController(
+            db,
+            new StubUserManager
+            {
+                CurrentUser = new ApplicationUser { Id = "current-user", Email = "current@example.com" },
+                CurrentRoles = new List<string> { currentRole }
+            });
+
+        // Act
+        var result = await sut.GetUser("client-1", CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        Assert.Equal("client-1", payload.Id);
+        Assert.Equal("client@example.com", payload.Email);
+        Assert.Equal(AppRoles.Client, payload.Role);
+        Assert.Equal("Ada", payload.FirstName);
+        Assert.Equal("Lovelace", payload.LastName);
+        Assert.Equal("Ada Lovelace", payload.DisplayName);
+        Assert.False(payload.MustCompleteProfile);
+        Assert.True(payload.MustChangePassword);
+        Assert.Equal(ExportLimitMode.Limited, payload.EffectiveExportLimitMode);
+        Assert.Equal(100, payload.EffectiveExportLimitRows);
+        Assert.False(payload.GoogleDriveConnected);
+        Assert.False(payload.GoogleDrive.Connected);
+    }
+
+    [Fact]
+    public async Task GetUser_WhenProfileIsIncomplete_ReturnsEmailDisplayNameAndMustCompleteProfile()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(
+            db,
+            "client-1",
+            "client@example.com",
+            AppRoles.Client,
+            firstName: "Ada",
+            lastName: " ");
+        var sut = CreateController(db);
+
+        // Act
+        var result = await sut.GetUser("client-1", CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        Assert.Equal("Ada", payload.FirstName);
+        Assert.Equal(" ", payload.LastName);
+        Assert.Equal("client@example.com", payload.DisplayName);
+        Assert.True(payload.MustCompleteProfile);
+    }
+
+    [Fact]
+    public async Task GetUser_WhenUserDoesNotExist_ReturnsNotFound()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        var sut = CreateController(db);
+
+        // Act
+        var result = await sut.GetUser("missing-user", CancellationToken.None);
+
+        // Assert
+        var notFound = Assert.IsType<NotFoundObjectResult>(result.Result);
+        var payload = Assert.IsType<MessageResponse>(notFound.Value);
+        Assert.Equal("User not found.", payload.Message);
+    }
+
+    [Fact]
+    public async Task GetUser_WhenGoogleDriveConnectionIsActive_ReturnsGoogleDriveStatusWithoutTokenFields()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(db, "client-1", "client@example.com", AppRoles.Client);
+        db.GoogleDriveConnections.Add(new GoogleDriveConnection
+        {
+            Id = Guid.NewGuid(),
+            UserId = "client-1",
+            GoogleEmail = "drive-user@example.com",
+            RefreshTokenEncrypted = "encrypted-refresh-token",
+            GrantedScopes = GoogleDriveOptions.DriveFileScope,
+            ExportFolderId = "folder-1",
+            ExportFolderName = "Redhead Catalog Exports",
+            ConnectedAtUtc = new DateTime(2026, 5, 20, 12, 0, 0, DateTimeKind.Utc),
+            UpdatedAtUtc = new DateTime(2026, 5, 20, 12, 5, 0, DateTimeKind.Utc)
+        });
+        await db.SaveChangesAsync();
+        var sut = CreateController(db);
+
+        // Act
+        var result = await sut.GetUser("client-1", CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        Assert.True(payload.GoogleDriveConnected);
+        Assert.True(payload.GoogleDrive.Connected);
+        Assert.Equal("drive-user@example.com", payload.GoogleDrive.GoogleEmail);
+        Assert.Equal("Redhead Catalog Exports", payload.GoogleDrive.ExportFolderName);
+        Assert.True(payload.GoogleDrive.HasExportFolderId);
+        Assert.DoesNotContain(
+            typeof(GoogleDriveStatusResponse).GetProperties().Select(property => property.Name),
+            name => name.Contains("Token", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void GetUser_UsesAdminAccessAuthorizationPolicy()
+    {
+        // Arrange
+        var controllerType = typeof(AdminUsersController);
+        var method = controllerType.GetMethod(nameof(AdminUsersController.GetUser));
+
+        // Act
+        var controllerPolicies = controllerType
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>()
+            .Select(attribute => attribute.Policy)
+            .ToList();
+        var allowsAnonymous = method?
+            .GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true)
+            .Any() == true;
+
+        // Assert
+        Assert.Contains(AppPolicies.AdminAccess, controllerPolicies);
+        Assert.False(allowsAnonymous);
+    }
+
+    [Fact]
+    public void AdminUserDetailsResponse_DoesNotExposeSensitiveAuthOrGoogleTokenFields()
+    {
+        // Arrange
+        var sensitiveTerms = new[]
+        {
+            "PasswordHash",
+            "SecurityStamp",
+            "ConcurrencyStamp",
+            "AccessToken",
+            "RefreshToken",
+            "RefreshTokenEncrypted",
+            "Token"
+        };
+
+        // Act
+        var exposedPropertyNames = typeof(AdminUserDetailsResponse)
+            .GetProperties()
+            .Concat(typeof(GoogleDriveStatusResponse).GetProperties())
+            .Select(property => property.Name)
+            .ToList();
+
+        // Assert
+        foreach (var term in sensitiveTerms)
+        {
+            Assert.DoesNotContain(
+                exposedPropertyNames,
+                propertyName => propertyName.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     [Fact]
@@ -295,7 +476,7 @@ public sealed class AdminUsersControllerTests
     {
         return new AdminUsersController(
             userManager,
-            new AdminUsersListService(db),
+            new AdminUsersListService(db, CreateGoogleDriveIntegrationService(db)),
             NullLogger<AdminUsersController>.Instance);
     }
 
@@ -303,6 +484,22 @@ public sealed class AdminUsersControllerTests
     {
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         return Assert.IsType<UserListResponse>(ok.Value);
+    }
+
+    private static AdminUserDetailsResponse GetOkPayload(ActionResult<AdminUserDetailsResponse> result)
+    {
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        return Assert.IsType<AdminUserDetailsResponse>(ok.Value);
+    }
+
+    private static GoogleDriveIntegrationService CreateGoogleDriveIntegrationService(ApplicationDbContext db)
+    {
+        return new GoogleDriveIntegrationService(
+            db,
+            Mock.Of<IGoogleDriveApiClient>(),
+            Mock.Of<IGoogleDriveOAuthStateService>(),
+            Mock.Of<IGoogleDriveTokenProtector>(),
+            Options.Create(new GoogleDriveOptions()));
     }
 
     private static async Task SeedRoleSettingsAsync(ApplicationDbContext db)
@@ -316,7 +513,7 @@ public sealed class AdminUsersControllerTests
         await db.SaveChangesAsync();
     }
 
-    private static async Task AddUserAsync(
+    private static async Task<ApplicationUser> AddUserAsync(
         ApplicationDbContext db,
         string id,
         string email,
@@ -337,7 +534,7 @@ public sealed class AdminUsersControllerTests
             db.Roles.Add(role);
         }
 
-        db.Users.Add(new ApplicationUser
+        var user = new ApplicationUser
         {
             Id = id,
             UserName = email,
@@ -348,7 +545,8 @@ public sealed class AdminUsersControllerTests
             IsActive = isActive,
             FirstName = firstName,
             LastName = lastName
-        });
+        };
+        db.Users.Add(user);
 
         db.UserRoles.Add(new IdentityUserRole<string>
         {
@@ -357,6 +555,7 @@ public sealed class AdminUsersControllerTests
         });
 
         await db.SaveChangesAsync();
+        return user;
     }
 
     private sealed class StubUserManager : UserManager<ApplicationUser>

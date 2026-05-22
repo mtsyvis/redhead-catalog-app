@@ -98,6 +98,20 @@ public class AdminUsersController : ControllerBase
         return Ok(ToResponse(result));
     }
 
+    [HttpGet("{id}")]
+    public async Task<ActionResult<AdminUserDetailsResponse>> GetUser(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var user = await _usersListService.GetUserDetailsAsync(id, cancellationToken);
+        if (user == null)
+        {
+            return NotFound(new MessageResponse("User not found."));
+        }
+
+        return Ok(ToResponse(user));
+    }
+
     [HttpPost("{id}/reset-password")]
     public async Task<ActionResult<ResetPasswordResponse>> ResetPassword(string id)
     {
@@ -242,5 +256,27 @@ public class AdminUsersController : ControllerBase
             EffectiveExportLimitRows: item.EffectiveExportLimitRows,
             IsExportLimitOverridden: item.IsExportLimitOverridden,
             IsExportLimitEditable: item.IsExportLimitEditable);
+    }
+
+    private static AdminUserDetailsResponse ToResponse(AdminUserDetailsDto user)
+    {
+        return new AdminUserDetailsResponse(
+            Id: user.Id,
+            Email: user.Email,
+            FirstName: user.FirstName,
+            LastName: user.LastName,
+            DisplayName: user.DisplayName,
+            MustCompleteProfile: user.MustCompleteProfile,
+            MustChangePassword: user.MustChangePassword,
+            Role: user.Role,
+            IsActive: user.IsActive,
+            ExportLimitOverrideMode: user.ExportLimitOverrideMode,
+            ExportLimitRowsOverride: user.ExportLimitRowsOverride,
+            EffectiveExportLimitMode: user.EffectiveExportLimitMode,
+            EffectiveExportLimitRows: user.EffectiveExportLimitRows,
+            IsExportLimitOverridden: user.IsExportLimitOverridden,
+            IsExportLimitEditable: user.IsExportLimitEditable,
+            GoogleDriveConnected: user.GoogleDriveConnected,
+            GoogleDrive: user.GoogleDrive);
     }
 }

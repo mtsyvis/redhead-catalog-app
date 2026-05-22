@@ -1,20 +1,25 @@
 using Microsoft.EntityFrameworkCore;
+using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
-using Redhead.SitesCatalog.Application.Validation;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
 public sealed class AdminUsersListService : IAdminUsersListService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IGoogleDriveIntegrationService _googleDriveIntegrationService;
 
-    public AdminUsersListService(ApplicationDbContext context)
+    public AdminUsersListService(
+        ApplicationDbContext context,
+        IGoogleDriveIntegrationService googleDriveIntegrationService)
     {
         _context = context;
+        _googleDriveIntegrationService = googleDriveIntegrationService;
     }
 
     public async Task<AdminUsersListResult> ListUsersAsync(
@@ -47,6 +52,45 @@ public sealed class AdminUsersListService : IAdminUsersListService
         };
     }
 
+    public async Task<AdminUserDetailsDto?> GetUserDetailsAsync(
+        string id,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await BuildUsersQuery()
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (user == null)
+        {
+            return null;
+        }
+
+        var roleSettingsMap = await _context.RoleSettings
+            .ToDictionaryAsync(rs => rs.RoleName, cancellationToken);
+        var listItem = ToListItem(user, roleSettingsMap);
+        var googleDrive = await _googleDriveIntegrationService.GetStatusAsync(id, cancellationToken);
+
+        return new AdminUserDetailsDto
+        {
+            Id = listItem.Id,
+            Email = listItem.Email,
+            FirstName = listItem.FirstName,
+            LastName = listItem.LastName,
+            DisplayName = listItem.DisplayName,
+            MustCompleteProfile = listItem.MustCompleteProfile,
+            MustChangePassword = user.MustChangePassword,
+            Role = listItem.Role,
+            IsActive = listItem.IsActive,
+            ExportLimitOverrideMode = listItem.ExportLimitOverrideMode,
+            ExportLimitRowsOverride = listItem.ExportLimitRowsOverride,
+            EffectiveExportLimitMode = listItem.EffectiveExportLimitMode,
+            EffectiveExportLimitRows = listItem.EffectiveExportLimitRows,
+            IsExportLimitOverridden = listItem.IsExportLimitOverridden,
+            IsExportLimitEditable = listItem.IsExportLimitEditable,
+            GoogleDriveConnected = googleDrive.Connected,
+            GoogleDrive = googleDrive
+        };
+    }
+
     private IQueryable<UserListQueryItem> BuildUsersQuery()
     {
         return
@@ -64,6 +108,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 LastName = user.LastName,
                 Role = role.Name ?? string.Empty,
                 IsActive = user.IsActive,
+                MustChangePassword = user.MustChangePassword,
                 ExportLimitOverrideMode = user.ExportLimitOverrideMode,
                 ExportLimitRowsOverride = user.ExportLimitRowsOverride
             };
@@ -156,6 +201,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
         public string? LastName { get; init; }
         public string Role { get; init; } = string.Empty;
         public bool IsActive { get; init; }
+        public bool MustChangePassword { get; init; }
         public ExportLimitMode? ExportLimitOverrideMode { get; init; }
         public int? ExportLimitRowsOverride { get; init; }
     }

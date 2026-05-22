@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -44,6 +45,25 @@ public record UserListResponse(
     int PageSize,
     int TotalCount,
     int TotalPages);
+
+public record AdminUserDetailsResponse(
+    string Id,
+    string Email,
+    string? FirstName,
+    string? LastName,
+    string DisplayName,
+    bool MustCompleteProfile,
+    bool MustChangePassword,
+    string Role,
+    bool IsActive,
+    ExportLimitMode? ExportLimitOverrideMode,
+    int? ExportLimitRowsOverride,
+    ExportLimitMode? EffectiveExportLimitMode,
+    int? EffectiveExportLimitRows,
+    bool IsExportLimitOverridden,
+    bool IsExportLimitEditable,
+    bool GoogleDriveConnected,
+    GoogleDriveStatusResponse GoogleDrive);
 
 public record ResetPasswordResponse(string TemporaryPassword);
 
