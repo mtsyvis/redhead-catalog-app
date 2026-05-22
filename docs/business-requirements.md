@@ -119,9 +119,12 @@ Rules:
 * Per-user override wins over role setting.
 * `SuperAdmin` is always unlimited and must not be editable.
 * Only `SuperAdmin` can edit role export limits or per-user export overrides.
+* Users can view their own effective export limit on `/profile`.
 * Export must use the same current filters/search/multi-search context that the user sees in the grid.
 * If export is limited, the exported file must be capped by the effective limit.
 * If export is disabled, the UI should prevent export and the backend must reject export.
+* If export is disabled for the current user, `/profile` must hide the Google Drive export connection card.
+* If export is disabled for the current user, `/sites` must hide the export menu.
 * If export is truncated by a limit, the user should receive clear feedback.
 
 ## Sites catalog

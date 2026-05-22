@@ -10,8 +10,10 @@ using Moq;
 using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Services;
+using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 
@@ -228,19 +230,84 @@ public sealed class AuthControllerTests
         Assert.Contains("lastName", problem.Errors.Keys);
     }
 
+    [Fact]
+    public async Task GetCurrentUser_ReturnsIsExportDisabled()
+    {
+        // Arrange
+        var user = CreateUser(mustChangePassword: false, firstName: "Ada", lastName: "Lovelace");
+        var userManager = CreateUserManagerForCurrentUser(user);
+        userManager.Setup(manager => manager.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { AppRoles.Client });
+        var policyService = CreatePolicyService(
+            user,
+            AppRoles.Client,
+            new EffectiveExportPolicy(
+                ExportLimitMode.Disabled,
+                null,
+                false,
+                EffectivePolicySource.Role));
+        var sut = CreateController(userManager, CreateSignInManager(userManager), policyService);
+
+        // Act
+        var result = await sut.GetCurrentUser();
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<UserInfoResponse>(ok.Value);
+        Assert.True(payload.IsExportDisabled);
+        policyService.Verify(
+            service => service.GetEffectivePolicyAsync(user, AppRoles.Client, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static AuthController CreateController(Mock<UserManager<ApplicationUser>> userManager)
         => CreateController(userManager, CreateSignInManager(userManager));
 
     private static AuthController CreateController(
         Mock<UserManager<ApplicationUser>> userManager,
         Mock<SignInManager<ApplicationUser>> signInManager)
+        => CreateController(userManager, signInManager, CreatePolicyService());
+
+    private static AuthController CreateController(
+        Mock<UserManager<ApplicationUser>> userManager,
+        Mock<SignInManager<ApplicationUser>> signInManager,
+        Mock<IEffectiveExportPolicyService> effectiveExportPolicyService)
         => new(
             userManager.Object,
             signInManager.Object,
             new AccountSetupService(
                 userManager.Object,
                 NullLogger<AccountSetupService>.Instance),
+            effectiveExportPolicyService.Object,
             NullLogger<AuthController>.Instance);
+
+    private static Mock<IEffectiveExportPolicyService> CreatePolicyService()
+    {
+        var policyService = new Mock<IEffectiveExportPolicyService>();
+        policyService
+            .Setup(service => service.GetEffectivePolicyAsync(
+                It.IsAny<ApplicationUser>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EffectiveExportPolicy(
+                ExportLimitMode.Unlimited,
+                null,
+                false,
+                EffectivePolicySource.Role));
+        return policyService;
+    }
+
+    private static Mock<IEffectiveExportPolicyService> CreatePolicyService(
+        ApplicationUser user,
+        string role,
+        EffectiveExportPolicy policy)
+    {
+        var policyService = CreatePolicyService();
+        policyService
+            .Setup(service => service.GetEffectivePolicyAsync(user, role, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(policy);
+        return policyService;
+    }
 
     private static Mock<UserManager<ApplicationUser>> CreateUserManagerForCurrentUser(ApplicationUser user)
     {

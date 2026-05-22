@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Services;
+using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -14,17 +16,20 @@ public class AuthController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IAccountSetupService _accountSetupService;
+    private readonly IEffectiveExportPolicyService _effectiveExportPolicyService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IAccountSetupService accountSetupService,
+        IEffectiveExportPolicyService effectiveExportPolicyService,
         ILogger<AuthController> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _accountSetupService = accountSetupService;
+        _effectiveExportPolicyService = effectiveExportPolicyService;
         _logger = logger;
     }
 
@@ -103,6 +108,8 @@ public class AuthController : ControllerBase
         }
 
         var roles = await _userManager.GetRolesAsync(user);
+        var role = roles.FirstOrDefault() ?? string.Empty;
+        var limits = await _effectiveExportPolicyService.GetEffectivePolicyAsync(user, role);
 
         return Ok(new UserInfoResponse(
             user.Id,
@@ -113,7 +120,8 @@ public class AuthController : ControllerBase
             user.LastName,
             user.DisplayName,
             user.IsActive,
-            roles));
+            roles,
+            limits.Mode == ExportLimitMode.Disabled));
     }
 
     [HttpPost("complete-account-setup")]

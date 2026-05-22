@@ -21,6 +21,7 @@ import type { SitesSnackbarState } from '../components/sites/SitesSnackbar';
 import { useSitesColumns } from '../components/sites/useSitesColumns';
 import { isNotFoundRow, useSitesGridRows } from '../components/sites/useSitesGridRows';
 import { useUserRoles } from '../hooks/useUserRoles';
+import { useAuth } from '../contexts/AuthContext';
 import { useSitesExport } from '../hooks/useSitesExport';
 import type {
   Site,
@@ -81,6 +82,8 @@ export function Sites() {
   });
 
   const { isAdmin, isClient } = useUserRoles();
+  const { user } = useAuth();
+  const canExport = !user?.isExportDisabled;
 
   useEffect(() => {
     persistStopListDomains(filters.stopListDomains);
@@ -320,12 +323,14 @@ export function Sites() {
           <Typography variant="h4">
             Sites Catalog
           </Typography>
-          <SitesExportMenu
-            exporting={exporting}
-            loading={loading}
-            onDownloadExcel={handleDownloadExport}
-            onSaveToGoogleDrive={handleSaveToGoogleDrive}
-          />
+          {canExport && (
+            <SitesExportMenu
+              exporting={exporting}
+              loading={loading}
+              onDownloadExcel={handleDownloadExport}
+              onSaveToGoogleDrive={handleSaveToGoogleDrive}
+            />
+          )}
         </Box>
 
         <SitesFilters

@@ -14,6 +14,7 @@ export interface UserInfo {
   mustChangePassword: boolean;
   isActive: boolean;
   roles: string[];
+  isExportDisabled: boolean;
 }
 
 /**
@@ -56,7 +57,7 @@ export interface CompleteAccountSetupRequest {
   lastName?: string | null;
 }
 
-export type CompleteAccountSetupResponse = Omit<UserInfo, 'id' | 'isActive'>;
+export type CompleteAccountSetupResponse = Omit<UserInfo, 'id' | 'isActive' | 'isExportDisabled'>;
 
 /**
  * Current user's self-service profile

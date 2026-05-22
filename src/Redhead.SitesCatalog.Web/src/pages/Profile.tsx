@@ -163,6 +163,7 @@ export const Profile: React.FC = () => {
 
   const googleDrive = profile?.googleDrive;
   const limits = profile?.limits;
+  const exportDisabled = limits?.exportLimitMode === 'Disabled';
   const connectedAt = formatConnectedAt(googleDrive?.connectedAtUtc ?? null);
   const trimmedFirstName = firstName.trim();
   const trimmedLastName = lastName.trim();
@@ -253,77 +254,79 @@ export const Profile: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent sx={{ p: 3 }}>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    gap: 2,
-                    flexWrap: 'wrap',
-                    mb: 2,
-                  }}
-                >
-                  <Box>
-                    <Typography variant="h6">Google Drive</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Save catalog exports to your connected Google Drive account.
-                    </Typography>
-                  </Box>
-                  <Chip
-                    label={googleDrive?.connected ? 'Connected' : 'Not connected'}
-                    color={googleDrive?.connected ? 'success' : 'default'}
-                    size="small"
-                  />
-                </Box>
-
-                <Divider sx={{ mb: 2 }} />
-
-                <Stack spacing={1.25}>
-                  {googleDrive?.connected ? (
-                    <>
-                      <Typography variant="body2">
-                        Connected account: <strong>{googleDrive.googleEmail ?? 'Google Drive'}</strong>
+            {!exportDisabled && (
+              <Card>
+                <CardContent sx={{ p: 3 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: 2,
+                      flexWrap: 'wrap',
+                      mb: 2,
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="h6">Google Drive</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Save catalog exports to your connected Google Drive account.
                       </Typography>
-                      {connectedAt && (
-                        <Typography variant="body2" color="text.secondary">
-                          Connected {connectedAt}
+                    </Box>
+                    <Chip
+                      label={googleDrive?.connected ? 'Connected' : 'Not connected'}
+                      color={googleDrive?.connected ? 'success' : 'default'}
+                      size="small"
+                    />
+                  </Box>
+
+                  <Divider sx={{ mb: 2 }} />
+
+                  <Stack spacing={1.25}>
+                    {googleDrive?.connected ? (
+                      <>
+                        <Typography variant="body2">
+                          Connected account: <strong>{googleDrive.googleEmail ?? 'Google Drive'}</strong>
                         </Typography>
-                      )}
-                      {googleDrive.needsReconnect && (
-                        <Alert severity="warning">
-                          Google Drive access needs to be reconnected before saving exports.
-                        </Alert>
-                      )}
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
-                        {googleDrive.needsReconnect && (
-                          <BrandButton onClick={handleConnectGoogleDrive} disabled={connecting || disconnecting}>
-                            {connecting ? 'Connecting...' : 'Connect Google Drive'}
-                          </BrandButton>
+                        {connectedAt && (
+                          <Typography variant="body2" color="text.secondary">
+                            Connected {connectedAt}
+                          </Typography>
                         )}
-                        <BrandButton
-                          kind="outline"
-                          onClick={() => setDisconnectConfirmOpen(true)}
-                          disabled={connecting || disconnecting}
-                        >
-                          Disconnect
+                        {googleDrive.needsReconnect && (
+                          <Alert severity="warning">
+                            Google Drive access needs to be reconnected before saving exports.
+                          </Alert>
+                        )}
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+                          {googleDrive.needsReconnect && (
+                            <BrandButton onClick={handleConnectGoogleDrive} disabled={connecting || disconnecting}>
+                              {connecting ? 'Connecting...' : 'Connect Google Drive'}
+                            </BrandButton>
+                          )}
+                          <BrandButton
+                            kind="outline"
+                            onClick={() => setDisconnectConfirmOpen(true)}
+                            disabled={connecting || disconnecting}
+                          >
+                            Disconnect
+                          </BrandButton>
+                        </Box>
+                      </>
+                    ) : (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Google Drive is not connected.
+                        </Typography>
+                        <BrandButton kind="primary" onClick={handleConnectGoogleDrive} disabled={connecting}>
+                          {connecting ? 'Connecting...' : 'Connect Google Drive'}
                         </BrandButton>
                       </Box>
-                    </>
-                  ) : (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Google Drive is not connected.
-                      </Typography>
-                      <BrandButton kind="primary" onClick={handleConnectGoogleDrive} disabled={connecting}>
-                        {connecting ? 'Connecting...' : 'Connect Google Drive'}
-                      </BrandButton>
-                    </Box>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
       </Stack>

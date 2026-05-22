@@ -46,4 +46,5 @@ public record UserInfoResponse(
     string? LastName,
     string DisplayName,
     bool IsActive,
-    IList<string> Roles);
+    IList<string> Roles,
+    bool IsExportDisabled);
