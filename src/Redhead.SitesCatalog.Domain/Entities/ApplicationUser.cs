@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Domain.Services;
 
 namespace Redhead.SitesCatalog.Domain.Entities;
 
@@ -11,13 +12,10 @@ public class ApplicationUser : IdentityUser
     public string? LastName { get; set; }
 
     public bool HasCompleteProfile =>
-        !string.IsNullOrWhiteSpace(FirstName) &&
-        !string.IsNullOrWhiteSpace(LastName);
+        UserProfileNames.IsComplete(FirstName, LastName);
 
     public string DisplayName =>
-        HasCompleteProfile
-            ? $"{FirstName!.Trim()} {LastName!.Trim()}"
-            : Email ?? UserName ?? string.Empty;
+        UserProfileNames.GetDisplayName(FirstName, LastName, Email ?? UserName);
 
     /// <summary>
     /// Per-user export mode override. Null means inherit from role policy.

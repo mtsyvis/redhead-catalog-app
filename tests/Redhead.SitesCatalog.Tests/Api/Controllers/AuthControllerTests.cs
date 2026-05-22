@@ -145,6 +145,68 @@ public sealed class AuthControllerTests
     }
 
     [Fact]
+    public async Task CompleteAccountSetup_WhenOnlyPasswordRequired_IgnoresProfileFields()
+    {
+        // Arrange
+        var user = CreateUser(mustChangePassword: true, firstName: "Jane", lastName: "Smith");
+        var userManager = CreateUserManagerForCurrentUser(user);
+        userManager.Setup(manager => manager.ChangePasswordAsync(user, "Temp123!", "NewPassword123!"))
+            .ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(manager => manager.UpdateAsync(user))
+            .ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(manager => manager.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { AppRoles.Admin });
+        var sut = CreateController(userManager);
+
+        // Act
+        var result = await sut.CompleteAccountSetup(new CompleteAccountSetupRequest(
+            "Temp123!",
+            "NewPassword123!",
+            "Grace",
+            "Hopper"));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<CompleteAccountSetupResponse>(ok.Value);
+        Assert.Equal("Jane", user.FirstName);
+        Assert.Equal("Smith", user.LastName);
+        Assert.Equal("Jane Smith", payload.DisplayName);
+    }
+
+    [Fact]
+    public async Task CompleteAccountSetup_WhenNoSetupIsRequired_DoesNotUpdateUser()
+    {
+        // Arrange
+        var user = CreateUser(mustChangePassword: false, firstName: "Jane", lastName: "Smith");
+        var userManager = CreateUserManagerForCurrentUser(user);
+        userManager.Setup(manager => manager.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { AppRoles.Internal });
+        var sut = CreateController(userManager);
+
+        // Act
+        var result = await sut.CompleteAccountSetup(new CompleteAccountSetupRequest(
+            "Temp123!",
+            "NewPassword123!",
+            "Grace",
+            "Hopper"));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<CompleteAccountSetupResponse>(ok.Value);
+        Assert.Equal("Jane", user.FirstName);
+        Assert.Equal("Smith", user.LastName);
+        Assert.False(payload.MustChangePassword);
+        Assert.False(payload.MustCompleteProfile);
+        userManager.Verify(manager => manager.UpdateAsync(It.IsAny<ApplicationUser>()), Times.Never);
+        userManager.Verify(
+            manager => manager.ChangePasswordAsync(
+                It.IsAny<ApplicationUser>(),
+                It.IsAny<string>(),
+                It.IsAny<string>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task CompleteAccountSetup_WhenProfileNamesAreWhitespace_ReturnsFieldErrors()
     {
         // Arrange

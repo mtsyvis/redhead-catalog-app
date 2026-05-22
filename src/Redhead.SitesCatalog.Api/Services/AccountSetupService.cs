@@ -29,6 +29,12 @@ public sealed class AccountSetupService : IAccountSetupService
             return AccountSetupCompletionResult.ValidationFailed(validationErrors);
         }
 
+        if (!requiredParts.ShouldChangePassword && !requiredParts.ShouldUpdateProfile)
+        {
+            var currentRoles = await _userManager.GetRolesAsync(user);
+            return AccountSetupCompletionResult.Success(ToResponse(user, currentRoles));
+        }
+
         if (requiredParts.ShouldChangePassword)
         {
             var passwordResult = await ChangePasswordAsync(user, request);
@@ -145,15 +151,9 @@ public sealed class AccountSetupService : IAccountSetupService
             ApplicationUser user,
             CompleteAccountSetupRequest request)
         {
-            var passwordProvided = IsProvided(request.CurrentPassword) || IsProvided(request.NewPassword);
-            var profileProvided = IsProvided(request.FirstName) || IsProvided(request.LastName);
-
             return new AccountSetupParts(
-                user.MustChangePassword || passwordProvided,
-                !user.HasCompleteProfile || profileProvided);
+                user.MustChangePassword,
+                !user.HasCompleteProfile);
         }
-
-        private static bool IsProvided(string? value)
-            => value != null;
     }
 }

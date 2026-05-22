@@ -1,3 +1,5 @@
+using Redhead.SitesCatalog.Domain.Services;
+
 namespace Redhead.SitesCatalog.Application.Validation;
 
 public static class UserProfileNameValidator
@@ -21,20 +23,13 @@ public static class UserProfileNameValidator
     }
 
     public static bool IsProfileComplete(string? firstName, string? lastName)
-        => !string.IsNullOrWhiteSpace(firstName) && !string.IsNullOrWhiteSpace(lastName);
+        => UserProfileNames.IsComplete(firstName, lastName);
 
     public static string GetDisplayName(string? firstName, string? lastName, string? fallbackEmail)
-    {
-        if (IsProfileComplete(firstName, lastName))
-        {
-            return $"{firstName!.Trim()} {lastName!.Trim()}";
-        }
-
-        return fallbackEmail ?? string.Empty;
-    }
+        => UserProfileNames.GetDisplayName(firstName, lastName, fallbackEmail);
 
     private static string Normalize(string? value)
-        => value?.Trim() ?? string.Empty;
+        => UserProfileNames.NormalizeName(value);
 
     private static void ValidateName(
         string fieldName,

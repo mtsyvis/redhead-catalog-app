@@ -114,11 +114,7 @@ export const AdminUserDetails: React.FC = () => {
     return cleanText(user.displayName) ?? cleanText(user.email) ?? 'User';
   }, [user]);
 
-  const profileStatus = user?.profileStatus
-    ? user.profileStatus
-    : user?.mustCompleteProfile
-      ? 'Incomplete'
-      : 'Complete';
+  const profileStatus = user?.mustCompleteProfile ? 'Incomplete' : 'Complete';
   const effectiveLimit = user
     ? formatMaybeExportLimit(user.effectiveExportLimitMode, user.effectiveExportLimitRows)
     : null;
@@ -127,11 +123,8 @@ export const AdminUserDetails: React.FC = () => {
     : null;
   const limitSource = user ? getLimitSource(user) : null;
   const googleDrive = user?.googleDrive;
-  const googleDriveConnected = user?.googleDriveConnected ?? googleDrive?.connected ?? null;
+  const googleDriveConnected = user ? user.googleDriveConnected : null;
   const connectedAt = formatDateTime(googleDrive?.connectedAtUtc);
-  const createdAt = formatDateTime(user?.createdAtUtc);
-  const updatedAt = formatDateTime(user?.updatedAtUtc);
-  const showMetadata = Boolean(createdAt || updatedAt);
 
   if (!isAdmin) {
     return <Navigate to="/sites" replace />;
@@ -208,9 +201,7 @@ export const AdminUserDetails: React.FC = () => {
                     <DetailRow label="Email" value={cleanText(user.email)} />
                     <DetailRow label="Role" value={cleanText(user.role)} />
                     <DetailRow label="Profile status" value={profileStatus} />
-                    {user.mustChangePassword !== undefined && (
-                      <DetailRow label="Password change required" value={user.mustChangePassword ? 'Yes' : 'No'} />
-                    )}
+                    <DetailRow label="Password change required" value={user.mustChangePassword ? 'Yes' : 'No'} />
                   </Box>
                 </CardContent>
               </Card>
@@ -284,19 +275,6 @@ export const AdminUserDetails: React.FC = () => {
                 </CardContent>
               </Card>
 
-              {showMetadata && (
-                <Card>
-                  <CardContent sx={{ p: 3 }}>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      Metadata
-                    </Typography>
-                    <Stack spacing={2}>
-                      {createdAt && <DetailRow label="Created" value={createdAt} />}
-                      {updatedAt && <DetailRow label="Last updated" value={updatedAt} />}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              )}
             </Box>
           </>
         ) : null}

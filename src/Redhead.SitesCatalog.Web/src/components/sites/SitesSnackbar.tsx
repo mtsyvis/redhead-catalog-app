@@ -1,4 +1,5 @@
 import { Alert, Box, Button, Snackbar, Typography } from '@mui/material';
+import type { AlertColor } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
@@ -6,7 +7,7 @@ export type SitesSnackbarState = {
   open: boolean;
   message: string;
   detail?: string;
-  severity: 'success' | 'error';
+  severity: AlertColor;
   actionLabel?: 'Open file' | 'Download Excel';
   onAction?: () => void;
 };

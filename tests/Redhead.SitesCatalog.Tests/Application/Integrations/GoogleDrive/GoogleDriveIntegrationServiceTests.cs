@@ -97,6 +97,43 @@ public sealed class GoogleDriveIntegrationServiceTests
         Assert.True(status.NeedsReconnect);
     }
 
+    [Fact]
+    public async Task DisconnectAsync_WhenOtherUsersHaveConnections_RevokesOnlyCurrentUserConnection()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        db.GoogleDriveConnections.AddRange(
+            new GoogleDriveConnection
+            {
+                Id = Guid.NewGuid(),
+                UserId = "user-1",
+                RefreshTokenEncrypted = "protected-token-1",
+                GrantedScopes = GoogleDriveOptions.DriveFileScope,
+                ConnectedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+            },
+            new GoogleDriveConnection
+            {
+                Id = Guid.NewGuid(),
+                UserId = "user-2",
+                RefreshTokenEncrypted = "protected-token-2",
+                GrantedScopes = GoogleDriveOptions.DriveFileScope,
+                ConnectedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-5)
+            });
+        await db.SaveChangesAsync();
+        var sut = CreateService(db);
+
+        // Act
+        await sut.DisconnectAsync("user-1", CancellationToken.None);
+
+        // Assert
+        var disconnected = await db.GoogleDriveConnections.SingleAsync(connection => connection.UserId == "user-1");
+        var otherUser = await db.GoogleDriveConnections.SingleAsync(connection => connection.UserId == "user-2");
+        Assert.NotNull(disconnected.RevokedAtUtc);
+        Assert.Null(otherUser.RevokedAtUtc);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

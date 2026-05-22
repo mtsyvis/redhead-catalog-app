@@ -41,20 +41,17 @@ export interface AdminUserDetails {
   lastName: string | null;
   displayName: string;
   mustCompleteProfile: boolean;
-  mustChangePassword?: boolean;
+  mustChangePassword: boolean;
   role: string;
-  isActive?: boolean;
-  exportLimitOverrideMode?: ExportLimitMode | null;
-  exportLimitRowsOverride?: number | null;
-  effectiveExportLimitMode?: ExportLimitMode | null;
-  effectiveExportLimitRows?: number | null;
-  isExportLimitOverridden?: boolean;
-  isExportLimitEditable?: boolean;
-  googleDriveConnected?: boolean | null;
-  googleDrive?: GoogleDriveStatus | null;
-  createdAtUtc?: string | null;
-  updatedAtUtc?: string | null;
-  profileStatus?: string | null;
+  isActive: boolean;
+  exportLimitOverrideMode: ExportLimitMode | null;
+  exportLimitRowsOverride: number | null;
+  effectiveExportLimitMode: ExportLimitMode | null;
+  effectiveExportLimitRows: number | null;
+  isExportLimitOverridden: boolean;
+  isExportLimitEditable: boolean;
+  googleDriveConnected: boolean;
+  googleDrive: GoogleDriveStatus;
 }
 
 export interface CreateUserRequest {

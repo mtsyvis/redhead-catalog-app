@@ -74,7 +74,8 @@ export const AccountSetup: React.FC = () => {
   const canSubmit =
     !saving &&
     (!mustCompleteProfile || (trimmedFirstName.length > 0 && trimmedLastName.length > 0)) &&
-    (!mustChangePassword || (isPasswordValid && passwordsMatch && (!needsCurrentPasswordInput || currentPassword)));
+    (!mustChangePassword ||
+      (isPasswordValid && passwordsMatch && (!needsCurrentPasswordInput || currentPassword.length > 0)));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -256,13 +257,7 @@ export const AccountSetup: React.FC = () => {
                   disabled={!canSubmit}
                   sx={{ height: 52 }}
                 >
-                  {saving ? (
-                    <CircularProgress size={22} color="inherit" />
-                  ) : mustChangePassword ? (
-                    'Continue'
-                  ) : (
-                    'Save and continue'
-                  )}
+                  {saving ? <CircularProgress size={22} color="inherit" /> : 'Continue'}
                 </BrandButton>
               </Stack>
             </Box>
