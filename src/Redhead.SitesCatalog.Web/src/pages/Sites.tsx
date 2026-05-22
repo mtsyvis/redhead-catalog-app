@@ -16,10 +16,12 @@ import { SitesFilters } from '../components/sites/SitesFilters';
 import { EditSiteDialog } from '../components/sites/EditSiteDialog';
 import { SitesExportMenu } from '../components/sites/SitesExportMenu';
 import { GoogleDriveConnectionDialog } from '../components/sites/GoogleDriveConnectionDialog';
+import { SitesTableViewToolbar } from '../components/sites/SitesTableViewToolbar';
 import { SitesSnackbar } from '../components/sites/SitesSnackbar';
 import type { SitesSnackbarState } from '../components/sites/SitesSnackbar';
 import { useSitesColumns } from '../components/sites/useSitesColumns';
 import { isNotFoundRow, useSitesGridRows } from '../components/sites/useSitesGridRows';
+import { useSitesTableViews } from '../components/sites/useSitesTableViews';
 import { useUserRoles } from '../hooks/useUserRoles';
 import { useAuth } from '../contexts/AuthContext';
 import { useSitesExport } from '../hooks/useSitesExport';
@@ -84,19 +86,28 @@ export function Sites() {
   const { isAdmin, isClient } = useUserRoles();
   const { user } = useAuth();
   const canExport = !user?.isExportDisabled;
+  const tableViews = useSitesTableViews({ isClient });
 
   useEffect(() => {
     persistStopListDomains(filters.stopListDomains);
   }, [filters.stopListDomains]);
+
+  useEffect(() => {
+    if (!tableViews.loadError) return;
+    setSnackbar({
+      open: true,
+      message: 'Table views could not be loaded',
+      detail: tableViews.loadError,
+      severity: 'error',
+    });
+  }, [tableViews.loadError]);
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
   });
 
-  const [sortModel, setSortModel] = useState<GridSortModel>([
-    { field: 'domain', sort: 'asc' },
-  ]);
+  const [sortModel, setSortModel] = useState<GridSortModel>([{ field: 'domain', sort: 'asc' }]);
 
   useEffect(() => {
     if (multiSearchMode) {
@@ -292,7 +303,9 @@ export function Sites() {
     setFilterOptionsRefreshKey((key) => key + 1);
     setSnackbar({ open: true, message: 'Site updated', severity: 'success' });
     if (multiSearchResult) {
-      const newFound = multiSearchResult.found.map((s) => (s.domain === updated.domain ? updated : s));
+      const newFound = multiSearchResult.found.map((s) =>
+        s.domain === updated.domain ? updated : s
+      );
       setMultiSearchResult({ ...multiSearchResult, found: newFound });
     } else {
       loadSites();
@@ -316,13 +329,123 @@ export function Sites() {
     onEdit: handleOpenEdit,
   });
 
+  const hiddenFilteredColumnIds = useMemo(() => {
+    const activeColumnIds = new Set<string>();
+
+    if (filters.drMin || filters.drMax) activeColumnIds.add('dr');
+    if (filters.trafficMin || filters.trafficMax) activeColumnIds.add('traffic');
+    if (filters.priceMin || filters.priceMax) activeColumnIds.add('priceUsd');
+    if (filters.location.length > 0) activeColumnIds.add('location');
+    if (filters.niches.length > 0) activeColumnIds.add('niche');
+    if (filters.categorySearchTerms.length > 0) activeColumnIds.add('categories');
+    if (filters.languages.length > 0) activeColumnIds.add('language');
+    if (filters.casinoAvailability !== INITIAL_FILTERS.casinoAvailability)
+      activeColumnIds.add('priceCasino');
+    if (filters.cryptoAvailability !== INITIAL_FILTERS.cryptoAvailability)
+      activeColumnIds.add('priceCrypto');
+    if (filters.linkInsertAvailability !== INITIAL_FILTERS.linkInsertAvailability) {
+      activeColumnIds.add('priceLinkInsert');
+    }
+    if (filters.linkInsertCasinoAvailability !== INITIAL_FILTERS.linkInsertCasinoAvailability) {
+      activeColumnIds.add('priceLinkInsertCasino');
+    }
+    if (filters.datingAvailability !== INITIAL_FILTERS.datingAvailability)
+      activeColumnIds.add('priceDating');
+    if (filters.quarantine !== INITIAL_FILTERS.quarantine) activeColumnIds.add('isQuarantined');
+    if (filters.lastPublishedFromMonth !== null || filters.lastPublishedToMonth !== null) {
+      activeColumnIds.add('lastPublishedDate');
+    }
+
+    const visibleColumnIds = new Set(tableViews.visibleColumnIds);
+    const configurableColumnIds = new Set(tableViews.allowedViewColumns.map((column) => column.id));
+    return [...activeColumnIds].filter(
+      (columnId) => configurableColumnIds.has(columnId) && !visibleColumnIds.has(columnId)
+    );
+  }, [
+    filters.drMin,
+    filters.drMax,
+    filters.trafficMin,
+    filters.trafficMax,
+    filters.priceMin,
+    filters.priceMax,
+    filters.location,
+    filters.niches,
+    filters.categorySearchTerms,
+    filters.languages,
+    filters.casinoAvailability,
+    filters.cryptoAvailability,
+    filters.linkInsertAvailability,
+    filters.linkInsertCasinoAvailability,
+    filters.datingAvailability,
+    filters.quarantine,
+    filters.lastPublishedFromMonth,
+    filters.lastPublishedToMonth,
+    tableViews.allowedViewColumns,
+    tableViews.visibleColumnIds,
+  ]);
+
+  const hiddenFilteredColumns = useMemo(
+    () =>
+      tableViews.allowedViewColumns.filter((column) => hiddenFilteredColumnIds.includes(column.id)),
+    [hiddenFilteredColumnIds, tableViews.allowedViewColumns]
+  );
+
+  const handleShowFilteredColumns = () => {
+    tableViews.updateDraftVisibleColumns([
+      ...tableViews.visibleColumnIds,
+      ...hiddenFilteredColumnIds,
+    ]);
+  };
+
+  const handleClearHiddenFilters = () => {
+    const hidden = new Set(hiddenFilteredColumnIds);
+    if (hidden.size === 0) return;
+
+    setFilters((current) => ({
+      ...current,
+      drMin: hidden.has('dr') ? INITIAL_FILTERS.drMin : current.drMin,
+      drMax: hidden.has('dr') ? INITIAL_FILTERS.drMax : current.drMax,
+      trafficMin: hidden.has('traffic') ? INITIAL_FILTERS.trafficMin : current.trafficMin,
+      trafficMax: hidden.has('traffic') ? INITIAL_FILTERS.trafficMax : current.trafficMax,
+      priceMin: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMin : current.priceMin,
+      priceMax: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMax : current.priceMax,
+      location: hidden.has('location') ? INITIAL_FILTERS.location : current.location,
+      niches: hidden.has('niche') ? INITIAL_FILTERS.niches : current.niches,
+      categorySearchTerms: hidden.has('categories')
+        ? INITIAL_FILTERS.categorySearchTerms
+        : current.categorySearchTerms,
+      languages: hidden.has('language') ? INITIAL_FILTERS.languages : current.languages,
+      casinoAvailability: hidden.has('priceCasino')
+        ? INITIAL_FILTERS.casinoAvailability
+        : current.casinoAvailability,
+      cryptoAvailability: hidden.has('priceCrypto')
+        ? INITIAL_FILTERS.cryptoAvailability
+        : current.cryptoAvailability,
+      linkInsertAvailability: hidden.has('priceLinkInsert')
+        ? INITIAL_FILTERS.linkInsertAvailability
+        : current.linkInsertAvailability,
+      linkInsertCasinoAvailability: hidden.has('priceLinkInsertCasino')
+        ? INITIAL_FILTERS.linkInsertCasinoAvailability
+        : current.linkInsertCasinoAvailability,
+      datingAvailability: hidden.has('priceDating')
+        ? INITIAL_FILTERS.datingAvailability
+        : current.datingAvailability,
+      quarantine: hidden.has('isQuarantined') ? INITIAL_FILTERS.quarantine : current.quarantine,
+      lastPublishedFromMonth: hidden.has('lastPublishedDate')
+        ? INITIAL_FILTERS.lastPublishedFromMonth
+        : current.lastPublishedFromMonth,
+      lastPublishedToMonth: hidden.has('lastPublishedDate')
+        ? INITIAL_FILTERS.lastPublishedToMonth
+        : current.lastPublishedToMonth,
+    }));
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
+  };
+
   return (
     <PageShell maxWidth="xl">
       <Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h4">
-            Sites Catalog
-          </Typography>
+          <Typography variant="h4">Sites Catalog</Typography>
           {canExport && (
             <SitesExportMenu
               exporting={exporting}
@@ -356,23 +479,30 @@ export function Sites() {
           </Alert>
         )}
 
-        {multiSearchResult &&
-          multiSearchResult.notFound.length > 0 &&
-          gridFiltersActive && (
-            <Alert
-              severity="info"
-              sx={{ mb: 2 }}
-              action={
-                <BrandButton size="small" onClick={handleClearFilters}>
-                  Clear filters
-                </BrandButton>
-              }
-            >
-              Not found ({multiSearchResult.notFound.length}) hidden while filters are active
-            </Alert>
-          )}
+        {multiSearchResult && multiSearchResult.notFound.length > 0 && gridFiltersActive && (
+          <Alert
+            severity="info"
+            sx={{ mb: 2 }}
+            action={
+              <BrandButton size="small" onClick={handleClearFilters}>
+                Clear filters
+              </BrandButton>
+            }
+          >
+            Not found ({multiSearchResult.notFound.length}) hidden while filters are active
+          </Alert>
+        )}
 
         <Paper>
+          <SitesTableViewToolbar
+            tableViews={tableViews}
+            hiddenFilteredColumns={hiddenFilteredColumns}
+            onShowFilteredColumns={handleShowFilteredColumns}
+            onClearHiddenFilters={handleClearHiddenFilters}
+            onSuccess={(message) => setSnackbar({ open: true, message, severity: 'success' })}
+            onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
+          />
+
           <DataGrid
             rows={gridRows}
             columns={columns}
@@ -386,10 +516,14 @@ export function Sites() {
             sortingMode="server"
             sortModel={sortModel}
             onSortModelChange={setSortModel}
+            density={tableViews.density}
+            columnVisibilityModel={tableViews.columnVisibilityModel}
             disableRowSelectionOnClick
             disableColumnMenu
             autoHeight
             sx={{
+              borderTopLeftRadius: 0,
+              borderTopRightRadius: 0,
               '& .MuiDataGrid-cell': {
                 display: 'flex',
                 alignItems: 'center',

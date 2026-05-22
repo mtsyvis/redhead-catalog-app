@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
+import { IconButton, Tooltip } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
 import type { GridColDef } from '@mui/x-data-grid';
-import { BrandButton } from '../common/BrandButton';
 import type { Site } from '../../types/sites.types';
 import { formatLanguageTableValue } from '../../utils/language';
 import { formatOptionalServicePrice } from '../../utils/serviceAvailability';
@@ -8,6 +9,7 @@ import { formatTerm } from '../../utils/term';
 import { StatusBadge } from './StatusBadge';
 import type { GridRow } from './useSitesGridRows';
 import { isNotFoundRow } from './useSitesGridRows';
+import { sitesColumnRegistry } from './sitesTableColumns';
 
 interface UseSitesColumnsOptions {
   isAdmin: boolean;
@@ -35,27 +37,38 @@ function formatNullableInteger(row: GridRow, value: number | null): string {
   return formatCell(row, value, (v) => (v == null ? '—' : String(v)));
 }
 
+const columnMetadata = Object.fromEntries(sitesColumnRegistry.map((column) => [column.id, column]));
+
+function gridColumnDefaults(
+  field: string
+): Pick<GridColDef<GridRow>, 'headerName' | 'width' | 'hideable'> {
+  const metadata = columnMetadata[field];
+  return {
+    headerName: metadata?.label ?? field,
+    width: metadata?.width,
+    hideable: !metadata?.required && !metadata?.systemOnly,
+  };
+}
+
 export function useSitesColumns({ isAdmin, isClient, onEdit }: UseSitesColumnsOptions) {
   return useMemo<GridColDef<GridRow>[]>(
     () => [
       {
+        ...gridColumnDefaults('domain'),
         field: 'domain',
-        headerName: 'Domain',
         flex: 1,
         minWidth: 200,
       },
       {
+        ...gridColumnDefaults('dr'),
         field: 'dr',
-        headerName: 'DR',
-        width: 80,
         type: 'number',
         valueFormatter: (value, row) =>
           formatCell(row, value as number | null, (v) => (v == null ? '' : String(v))),
       },
       {
+        ...gridColumnDefaults('traffic'),
         field: 'traffic',
-        headerName: 'Traffic',
-        width: 120,
         type: 'number',
         valueFormatter: (value, row) => {
           if (isNotFoundRow(row)) return '—';
@@ -64,90 +77,86 @@ export function useSitesColumns({ isAdmin, isClient, onEdit }: UseSitesColumnsOp
         },
       },
       {
+        ...gridColumnDefaults('location'),
         field: 'location',
-        headerName: 'Location',
-        width: 120,
         valueFormatter: (value, row) => formatCell(row, value as string, (v) => v ?? '—'),
       },
       {
+        ...gridColumnDefaults('priceUsd'),
         field: 'priceUsd',
-        headerName: 'Price USD',
-        width: 100,
         type: 'number',
         valueFormatter: (value, row) => formatPrice(row, value as number | null),
       },
       {
+        ...gridColumnDefaults('priceCasino'),
         field: 'priceCasino',
-        headerName: 'Casino',
-        width: 100,
         type: 'number',
         valueFormatter: (value, row) =>
           formatOptionalServiceCell(row, value as number | null, (row as Site).priceCasinoStatus),
       },
       {
+        ...gridColumnDefaults('priceCrypto'),
         field: 'priceCrypto',
-        headerName: 'Crypto',
-        width: 100,
         type: 'number',
         valueFormatter: (value, row) =>
           formatOptionalServiceCell(row, value as number | null, (row as Site).priceCryptoStatus),
       },
       {
+        ...gridColumnDefaults('priceLinkInsert'),
         field: 'priceLinkInsert',
-        headerName: 'Link Insert',
-        width: 100,
         type: 'number',
         valueFormatter: (value, row) =>
-          formatOptionalServiceCell(row, value as number | null, (row as Site).priceLinkInsertStatus),
+          formatOptionalServiceCell(
+            row,
+            value as number | null,
+            (row as Site).priceLinkInsertStatus
+          ),
       },
       {
+        ...gridColumnDefaults('priceLinkInsertCasino'),
         field: 'priceLinkInsertCasino',
-        headerName: 'Link Insert Casino',
-        width: 150,
         type: 'number',
         valueFormatter: (value, row) =>
-          formatOptionalServiceCell(row, value as number | null, (row as Site).priceLinkInsertCasinoStatus),
+          formatOptionalServiceCell(
+            row,
+            value as number | null,
+            (row as Site).priceLinkInsertCasinoStatus
+          ),
       },
       {
+        ...gridColumnDefaults('priceDating'),
         field: 'priceDating',
-        headerName: 'Dating',
-        width: 100,
         type: 'number',
         valueFormatter: (value, row) =>
           formatOptionalServiceCell(row, value as number | null, (row as Site).priceDatingStatus),
       },
       {
+        ...gridColumnDefaults('niche'),
         field: 'niche',
-        headerName: 'Niche',
-        width: 150,
         sortable: false,
         valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
       },
       {
+        ...gridColumnDefaults('categories'),
         field: 'categories',
-        headerName: 'Categories',
-        width: 150,
         sortable: false,
         valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
       },
       {
+        ...gridColumnDefaults('numberDFLinks'),
         field: 'numberDFLinks',
-        headerName: 'DF Links',
-        width: 110,
         type: 'number',
         valueFormatter: (value, row) => formatNullableInteger(row, value as number | null),
       },
       {
+        ...gridColumnDefaults('sponsoredTag'),
         field: 'sponsoredTag',
-        headerName: 'Sponsored Tag',
-        width: 150,
         sortable: false,
         valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
       },
       {
+        ...gridColumnDefaults('term'),
         field: 'term',
-        headerName: 'Term',
-        width: 120,
         valueFormatter: (_value, row) => {
           if (isNotFoundRow(row)) return '—';
           const site = row as Site;
@@ -155,9 +164,8 @@ export function useSitesColumns({ isAdmin, isClient, onEdit }: UseSitesColumnsOp
         },
       },
       {
+        ...gridColumnDefaults('language'),
         field: 'language',
-        headerName: 'Language',
-        width: 100,
         sortable: false,
         valueFormatter: (value, row) => {
           if (isNotFoundRow(row)) return '—';
@@ -165,9 +173,8 @@ export function useSitesColumns({ isAdmin, isClient, onEdit }: UseSitesColumnsOp
         },
       },
       {
+        ...gridColumnDefaults('isQuarantined'),
         field: 'isQuarantined',
-        headerName: 'Status',
-        width: 110,
         sortable: false,
         align: 'center',
         headerAlign: 'center',
@@ -178,9 +185,8 @@ export function useSitesColumns({ isAdmin, isClient, onEdit }: UseSitesColumnsOp
         },
       },
       {
+        ...gridColumnDefaults('lastPublishedDate'),
         field: 'lastPublishedDate',
-        headerName: 'Last Published',
-        width: 150,
         valueFormatter: (_value, row) => {
           if (isNotFoundRow(row)) return '—';
           const site = row as Site;
@@ -200,9 +206,8 @@ export function useSitesColumns({ isAdmin, isClient, onEdit }: UseSitesColumnsOp
       ...(!isClient
         ? [
             {
+              ...gridColumnDefaults('quarantineReason'),
               field: 'quarantineReason',
-              headerName: 'Quarantine reason',
-              width: 160,
               sortable: false,
               valueFormatter: (_value, row) => {
                 if (isNotFoundRow(row)) return '—';
@@ -215,20 +220,34 @@ export function useSitesColumns({ isAdmin, isClient, onEdit }: UseSitesColumnsOp
       ...(isAdmin
         ? [
             {
+              ...gridColumnDefaults('actions'),
               field: 'actions',
-              headerName: 'Actions',
-              width: 90,
+              headerName: '',
               sortable: false,
+              width: 56,
+              minWidth: 56,
+              maxWidth: 56,
+              align: 'center',
+              headerAlign: 'center',
               renderCell: (params: { row: GridRow }) => {
                 if (isNotFoundRow(params.row)) return null;
                 return (
-                  <BrandButton
-                    kind="outline"
-                    size="small"
-                    onClick={() => onEdit(params.row as Site)}
-                  >
-                    Edit
-                  </BrandButton>
+                  <Tooltip title="Edit site">
+                    <IconButton
+                      size="small"
+                      aria-label={`Edit ${params.row.domain}`}
+                      onClick={() => onEdit(params.row as Site)}
+                      sx={{
+                        color: 'text.secondary',
+                        '&:hover': {
+                          bgcolor: 'action.hover',
+                          color: 'text.primary',
+                        },
+                      }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 );
               },
             } as GridColDef<GridRow>,

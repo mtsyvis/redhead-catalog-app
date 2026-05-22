@@ -17,6 +17,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ExportAnalyticsSnapshot> ExportAnalyticsSnapshots => Set<ExportAnalyticsSnapshot>();
     public DbSet<ImportLog> ImportLogs => Set<ImportLog>();
     public DbSet<GoogleDriveConnection> GoogleDriveConnections => Set<GoogleDriveConnection>();
+    public DbSet<UserTablePreference> UserTablePreferences => Set<UserTablePreference>();
+    public DbSet<UserTableCustomView> UserTableCustomViews => Set<UserTableCustomView>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
