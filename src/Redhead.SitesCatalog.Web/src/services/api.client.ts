@@ -34,6 +34,17 @@ export class ApiClientError extends Error {
  * API client for making authenticated requests
  */
 export class ApiClient {
+  private static isFieldErrorMap(value: unknown): value is Record<string, string[]> {
+    return (
+      !!value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      Object.values(value).every(
+        (item) => Array.isArray(item) && item.every((message) => typeof message === 'string')
+      )
+    );
+  }
+
   private static async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       let errorData: ApiError | null = null;
@@ -44,9 +55,17 @@ export class ApiClient {
         // If JSON parsing fails, use status text
       }
 
-      const message = errorData?.message || response.statusText || 'An error occurred';
-      const errors = errorData?.errors;
-      const fieldErrors = errorData?.fieldErrors;
+      const responseErrors = errorData?.errors;
+      const errors = Array.isArray(responseErrors) ? responseErrors : undefined;
+      const fieldErrors = errorData?.fieldErrors ?? (
+        this.isFieldErrorMap(responseErrors) ? responseErrors : undefined
+      );
+      const message =
+        errorData?.message ||
+        errorData?.detail ||
+        errorData?.title ||
+        response.statusText ||
+        'An error occurred';
 
       throw new ApiClientError(message, response.status, errors, fieldErrors);
     }

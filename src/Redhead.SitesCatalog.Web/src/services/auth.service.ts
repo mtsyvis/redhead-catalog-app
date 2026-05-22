@@ -4,6 +4,10 @@ import type {
   LoginResponse,
   UserInfo,
   ChangePasswordRequest,
+  CompleteAccountSetupRequest,
+  CompleteAccountSetupResponse,
+  CurrentUserProfile,
+  UpdateCurrentUserProfileRequest,
 } from '../types/auth.types';
 
 /**
@@ -36,5 +40,29 @@ export const authService = {
    */
   async changePassword(data: ChangePasswordRequest): Promise<void> {
     await ApiClient.post<void, ChangePasswordRequest>('/api/auth/change-password', data);
+  },
+
+  /**
+   * Complete mandatory first-login account setup
+   */
+  async completeAccountSetup(data: CompleteAccountSetupRequest): Promise<CompleteAccountSetupResponse> {
+    return ApiClient.post<CompleteAccountSetupResponse, CompleteAccountSetupRequest>(
+      '/api/auth/complete-account-setup',
+      data
+    );
+  },
+
+  /**
+   * Get current user's self-service profile
+   */
+  async getCurrentProfile(): Promise<CurrentUserProfile> {
+    return ApiClient.get<CurrentUserProfile>('/api/profile');
+  },
+
+  /**
+   * Update current user's self-service profile
+   */
+  async updateCurrentProfile(data: UpdateCurrentUserProfileRequest): Promise<CurrentUserProfile> {
+    return ApiClient.put<CurrentUserProfile, UpdateCurrentUserProfileRequest>('/api/profile', data);
   },
 };

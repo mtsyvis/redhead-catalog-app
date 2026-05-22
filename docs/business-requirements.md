@@ -99,7 +99,8 @@ Rules:
 * New users are created without first or last name in the admin create-user flow and must complete profile names during account setup.
 * Account setup can complete password change, profile names, or both depending on the user's current required setup state.
 * After password reset, `MustChangePassword` must be set to `true` again.
-* While `MustChangePassword = true`, the user must be forced to the change-password flow and blocked from normal app pages.
+* While `MustChangePassword = true` or profile names are incomplete, the user must be forced to `/account-setup` and blocked from normal app pages.
+* Users can update their own profile names from `/profile`; admins must not edit another user's profile names.
 
 ## Export limits
 

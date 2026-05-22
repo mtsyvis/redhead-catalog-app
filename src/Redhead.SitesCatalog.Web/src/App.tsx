@@ -6,9 +6,11 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { AuthProvider } from './contexts/AuthContext';
 import { theme } from './theme/theme';
 import { ProtectedRoute } from './components/routing/ProtectedRoute';
-import { MustChangePasswordRoute } from './components/routing/MustChangePasswordRoute';
+import { AccountSetupRequiredRoute } from './components/routing/AccountSetupRequiredRoute';
 import { Login } from './pages/Login';
 import { ChangePassword } from './pages/ChangePassword';
+import { AccountSetup } from './pages/AccountSetup';
+import { Profile } from './pages/Profile';
 import { Sites } from './pages/Sites';
 import { Imports } from './pages/Imports';
 import { AdminUsers } from './pages/AdminUsers';
@@ -42,9 +44,9 @@ const App: React.FC = () => {
               path="/sites"
               element={
                 <ProtectedRoute>
-                  <MustChangePasswordRoute>
+                  <AccountSetupRequiredRoute>
                     <Sites />
-                  </MustChangePasswordRoute>
+                  </AccountSetupRequiredRoute>
                 </ProtectedRoute>
               }
             />
@@ -53,9 +55,9 @@ const App: React.FC = () => {
               path="/imports"
               element={
                 <ProtectedRoute>
-                  <MustChangePasswordRoute>
+                  <AccountSetupRequiredRoute>
                     <Imports />
-                  </MustChangePasswordRoute>
+                  </AccountSetupRequiredRoute>
                 </ProtectedRoute>
               }
             />
@@ -64,9 +66,9 @@ const App: React.FC = () => {
               path="/admin/users"
               element={
                 <ProtectedRoute>
-                  <MustChangePasswordRoute>
+                  <AccountSetupRequiredRoute>
                     <AdminUsers />
-                  </MustChangePasswordRoute>
+                  </AccountSetupRequiredRoute>
                 </ProtectedRoute>
               }
             />
@@ -75,9 +77,9 @@ const App: React.FC = () => {
               path="/admin/role-settings"
               element={
                 <ProtectedRoute>
-                  <MustChangePasswordRoute>
+                  <AccountSetupRequiredRoute>
                     <RoleSettings />
-                  </MustChangePasswordRoute>
+                  </AccountSetupRequiredRoute>
                 </ProtectedRoute>
               }
             />
@@ -85,10 +87,32 @@ const App: React.FC = () => {
             <Route path="/import/sites" element={<Navigate to="/imports" replace />} />
 
             <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <AccountSetupRequiredRoute>
+                    <Profile />
+                  </AccountSetupRequiredRoute>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/account-setup"
+              element={
+                <ProtectedRoute>
+                  <AccountSetup />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
               path="/change-password"
               element={
                 <ProtectedRoute>
-                  <ChangePassword />
+                  <AccountSetupRequiredRoute>
+                    <ChangePassword />
+                  </AccountSetupRequiredRoute>
                 </ProtectedRoute>
               }
             />

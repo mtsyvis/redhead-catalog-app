@@ -45,8 +45,14 @@ export const Login: React.FC = () => {
 
     try {
       const userData = await login({ email, password, rememberMe });
-      if (userData.mustChangePassword) navigate('/change-password', { replace: true });
-      else navigate(from, { replace: true });
+      if (userData.mustChangePassword || userData.mustCompleteProfile) {
+        navigate('/account-setup', {
+          replace: true,
+          state: { currentPassword: userData.mustChangePassword ? password : undefined },
+        });
+      } else {
+        navigate(from, { replace: true });
+      }
     } catch (err) {
       if (err instanceof ApiClientError) setError(err.message);
       else setError('An unexpected error occurred. Please try again.');

@@ -16,9 +16,13 @@ import {
   DialogContent,
   DialogActions,
   Chip,
+  IconButton,
+  Menu,
+  Tooltip,
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { PageShell } from '../components/layout/PageShell';
@@ -76,6 +80,8 @@ export const AdminUsers: React.FC = () => {
   const [disableConfirmUser, setDisableConfirmUser] = useState<UserListItemType | null>(null);
   const [resetPasswordConfirmUser, setResetPasswordConfirmUser] = useState<UserListItemType | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [rowActionsAnchor, setRowActionsAnchor] = useState<null | HTMLElement>(null);
+  const [rowActionsUser, setRowActionsUser] = useState<UserListItemType | null>(null);
 
   const [editExportLimitUser, setEditExportLimitUser] = useState<UserListItemType | null>(null);
   const [exportLimitOption, setExportLimitOption] = useState<ExportLimitOverrideOption>('role-default');
@@ -150,6 +156,8 @@ export const AdminUsers: React.FC = () => {
   };
 
   const handleResetPasswordClick = useCallback((u: UserListItemType) => {
+    setRowActionsAnchor(null);
+    setRowActionsUser(null);
     setResetPasswordConfirmUser(u);
   }, []);
 
@@ -174,6 +182,8 @@ export const AdminUsers: React.FC = () => {
   };
 
   const handleDisableClick = useCallback((u: UserListItemType) => {
+    setRowActionsAnchor(null);
+    setRowActionsUser(null);
     setDisableConfirmUser(u);
   }, []);
 
@@ -193,6 +203,8 @@ export const AdminUsers: React.FC = () => {
   };
 
   const handleOpenEditExportLimit = useCallback((u: UserListItemType) => {
+    setRowActionsAnchor(null);
+    setRowActionsUser(null);
     setEditExportLimitUser(u);
     if (u.exportLimitOverrideMode === null) {
       setExportLimitOption('role-default');
@@ -206,6 +218,20 @@ export const AdminUsers: React.FC = () => {
       );
     }
     setExportLimitError(null);
+  }, []);
+
+  const handleOpenRowActions = useCallback((
+    event: React.MouseEvent<HTMLElement>,
+    user: UserListItemType,
+  ) => {
+    event.stopPropagation();
+    setRowActionsAnchor(event.currentTarget);
+    setRowActionsUser(user);
+  }, []);
+
+  const handleCloseRowActions = useCallback(() => {
+    setRowActionsAnchor(null);
+    setRowActionsUser(null);
   }, []);
 
   const handleExportLimitOptionChange = (option: ExportLimitOverrideOption) => {
@@ -340,6 +366,30 @@ export const AdminUsers: React.FC = () => {
         sortable: false,
       },
       {
+        field: 'displayName',
+        headerName: 'Name',
+        flex: 0.8,
+        minWidth: 220,
+        sortable: false,
+        renderCell: (params) => (
+          <Box sx={{ py: 0.75 }}>
+            {params.row.mustCompleteProfile ? (
+              <Chip
+                label="Profile incomplete"
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ height: 22 }}
+              />
+            ) : (
+              <Typography variant="body2">
+                {params.row.displayName || '-'}
+              </Typography>
+            )}
+          </Box>
+        ),
+      },
+      {
         field: 'role',
         headerName: 'Role',
         width: 130,
@@ -355,6 +405,7 @@ export const AdminUsers: React.FC = () => {
             label={params.row.isActive ? 'Active' : 'Disabled'}
             color={params.row.isActive ? 'success' : 'default'}
             size="small"
+            variant={params.row.isActive ? 'filled' : 'outlined'}
           />
         ),
       },
@@ -367,7 +418,7 @@ export const AdminUsers: React.FC = () => {
         renderCell: (params) => {
           const u = params.row;
           return (
-            <Box sx={{ py: 1 }}>
+            <Box sx={{ py: 0.75 }}>
               <Typography variant="body2">
                 {formatExportLimit(u.effectiveExportLimitMode, u.effectiveExportLimitRows)}
               </Typography>
@@ -387,56 +438,38 @@ export const AdminUsers: React.FC = () => {
             {
               field: 'actions',
               headerName: 'Actions',
-              width: 390,
+              width: 72,
               sortable: false,
-              align: 'right' as const,
-              headerAlign: 'right' as const,
+              align: 'center' as const,
+              headerAlign: 'center' as const,
               renderCell: (params: { row: UserListItemType }) => {
                 const u = params.row;
+                const hasActions = u.isActive && (canModifyUser(u.role) || u.isExportLimitEditable);
                 return (
-                  <Box
-                    sx={{
-                      display: 'inline-flex',
-                      flexWrap: 'wrap',
-                      gap: 1,
-                      justifyContent: 'flex-end',
-                      py: 1,
-                    }}
-                  >
-                    {u.isActive && canModifyUser(u.role) && (
-                      <>
-                        <BrandButton
-                          kind="outline"
+                  <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    <Tooltip title="Actions">
+                      <span>
+                        <IconButton
                           size="small"
-                          onClick={() => handleResetPasswordClick(u)}
-                          disabled={actionLoadingId === u.id}
+                          aria-label={`Actions for ${u.email}`}
+                          onClick={(event) => handleOpenRowActions(event, u)}
+                          disabled={!hasActions || actionLoadingId === u.id}
+                          sx={{
+                            color: 'text.secondary',
+                            '&:hover': {
+                              bgcolor: 'action.hover',
+                              color: 'text.primary',
+                            },
+                          }}
                         >
                           {actionLoadingId === u.id ? (
                             <CircularProgress size={18} />
                           ) : (
-                            'Reset password'
+                            <MoreVertIcon fontSize="small" />
                           )}
-                        </BrandButton>
-                        <BrandButton
-                          kind="outline"
-                          size="small"
-                          onClick={() => handleDisableClick(u)}
-                          disabled={actionLoadingId === u.id}
-                        >
-                          Disable
-                        </BrandButton>
-                      </>
-                    )}
-                    {u.isActive && u.isExportLimitEditable && (
-                      <BrandButton
-                        kind="outline"
-                        size="small"
-                        onClick={() => handleOpenEditExportLimit(u)}
-                        disabled={actionLoadingId === u.id}
-                      >
-                        Edit export limit
-                      </BrandButton>
-                    )}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </Box>
                 );
               },
@@ -447,12 +480,13 @@ export const AdminUsers: React.FC = () => {
     [
       actionLoadingId,
       canModifyUser,
-      handleDisableClick,
-      handleOpenEditExportLimit,
-      handleResetPasswordClick,
+      handleOpenRowActions,
       isSuperAdmin,
     ],
   );
+
+  const rowActionsCanModify = rowActionsUser ? rowActionsUser.isActive && canModifyUser(rowActionsUser.role) : false;
+  const rowActionsCanEditLimit = Boolean(rowActionsUser?.isActive && rowActionsUser.isExportLimitEditable);
 
   if (!isAdmin) {
     return <Navigate to="/sites" replace />;
@@ -560,7 +594,7 @@ export const AdminUsers: React.FC = () => {
             '& .MuiDataGrid-cell': {
               display: 'flex',
               alignItems: 'center',
-              py: 1,
+              py: 0.75,
             },
             '& .MuiDataGrid-cell:focus': {
               outline: 'none',
@@ -580,6 +614,30 @@ export const AdminUsers: React.FC = () => {
           }}
         />
       </Paper>
+
+      <Menu
+        anchorEl={rowActionsAnchor}
+        open={Boolean(rowActionsAnchor)}
+        onClose={handleCloseRowActions}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        {rowActionsCanModify && rowActionsUser && (
+          <MenuItem onClick={() => handleResetPasswordClick(rowActionsUser)}>
+            Reset password
+          </MenuItem>
+        )}
+        {rowActionsCanModify && rowActionsUser && (
+          <MenuItem onClick={() => handleDisableClick(rowActionsUser)}>
+            Disable
+          </MenuItem>
+        )}
+        {rowActionsCanEditLimit && rowActionsUser && (
+          <MenuItem onClick={() => handleOpenEditExportLimit(rowActionsUser)}>
+            Edit export limit
+          </MenuItem>
+        )}
+      </Menu>
 
       <Dialog
         open={!!resetPasswordConfirmUser}

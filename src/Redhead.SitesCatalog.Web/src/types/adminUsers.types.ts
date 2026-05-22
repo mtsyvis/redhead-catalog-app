@@ -3,6 +3,10 @@ import type { ExportLimitMode } from '../utils/exportLimit';
 export interface UserListItem {
   id: string;
   email: string;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string;
+  mustCompleteProfile: boolean;
   role: string;
   isActive: boolean;
   exportLimitOverrideMode: ExportLimitMode | null;

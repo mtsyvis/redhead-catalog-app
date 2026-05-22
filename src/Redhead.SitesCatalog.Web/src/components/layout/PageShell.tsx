@@ -63,6 +63,11 @@ export const PageShell: React.FC<PageShellProps> = ({
     navigate('/change-password');
   };
 
+  const handleProfile = () => {
+    handleClose();
+    navigate('/profile');
+  };
+
   const getCurrentTab = () => {
     if (location.pathname === '/sites') return '/sites';
     if (location.pathname.startsWith('/imports')) return '/imports';
@@ -70,6 +75,7 @@ export const PageShell: React.FC<PageShellProps> = ({
     return false;
   };
 
+  const displayName = user?.displayName || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email;
   const isAdmin = user?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
   const isAdminPath = location.pathname.startsWith('/admin');
 
@@ -167,7 +173,7 @@ export const PageShell: React.FC<PageShellProps> = ({
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Typography variant="body2" color="text.secondary">
-                  {user.email}
+                  {displayName}
                 </Typography>
                 <IconButton
                   size="large"
@@ -194,6 +200,7 @@ export const PageShell: React.FC<PageShellProps> = ({
                   open={Boolean(anchorEl)}
                   onClose={handleClose}
                 >
+                  <MenuItem onClick={handleProfile}>Profile</MenuItem>
                   <MenuItem onClick={handleChangePassword}>Change Password</MenuItem>
                   <MenuItem onClick={handleLogout}>Logout</MenuItem>
                 </Menu>

@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchCurrentUser]);
 
   /**
-   * Login user. Returns user info so caller can redirect (e.g. to change-password when required).
+   * Login user. Returns user info so caller can redirect when setup is required.
    */
   const login = useCallback(async (credentials: LoginRequest): Promise<UserInfo> => {
     await authService.login(credentials);
