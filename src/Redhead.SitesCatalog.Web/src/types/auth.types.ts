@@ -1,4 +1,5 @@
 import type { GoogleDriveStatus } from './googleDrive.types';
+import type { ExportLimitMode } from '../utils/exportLimit';
 
 /**
  * User information from /api/auth/me endpoint
@@ -68,6 +69,13 @@ export interface CurrentUserProfile {
   displayName: string;
   mustCompleteProfile: boolean;
   googleDrive: GoogleDriveStatus;
+  limits: CurrentUserProfileLimits | null;
+}
+
+export interface CurrentUserProfileLimits {
+  exportLimitMode: ExportLimitMode;
+  exportLimitRows: number | null;
+  isUnlimited: boolean;
 }
 
 export interface UpdateCurrentUserProfileRequest {

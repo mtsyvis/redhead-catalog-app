@@ -22,7 +22,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ApiClientError } from '../services/api.client';
 import { authService } from '../services/auth.service';
 import { googleDriveService } from '../services/googleDrive.service';
-import type { CurrentUserProfile } from '../types/auth.types';
+import type { CurrentUserProfile, CurrentUserProfileLimits } from '../types/auth.types';
 
 function getFieldError(errors: Record<string, string[]> | undefined, field: string): string | undefined {
   return errors?.[field]?.[0];
@@ -33,6 +33,32 @@ function formatConnectedAt(value: string | null): string | null {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date.toLocaleString();
+}
+
+function formatExportLimitValue(limits: CurrentUserProfileLimits | null | undefined): string {
+  if (!limits) return 'Not configured';
+  if (limits.isUnlimited || limits.exportLimitMode === 'Unlimited') return 'Unlimited';
+  if (limits.exportLimitMode === 'Disabled') return 'Disabled';
+  if (limits.exportLimitMode === 'Limited' && limits.exportLimitRows != null) {
+    return `${limits.exportLimitRows.toLocaleString()} rows`;
+  }
+
+  return 'Not configured';
+}
+
+function getExportLimitDescription(limits: CurrentUserProfileLimits | null | undefined): string {
+  if (!limits) return 'No export limit is configured for this account.';
+  if (limits.isUnlimited || limits.exportLimitMode === 'Unlimited') {
+    return 'You can export all matching site rows.';
+  }
+  if (limits.exportLimitMode === 'Disabled') {
+    return 'Exports are disabled for this account.';
+  }
+  if (limits.exportLimitMode === 'Limited' && limits.exportLimitRows != null) {
+    return `Each export can include up to ${limits.exportLimitRows.toLocaleString()} matching site rows.`;
+  }
+
+  return 'No export limit is configured for this account.';
 }
 
 export const Profile: React.FC = () => {
@@ -136,6 +162,7 @@ export const Profile: React.FC = () => {
   };
 
   const googleDrive = profile?.googleDrive;
+  const limits = profile?.limits;
   const connectedAt = formatConnectedAt(googleDrive?.connectedAtUtc ?? null);
   const trimmedFirstName = firstName.trim();
   const trimmedLastName = lastName.trim();
@@ -214,16 +241,13 @@ export const Profile: React.FC = () => {
 
             <Card>
               <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  Limits
-                </Typography>
-                <Stack spacing={1}>
+                <Stack spacing={1.25}>
+                  <Typography variant="h6">Export limits</Typography>
                   <Typography variant="body2">
-                    Role: <strong>{profile?.role || 'Not available'}</strong>
+                    Export row limit: <strong>{formatExportLimitValue(limits)}</strong>
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Export limits are applied when exporting. Detailed effective limit values are not available on
-                    this profile page yet.
+                    {getExportLimitDescription(limits)}
                   </Typography>
                 </Stack>
               </CardContent>

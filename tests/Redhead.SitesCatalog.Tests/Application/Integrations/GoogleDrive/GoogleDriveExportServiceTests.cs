@@ -201,7 +201,10 @@ public sealed class GoogleDriveExportServiceTests
         ApplicationDbContext db,
         IGoogleDriveApiClient driveClient)
     {
-        var exportService = new ExportService(db, new SitesQueryBuilder(db));
+        var exportService = new ExportService(
+            db,
+            new SitesQueryBuilder(db),
+            new EffectiveExportPolicyService(db));
 
         return new GoogleDriveExportService(
             db,

@@ -63,11 +63,16 @@ public class ExportService : IExportService
 
     private readonly ApplicationDbContext _context;
     private readonly ISitesQueryBuilder _queryBuilder;
+    private readonly IEffectiveExportPolicyService _effectiveExportPolicyService;
 
-    public ExportService(ApplicationDbContext context, ISitesQueryBuilder queryBuilder)
+    public ExportService(
+        ApplicationDbContext context,
+        ISitesQueryBuilder queryBuilder,
+        IEffectiveExportPolicyService effectiveExportPolicyService)
     {
         _context = context;
         _queryBuilder = queryBuilder;
+        _effectiveExportPolicyService = effectiveExportPolicyService;
     }
 
     public async Task<ExportResult> ExportSitesAsExcelAsync(
@@ -77,16 +82,10 @@ public class ExportService : IExportService
         string userRole,
         CancellationToken cancellationToken = default)
     {
-        var roleSettings = await _context.RoleSettings
-            .FirstOrDefaultAsync(rs => rs.RoleName == userRole, cancellationToken);
-
-        if (roleSettings == null)
-        {
-            throw new RoleSettingsNotFoundException(userRole);
-        }
-
-        var user = await _context.Users.FindAsync(new object?[] { userId }, cancellationToken);
-        var policy = EffectiveExportPolicyResolver.Resolve(userRole, roleSettings, user);
+        var policy = await _effectiveExportPolicyService.GetEffectivePolicyAsync(
+            userId,
+            userRole,
+            cancellationToken);
 
         if (policy.Mode == ExportLimitMode.Disabled)
         {
@@ -145,16 +144,10 @@ public class ExportService : IExportService
 
         var parseResult = MultiSearchParser.Parse(searchText);
 
-        var roleSettings = await _context.RoleSettings
-            .FirstOrDefaultAsync(rs => rs.RoleName == userRole, cancellationToken);
-
-        if (roleSettings == null)
-        {
-            throw new RoleSettingsNotFoundException(userRole);
-        }
-
-        var user = await _context.Users.FindAsync(new object?[] { userId }, cancellationToken);
-        var policy = EffectiveExportPolicyResolver.Resolve(userRole, roleSettings, user);
+        var policy = await _effectiveExportPolicyService.GetEffectivePolicyAsync(
+            userId,
+            userRole,
+            cancellationToken);
 
         if (policy.Mode == ExportLimitMode.Disabled)
         {

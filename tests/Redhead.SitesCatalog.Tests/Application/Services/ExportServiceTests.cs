@@ -27,7 +27,10 @@ public class ExportServiceTests : IDisposable
 
         _context = new ApplicationDbContext(options);
         var queryBuilder = new SitesQueryBuilder(_context);
-        _service = new ExportService(_context, queryBuilder);
+        _service = new ExportService(
+            _context,
+            queryBuilder,
+            new EffectiveExportPolicyService(_context));
 
         SeedTestData();
     }
