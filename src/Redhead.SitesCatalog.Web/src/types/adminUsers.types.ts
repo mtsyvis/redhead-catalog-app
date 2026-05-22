@@ -1,4 +1,5 @@
 import type { ExportLimitMode } from '../utils/exportLimit';
+import type { GoogleDriveStatus } from './googleDrive.types';
 
 export interface UserListItem {
   id: string;
@@ -31,6 +32,29 @@ export interface UserListResponse {
   pageSize: number;
   totalCount: number;
   totalPages: number;
+}
+
+export interface AdminUserDetails {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string;
+  mustCompleteProfile: boolean;
+  mustChangePassword?: boolean;
+  role: string;
+  isActive?: boolean;
+  exportLimitOverrideMode?: ExportLimitMode | null;
+  exportLimitRowsOverride?: number | null;
+  effectiveExportLimitMode?: ExportLimitMode | null;
+  effectiveExportLimitRows?: number | null;
+  isExportLimitOverridden?: boolean;
+  isExportLimitEditable?: boolean;
+  googleDriveConnected?: boolean | null;
+  googleDrive?: GoogleDriveStatus | null;
+  createdAtUtc?: string | null;
+  updatedAtUtc?: string | null;
+  profileStatus?: string | null;
 }
 
 export interface CreateUserRequest {

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -24,7 +24,7 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { DataGrid } from '@mui/x-data-grid';
-import type { GridColDef, GridPaginationModel } from '@mui/x-data-grid';
+import type { GridColDef, GridPaginationModel, GridRowParams } from '@mui/x-data-grid';
 import { PageShell } from '../components/layout/PageShell';
 import { BrandButton } from '../components/common/BrandButton';
 import { useAuth } from '../contexts/AuthContext';
@@ -55,6 +55,7 @@ function parsePositiveInt(value: string): number | null {
 
 export const AdminUsers: React.FC = () => {
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserListItemType[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [userType, setUserType] = useState<UserTypeFilter>('all');
@@ -228,6 +229,20 @@ export const AdminUsers: React.FC = () => {
     setRowActionsAnchor(event.currentTarget);
     setRowActionsUser(user);
   }, []);
+
+  const navigateToDetails = useCallback((user: UserListItemType) => {
+    navigate(`/admin/users/${encodeURIComponent(user.id)}`);
+  }, [navigate]);
+
+  const handleViewDetails = useCallback((user: UserListItemType) => {
+    setRowActionsAnchor(null);
+    setRowActionsUser(null);
+    navigateToDetails(user);
+  }, [navigateToDetails]);
+
+  const handleRowClick = useCallback((params: GridRowParams<UserListItemType>) => {
+    navigateToDetails(params.row);
+  }, [navigateToDetails]);
 
   const handleCloseRowActions = useCallback(() => {
     setRowActionsAnchor(null);
@@ -585,6 +600,7 @@ export const AdminUsers: React.FC = () => {
           paginationModel={paginationModel}
           paginationMode="server"
           onPaginationModelChange={handlePaginationModelChange}
+          onRowClick={handleRowClick}
           disableRowSelectionOnClick
           disableColumnMenu
           autoHeight
@@ -595,6 +611,12 @@ export const AdminUsers: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               py: 0.75,
+            },
+            '& .MuiDataGrid-row': {
+              cursor: 'pointer',
+            },
+            '& .MuiDataGrid-row:hover': {
+              backgroundColor: 'action.hover',
             },
             '& .MuiDataGrid-cell:focus': {
               outline: 'none',
@@ -622,6 +644,11 @@ export const AdminUsers: React.FC = () => {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
+        {rowActionsUser && (
+          <MenuItem onClick={() => handleViewDetails(rowActionsUser)}>
+            View details
+          </MenuItem>
+        )}
         {rowActionsCanModify && rowActionsUser && (
           <MenuItem onClick={() => handleResetPasswordClick(rowActionsUser)}>
             Reset password

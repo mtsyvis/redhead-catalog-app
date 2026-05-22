@@ -2,6 +2,7 @@ import { ApiClient } from './api.client';
 import type {
   UserListQueryParams,
   UserListResponse,
+  AdminUserDetails,
   CreateUserRequest,
   CreateUserResponse,
   ResetPasswordResponse,
@@ -17,6 +18,10 @@ export const adminUsersService = {
     });
 
     return ApiClient.get<UserListResponse>(`/api/admin/users?${query.toString()}`);
+  },
+
+  getDetails(id: string): Promise<AdminUserDetails> {
+    return ApiClient.get<AdminUserDetails>(`/api/admin/users/${encodeURIComponent(id)}`);
   },
 
   create(data: CreateUserRequest): Promise<CreateUserResponse> {

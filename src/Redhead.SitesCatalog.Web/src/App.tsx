@@ -14,6 +14,7 @@ import { Profile } from './pages/Profile';
 import { Sites } from './pages/Sites';
 import { Imports } from './pages/Imports';
 import { AdminUsers } from './pages/AdminUsers';
+import { AdminUserDetails } from './pages/AdminUserDetails';
 import { RoleSettings } from './pages/RoleSettings';
 import { OAuthHome, PrivacyPolicy, TermsOfService } from './pages/OAuthVerificationPages';
 
@@ -68,6 +69,17 @@ const App: React.FC = () => {
                 <ProtectedRoute>
                   <AccountSetupRequiredRoute>
                     <AdminUsers />
+                  </AccountSetupRequiredRoute>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/admin/users/:userId"
+              element={
+                <ProtectedRoute>
+                  <AccountSetupRequiredRoute>
+                    <AdminUserDetails />
                   </AccountSetupRequiredRoute>
                 </ProtectedRoute>
               }

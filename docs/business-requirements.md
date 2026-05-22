@@ -552,7 +552,7 @@ Rules:
 * Admin navigation should show only sections the current user can access.
 * Backend policies remain authoritative even if navigation hides a section.
 * User creation UI is available only to `SuperAdmin`.
-* Admin users list should show user profile name and profile completion status.
+* Admin users list should show user profile name for completed profiles and profile completion status for incomplete profiles.
 * `SuperAdmin` and `Admin` can view readonly admin user details, including account role, profile name fields, profile completion status, export-limit information, and Google Drive connection status.
 * Admins must not edit another user's `FirstName` or `LastName`.
 * Role settings editing is available only to `SuperAdmin`.
