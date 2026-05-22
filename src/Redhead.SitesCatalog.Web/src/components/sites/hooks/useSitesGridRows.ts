@@ -5,12 +5,12 @@ import type {
   ServiceAvailabilityStatus,
   Site,
   SitesFilters as FiltersType,
-} from '../../types/sites.types';
-import { formatLanguageCode } from '../../utils/language';
+} from '../../../types/sites.types';
+import { formatLanguageCode } from '../../../utils/language';
 import {
   getOptionalServiceSortRank,
   matchesAvailabilityFilter,
-} from '../../utils/serviceAvailability';
+} from '../../../utils/serviceAvailability';
 
 export type NotFoundRow = { domain: string; _isNotFound: true };
 export type GridRow = Site | NotFoundRow;

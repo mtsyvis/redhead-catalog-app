@@ -1,7 +1,7 @@
 import { Box, Typography, FormHelperText } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
-import { toApiMonth, fromApiMonth } from '../../utils/lastPublishedMonth';
+import { toApiMonth, fromApiMonth } from '../../../utils/lastPublishedMonth';
 
 const MIN_DATE = dayjs('2024-01-01');
 const MAX_DATE = dayjs().endOf('year');

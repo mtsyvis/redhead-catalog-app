@@ -16,16 +16,16 @@ import type {
   ServiceAvailabilityStatusValue,
   Site,
   TermTypeValue,
-} from '../../types/sites.types';
-import { sitesService } from '../../services/sites.service';
-import { ApiClientError } from '../../services/api.client';
-import { BrandButton } from '../common/BrandButton';
+} from '../../../types/sites.types';
+import { sitesService } from '../../../services/sites.service';
+import { ApiClientError } from '../../../services/api.client';
+import { BrandButton } from '../../common/BrandButton';
 import {
   SERVICE_AVAILABILITY_STATUS,
   SERVICE_AVAILABILITY_STATUS_OPTIONS,
-} from '../../utils/serviceAvailability';
-import { LANGUAGE_OPTIONS, getLanguageOption } from '../../utils/language';
-import { TERM_TYPE } from '../../utils/term';
+} from '../../../utils/serviceAvailability';
+import { LANGUAGE_OPTIONS, getLanguageOption } from '../../../utils/language';
+import { TERM_TYPE } from '../../../utils/term';
 import {
   buildUpdateSitePayload,
   clearFieldError,

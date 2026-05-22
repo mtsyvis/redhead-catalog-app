@@ -3,13 +3,13 @@ import type {
   Site,
   TermTypeValue,
   UpdateSitePayload,
-} from '../../types/sites.types';
+} from '../../../types/sites.types';
 import {
   normalizeServiceAvailabilityStatus,
   SERVICE_AVAILABILITY_STATUS,
-} from '../../utils/serviceAvailability';
-import { normalizeLanguageCode } from '../../utils/language';
-import { normalizeTermType, TERM_TYPE, TERM_UNIT } from '../../utils/term';
+} from '../../../utils/serviceAvailability';
+import { normalizeLanguageCode } from '../../../utils/language';
+import { normalizeTermType, TERM_TYPE, TERM_UNIT } from '../../../utils/term';
 
 export type EditSiteFormState = {
   dr: string;

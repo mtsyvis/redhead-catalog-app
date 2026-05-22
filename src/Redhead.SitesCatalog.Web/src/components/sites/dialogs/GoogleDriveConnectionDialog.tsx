@@ -1,6 +1,6 @@
 import { Alert, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from '@mui/material';
-import type { GoogleDriveStatus } from '../../types/googleDrive.types';
-import { BrandButton } from '../common/BrandButton';
+import type { GoogleDriveStatus } from '../../../types/googleDrive.types';
+import { BrandButton } from '../../common/BrandButton';
 
 export type GoogleDriveDialogState = { open: boolean; reconnect: boolean };
 

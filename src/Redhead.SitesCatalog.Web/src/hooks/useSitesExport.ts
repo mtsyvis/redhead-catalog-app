@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ApiClientError } from '../services/api.client';
 import { googleDriveService } from '../services/googleDrive.service';
 import { sitesService } from '../services/sites.service';
-import type { GoogleDriveDialogState } from '../components/sites/GoogleDriveConnectionDialog';
-import type { SitesSnackbarState } from '../components/sites/SitesSnackbar';
+import type { GoogleDriveDialogState } from '../components/sites/dialogs/GoogleDriveConnectionDialog';
+import type { SitesSnackbarState } from '../components/sites/feedback/SitesSnackbar';
 import type {
   GoogleDriveExportPayload,
   MultiSearchResponse,

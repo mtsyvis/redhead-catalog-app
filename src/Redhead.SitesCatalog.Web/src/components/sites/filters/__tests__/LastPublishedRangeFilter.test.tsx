@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LastPublishedRangeFilter } from '../LastPublishedRangeFilter';
-import { toApiMonth, fromApiMonth } from '../../../utils/lastPublishedMonth';
+import { toApiMonth, fromApiMonth } from '../../../../utils/lastPublishedMonth';
 import dayjs from 'dayjs';
 
 // MUI X v8 DatePicker renders a section-based field (role="group") with a hidden

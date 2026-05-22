@@ -9,12 +9,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { BrandButton } from '../common/BrandButton';
+import { BrandButton } from '../../common/BrandButton';
 import {
   formatStopListInput,
   parseStopListInput,
   STOP_LIST_MAX_DOMAINS,
-} from '../../utils/stopList';
+} from '../../../utils/stopList';
 
 interface StopListDialogProps {
   open: boolean;

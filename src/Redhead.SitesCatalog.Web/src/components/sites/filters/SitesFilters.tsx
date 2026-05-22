@@ -17,14 +17,14 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
-import type { FilterOption, SitesFilters } from '../../types/sites.types';
-import { sitesService } from '../../services/sites.service';
-import { BrandButton } from '../common/BrandButton';
-import { SERVICE_AVAILABILITY_FILTER_OPTIONS } from '../../utils/serviceAvailability';
-import { LANGUAGE_OPTIONS, getLanguageOption } from '../../utils/language';
+import type { FilterOption, SitesFilters } from '../../../types/sites.types';
+import { sitesService } from '../../../services/sites.service';
+import { BrandButton } from '../../common/BrandButton';
+import { SERVICE_AVAILABILITY_FILTER_OPTIONS } from '../../../utils/serviceAvailability';
+import { LANGUAGE_OPTIONS, getLanguageOption } from '../../../utils/language';
 import { LastPublishedRangeFilter } from './LastPublishedRangeFilter';
-import { StopListDialog } from './StopListDialog';
-import { pluralize } from '../../utils/pluralize';
+import { StopListDialog } from '../dialogs/StopListDialog';
+import { pluralize } from '../../../utils/pluralize';
 import {
   CategoriesSearchFilter,
   type CategoriesSearchFilterHandle,

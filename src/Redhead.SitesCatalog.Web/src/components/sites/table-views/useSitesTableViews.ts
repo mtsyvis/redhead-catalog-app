@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { GridColumnVisibilityModel } from '@mui/x-data-grid';
-import { tableViewsService } from '../../services/tableViews.service';
+import { tableViewsService } from '../../../services/tableViews.service';
 import type {
   TableCustomView,
   TableViewDensity,
   TableViewSettings,
   TableViewType,
-} from '../../types/tableViews.types';
+} from '../../../types/tableViews.types';
 import {
   createSitesViewSettings,
   normalizeSitesVisibleColumnIds,

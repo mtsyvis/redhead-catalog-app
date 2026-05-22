@@ -2,14 +2,14 @@ import { useMemo } from 'react';
 import { IconButton, Tooltip } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import type { GridColDef } from '@mui/x-data-grid';
-import type { Site } from '../../types/sites.types';
-import { formatLanguageTableValue } from '../../utils/language';
-import { formatOptionalServicePrice } from '../../utils/serviceAvailability';
-import { formatTerm } from '../../utils/term';
-import { StatusBadge } from './StatusBadge';
+import type { Site } from '../../../types/sites.types';
+import { formatLanguageTableValue } from '../../../utils/language';
+import { formatOptionalServicePrice } from '../../../utils/serviceAvailability';
+import { formatTerm } from '../../../utils/term';
+import { StatusBadge } from '../feedback/StatusBadge';
 import type { GridRow } from './useSitesGridRows';
 import { isNotFoundRow } from './useSitesGridRows';
-import { sitesColumnRegistry } from './sitesTableColumns';
+import { sitesColumnRegistry } from '../table-views/sitesTableColumns';
 
 interface UseSitesColumnsOptions {
   isAdmin: boolean;

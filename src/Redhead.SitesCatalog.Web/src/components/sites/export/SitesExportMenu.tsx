@@ -4,7 +4,7 @@ import { Box, Menu, MenuItem } from '@mui/material';
 import AddToDriveIcon from '@mui/icons-material/AddToDrive';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import DownloadIcon from '@mui/icons-material/Download';
-import { BrandButton } from '../common/BrandButton';
+import { BrandButton } from '../../common/BrandButton';
 
 interface SitesExportMenuProps {
   exporting: boolean;

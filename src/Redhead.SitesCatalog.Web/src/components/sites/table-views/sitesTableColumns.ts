@@ -1,4 +1,4 @@
-import type { TableViewDensity, TableViewSettings } from '../../types/tableViews.types';
+import type { TableViewDensity, TableViewSettings } from '../../../types/tableViews.types';
 
 export type SitesColumnGroup = 'Main' | 'SEO metrics' | 'Prices' | 'Publication' | 'Admin';
 
