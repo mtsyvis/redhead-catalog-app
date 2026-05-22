@@ -312,16 +312,18 @@ Rules:
 * Data grid uses server-side paging, sorting, filtering, and search.
 * Large result sets must not be fully loaded into the browser.
 * Nullable or unavailable values should use clear placeholders such as `-`.
-* Users can select table views that control presentation only: visible columns and density.
+* Users can select table views that control presentation only: visible columns, column order, and density.
 * Table views must not save or reset filters, sorting, pagination, search text, or selected rows.
 * System table views are readonly and defined by the frontend.
 * Available system table views are `Default`, `Pricing`, `SEO`, and `Full`.
+* System table views use `Standard` density by default.
 * Custom table views are stored per user and per table; users can create, update, rename, duplicate, and delete custom views.
 * Custom view names must be unique per user/table ignoring case.
 * The active table view selection is stored per user/table.
-* Column visibility changes can be applied temporarily to the current table view without saving or creating a custom view.
+* Column visibility and order changes can be applied temporarily to the current table view without saving or creating a custom view.
 * Unsaved table view changes are saved or reset from the view-changed workflow, not automatically when applying columns.
 * The `Domain` column is always visible and cannot be hidden.
+* The `Domain` column is always first; workflow/system columns such as row actions stay system-managed and last when present.
 * Workflow/system columns such as row actions are not saved in table views.
 * If active filters target hidden columns, the UI should warn the user and offer to show those columns or clear only those hidden-column filters.
 * Sorting by service-specific price fields keeps available services first in both ascending and descending order. Known numeric prices sort first by price, available-with-unknown-price (`YES`) sorts after known prices, not-available sorts after `YES`, and unknown sorts last.

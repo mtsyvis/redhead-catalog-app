@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { MouseEvent } from 'react';
+import type { DragEvent, KeyboardEvent, MouseEvent } from 'react';
 import {
   Box,
   Button,
@@ -23,12 +23,17 @@ import {
   MenuItem,
   Popover,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SearchIcon from '@mui/icons-material/Search';
 import { BrandButton } from '../common/BrandButton';
@@ -38,7 +43,11 @@ import type {
   TableViewSettings,
   TableViewType,
 } from '../../types/tableViews.types';
-import { createSitesViewSettings } from './sitesTableColumns';
+import {
+  createSitesViewSettings,
+  insertSitesColumnsByDefaultOrder,
+  normalizeSitesVisibleColumnIds,
+} from './sitesTableColumns';
 import type { SitesColumnGroup, SitesColumnMetadata } from './sitesTableColumns';
 import type { useSitesTableViews } from './useSitesTableViews';
 
@@ -65,6 +74,7 @@ interface SitesTableViewToolbarProps {
 interface ViewColumnChanges {
   added: string[];
   hidden: string[];
+  reordered: boolean;
 }
 
 interface ToolbarPillProps {
@@ -153,8 +163,10 @@ export function SitesTableViewToolbar({
   const [viewAnchor, setViewAnchor] = useState<HTMLElement | null>(null);
   const [overflowAnchor, setOverflowAnchor] = useState<HTMLElement | null>(null);
   const [columnsDrawerOpen, setColumnsDrawerOpen] = useState(false);
+  const [columnsDrawerTab, setColumnsDrawerTab] = useState(0);
   const [columnsSearch, setColumnsSearch] = useState('');
   const [drawerVisibleColumnIds, setDrawerVisibleColumnIds] = useState<string[]>([]);
+  const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
   const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
   const [nameDialogError, setNameDialogError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -171,6 +183,11 @@ export function SitesTableViewToolbar({
   );
 
   const drawerVisibleSet = useMemo(() => new Set(drawerVisibleColumnIds), [drawerVisibleColumnIds]);
+
+  const columnById = useMemo(
+    () => new Map(tableViews.allowedViewColumns.map((column) => [column.id, column])),
+    [tableViews.allowedViewColumns]
+  );
 
   const filteredColumns = useMemo(() => {
     const query = columnsSearch.trim().toLowerCase();
@@ -201,9 +218,12 @@ export function SitesTableViewToolbar({
     [drawerVisibleColumnIds, tableViews.activeSettings.visibleColumnIds]
   );
 
-  const columnLabelsById = useMemo(
-    () => new Map(tableViews.allowedViewColumns.map((column) => [column.id, column.label])),
-    [tableViews.allowedViewColumns]
+  const orderedDrawerColumns = useMemo(
+    () =>
+      drawerVisibleColumnIds
+        .map((columnId) => columnById.get(columnId))
+        .filter((column): column is SitesColumnMetadata => Boolean(column)),
+    [columnById, drawerVisibleColumnIds]
   );
 
   const viewColumnChanges = useMemo(() => {
@@ -213,20 +233,25 @@ export function SitesTableViewToolbar({
     return {
       added: tableViews.visibleColumnIds
         .filter((columnId) => !activeColumnIds.has(columnId))
-        .map((columnId) => columnLabelsById.get(columnId) ?? columnId),
+        .map((columnId) => columnById.get(columnId)?.label ?? columnId),
       hidden: tableViews.activeSettings.visibleColumnIds
         .filter((columnId) => !visibleColumnIds.has(columnId))
-        .map((columnId) => columnLabelsById.get(columnId) ?? columnId),
+        .map((columnId) => columnById.get(columnId)?.label ?? columnId),
+      reordered:
+        haveSameColumnSet(tableViews.visibleColumnIds, tableViews.activeSettings.visibleColumnIds) &&
+        !areColumnListsEqual(tableViews.visibleColumnIds, tableViews.activeSettings.visibleColumnIds),
     };
-  }, [columnLabelsById, tableViews.activeSettings.visibleColumnIds, tableViews.visibleColumnIds]);
+  }, [columnById, tableViews.activeSettings.visibleColumnIds, tableViews.visibleColumnIds]);
 
   const hasOnlyDisplaySettingChanges =
     tableViews.hasUnsavedChanges &&
     viewColumnChanges.added.length === 0 &&
-    viewColumnChanges.hidden.length === 0;
+    viewColumnChanges.hidden.length === 0 &&
+    !viewColumnChanges.reordered;
 
   const openColumnsDrawer = () => {
     setDrawerVisibleColumnIds(tableViews.visibleColumnIds);
+    setColumnsDrawerTab(0);
     setColumnsSearch('');
     setColumnsDrawerOpen(true);
   };
@@ -336,7 +361,7 @@ export function SitesTableViewToolbar({
   };
 
   const handleApplyDrawer = () => {
-    tableViews.updateDraftVisibleColumns(getOrderedDrawerVisibleColumnIds());
+    tableViews.updateDraftVisibleColumns(drawerVisibleColumnIds);
     setColumnsDrawerOpen(false);
   };
 
@@ -357,7 +382,12 @@ export function SitesTableViewToolbar({
   const toggleDrawerColumn = (column: SitesColumnMetadata, checked: boolean) => {
     if (column.required) return;
     setDrawerVisibleColumnIds((current) =>
-      checked ? [...current, column.id] : current.filter((columnId) => columnId !== column.id)
+      checked
+        ? insertSitesColumnsByDefaultOrder(current, [column.id], tableViews.allowedViewColumns)
+        : normalizeSitesVisibleColumnIds(
+            current.filter((columnId) => columnId !== column.id),
+            tableViews.allowedViewColumns
+          )
     );
   };
 
@@ -365,11 +395,82 @@ export function SitesTableViewToolbar({
     setDrawerVisibleColumnIds(tableViews.activeSettings.visibleColumnIds);
   };
 
-  const getOrderedDrawerVisibleColumnIds = () => {
-    const visibleColumnIds = new Set(drawerVisibleColumnIds);
-    return tableViews.allowedViewColumns
-      .filter((column) => column.required || visibleColumnIds.has(column.id))
-      .map((column) => column.id);
+  const moveDrawerColumn = (columnId: string, targetIndex: number) => {
+    const column = columnById.get(columnId);
+    if (!column || column.required) return;
+
+    setDrawerVisibleColumnIds((current) => {
+      const normalized = normalizeSitesVisibleColumnIds(current, tableViews.allowedViewColumns);
+      const fromIndex = normalized.indexOf(columnId);
+      if (fromIndex === -1) return normalized;
+
+      const lockedCount = normalized.filter((id) => columnById.get(id)?.required).length;
+      const next = [...normalized];
+      const [movedColumnId] = next.splice(fromIndex, 1);
+      const nextTargetIndex = Math.max(lockedCount, Math.min(targetIndex, next.length));
+      next.splice(nextTargetIndex, 0, movedColumnId);
+      return normalizeSitesVisibleColumnIds(next, tableViews.allowedViewColumns);
+    });
+  };
+
+  const moveDrawerColumnByDelta = (columnId: string, delta: number) => {
+    const currentIndex = drawerVisibleColumnIds.indexOf(columnId);
+    if (currentIndex === -1) return;
+    moveDrawerColumn(columnId, currentIndex + delta);
+  };
+
+  const handleOrderDragStart = (event: DragEvent<HTMLElement>, columnId: string) => {
+    setDraggedColumnId(columnId);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', columnId);
+  };
+
+  const handleOrderDragOver = (event: DragEvent<HTMLElement>, targetColumnId: string) => {
+    const sourceColumnId = draggedColumnId ?? event.dataTransfer.getData('text/plain');
+    if (!sourceColumnId || sourceColumnId === targetColumnId) return;
+
+    const sourceColumn = columnById.get(sourceColumnId);
+    if (!sourceColumn || sourceColumn.required) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+
+    const targetColumn = columnById.get(targetColumnId);
+    const sourceIndex = drawerVisibleColumnIds.indexOf(sourceColumnId);
+    const targetIndex = drawerVisibleColumnIds.indexOf(targetColumnId);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const targetRect = event.currentTarget.getBoundingClientRect();
+    const insertAfter = event.clientY > targetRect.top + targetRect.height / 2;
+    const rawTargetIndex = targetColumn?.required ? 1 : targetIndex + (insertAfter ? 1 : 0);
+    const adjustedTargetIndex = sourceIndex < rawTargetIndex ? rawTargetIndex - 1 : rawTargetIndex;
+
+    if (adjustedTargetIndex !== sourceIndex) {
+      moveDrawerColumn(sourceColumnId, adjustedTargetIndex);
+    }
+  };
+
+  const handleOrderDrop = (event: DragEvent<HTMLElement>, targetColumnId: string) => {
+    event.preventDefault();
+    void targetColumnId;
+    setDraggedColumnId(null);
+  };
+
+  const handleOrderKeyDown = (
+    event: KeyboardEvent<HTMLElement>,
+    column: SitesColumnMetadata
+  ) => {
+    if (column.required) return;
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveDrawerColumnByDelta(column.id, -1);
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveDrawerColumnByDelta(column.id, 1);
+    }
   };
 
   const resetToolbarDraft = () => {
@@ -475,7 +576,7 @@ export function SitesTableViewToolbar({
         {tableViews.hasUnsavedChanges && (
           <ToolbarPill
             label="View changed"
-            tooltip="This view has unsaved column changes"
+            tooltip="This view has unsaved display changes"
             onClick={(event) => setEditedAnchor(event.currentTarget)}
           />
         )}
@@ -623,114 +724,304 @@ export function SitesTableViewToolbar({
             maxWidth: '100%',
             display: 'flex',
             flexDirection: 'column',
+            bgcolor: 'background.paper',
+            overflow: 'hidden',
           },
         }}
       >
-        <Box sx={{ p: 2.25, pb: 1.5 }}>
+        <Box sx={{ px: 2, pt: 1.5, pb: 0.75, bgcolor: 'background.paper' }}>
           <Typography variant="h6">Columns</Typography>
           <Typography variant="body2" color="text.secondary">
             {drawerVisibleColumnIds.length} of {totalConfigurableCount} visible
           </Typography>
-          <TextField
-            size="small"
-            placeholder="Search columns…"
-            value={columnsSearch}
-            onChange={(event) => setColumnsSearch(event.target.value)}
-            fullWidth
-            sx={{ mt: 2 }}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-                sx: searchInputSx,
-              },
-            }}
-          />
         </Box>
 
-        <Divider />
-
-        <List
-          dense
-          subheader={null}
+        <Tabs
+          value={columnsDrawerTab}
+          onChange={(_event, value: number) => setColumnsDrawerTab(value)}
+          variant="fullWidth"
           sx={{
-            flex: 1,
-            overflow: 'auto',
-            py: 0,
+            minHeight: 34,
+            borderBottom: 1,
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
           }}
+          slotProps={{ indicator: { sx: { height: 2 } } }}
         >
-          {columnsByGroup.length === 0 && (
-            <ListItem>
-              <ListItemText secondary="No columns match your search." />
-            </ListItem>
-          )}
-          {columnsByGroup.map(({ group, columns }) => (
-            <Box key={group}>
-              <ListSubheader
-                sx={{
-                  bgcolor: 'background.paper',
-                  lineHeight: '30px',
-                  fontWeight: 700,
-                  fontSize: 12,
-                }}
-              >
-                {group}
-              </ListSubheader>
-              {columns.map((column) => {
-                const checked = column.required || drawerVisibleSet.has(column.id);
-                const filtered = hiddenFilteredColumnIds.has(column.id);
-                const adminOnly = column.group === 'Admin' && !column.required;
-                return (
-                  <ListItemButton
-                    key={column.id}
-                    dense
-                    component="div"
-                    onClick={() => toggleDrawerColumn(column, !checked)}
+          <Tab
+            label="Columns"
+            sx={{ minHeight: 34, py: 0.5, textTransform: 'none', fontSize: 13 }}
+          />
+          <Tab
+            label="Order"
+            sx={{ minHeight: 34, py: 0.5, textTransform: 'none', fontSize: 13 }}
+          />
+        </Tabs>
+
+        {columnsDrawerTab === 0 && (
+          <Box sx={{ px: 2, pt: 0.75, pb: 0.5, bgcolor: 'background.paper' }}>
+            <TextField
+              size="small"
+              placeholder="Search columns..."
+              value={columnsSearch}
+              onChange={(event) => setColumnsSearch(event.target.value)}
+              fullWidth
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon fontSize="small" sx={{ fontSize: 18 }} />
+                    </InputAdornment>
+                  ),
+                  sx: {
+                    ...searchInputSx,
+                    height: 36,
+                    fontSize: 14,
+                  },
+                },
+              }}
+            />
+          </Box>
+        )}
+
+        {columnsDrawerTab === 1 && (
+          <Box sx={{ px: 2, pt: 1.25, pb: 0.75, bgcolor: 'background.paper' }}>
+            <Typography variant="subtitle2">Visible column order</Typography>
+          </Box>
+        )}
+
+        {columnsDrawerTab === 0 ? (
+          <List
+            dense
+            subheader={null}
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              overflow: 'auto',
+              py: 0,
+              bgcolor: 'background.paper',
+            }}
+          >
+            {columnsByGroup.length === 0 && (
+              <ListItem>
+                <ListItemText secondary="No columns match your search." />
+              </ListItem>
+            )}
+            {columnsByGroup.map(({ group, columns }) => (
+              <Box key={group}>
+                <ListSubheader
+                  sx={{
+                    bgcolor: 'background.paper',
+                    lineHeight: '30px',
+                    fontWeight: 700,
+                    fontSize: 12,
+                  }}
+                >
+                  {group}
+                </ListSubheader>
+                {columns.map((column) => {
+                  const checked = column.required || drawerVisibleSet.has(column.id);
+                  const filtered = hiddenFilteredColumnIds.has(column.id);
+                  return (
+                    <ListItemButton
+                      key={column.id}
+                      dense
+                      component="div"
+                      onClick={() => toggleDrawerColumn(column, !checked)}
+                      sx={{
+                        minHeight: 40,
+                        py: 0.25,
+                        px: 2,
+                        cursor: column.required ? 'default' : 'pointer',
+                        '&.Mui-disabled': { opacity: 1 },
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <Checkbox
+                          edge="start"
+                          size="small"
+                          checked={checked}
+                          disabled={column.required}
+                          tabIndex={-1}
+                        />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={column.label}
+                        primaryTypographyProps={{
+                          variant: 'body2',
+                          color: 'text.primary',
+                          noWrap: true,
+                        }}
+                        sx={{ my: 0 }}
+                      />
+                      <Stack direction="row" spacing={0.5} sx={{ ml: 1 }}>
+                        {column.required && (
+                          <Chip label="Required" size="small" variant="outlined" />
+                        )}
+                        {filtered && (
+                          <Chip label="Filtered" size="small" color="info" variant="outlined" />
+                        )}
+                      </Stack>
+                    </ListItemButton>
+                  );
+                })}
+              </Box>
+            ))}
+          </List>
+        ) : (
+          <List
+            dense
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              overflow: 'auto',
+              py: 0.5,
+              bgcolor: 'background.paper',
+            }}
+          >
+            {orderedDrawerColumns.map((column) => {
+              const locked = Boolean(column.required);
+              const active = draggedColumnId === column.id;
+              const columnIndex = drawerVisibleColumnIds.indexOf(column.id);
+              const canMoveUp = !locked && columnIndex > 1;
+              const canMoveDown = !locked && columnIndex < drawerVisibleColumnIds.length - 1;
+
+              return (
+                <ListItem
+                  key={column.id}
+                  disablePadding
+                  onDragOver={(event) => handleOrderDragOver(event, column.id)}
+                  onDrop={(event) => handleOrderDrop(event, column.id)}
+                  sx={{ px: 1.5, py: 0.25, bgcolor: 'background.paper' }}
+                >
+                  <Box
+                    draggable={!locked}
+                    tabIndex={locked ? undefined : 0}
+                    onDragStart={(event) => handleOrderDragStart(event, column.id)}
+                    onDragEnd={() => setDraggedColumnId(null)}
+                    onKeyDown={(event) => handleOrderKeyDown(event, column)}
                     sx={{
-                      minHeight: 40,
-                      py: 0.25,
-                      px: 2,
-                      cursor: column.required ? 'default' : 'pointer',
-                      '&.Mui-disabled': { opacity: 1 },
+                      width: '100%',
+                      minHeight: 46,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      px: 1.25,
+                      borderRadius: 1,
+                      border: 1,
+                      borderColor: active ? 'primary.light' : 'divider',
+                      bgcolor: active ? 'action.selected' : 'background.paper',
+                      boxShadow: active ? 3 : 'none',
+                      position: 'relative',
+                      zIndex: active ? 2 : 1,
+                      opacity: active ? 0.96 : 1,
+                      cursor: locked ? 'default' : active ? 'grabbing' : 'grab',
+                      transition:
+                        'background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease',
+                      '&:focus-visible': {
+                        outline: 2,
+                        outlineColor: 'primary.main',
+                        outlineOffset: 1,
+                      },
+                      '&:hover': {
+                        bgcolor: active ? 'action.selected' : 'action.hover',
+                        borderColor: active ? 'primary.light' : 'text.disabled',
+                      },
+                      '&:hover .order-row-actions, &:focus-within .order-row-actions': {
+                        opacity: 1,
+                      },
                     }}
                   >
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <Checkbox
-                        edge="start"
-                        size="small"
-                        checked={checked}
-                        disabled={column.required}
-                        tabIndex={-1}
-                      />
-                    </ListItemIcon>
+                    {locked ? (
+                      <Box
+                        component="span"
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'text.secondary',
+                        }}
+                      >
+                        <LockOutlinedIcon fontSize="small" />
+                      </Box>
+                    ) : (
+                      <Box
+                        component="span"
+                        aria-hidden="true"
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'text.secondary',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <DragIndicatorIcon fontSize="small" />
+                      </Box>
+                    )}
+
                     <ListItemText
                       primary={column.label}
-                      primaryTypographyProps={{
-                        variant: 'body2',
-                        color: 'text.primary',
-                        noWrap: true,
-                      }}
-                      sx={{ my: 0 }}
+                      primaryTypographyProps={{ variant: 'body2', noWrap: true }}
+                      sx={{ my: 0, minWidth: 0 }}
                     />
-                    <Stack direction="row" spacing={0.5} sx={{ ml: 1 }}>
-                      {column.required && <Chip label="Required" size="small" variant="outlined" />}
-                      {filtered && (
-                        <Chip label="Filtered" size="small" color="info" variant="outlined" />
-                      )}
-                      {adminOnly && <Chip label="Admin" size="small" variant="outlined" />}
-                    </Stack>
-                  </ListItemButton>
-                );
-              })}
-            </Box>
-          ))}
-        </List>
+
+                    {!locked && (
+                      <Stack
+                        className="order-row-actions"
+                        direction="row"
+                        spacing={0.25}
+                        sx={{
+                          ml: 0.5,
+                          opacity: 0.72,
+                          transition: 'opacity 120ms ease',
+                        }}
+                      >
+                        <IconButton
+                          size="small"
+                          aria-label={`Move ${column.label} up`}
+                          draggable={false}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            moveDrawerColumnByDelta(column.id, -1);
+                          }}
+                          disabled={!canMoveUp}
+                          sx={{ width: 28, height: 28 }}
+                        >
+                          <KeyboardArrowUpIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          aria-label={`Move ${column.label} down`}
+                          draggable={false}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            moveDrawerColumnByDelta(column.id, 1);
+                          }}
+                          disabled={!canMoveDown}
+                          sx={{ width: 28, height: 28 }}
+                        >
+                          <KeyboardArrowDownIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    )}
+                  </Box>
+                </ListItem>
+              );
+            })}
+          </List>
+        )}
 
         <Divider />
-        <Stack direction="row" spacing={1} sx={{ p: 2, alignItems: 'center' }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ p: 2, alignItems: 'center', bgcolor: 'background.paper' }}
+        >
           <Button
             size="small"
             variant="text"
@@ -882,6 +1173,12 @@ function ViewChangesPopover({
       <ColumnChangeList title="Added columns" labels={changes.added} />
       <ColumnChangeList title="Hidden columns" labels={changes.hidden} />
 
+      {changes.reordered && (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          Column order was changed.
+        </Typography>
+      )}
+
       {hasOnlyDisplaySettingChanges && (
         <Typography variant="body2" color="text.secondary">
           Display settings were changed.
@@ -966,6 +1263,11 @@ function ColumnChangeList({ title, labels }: { title: string; labels: string[] }
 }
 
 function areColumnListsEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((columnId, index) => columnId === right[index]);
+}
+
+function haveSameColumnSet(left: string[], right: string[]): boolean {
   if (left.length !== right.length) return false;
   const rightColumnIds = new Set(right);
   return left.every((columnId) => rightColumnIds.has(columnId));

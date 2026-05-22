@@ -238,7 +238,7 @@ export const sitesSystemViews: SitesSystemView[] = [
   {
     key: 'full',
     name: 'Full',
-    density: 'comfortable',
+    density: 'standard',
     visibleColumnIds: [],
   },
 ];
@@ -259,4 +259,59 @@ export function createSitesViewSettings(
     density,
     columnWidths,
   };
+}
+
+export function normalizeSitesVisibleColumnIds(
+  columnIds: string[],
+  allowedViewColumns: SitesColumnMetadata[]
+): string[] {
+  const allowedColumnIds = new Set(allowedViewColumns.map((column) => column.id));
+  const requiredColumnIds = allowedViewColumns
+    .filter((column) => column.required)
+    .map((column) => column.id);
+  const result: string[] = [];
+
+  for (const columnId of [...requiredColumnIds, ...columnIds]) {
+    if (allowedColumnIds.has(columnId) && !result.includes(columnId)) {
+      result.push(columnId);
+    }
+  }
+
+  return result.length > 0 ? result : requiredColumnIds;
+}
+
+export function insertSitesColumnsByDefaultOrder(
+  currentColumnIds: string[],
+  columnIdsToAdd: string[],
+  allowedViewColumns: SitesColumnMetadata[]
+): string[] {
+  const allowedColumnIds = new Set(allowedViewColumns.map((column) => column.id));
+  const orderByColumnId = new Map(allowedViewColumns.map((column, index) => [column.id, index]));
+  const result = normalizeSitesVisibleColumnIds(currentColumnIds, allowedViewColumns);
+
+  for (const columnId of columnIdsToAdd) {
+    if (!allowedColumnIds.has(columnId) || result.includes(columnId)) {
+      continue;
+    }
+
+    const columnOrder = orderByColumnId.get(columnId) ?? Number.MAX_SAFE_INTEGER;
+    const firstMovableIndex = result.findIndex(
+      (resultColumnId) =>
+        !allowedViewColumns.find((column) => column.id === resultColumnId)?.required
+    );
+    const lockedPrefixEnd = firstMovableIndex === -1 ? result.length : firstMovableIndex;
+    let insertAt = result.length;
+
+    for (let index = lockedPrefixEnd; index < result.length; index += 1) {
+      const resultColumnOrder = orderByColumnId.get(result[index]) ?? Number.MAX_SAFE_INTEGER;
+      if (resultColumnOrder > columnOrder) {
+        insertAt = index;
+        break;
+      }
+    }
+
+    result.splice(insertAt, 0, columnId);
+  }
+
+  return normalizeSitesVisibleColumnIds(result, allowedViewColumns);
 }

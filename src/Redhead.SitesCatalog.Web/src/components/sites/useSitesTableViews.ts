@@ -9,6 +9,7 @@ import type {
 } from '../../types/tableViews.types';
 import {
   createSitesViewSettings,
+  normalizeSitesVisibleColumnIds,
   SITES_TABLE_KEY,
   sitesColumnRegistry,
   sitesSystemViews,
@@ -46,30 +47,20 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
     [isClient]
   );
 
-  const allowedColumnIds = useMemo(
-    () => new Set(allowedViewColumns.map((column) => column.id)),
-    [allowedViewColumns]
-  );
-
-  const requiredColumnIds = useMemo(
-    () => allowedViewColumns.filter((column) => column.required).map((column) => column.id),
-    [allowedViewColumns]
-  );
-
   const effectiveSystemViews = useMemo(
     () =>
       sitesSystemViews.map((view) => {
         const visibleColumnIds =
           view.key === 'full'
             ? allowedViewColumns.map((column) => column.id)
-            : sanitizeVisibleColumns(view.visibleColumnIds, allowedColumnIds, requiredColumnIds);
+            : normalizeSitesVisibleColumnIds(view.visibleColumnIds, allowedViewColumns);
 
         return {
           ...view,
           visibleColumnIds,
         };
       }),
-    [allowedColumnIds, allowedViewColumns, requiredColumnIds]
+    [allowedViewColumns]
   );
 
   const getSystemView = useCallback(
@@ -83,15 +74,11 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
       if (viewType === 'custom') {
         const customView = views.find((view) => view.id === viewKey);
         if (customView) {
+          const settings = sanitizeSettings(customView.settings, allowedViewColumns);
           return {
             active: { type: 'custom' as const, key: customView.id, name: customView.name },
-            visibleColumnIds: sanitizeSettings(
-              customView.settings,
-              allowedColumnIds,
-              requiredColumnIds
-            ).visibleColumnIds,
-            density: sanitizeSettings(customView.settings, allowedColumnIds, requiredColumnIds)
-              .density,
+            visibleColumnIds: settings.visibleColumnIds,
+            density: settings.density,
           };
         }
       }
@@ -103,7 +90,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
         density: systemView.density,
       };
     },
-    [allowedColumnIds, getSystemView, requiredColumnIds]
+    [allowedViewColumns, getSystemView]
   );
 
   useEffect(() => {
@@ -150,30 +137,24 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
   }, [getSystemView, resolveView]);
 
   const columnVisibilityModel = useMemo<GridColumnVisibilityModel>(() => {
-    const visible = new Set(
-      sanitizeVisibleColumns(draftVisibleColumnIds, allowedColumnIds, requiredColumnIds)
-    );
+    const visible = new Set(normalizeSitesVisibleColumnIds(draftVisibleColumnIds, allowedViewColumns));
 
     return Object.fromEntries(
       allowedViewColumns.map((column) => [column.id, column.required || visible.has(column.id)])
     );
-  }, [allowedColumnIds, allowedViewColumns, draftVisibleColumnIds, requiredColumnIds]);
+  }, [allowedViewColumns, draftVisibleColumnIds]);
 
   const createSanitizedSettings = useCallback(
     (visibleColumnIdsInput: string[], density: TableViewDensity): TableViewSettings =>
-      sanitizeSettings(
-        createSitesViewSettings(visibleColumnIdsInput, density),
-        allowedColumnIds,
-        requiredColumnIds
-      ),
-    [allowedColumnIds, requiredColumnIds]
+      sanitizeSettings(createSitesViewSettings(visibleColumnIdsInput, density), allowedViewColumns),
+    [allowedViewColumns]
   );
 
   const activeSettings = useMemo(() => {
     if (activeView.type === 'custom') {
       const customView = customViews.find((view) => view.id === activeView.key);
       return customView
-        ? sanitizeSettings(customView.settings, allowedColumnIds, requiredColumnIds)
+        ? sanitizeSettings(customView.settings, allowedViewColumns)
         : createSanitizedSettings(getSystemView('default').visibleColumnIds, 'standard');
     }
 
@@ -181,16 +162,15 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
     return createSanitizedSettings(systemView.visibleColumnIds, systemView.density);
   }, [
     activeView,
-    allowedColumnIds,
+    allowedViewColumns,
     createSanitizedSettings,
     customViews,
     getSystemView,
-    requiredColumnIds,
   ]);
 
   const visibleColumnIds = useMemo(
-    () => sanitizeVisibleColumns(draftVisibleColumnIds, allowedColumnIds, requiredColumnIds),
-    [allowedColumnIds, draftVisibleColumnIds, requiredColumnIds]
+    () => normalizeSitesVisibleColumnIds(draftVisibleColumnIds, allowedViewColumns),
+    [allowedViewColumns, draftVisibleColumnIds]
   );
 
   const hasUnsavedChanges = useMemo(
@@ -213,11 +193,9 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
 
   const updateDraftVisibleColumns = useCallback(
     (columnIds: string[]) => {
-      setDraftVisibleColumnIds(
-        sanitizeVisibleColumns(columnIds, allowedColumnIds, requiredColumnIds)
-      );
+      setDraftVisibleColumnIds(normalizeSitesVisibleColumnIds(columnIds, allowedViewColumns));
     },
-    [allowedColumnIds, requiredColumnIds]
+    [allowedViewColumns]
   );
 
   const updateDraftDensity = useCallback((density: TableViewDensity) => {
@@ -226,11 +204,11 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
 
   const updateDraftSettings = useCallback(
     (settings: TableViewSettings) => {
-      const sanitized = sanitizeSettings(settings, allowedColumnIds, requiredColumnIds);
+      const sanitized = sanitizeSettings(settings, allowedViewColumns);
       setDraftVisibleColumnIds(sanitized.visibleColumnIds);
       setDraftDensity(sanitized.density);
     },
-    [allowedColumnIds, requiredColumnIds]
+    [allowedViewColumns]
   );
 
   const resetDraftToActive = useCallback(() => {
@@ -241,7 +219,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
   const createCustomView = useCallback(
     async (name: string, settingsOverride?: TableViewSettings) => {
       const settings = settingsOverride
-        ? sanitizeSettings(settingsOverride, allowedColumnIds, requiredColumnIds)
+        ? sanitizeSettings(settingsOverride, allowedViewColumns)
         : createSanitizedSettings(visibleColumnIds, draftDensity);
       const created = await tableViewsService.createCustomView(SITES_TABLE_KEY, {
         name,
@@ -261,11 +239,10 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
       return created;
     },
     [
-      allowedColumnIds,
+      allowedViewColumns,
       createSanitizedSettings,
       customViews,
       draftDensity,
-      requiredColumnIds,
       visibleColumnIds,
     ]
   );
@@ -273,7 +250,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
   const updateCustomView = useCallback(
     async (id: string, name?: string, settings?: TableViewSettings) => {
       const sanitizedSettings = settings
-        ? sanitizeSettings(settings, allowedColumnIds, requiredColumnIds)
+        ? sanitizeSettings(settings, allowedViewColumns)
         : undefined;
       const updated = await tableViewsService.updateCustomView(SITES_TABLE_KEY, id, {
         name,
@@ -285,7 +262,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
           .sort((a, b) => a.name.localeCompare(b.name))
       );
       if (activeView.type === 'custom' && activeView.key === id) {
-        const sanitized = sanitizeSettings(updated.settings, allowedColumnIds, requiredColumnIds);
+        const sanitized = sanitizeSettings(updated.settings, allowedViewColumns);
         setActiveViewState({ type: 'custom', key: updated.id, name: updated.name });
         if (sanitizedSettings) {
           setDraftVisibleColumnIds(sanitized.visibleColumnIds);
@@ -294,7 +271,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
       }
       return updated;
     },
-    [activeView, allowedColumnIds, requiredColumnIds]
+    [activeView, allowedViewColumns]
   );
 
   const deleteCustomView = useCallback(
@@ -336,8 +313,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
 
 function sanitizeSettings(
   settings: TableViewSettings | null | undefined,
-  allowedColumnIds: Set<string>,
-  requiredColumnIds: string[]
+  allowedViewColumns: SitesColumnMetadata[]
 ): TableViewSettings {
   const visibleColumnIds = Array.isArray(settings?.visibleColumnIds)
     ? settings.visibleColumnIds.filter(
@@ -353,30 +329,14 @@ function sanitizeSettings(
       : 'standard';
 
   return createSitesViewSettings(
-    sanitizeVisibleColumns(visibleColumnIds, allowedColumnIds, requiredColumnIds),
+    normalizeSitesVisibleColumnIds(visibleColumnIds, allowedViewColumns),
     density
   );
 }
 
-function sanitizeVisibleColumns(
-  columnIds: string[],
-  allowedColumnIds: Set<string>,
-  requiredColumnIds: string[]
-): string[] {
-  const result: string[] = [];
-  for (const columnId of [...requiredColumnIds, ...columnIds]) {
-    if (allowedColumnIds.has(columnId) && !result.includes(columnId)) {
-      result.push(columnId);
-    }
-  }
-
-  return result.length > 0 ? result : [...requiredColumnIds];
-}
-
 function areColumnListsEqual(left: string[], right: string[]): boolean {
   if (left.length !== right.length) return false;
-  const rightColumnIds = new Set(right);
-  return left.every((columnId) => rightColumnIds.has(columnId));
+  return left.every((columnId, index) => columnId === right[index]);
 }
 
 export function getColumnLabel(column: SitesColumnMetadata): string {

@@ -19,6 +19,7 @@ import { GoogleDriveConnectionDialog } from '../components/sites/GoogleDriveConn
 import { SitesTableViewToolbar } from '../components/sites/SitesTableViewToolbar';
 import { SitesSnackbar } from '../components/sites/SitesSnackbar';
 import type { SitesSnackbarState } from '../components/sites/SitesSnackbar';
+import { insertSitesColumnsByDefaultOrder } from '../components/sites/sitesTableColumns';
 import { useSitesColumns } from '../components/sites/useSitesColumns';
 import { isNotFoundRow, useSitesGridRows } from '../components/sites/useSitesGridRows';
 import { useSitesTableViews } from '../components/sites/useSitesTableViews';
@@ -326,6 +327,7 @@ export function Sites() {
   const columns = useSitesColumns({
     isAdmin,
     isClient,
+    visibleColumnIds: tableViews.visibleColumnIds,
     onEdit: handleOpenEdit,
   });
 
@@ -391,10 +393,13 @@ export function Sites() {
   );
 
   const handleShowFilteredColumns = () => {
-    tableViews.updateDraftVisibleColumns([
-      ...tableViews.visibleColumnIds,
-      ...hiddenFilteredColumnIds,
-    ]);
+    tableViews.updateDraftVisibleColumns(
+      insertSitesColumnsByDefaultOrder(
+        tableViews.visibleColumnIds,
+        hiddenFilteredColumnIds,
+        tableViews.allowedViewColumns
+      )
+    );
   };
 
   const handleClearHiddenFilters = () => {
