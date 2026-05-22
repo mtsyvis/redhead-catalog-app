@@ -46,6 +46,7 @@ function formatNullableInteger(row: GridRow, value: number | null): string {
 const columnMetadata: Record<string, SitesColumnMetadata> = Object.fromEntries(
   sitesColumnRegistry.map((column) => [column.id, column])
 );
+const domainDefaultWidth = columnMetadata.domain.width;
 
 function gridColumnDefaults(
   field: string,
@@ -80,6 +81,7 @@ export function useSitesColumns({
         {
           ...gridColumnDefaults('domain', columnWidths),
           field: 'domain',
+          ...(columnWidths.domain === domainDefaultWidth ? { flex: 1 } : {}),
         },
         {
           ...gridColumnDefaults('dr', columnWidths),
