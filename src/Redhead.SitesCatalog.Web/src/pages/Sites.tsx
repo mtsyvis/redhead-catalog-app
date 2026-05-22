@@ -58,7 +58,7 @@ const INITIAL_FILTERS: FiltersType = {
   linkInsertAvailability: 'all',
   linkInsertCasinoAvailability: 'all',
   datingAvailability: 'all',
-  quarantine: 'all',
+  quarantine: 'exclude',
   lastPublishedFromMonth: null,
   lastPublishedToMonth: null,
 };
