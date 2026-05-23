@@ -260,6 +260,27 @@ public sealed class AuthControllerTests
             Times.Once);
     }
 
+    [Fact]
+    public void AuthResponses_DoNotExposeSuperAdminNote()
+    {
+        // Arrange
+        var responseTypes = new[]
+        {
+            typeof(LoginResponse),
+            typeof(CompleteAccountSetupResponse),
+            typeof(UserInfoResponse)
+        };
+
+        // Act
+        var propertyNames = responseTypes
+            .SelectMany(type => type.GetProperties())
+            .Select(property => property.Name)
+            .ToList();
+
+        // Assert
+        Assert.DoesNotContain("SuperAdminNote", propertyNames);
+    }
+
     private static AuthController CreateController(Mock<UserManager<ApplicationUser>> userManager)
         => CreateController(userManager, CreateSignInManager(userManager));
 

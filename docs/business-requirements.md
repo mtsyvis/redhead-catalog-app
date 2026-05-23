@@ -32,6 +32,8 @@ General rules:
 * There is no public self-registration.
 * Each user has one role.
 * Each user stores `FirstName` and `LastName` as separate optional fields.
+* Each user may have an optional internal `SuperAdmin` note for identifying client accounts when email/name are not enough.
+* The internal `SuperAdmin` note is visible and editable only by `SuperAdmin`; `Admin`, `Internal`, `Client`, profile/current-user, auth, export analytics, audit context, and other non-SuperAdmin-specific responses must not expose it.
 * A user's profile is complete only when both `FirstName` and `LastName` are non-empty after trimming.
 * New and existing users with missing profile names must complete their profile after login.
 * Display name is derived from `FirstName` + `LastName` when both are present; otherwise email is used as the fallback display value.
@@ -51,6 +53,7 @@ Current rules:
 * Only `SuperAdmin` can create new users.
 * Only `SuperAdmin` can update role export limits.
 * Only `SuperAdmin` can update per-user export limit overrides.
+* Only `SuperAdmin` can create or update the internal `SuperAdmin` note on user accounts.
 * `SuperAdmin` export access is unlimited and must not be editable in the UI.
 * `SuperAdmin` can reset passwords and disable users according to server-side authorization rules.
 
@@ -346,6 +349,7 @@ Main filters:
 * Link Insert Casino availability
 * Dating availability
 * Quarantine status: all / only quarantined / exclude quarantined
+* The default quarantine status filter excludes quarantined sites (`Available Only`).
 * Last publication date range/month filter
 
 Stop list rules:
@@ -571,7 +575,9 @@ Rules:
 * User creation UI is available only to `SuperAdmin`.
 * Admin users list should show user profile name for completed profiles and profile completion status for incomplete profiles.
 * `SuperAdmin` and `Admin` can view readonly admin user details, including account role, profile name fields, profile completion status, export-limit information, and Google Drive connection status.
+* `SuperAdmin` can view and edit the optional internal note in SuperAdmin user management responses.
 * Admins must not edit another user's `FirstName` or `LastName`.
+* Admins must not see or edit the internal `SuperAdmin` note.
 * Role settings editing is available only to `SuperAdmin`.
 * Per-user export override editing is available only to `SuperAdmin`.
 * `SuperAdmin` export settings are shown as unlimited and not editable.

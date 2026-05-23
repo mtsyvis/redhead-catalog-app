@@ -6,6 +6,7 @@ using Redhead.SitesCatalog.Api.Security;
 using Redhead.SitesCatalog.Api.Validation;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -47,6 +48,12 @@ public class AdminUsersController : ControllerBase
             return Forbid();
         }
 
+        var noteValidation = SuperAdminNoteValidator.Validate(request.SuperAdminNote);
+        if (!noteValidation.IsValid)
+        {
+            return BadRequest(new MessageResponse(noteValidation.Error!));
+        }
+
         var existing = await _userManager.FindByEmailAsync(request.Email);
         if (existing != null)
         {
@@ -61,6 +68,7 @@ public class AdminUsersController : ControllerBase
             EmailConfirmed = true,
             IsActive = true,
             MustChangePassword = true,
+            SuperAdminNote = currentRoles.Contains(AppRoles.SuperAdmin) ? noteValidation.Value : null,
         };
 
         var result = await _userManager.CreateAsync(user, temporaryPassword);
@@ -94,8 +102,9 @@ public class AdminUsersController : ControllerBase
             return BadRequest(new MessageResponse(validationError));
         }
 
+        var includeSuperAdminNote = await IsCurrentUserSuperAdminAsync();
         var result = await _usersListService.ListUsersAsync(ToQuery(request), cancellationToken);
-        return Ok(ToResponse(result));
+        return Ok(ToResponse(result, includeSuperAdminNote));
     }
 
     [HttpGet("{id}")]
@@ -109,7 +118,8 @@ public class AdminUsersController : ControllerBase
             return NotFound(new MessageResponse("User not found."));
         }
 
-        return Ok(ToResponse(user));
+        var includeSuperAdminNote = await IsCurrentUserSuperAdminAsync();
+        return Ok(ToResponse(user, includeSuperAdminNote));
     }
 
     [HttpPost("{id}/reset-password")]
@@ -219,6 +229,40 @@ public class AdminUsersController : ControllerBase
         return NoContent();
     }
 
+    [HttpPut("{id}/super-admin-note")]
+    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    public async Task<ActionResult> UpdateUserSuperAdminNote(
+        string id,
+        [FromBody] UpdateUserSuperAdminNoteRequest request,
+        CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+
+        if (!await IsCurrentUserSuperAdminAsync())
+        {
+            return Forbid();
+        }
+
+        var validation = SuperAdminNoteValidator.Validate(request.SuperAdminNote);
+        if (!validation.IsValid)
+        {
+            return BadRequest(new MessageResponse(validation.Error!));
+        }
+
+        var targetUser = await _userManager.FindByIdAsync(id);
+        if (targetUser == null)
+        {
+            return NotFound(new MessageResponse("User not found."));
+        }
+
+        targetUser.SuperAdminNote = validation.Value;
+        await _userManager.UpdateAsync(targetUser);
+
+        _logger.LogInformation("Super Admin note updated for user: {Email}", targetUser.Email);
+
+        return NoContent();
+    }
+
     private static AdminUsersListQuery ToQuery(UserListRequest request)
     {
         return new AdminUsersListQuery
@@ -229,8 +273,25 @@ public class AdminUsersController : ControllerBase
         };
     }
 
-    private static UserListResponse ToResponse(AdminUsersListResult result)
+    private async Task<bool> IsCurrentUserSuperAdminAsync()
     {
+        var currentUser = await _userManager.GetUserAsync(User);
+        var currentRoles = currentUser != null ? await _userManager.GetRolesAsync(currentUser) : Array.Empty<string>();
+        return currentRoles.Contains(AppRoles.SuperAdmin);
+    }
+
+    private static object ToResponse(AdminUsersListResult result, bool includeSuperAdminNote)
+    {
+        if (includeSuperAdminNote)
+        {
+            return new SuperAdminUserListResponse(
+                Items: result.Items.Select(ToSuperAdminResponseItem).ToList(),
+                Page: result.Page,
+                PageSize: result.PageSize,
+                TotalCount: result.TotalCount,
+                TotalPages: result.TotalPages);
+        }
+
         return new UserListResponse(
             Items: result.Items.Select(ToResponseItem).ToList(),
             Page: result.Page,
@@ -258,8 +319,51 @@ public class AdminUsersController : ControllerBase
             IsExportLimitEditable: item.IsExportLimitEditable);
     }
 
-    private static AdminUserDetailsResponse ToResponse(AdminUserDetailsDto user)
+    private static SuperAdminUserListItem ToSuperAdminResponseItem(AdminUserListItemDto item)
     {
+        return new SuperAdminUserListItem(
+            Id: item.Id,
+            Email: item.Email,
+            FirstName: item.FirstName,
+            LastName: item.LastName,
+            DisplayName: item.DisplayName,
+            MustCompleteProfile: item.MustCompleteProfile,
+            Role: item.Role,
+            IsActive: item.IsActive,
+            ExportLimitOverrideMode: item.ExportLimitOverrideMode,
+            ExportLimitRowsOverride: item.ExportLimitRowsOverride,
+            EffectiveExportLimitMode: item.EffectiveExportLimitMode,
+            EffectiveExportLimitRows: item.EffectiveExportLimitRows,
+            IsExportLimitOverridden: item.IsExportLimitOverridden,
+            IsExportLimitEditable: item.IsExportLimitEditable,
+            SuperAdminNote: item.SuperAdminNote);
+    }
+
+    private static object ToResponse(AdminUserDetailsDto user, bool includeSuperAdminNote)
+    {
+        if (includeSuperAdminNote)
+        {
+            return new SuperAdminUserDetailsResponse(
+                Id: user.Id,
+                Email: user.Email,
+                FirstName: user.FirstName,
+                LastName: user.LastName,
+                DisplayName: user.DisplayName,
+                MustCompleteProfile: user.MustCompleteProfile,
+                MustChangePassword: user.MustChangePassword,
+                Role: user.Role,
+                IsActive: user.IsActive,
+                ExportLimitOverrideMode: user.ExportLimitOverrideMode,
+                ExportLimitRowsOverride: user.ExportLimitRowsOverride,
+                EffectiveExportLimitMode: user.EffectiveExportLimitMode,
+                EffectiveExportLimitRows: user.EffectiveExportLimitRows,
+                IsExportLimitOverridden: user.IsExportLimitOverridden,
+                IsExportLimitEditable: user.IsExportLimitEditable,
+                GoogleDriveConnected: user.GoogleDriveConnected,
+                GoogleDrive: user.GoogleDrive,
+                SuperAdminNote: user.SuperAdminNote);
+        }
+
         return new AdminUserDetailsResponse(
             Id: user.Id,
             Email: user.Email,

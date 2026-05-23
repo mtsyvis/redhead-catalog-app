@@ -75,6 +75,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
             Email = listItem.Email,
             FirstName = listItem.FirstName,
             LastName = listItem.LastName,
+            SuperAdminNote = listItem.SuperAdminNote,
             DisplayName = listItem.DisplayName,
             MustCompleteProfile = listItem.MustCompleteProfile,
             MustChangePassword = user.MustChangePassword,
@@ -106,6 +107,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 NormalizedEmail = user.NormalizedEmail ?? user.Email ?? string.Empty,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
+                SuperAdminNote = user.SuperAdminNote,
                 Role = role.Name ?? string.Empty,
                 IsActive = user.IsActive,
                 MustChangePassword = user.MustChangePassword,
@@ -167,6 +169,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,
+            SuperAdminNote = user.SuperAdminNote,
             DisplayName = UserProfileNameValidator.GetDisplayName(user.FirstName, user.LastName, user.Email),
             MustCompleteProfile = !UserProfileNameValidator.IsProfileComplete(user.FirstName, user.LastName),
             Role = role,
@@ -199,6 +202,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
         public string NormalizedEmail { get; init; } = string.Empty;
         public string? FirstName { get; init; }
         public string? LastName { get; init; }
+        public string? SuperAdminNote { get; init; }
         public string Role { get; init; } = string.Empty;
         public bool IsActive { get; init; }
         public bool MustChangePassword { get; init; }

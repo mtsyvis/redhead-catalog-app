@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -80,10 +81,67 @@ public sealed class AdminUsersControllerTests
         Assert.True(existingUserWithoutNames.MustCompleteProfile);
     }
 
-    [Theory]
-    [InlineData(AppRoles.SuperAdmin)]
-    [InlineData(AppRoles.Admin)]
-    public async Task GetUser_WhenCurrentUserHasAdminAccess_ReturnsReadonlyDetails(string currentRole)
+    [Fact]
+    public async Task ListUsers_WhenCurrentUserIsSuperAdmin_IncludesSuperAdminNote()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(
+            db,
+            "client-1",
+            "client@example.com",
+            AppRoles.Client,
+            superAdminNote: "Client owner: Redhead");
+        var sut = CreateController(
+            db,
+            new StubUserManager
+            {
+                CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+                CurrentRoles = new List<string> { AppRoles.SuperAdmin }
+            });
+
+        // Act
+        var result = await sut.ListUsers(new UserListRequest { UserType = "all" }, CancellationToken.None);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<SuperAdminUserListResponse>(ok.Value);
+        var client = payload.Items.Single(item => item.Id == "client-1");
+        Assert.Equal("Client owner: Redhead", client.SuperAdminNote);
+    }
+
+    [Fact]
+    public async Task ListUsers_WhenCurrentUserIsAdmin_DoesNotExposeSuperAdminNote()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(
+            db,
+            "client-1",
+            "client@example.com",
+            AppRoles.Client,
+            superAdminNote: "Client owner: Redhead");
+        var sut = CreateController(
+            db,
+            new StubUserManager
+            {
+                CurrentUser = new ApplicationUser { Id = "admin-1", Email = "admin@example.com" },
+                CurrentRoles = new List<string> { AppRoles.Admin }
+            });
+
+        // Act
+        var result = await sut.ListUsers(new UserListRequest { UserType = "all" }, CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        Assert.Null(typeof(UserListItem).GetProperty("SuperAdminNote"));
+        Assert.DoesNotContain("SuperAdminNote", JsonSerializer.Serialize(payload));
+    }
+
+    [Fact]
+    public async Task GetUser_WhenCurrentUserIsAdmin_ReturnsReadonlyDetailsWithoutSuperAdminNote()
     {
         // Arrange
         await using var db = CreateDbContext();
@@ -94,13 +152,14 @@ public sealed class AdminUsersControllerTests
             "client@example.com",
             AppRoles.Client,
             firstName: "Ada",
-            lastName: "Lovelace");
+            lastName: "Lovelace",
+            superAdminNote: "Internal client label");
         var sut = CreateController(
             db,
             new StubUserManager
             {
                 CurrentUser = new ApplicationUser { Id = "current-user", Email = "current@example.com" },
-                CurrentRoles = new List<string> { currentRole }
+                CurrentRoles = new List<string> { AppRoles.Admin }
             });
 
         // Act
@@ -120,6 +179,36 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(100, payload.EffectiveExportLimitRows);
         Assert.False(payload.GoogleDriveConnected);
         Assert.False(payload.GoogleDrive.Connected);
+        Assert.DoesNotContain("SuperAdminNote", JsonSerializer.Serialize(payload));
+    }
+
+    [Fact]
+    public async Task GetUser_WhenCurrentUserIsSuperAdmin_IncludesSuperAdminNote()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(
+            db,
+            "client-1",
+            "client@example.com",
+            AppRoles.Client,
+            superAdminNote: "Client owner: Redhead");
+        var sut = CreateController(
+            db,
+            new StubUserManager
+            {
+                CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+                CurrentRoles = new List<string> { AppRoles.SuperAdmin }
+            });
+
+        // Act
+        var result = await sut.GetUser("client-1", CancellationToken.None);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<SuperAdminUserDetailsResponse>(ok.Value);
+        Assert.Equal("Client owner: Redhead", payload.SuperAdminNote);
     }
 
     [Fact]
@@ -236,7 +325,8 @@ public sealed class AdminUsersControllerTests
             "AccessToken",
             "RefreshToken",
             "RefreshTokenEncrypted",
-            "Token"
+            "Token",
+            "SuperAdminNote"
         };
 
         // Act
@@ -386,6 +476,7 @@ public sealed class AdminUsersControllerTests
     [Fact]
     public async Task CreateUser_WhenCurrentUserIsAdmin_ReturnsForbid()
     {
+        // Arrange
         var userManager = new StubUserManager
         {
             CurrentUser = new ApplicationUser { Id = "admin-1", Email = "admin@example.com" },
@@ -394,8 +485,13 @@ public sealed class AdminUsersControllerTests
         await using var db = CreateDbContext();
         var sut = CreateController(db, userManager);
 
-        var result = await sut.CreateUser(new CreateUserRequest("new-user@example.com", AppRoles.Client));
+        // Act
+        var result = await sut.CreateUser(new CreateUserRequest(
+            "new-user@example.com",
+            AppRoles.Client,
+            "Should not save"));
 
+        // Assert
         Assert.IsType<ForbidResult>(result.Result);
         Assert.Null(userManager.CreatedUser);
     }
@@ -420,6 +516,199 @@ public sealed class AdminUsersControllerTests
         Assert.False(string.IsNullOrWhiteSpace(payload.TemporaryPassword));
         Assert.Null(userManager.CreatedUser?.FirstName);
         Assert.Null(userManager.CreatedUser?.LastName);
+    }
+
+    [Fact]
+    public async Task CreateUser_WhenCurrentUserIsSuperAdmin_TrimsAndSavesSuperAdminNote()
+    {
+        // Arrange
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.CreateUser(new CreateUserRequest(
+            "new-user@example.com",
+            AppRoles.Client,
+            "  Client owner: Redhead  "));
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal("Client owner: Redhead", userManager.CreatedUser?.SuperAdminNote);
+    }
+
+    [Fact]
+    public async Task CreateUser_WhenSuperAdminNoteIsWhitespace_SavesNull()
+    {
+        // Arrange
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.CreateUser(new CreateUserRequest(
+            "new-user@example.com",
+            AppRoles.Client,
+            "   "));
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Null(userManager.CreatedUser?.SuperAdminNote);
+    }
+
+    [Fact]
+    public async Task CreateUser_WhenSuperAdminNoteIsTooLong_ReturnsBadRequest()
+    {
+        // Arrange
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.CreateUser(new CreateUserRequest(
+            "new-user@example.com",
+            AppRoles.Client,
+            new string('a', 1001)));
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("1000 characters or fewer", payload.Message);
+        Assert.Null(userManager.CreatedUser);
+    }
+
+    [Fact]
+    public async Task UpdateUserSuperAdminNote_WhenCurrentUserIsSuperAdmin_UpdatesTrimmedNote()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            SuperAdminNote = "Old note"
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserSuperAdminNote(
+            targetUser.Id,
+            new UpdateUserSuperAdminNoteRequest("  Updated note  "),
+            CancellationToken.None);
+
+        // Assert
+        Assert.IsType<NoContentResult>(result);
+        Assert.Equal("Updated note", targetUser.SuperAdminNote);
+    }
+
+    [Fact]
+    public async Task UpdateUserSuperAdminNote_WhenCurrentUserIsAdmin_ReturnsForbidAndDoesNotUpdate()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            SuperAdminNote = "Old note"
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "admin-1", Email = "admin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.Admin },
+            TargetUserById = targetUser
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserSuperAdminNote(
+            targetUser.Id,
+            new UpdateUserSuperAdminNoteRequest("Updated note"),
+            CancellationToken.None);
+
+        // Assert
+        Assert.IsType<ForbidResult>(result);
+        Assert.Equal("Old note", targetUser.SuperAdminNote);
+    }
+
+    [Fact]
+    public async Task UpdateUserSuperAdminNote_WhenSuperAdminNoteIsWhitespace_SavesNull()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            SuperAdminNote = "Old note"
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserSuperAdminNote(
+            targetUser.Id,
+            new UpdateUserSuperAdminNoteRequest("   "),
+            CancellationToken.None);
+
+        // Assert
+        Assert.IsType<NoContentResult>(result);
+        Assert.Null(targetUser.SuperAdminNote);
+    }
+
+    [Fact]
+    public async Task UpdateUserSuperAdminNote_WhenSuperAdminNoteIsTooLong_ReturnsBadRequest()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            SuperAdminNote = "Old note"
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserSuperAdminNote(
+            targetUser.Id,
+            new UpdateUserSuperAdminNoteRequest(new string('a', 1001)),
+            CancellationToken.None);
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("1000 characters or fewer", payload.Message);
+        Assert.Equal("Old note", targetUser.SuperAdminNote);
     }
 
     [Fact]
@@ -520,7 +809,8 @@ public sealed class AdminUsersControllerTests
         string roleName,
         bool isActive = true,
         string? firstName = null,
-        string? lastName = null)
+        string? lastName = null,
+        string? superAdminNote = null)
     {
         var role = await db.Roles.SingleOrDefaultAsync(r => r.Name == roleName);
         if (role == null)
@@ -544,7 +834,8 @@ public sealed class AdminUsersControllerTests
             EmailConfirmed = true,
             IsActive = isActive,
             FirstName = firstName,
-            LastName = lastName
+            LastName = lastName,
+            SuperAdminNote = superAdminNote
         };
         db.Users.Add(user);
 

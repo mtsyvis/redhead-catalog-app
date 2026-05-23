@@ -117,7 +117,7 @@ public sealed class ProfileControllerTests
     public void CurrentUserProfileResponse_DoesNotExposeSensitiveFields()
     {
         // Arrange
-        var sensitiveTerms = new[] { "Password", "Token", "Secret", "Refresh" };
+        var sensitiveTerms = new[] { "Password", "Token", "Secret", "Refresh", "SuperAdminNote" };
 
         // Act
         var propertyNames = typeof(CurrentUserProfileResponse)

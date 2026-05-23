@@ -10,6 +10,7 @@ public class ApplicationUser : IdentityUser
     public bool MustChangePassword { get; set; } = true;
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
+    public string? SuperAdminNote { get; set; }
 
     public bool HasCompleteProfile =>
         UserProfileNames.IsComplete(FirstName, LastName);
