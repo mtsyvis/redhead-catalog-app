@@ -203,7 +203,7 @@ export const AdminUserDetails: React.FC = () => {
                     <DetailRow label="Role" value={cleanText(user.role)} />
                     <DetailRow label="Profile status" value={profileStatus} />
                     <DetailRow label="Password change required" value={user.mustChangePassword ? 'Yes' : 'No'} />
-                    {isSuperAdmin && <DetailRow label="Admin note" value={cleanText(user.superAdminNote) ?? '—'} />}
+                    {isSuperAdmin && <DetailRow label="Super Admin note" value={cleanText(user.superAdminNote) ?? '—'} />}
                   </Box>
                 </CardContent>
               </Card>
