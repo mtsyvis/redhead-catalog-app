@@ -27,6 +27,7 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
 export interface PageShellProps {
   children: React.ReactNode;
   title?: string;
+  actions?: React.ReactNode;
   maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
 }
 
@@ -36,6 +37,7 @@ export interface PageShellProps {
 export const PageShell: React.FC<PageShellProps> = ({
   children,
   title,
+  actions,
   maxWidth = 'lg',
 }) => {
   const { user, logout } = useAuth();
@@ -219,10 +221,24 @@ export const PageShell: React.FC<PageShellProps> = ({
           flexDirection: 'column',
         }}
       >
-        {title && (
-          <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
-            {title}
-          </Typography>
+        {(title || actions) && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 2,
+              flexWrap: 'wrap',
+              mb: 3,
+            }}
+          >
+            {title && (
+              <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
+                {title}
+              </Typography>
+            )}
+            {actions}
+          </Box>
         )}
         {children}
       </Container>

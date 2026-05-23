@@ -7,6 +7,7 @@ import type {
   CreateUserResponse,
   ResetPasswordResponse,
   UpdateExportLimitRequest,
+  UpdateSuperAdminNoteRequest,
 } from '../types/adminUsers.types';
 
 export const adminUsersService = {
@@ -38,5 +39,9 @@ export const adminUsersService = {
 
   updateExportLimit(id: string, data: UpdateExportLimitRequest): Promise<void> {
     return ApiClient.put<void, UpdateExportLimitRequest>(`/api/admin/users/${id}/export-limit`, data);
+  },
+
+  updateSuperAdminNote(id: string, data: UpdateSuperAdminNoteRequest): Promise<void> {
+    return ApiClient.put<void, UpdateSuperAdminNoteRequest>(`/api/admin/users/${id}/super-admin-note`, data);
   },
 };

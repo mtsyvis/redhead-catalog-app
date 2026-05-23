@@ -16,6 +16,7 @@ export interface UserListItem {
   effectiveExportLimitRows: number | null;
   isExportLimitOverridden: boolean;
   isExportLimitEditable: boolean;
+  superAdminNote?: string | null;
 }
 
 export type UserTypeFilter = 'all' | 'internal' | 'clients';
@@ -52,11 +53,13 @@ export interface AdminUserDetails {
   isExportLimitEditable: boolean;
   googleDriveConnected: boolean;
   googleDrive: GoogleDriveStatus;
+  superAdminNote?: string | null;
 }
 
 export interface CreateUserRequest {
   email: string;
   role: string;
+  superAdminNote?: string | null;
 }
 
 export interface CreateUserResponse {
@@ -73,6 +76,10 @@ export interface ResetPasswordResponse {
 export interface UpdateExportLimitRequest {
   overrideMode: ExportLimitMode | null;
   overrideRows: number | null;
+}
+
+export interface UpdateSuperAdminNoteRequest {
+  superAdminNote: string | null;
 }
 
 export const ROLES = ['SuperAdmin', 'Admin', 'Internal', 'Client'] as const;

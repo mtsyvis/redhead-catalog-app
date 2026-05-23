@@ -85,6 +85,7 @@ export const AdminUserDetails: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const isAdmin = currentUser?.roles?.some((role) => role === 'Admin' || role === 'SuperAdmin');
+  const isSuperAdmin = currentUser?.roles?.includes('SuperAdmin');
 
   const loadUser = useCallback(async () => {
     if (!userId) {
@@ -202,6 +203,7 @@ export const AdminUserDetails: React.FC = () => {
                     <DetailRow label="Role" value={cleanText(user.role)} />
                     <DetailRow label="Profile status" value={profileStatus} />
                     <DetailRow label="Password change required" value={user.mustChangePassword ? 'Yes' : 'No'} />
+                    {isSuperAdmin && <DetailRow label="Admin note" value={cleanText(user.superAdminNote) ?? '—'} />}
                   </Box>
                 </CardContent>
               </Card>

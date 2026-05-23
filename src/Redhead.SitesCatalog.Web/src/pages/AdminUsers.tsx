@@ -45,12 +45,30 @@ const USER_TYPE_OPTIONS: Array<{ value: UserTypeFilter; label: string; emptyMess
   { value: 'clients', label: 'Clients', emptyMessage: 'No clients found.' },
 ];
 
+const SUPER_ADMIN_NOTE_MAX_LENGTH = 1000;
+const SUPER_ADMIN_NOTE_HELPER_TEXT =
+  'Visible only to Super Admin. Use it for internal client/account identification.';
+
 function parsePositiveInt(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
   const n = Number.parseInt(trimmed, 10);
   if (Number.isNaN(n) || n <= 0 || String(n) !== trimmed) return null;
   return n;
+}
+
+function normalizeOptionalText(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function getProfileName(user: UserListItemType): string | null {
+  const firstName = user.firstName?.trim();
+  const lastName = user.lastName?.trim();
+
+  if (!firstName || !lastName) return null;
+
+  return `${firstName} ${lastName}`;
 }
 
 export const AdminUsers: React.FC = () => {
@@ -67,8 +85,10 @@ export const AdminUsers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createEmail, setCreateEmail] = useState('');
   const [createRole, setCreateRole] = useState<string>(ROLES[1]);
+  const [createSuperAdminNote, setCreateSuperAdminNote] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -89,6 +109,11 @@ export const AdminUsers: React.FC = () => {
   const [exportLimitRowsInput, setExportLimitRowsInput] = useState('');
   const [exportLimitSaveLoading, setExportLimitSaveLoading] = useState(false);
   const [exportLimitError, setExportLimitError] = useState<string | null>(null);
+
+  const [editNoteUser, setEditNoteUser] = useState<UserListItemType | null>(null);
+  const [editNoteInput, setEditNoteInput] = useState('');
+  const [editNoteSaveLoading, setEditNoteSaveLoading] = useState(false);
+  const [editNoteError, setEditNoteError] = useState<string | null>(null);
 
   const isAdmin = currentUser?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
   const isSuperAdmin = currentUser?.roles?.includes('SuperAdmin');
@@ -135,14 +160,36 @@ export const AdminUsers: React.FC = () => {
     loadRoleSettings();
   }, [loadRoleSettings]);
 
+  const resetCreateForm = useCallback(() => {
+    setCreateEmail('');
+    setCreateRole(ROLES[1]);
+    setCreateSuperAdminNote('');
+    setCreateError(null);
+  }, []);
+
+  const handleOpenCreateDialog = useCallback(() => {
+    resetCreateForm();
+    setCreateDialogOpen(true);
+  }, [resetCreateForm]);
+
+  const handleCloseCreateDialog = useCallback(() => {
+    if (createLoading) return;
+    setCreateDialogOpen(false);
+    resetCreateForm();
+  }, [createLoading, resetCreateForm]);
+
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setCreateError(null);
     setCreateLoading(true);
     try {
-      const res = await adminUsersService.create({ email: createEmail, role: createRole });
-      setCreateEmail('');
-      setCreateRole(allowedRoles[0]);
+      const res = await adminUsersService.create({
+        email: createEmail,
+        role: createRole,
+        superAdminNote: normalizeOptionalText(createSuperAdminNote),
+      });
+      setCreateDialogOpen(false);
+      resetCreateForm();
       setTempPasswordDialog({
         title: 'User created',
         email: res.email,
@@ -221,6 +268,14 @@ export const AdminUsers: React.FC = () => {
     setExportLimitError(null);
   }, []);
 
+  const handleOpenEditNote = useCallback((u: UserListItemType) => {
+    setRowActionsAnchor(null);
+    setRowActionsUser(null);
+    setEditNoteUser(u);
+    setEditNoteInput(u.superAdminNote ?? '');
+    setEditNoteError(null);
+  }, []);
+
   const handleOpenRowActions = useCallback((
     event: React.MouseEvent<HTMLElement>,
     user: UserListItemType,
@@ -260,6 +315,13 @@ export const AdminUsers: React.FC = () => {
     setEditExportLimitUser(null);
   };
 
+  const handleCloseEditNote = () => {
+    if (editNoteSaveLoading) return;
+    setEditNoteUser(null);
+    setEditNoteInput('');
+    setEditNoteError(null);
+  };
+
   const handleSaveExportLimit = async () => {
     if (!editExportLimitUser) return;
 
@@ -290,6 +352,27 @@ export const AdminUsers: React.FC = () => {
       );
     } finally {
       setExportLimitSaveLoading(false);
+    }
+  };
+
+  const handleSaveEditNote = async () => {
+    if (!editNoteUser) return;
+
+    setEditNoteError(null);
+    setEditNoteSaveLoading(true);
+    try {
+      await adminUsersService.updateSuperAdminNote(editNoteUser.id, {
+        superAdminNote: normalizeOptionalText(editNoteInput),
+      });
+      setEditNoteUser(null);
+      setEditNoteInput('');
+      await loadUsers(true);
+    } catch (err) {
+      setEditNoteError(
+        err instanceof ApiClientError ? err.message : 'Failed to save admin note.',
+      );
+    } finally {
+      setEditNoteSaveLoading(false);
     }
   };
 
@@ -374,35 +457,32 @@ export const AdminUsers: React.FC = () => {
   const columns = useMemo<GridColDef<UserListItemType>[]>(
     () => [
       {
-        field: 'email',
-        headerName: 'Email',
-        flex: 1,
-        minWidth: 240,
+        field: 'user',
+        headerName: 'User',
+        flex: 1.15,
+        minWidth: 280,
         sortable: false,
-      },
-      {
-        field: 'displayName',
-        headerName: 'Name',
-        flex: 0.8,
-        minWidth: 220,
-        sortable: false,
-        renderCell: (params) => (
-          <Box sx={{ py: 0.75 }}>
-            {params.row.mustCompleteProfile ? (
-              <Chip
-                label="Profile incomplete"
-                size="small"
-                color="warning"
-                variant="outlined"
-                sx={{ height: 22 }}
-              />
-            ) : (
-              <Typography variant="body2">
-                {params.row.displayName || '-'}
+        renderCell: (params) => {
+          const profileName = getProfileName(params.row);
+
+          return (
+            <Box sx={{ py: 0.75, minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  color: profileName ? 'text.primary' : 'warning.dark',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {profileName ?? 'Profile incomplete'}
               </Typography>
-            )}
-          </Box>
-        ),
+              <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
+                {params.row.email}
+              </Typography>
+            </Box>
+          );
+        },
       },
       {
         field: 'role',
@@ -451,6 +531,37 @@ export const AdminUsers: React.FC = () => {
       ...(isSuperAdmin
         ? [
             {
+              field: 'superAdminNote',
+              headerName: 'Super Admin note',
+              minWidth: 220,
+              flex: 0.8,
+              sortable: false,
+              renderCell: (params: { row: UserListItemType }) => {
+                const note = params.row.superAdminNote?.trim();
+
+                return (
+                  <Typography
+                    variant="body2"
+                    color={note ? 'text.primary' : 'text.secondary'}
+                    sx={{
+                      py: 0.75,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {note || '—'}
+                  </Typography>
+                );
+              },
+            } satisfies GridColDef<UserListItemType>,
+          ]
+        : []),
+      ...(isSuperAdmin
+        ? [
+            {
               field: 'actions',
               headerName: 'Actions',
               width: 72,
@@ -459,7 +570,7 @@ export const AdminUsers: React.FC = () => {
               headerAlign: 'center' as const,
               renderCell: (params: { row: UserListItemType }) => {
                 const u = params.row;
-                const hasActions = u.isActive && (canModifyUser(u.role) || u.isExportLimitEditable);
+                const hasActions = u.isActive && (canModifyUser(u.role) || u.isExportLimitEditable || isSuperAdmin);
                 return (
                   <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
                     <Tooltip title="Actions">
@@ -499,9 +610,9 @@ export const AdminUsers: React.FC = () => {
       isSuperAdmin,
     ],
   );
-
   const rowActionsCanModify = rowActionsUser ? rowActionsUser.isActive && canModifyUser(rowActionsUser.role) : false;
   const rowActionsCanEditLimit = Boolean(rowActionsUser?.isActive && rowActionsUser.isExportLimitEditable);
+  const rowActionsCanEditNote = Boolean(isSuperAdmin && rowActionsUser?.isActive);
 
   if (!isAdmin) {
     return <Navigate to="/sites" replace />;
@@ -510,55 +621,21 @@ export const AdminUsers: React.FC = () => {
   const exportLimitPreview = getExportLimitPreview();
 
   return (
-    <PageShell title="Users" maxWidth="lg">
+    <PageShell
+      title="Users"
+      maxWidth="lg"
+      actions={
+        isSuperAdmin ? (
+          <BrandButton kind="primary" onClick={handleOpenCreateDialog}>
+            Add user
+          </BrandButton>
+        ) : undefined
+      }
+    >
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
-      )}
-
-      {isSuperAdmin && (
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Create user
-          </Typography>
-          <form onSubmit={handleCreate}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-start' }}>
-              <TextField
-                label="Email"
-                type="email"
-                required
-                value={createEmail}
-                onChange={(e) => setCreateEmail(e.target.value)}
-                disabled={createLoading}
-                sx={{ minWidth: 260 }}
-                autoComplete="off"
-              />
-              <FormControl sx={{ minWidth: 160 }} disabled={createLoading}>
-                <InputLabel>Role</InputLabel>
-                <Select
-                  value={createRole}
-                  label="Role"
-                  onChange={(e) => setCreateRole(e.target.value)}
-                >
-                  {allowedRoles.map((r) => (
-                    <MenuItem key={r} value={r}>
-                      {r}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <BrandButton type="submit" disabled={createLoading}>
-                {createLoading ? <CircularProgress size={24} color="inherit" /> : 'Create'}
-              </BrandButton>
-            </Box>
-            {createError && (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                {createError}
-              </Alert>
-            )}
-          </form>
-        </Paper>
       )}
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2 }}>
@@ -649,22 +726,99 @@ export const AdminUsers: React.FC = () => {
             View details
           </MenuItem>
         )}
+        {rowActionsCanEditLimit && rowActionsUser && (
+          <MenuItem onClick={() => handleOpenEditExportLimit(rowActionsUser)}>
+            Edit export limit
+          </MenuItem>
+        )}
+        {rowActionsCanEditNote && rowActionsUser && (
+          <MenuItem onClick={() => handleOpenEditNote(rowActionsUser)}>
+            Edit super admin note
+          </MenuItem>
+        )}
         {rowActionsCanModify && rowActionsUser && (
           <MenuItem onClick={() => handleResetPasswordClick(rowActionsUser)}>
             Reset password
           </MenuItem>
         )}
         {rowActionsCanModify && rowActionsUser && (
-          <MenuItem onClick={() => handleDisableClick(rowActionsUser)}>
+          <MenuItem onClick={() => handleDisableClick(rowActionsUser)} sx={{ color: 'error.main' }}>
             Disable
           </MenuItem>
         )}
-        {rowActionsCanEditLimit && rowActionsUser && (
-          <MenuItem onClick={() => handleOpenEditExportLimit(rowActionsUser)}>
-            Edit export limit
-          </MenuItem>
-        )}
       </Menu>
+
+      <Dialog
+        open={createDialogOpen}
+        onClose={handleCloseCreateDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <Box component="form" onSubmit={handleCreate}>
+          <DialogTitle>Add user</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <TextField
+                label="Email"
+                type="email"
+                required
+                value={createEmail}
+                onChange={(e) => {
+                  setCreateEmail(e.target.value);
+                  setCreateError(null);
+                }}
+                disabled={createLoading}
+                autoComplete="off"
+                fullWidth
+              />
+              <FormControl fullWidth disabled={createLoading} required>
+                <InputLabel>Role</InputLabel>
+                <Select
+                  value={createRole}
+                  label="Role"
+                  onChange={(e) => {
+                    setCreateRole(e.target.value);
+                    setCreateError(null);
+                  }}
+                >
+                  {allowedRoles.map((r) => (
+                    <MenuItem key={r} value={r}>
+                      {r}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {isSuperAdmin && (
+                <TextField
+                  label="Super Admin note"
+                  value={createSuperAdminNote}
+                  onChange={(e) => {
+                    setCreateSuperAdminNote(e.target.value);
+                    setCreateError(null);
+                  }}
+                  disabled={createLoading}
+                  helperText={SUPER_ADMIN_NOTE_HELPER_TEXT}
+                  multiline
+                  rows={4}
+                  fullWidth
+                  slotProps={{
+                    htmlInput: { maxLength: SUPER_ADMIN_NOTE_MAX_LENGTH },
+                  }}
+                />
+              )}
+              {createError && <Alert severity="error">{createError}</Alert>}
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <BrandButton kind="outline" onClick={handleCloseCreateDialog} disabled={createLoading}>
+              Cancel
+            </BrandButton>
+            <BrandButton kind="primary" type="submit" disabled={createLoading}>
+              {createLoading ? <CircularProgress size={24} color="inherit" /> : 'Create'}
+            </BrandButton>
+          </DialogActions>
+        </Box>
+      </Dialog>
 
       <Dialog
         open={!!resetPasswordConfirmUser}
@@ -853,6 +1007,60 @@ export const AdminUsers: React.FC = () => {
             disabled={exportLimitSaveLoading || !editExportLimitUser}
           >
             {exportLimitSaveLoading ? <CircularProgress size={24} color="inherit" /> : 'Save'}
+          </BrandButton>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={!!editNoteUser}
+        onClose={handleCloseEditNote}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit admin note</DialogTitle>
+        <DialogContent>
+          {editNoteUser && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <Box>
+                <Typography variant="body2">
+                  <strong>{editNoteUser.email}</strong> · {editNoteUser.role}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {getProfileName(editNoteUser) ?? 'Profile incomplete'}
+                </Typography>
+              </Box>
+
+              <TextField
+                label="Super Admin note"
+                value={editNoteInput}
+                onChange={(e) => {
+                  setEditNoteInput(e.target.value);
+                  setEditNoteError(null);
+                }}
+                disabled={editNoteSaveLoading}
+                helperText={SUPER_ADMIN_NOTE_HELPER_TEXT}
+                multiline
+                rows={4}
+                fullWidth
+                slotProps={{
+                  htmlInput: { maxLength: SUPER_ADMIN_NOTE_MAX_LENGTH },
+                }}
+              />
+
+              {editNoteError && <Alert severity="error">{editNoteError}</Alert>}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <BrandButton kind="outline" onClick={handleCloseEditNote} disabled={editNoteSaveLoading}>
+            Cancel
+          </BrandButton>
+          <BrandButton
+            kind="primary"
+            onClick={handleSaveEditNote}
+            disabled={editNoteSaveLoading || !editNoteUser}
+          >
+            {editNoteSaveLoading ? <CircularProgress size={24} color="inherit" /> : 'Save'}
           </BrandButton>
         </DialogActions>
       </Dialog>
