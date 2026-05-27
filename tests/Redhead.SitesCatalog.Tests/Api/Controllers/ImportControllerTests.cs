@@ -131,6 +131,9 @@ public sealed class ImportControllerTests
         public ImportArtifactHandle StoreUnmatchedRows(string importType, UnmatchedRowsImportArtifactPayload payload)
             => throw new NotImplementedException();
 
+        public ImportArtifactHandle StoreWarningRows(string importType, WarningRowsImportArtifactPayload payload)
+            => throw new NotImplementedException();
+
         public ImportArtifactDownload? GetCsvDownload(string token) => Download;
     }
 

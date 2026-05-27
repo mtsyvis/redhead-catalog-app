@@ -43,6 +43,15 @@ public class ExportServiceTests : IDisposable
 
     private void SeedTestData()
     {
+        _context.CanonicalLocations.AddRange(
+            new CanonicalLocation { Key = "US", DisplayName = "United States", SortOrder = 1, IsActive = true },
+            new CanonicalLocation { Key = "GB", DisplayName = "United Kingdom", SortOrder = 2, IsActive = true },
+            new CanonicalLocation { Key = LocationConstants.UnknownLocationKey, DisplayName = "Unknown", SortOrder = 999, IsActive = true });
+        _context.LocationGroups.Add(new LocationGroup { Key = "western", DisplayName = "Western", Kind = "Business", SortOrder = 1 });
+        _context.LocationGroupItems.AddRange(
+            new LocationGroupItem { GroupKey = "western", LocationKey = "US" },
+            new LocationGroupItem { GroupKey = "western", LocationKey = "GB" });
+
         // Seed role settings
         var roleSettings = new List<RoleSettings>
         {
@@ -63,6 +72,8 @@ public class ExportServiceTests : IDisposable
                 DR = 50,
                 Traffic = 10000,
                 Location = "US",
+                LocationKey = "US",
+                ImportedLocationRaw = "US",
                 Language = "EN",
                 PriceUsd = 100m,
                 PriceCasino = 150m,
@@ -91,6 +102,8 @@ public class ExportServiceTests : IDisposable
                 DR = 70,
                 Traffic = 50000,
                 Location = "UK",
+                LocationKey = "GB",
+                ImportedLocationRaw = "UK",
                 PriceUsd = 200m,
                 PriceCasino = null,
                 PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
@@ -114,6 +127,8 @@ public class ExportServiceTests : IDisposable
                 DR = 90,
                 Traffic = 100000,
                 Location = "US",
+                LocationKey = "US",
+                ImportedLocationRaw = "US",
                 Language = "UNKNOWN",
                 PriceUsd = 500m,
                 PriceCasino = 600m,
@@ -279,6 +294,75 @@ public class ExportServiceTests : IDisposable
         var sites = await ReadSitesSheetFromStream(result.FileStream);
         Assert.Equal(2, sites.Count); // test.com(70) and gambling.com(90)
         Assert.All(sites, site => Assert.True(site.DR >= 60));
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_DisplaysCanonicalUnknownAndOtherLocations()
+    {
+        // Arrange
+        _context.Sites.AddRange(
+            SiteWithLocation("unknown-location.com", LocationConstants.UnknownLocationKey, "UNKNOWN"),
+            SiteWithLocation("other-location.com", null, "US/CA"));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        Assert.Equal("United States", rows.Single(row => row["Domain"] == "example.com")["Location"]);
+        Assert.Equal("United Kingdom", rows.Single(row => row["Domain"] == "test.com")["Location"]);
+        Assert.Equal("Unknown", rows.Single(row => row["Domain"] == "unknown-location.com")["Location"]);
+        Assert.Equal("Other", rows.Single(row => row["Domain"] == "other-location.com")["Location"]);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithLocationFilters_ExportsMatchingCanonicalLocations()
+    {
+        // Arrange
+        _context.Sites.Add(SiteWithLocation("other-location.com", null, "US/CA"));
+        await _context.SaveChangesAsync();
+
+        var query = DefaultQuery();
+        query.LocationKeys = ["GB"];
+        query.IncludeOtherLocation = true;
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        Assert.Equal(["other-location.com", "test.com"], rows.Select(row => row["Domain"]).ToArray());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithLocationGroupFilter_ExportsGroupMembers()
+    {
+        // Arrange
+        var query = DefaultQuery();
+        query.LocationGroupKeys = ["western"];
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        Assert.Equal(["example.com", "gambling.com", "test.com"], rows.Select(row => row["Domain"]).ToArray());
     }
 
     [Fact]
@@ -1530,8 +1614,27 @@ public class ExportServiceTests : IDisposable
     private static Site SiteWithNullPrice(string domain) => new()
     {
         Domain = domain,
-        DR = 50, Traffic = 10000, Location = "US",
+        DR = 50, Traffic = 10000, Location = "US", LocationKey = "US", ImportedLocationRaw = "US",
         PriceUsd = null,
+        PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+        IsQuarantined = false,
+        CreatedAtUtc = DateTime.UtcNow,
+        UpdatedAtUtc = DateTime.UtcNow
+    };
+
+    private static Site SiteWithLocation(string domain, string? locationKey, string rawLocation) => new()
+    {
+        Domain = domain,
+        DR = 50,
+        Traffic = 10000,
+        Location = rawLocation,
+        LocationKey = locationKey,
+        ImportedLocationRaw = locationKey == LocationConstants.UnknownLocationKey ? null : rawLocation,
+        PriceUsd = 100m,
         PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
         PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
         PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,

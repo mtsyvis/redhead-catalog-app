@@ -55,6 +55,26 @@ public sealed class ImportArtifactStorageService : IImportArtifactStorageService
         };
     }
 
+    public ImportArtifactHandle StoreWarningRows(string importType, WarningRowsImportArtifactPayload payload)
+    {
+        var token = Guid.NewGuid().ToString("N");
+        var fileName = BuildFileName(importType, "warning-rows");
+        var artifact = new CachedImportArtifact
+        {
+            Kind = ImportArtifactKinds.WarningRows,
+            WarningRowsPayload = payload,
+            FileName = fileName
+        };
+
+        _cache.Set(token, artifact, DefaultTtl);
+
+        return new ImportArtifactHandle
+        {
+            Token = token,
+            FileName = fileName
+        };
+    }
+
     public ImportArtifactDownload? GetCsvDownload(string token)
     {
         if (string.IsNullOrWhiteSpace(token))
@@ -71,6 +91,7 @@ public sealed class ImportArtifactStorageService : IImportArtifactStorageService
         {
             ImportArtifactKinds.InvalidRows when artifact.InvalidRowsPayload is not null => BuildInvalidRowsCsv(artifact.InvalidRowsPayload),
             ImportArtifactKinds.UnmatchedRows when artifact.UnmatchedRowsPayload is not null => BuildUnmatchedRowsCsv(artifact.UnmatchedRowsPayload),
+            ImportArtifactKinds.WarningRows when artifact.WarningRowsPayload is not null => BuildWarningRowsCsv(artifact.WarningRowsPayload),
             _ => null
         };
 
@@ -138,6 +159,24 @@ public sealed class ImportArtifactStorageService : IImportArtifactStorageService
         return Encoding.UTF8.GetBytes(sb.ToString());
     }
 
+    private static byte[] BuildWarningRowsCsv(WarningRowsImportArtifactPayload payload)
+    {
+        var sb = new StringBuilder();
+        AppendCsvRow(sb, ["Domain", "Location", "Source Row Number", "Warning Details"]);
+
+        foreach (var row in payload.Rows)
+        {
+            AppendCsvRow(sb, [
+                row.Domain,
+                row.Location,
+                row.SourceRowNumber.ToString(),
+                row.WarningDetails
+            ]);
+        }
+
+        return Encoding.UTF8.GetBytes(sb.ToString());
+    }
+
     private static void AppendCsvRow(StringBuilder sb, IEnumerable<string> values)
     {
         var first = true;
@@ -171,5 +210,6 @@ public sealed class ImportArtifactStorageService : IImportArtifactStorageService
         public string FileName { get; init; } = string.Empty;
         public InvalidRowsImportArtifactPayload? InvalidRowsPayload { get; init; }
         public UnmatchedRowsImportArtifactPayload? UnmatchedRowsPayload { get; init; }
+        public WarningRowsImportArtifactPayload? WarningRowsPayload { get; init; }
     }
 }

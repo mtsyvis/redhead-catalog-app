@@ -104,6 +104,7 @@ public class SitesController : ControllerBase
     public async Task<ActionResult<FilterOptionsResponse>> GetFilterOptions(CancellationToken cancellationToken)
     {
         var niches = await _sitesService.GetNicheOptionsAsync(cancellationToken);
+        var locations = await _sitesService.GetLocationFilterOptionsAsync(cancellationToken);
 
         return Ok(new FilterOptionsResponse
         {
@@ -113,7 +114,37 @@ public class SitesController : ControllerBase
                     Value = option.Value,
                     Label = option.Label
                 })
-                .ToList()
+                .ToList(),
+            Locations = new LocationFilterOptionsResponse
+            {
+                Groups = locations.Groups.Select(group => new LocationGroupFilterOptionResponse
+                {
+                    Key = group.Key,
+                    DisplayName = group.DisplayName,
+                    GroupType = group.GroupType,
+                    LocationCount = group.LocationCount
+                }).ToList(),
+                Locations = locations.Locations.Select(location => new LocationFilterOptionResponse
+                {
+                    Key = location.Key,
+                    DisplayName = location.DisplayName
+                }).ToList(),
+                Special = new LocationSpecialFilterOptionsResponse
+                {
+                    Unknown = new LocationFilterOptionResponse
+                    {
+                        Key = locations.Special.Unknown.Key,
+                        DisplayName = locations.Special.Unknown.DisplayName
+                    },
+                    Other = locations.Special.Other is null
+                        ? null
+                        : new LocationFilterOptionResponse
+                    {
+                        Key = locations.Special.Other.Key,
+                        DisplayName = locations.Special.Other.DisplayName
+                    }
+                }
+            }
         });
     }
 

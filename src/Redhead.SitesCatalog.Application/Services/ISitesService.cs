@@ -18,6 +18,11 @@ public interface ISitesService
     Task<List<string>> GetLocationsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get canonical location, group, and special location filter options.
+    /// </summary>
+    Task<LocationFilterOptionsDto> GetLocationFilterOptionsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get distinct normalized niche values for filter dropdowns.
     /// </summary>
     Task<List<FilterOptionDto>> GetNicheOptionsAsync(CancellationToken cancellationToken = default);

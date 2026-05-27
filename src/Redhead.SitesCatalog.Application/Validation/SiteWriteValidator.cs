@@ -52,11 +52,7 @@ public static class SiteWriteValidator
         }
 
         var location = input.Location?.Trim() ?? string.Empty;
-        if (location.Length == 0)
-        {
-            Add(errors, "location", "Location is required.");
-        }
-        else if (location.Length > SiteFieldLimits.LocationMaxLength)
+        if (location.Length > SiteFieldLimits.LocationMaxLength)
         {
             Add(errors, "location", $"Location must be at most {SiteFieldLimits.LocationMaxLength} characters.");
         }

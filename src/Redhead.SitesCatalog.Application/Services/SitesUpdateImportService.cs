@@ -8,6 +8,7 @@ using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
+using Redhead.SitesCatalog.Infrastructure.Locations;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
@@ -23,17 +24,20 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
     private readonly ILogger<SitesUpdateImportService> _logger;
     private readonly IImportArtifactStorageService _importArtifactStorageService;
     private readonly INicheFilterOptionsCache _nicheFilterOptionsCache;
+    private readonly ILocationNormalizer _locationNormalizer;
 
     public SitesUpdateImportService(
         ApplicationDbContext context,
         ILogger<SitesUpdateImportService> logger,
         IImportArtifactStorageService importArtifactStorageService,
-        INicheFilterOptionsCache nicheFilterOptionsCache)
+        INicheFilterOptionsCache nicheFilterOptionsCache,
+        ILocationNormalizer locationNormalizer)
     {
         _context = context;
         _logger = logger;
         _importArtifactStorageService = importArtifactStorageService;
         _nicheFilterOptionsCache = nicheFilterOptionsCache;
+        _locationNormalizer = locationNormalizer;
     }
 
     public async Task<SitesUpdateImportResult> ImportAsync(
@@ -58,6 +62,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         var updateCandidatesByDomain = new Dictionary<string, List<SitesUpdateImportRow>>(StringComparer.Ordinal);
         var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
         var unmatchedRowsPayload = new UnmatchedRowsImportArtifactPayload();
+        var warningRowsPayload = new WarningRowsImportArtifactPayload();
         var validRowsByDomain = new Dictionary<string, List<UnmatchedImportRowRecord>>(StringComparer.Ordinal);
         var duplicateDomainOccurrences = new Dictionary<string, int>(StringComparer.Ordinal);
         var duplicateDomainsInOrder = new List<string>();
@@ -102,6 +107,8 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                     RawValues = rawValues.ToList()
                 };
 
+                update = NormalizeLocationIfPresent(update);
+
                 AddUpdateCandidate(updateCandidatesByDomain, update, ref duplicateRowsCount);
                 AddValidSourceRow(validRowsByDomain, update.NormalizedDomain, row.RowNumber, rawValues);
             }
@@ -132,6 +139,12 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             SitesUpdateImportApplier.Apply(site, update);
             site.UpdatedAtUtc = now;
             result.UpdatedCount++;
+
+            var warning = CreateLocationWarning(update);
+            if (warning is not null)
+            {
+                warningRowsPayload.Rows.Add(warning);
+            }
         }
 
         AddImportLog(result.UpdatedCount, unmatchedDomainsCount, invalidRowsCount, duplicateRowsCount, userId, userEmail);
@@ -153,10 +166,31 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             result,
             invalidRowsPayload,
             unmatchedRowsPayload,
+            warningRowsPayload,
             ImportConstants.ImportArtifactSlugSitesUpdate,
             invalidRowsCount,
             duplicateDomainsInOrder);
         return result;
+    }
+
+    private SitesUpdateImportRow NormalizeLocationIfPresent(SitesUpdateImportRow update)
+    {
+        if (!update.PresentColumns.Contains(ImportConstants.SitesImportColumns.Location))
+        {
+            return update;
+        }
+
+        var locationResult = _locationNormalizer.Normalize(update.Location);
+
+        return update with
+        {
+            Location = locationResult.RawValue ?? string.Empty,
+            LocationKey = locationResult.LocationKey,
+            ImportedLocationRaw = locationResult.RawValue,
+            LocationWarningDetails = locationResult.Status == LocationNormalizationStatus.Unmapped
+                ? "Unmapped location. Site was saved with Location = Other."
+                : null
+        };
     }
 
     private async Task<Dictionary<string, Site>> LoadSitesByDomainAsync(
@@ -304,6 +338,22 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         });
     }
 
+    private static WarningImportRowRecord? CreateLocationWarning(SitesUpdateImportRow update)
+    {
+        if (string.IsNullOrWhiteSpace(update.LocationWarningDetails))
+        {
+            return null;
+        }
+
+        return new WarningImportRowRecord
+        {
+            Domain = update.NormalizedDomain,
+            Location = update.ImportedLocationRaw ?? string.Empty,
+            SourceRowNumber = update.SourceRowNumber,
+            WarningDetails = update.LocationWarningDetails
+        };
+    }
+
     private static void TrackDuplicateDomain(
         string? rawDomain,
         IDictionary<string, int> occurrences,
@@ -349,12 +399,14 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         SitesUpdateImportResult result,
         InvalidRowsImportArtifactPayload invalidRowsPayload,
         UnmatchedRowsImportArtifactPayload unmatchedRowsPayload,
+        WarningRowsImportArtifactPayload warningRowsPayload,
         string importType,
         int invalidRowsCount,
         IReadOnlyCollection<string> duplicateDomainsInOrder)
     {
         result.InvalidRowsCount = invalidRowsCount;
         result.UnmatchedRowsCount = unmatchedRowsPayload.Rows.Count;
+        result.SavedWithWarningsCount = warningRowsPayload.Rows.Count;
         result.DuplicateDomainsCount = duplicateDomainsInOrder.Count;
         result.DuplicateDomainsPreview = duplicateDomainsInOrder
             .Take(ImportConstants.DuplicateDomainsPreviewLimit)
@@ -384,10 +436,23 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             };
         }
 
+        ImportDownloadItem? warningRowsDownload = null;
+        if (warningRowsPayload.Rows.Count > 0)
+        {
+            var handle = _importArtifactStorageService.StoreWarningRows(importType, warningRowsPayload);
+            warningRowsDownload = new ImportDownloadItem
+            {
+                Available = true,
+                Token = handle.Token,
+                FileName = handle.FileName
+            };
+        }
+
         result.Downloads = new ImportDownloadsInfo
         {
             InvalidRows = invalidRowsDownload,
-            UnmatchedRows = unmatchedRowsDownload
+            UnmatchedRows = unmatchedRowsDownload,
+            WarningRows = warningRowsDownload
         };
     }
 }

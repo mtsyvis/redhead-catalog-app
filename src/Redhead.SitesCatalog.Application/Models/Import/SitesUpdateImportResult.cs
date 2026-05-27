@@ -10,5 +10,6 @@ public class SitesUpdateImportResult
     public int DuplicateDomainsCount { get; set; }
     public List<string> DuplicateDomainsPreview { get; set; } = new();
     public int InvalidRowsCount { get; set; }
+    public int SavedWithWarningsCount { get; set; }
     public ImportDownloadsInfo? Downloads { get; set; }
 }

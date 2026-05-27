@@ -8,6 +8,7 @@ using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
+using Redhead.SitesCatalog.Infrastructure.Locations;
 
 namespace Redhead.SitesCatalog.Tests;
 
@@ -27,7 +28,7 @@ public class SitesServiceTests : IDisposable
         _memoryCache = new MemoryCache(new MemoryCacheOptions());
         var queryBuilder = new SitesQueryBuilder(_context);
         var nicheFilterOptionsCache = new NicheFilterOptionsCache(_context, _memoryCache);
-        _service = new SitesService(_context, queryBuilder, nicheFilterOptionsCache);
+        _service = new SitesService(_context, queryBuilder, nicheFilterOptionsCache, new LocationNormalizer());
 
         SeedTestData();
     }
@@ -41,6 +42,8 @@ public class SitesServiceTests : IDisposable
 
     private void SeedTestData()
     {
+        SeedLocations();
+
         var sites = new List<Site>
         {
             new()
@@ -49,6 +52,8 @@ public class SitesServiceTests : IDisposable
                 DR = 50,
                 Traffic = 10000,
                 Location = "US",
+                LocationKey = "US",
+                ImportedLocationRaw = "US",
                 Language = "EN",
                 PriceUsd = 100m,
                 PriceCasino = 150m,
@@ -77,6 +82,8 @@ public class SitesServiceTests : IDisposable
                 DR = 70,
                 Traffic = 50000,
                 Location = "UK",
+                LocationKey = "GB",
+                ImportedLocationRaw = "UK",
                 PriceUsd = 200m,
                 PriceCasino = null,
                 PriceCasinoStatus = ServiceAvailabilityStatus.NotAvailable,
@@ -100,6 +107,8 @@ public class SitesServiceTests : IDisposable
                 DR = 90,
                 Traffic = 100000,
                 Location = "US",
+                LocationKey = "US",
+                ImportedLocationRaw = "US",
                 Language = "UNKNOWN",
                 PriceUsd = 500m,
                 PriceCasino = 600m,
@@ -127,6 +136,8 @@ public class SitesServiceTests : IDisposable
                 DR = 60,
                 Traffic = 30000,
                 Location = "CA",
+                LocationKey = "CA",
+                ImportedLocationRaw = "CA",
                 Language = "MULTI",
                 PriceUsd = 150m,
                 PriceCasino = null,
@@ -151,6 +162,8 @@ public class SitesServiceTests : IDisposable
                 DR = 20,
                 Traffic = 1000,
                 Location = "US",
+                LocationKey = "US",
+                ImportedLocationRaw = "US",
                 Language = "DE",
                 PriceUsd = 50m,
                 PriceCasino = null,
@@ -178,6 +191,28 @@ public class SitesServiceTests : IDisposable
 
         _context.Sites.AddRange(sites);
         _context.SaveChanges();
+    }
+
+    private void SeedLocations()
+    {
+        _context.CanonicalLocations.AddRange(
+            new CanonicalLocation { Key = "US", DisplayName = "United States", SortOrder = 1, IsActive = true },
+            new CanonicalLocation { Key = "GB", DisplayName = "United Kingdom", SortOrder = 2, IsActive = true },
+            new CanonicalLocation { Key = "CA", DisplayName = "Canada", SortOrder = 3, IsActive = true },
+            new CanonicalLocation { Key = "FR", DisplayName = "France", SortOrder = 4, IsActive = true },
+            new CanonicalLocation { Key = LocationConstants.UnknownLocationKey, DisplayName = "Unknown", SortOrder = 999, IsActive = true });
+
+        _context.LocationGroups.AddRange(
+            new LocationGroup { Key = "north-america", DisplayName = "North America", Kind = "Region", SortOrder = 1 },
+            new LocationGroup { Key = "first-world", DisplayName = "First World", Kind = "Business", SortOrder = 2 },
+            new LocationGroup { Key = "overlap", DisplayName = "Overlap", Kind = "Business", SortOrder = 3 });
+
+        _context.LocationGroupItems.AddRange(
+            new LocationGroupItem { GroupKey = "north-america", LocationKey = "US" },
+            new LocationGroupItem { GroupKey = "north-america", LocationKey = "CA" },
+            new LocationGroupItem { GroupKey = "first-world", LocationKey = "US" },
+            new LocationGroupItem { GroupKey = "first-world", LocationKey = "GB" },
+            new LocationGroupItem { GroupKey = "overlap", LocationKey = "US" });
     }
 
     #region Search Tests
@@ -452,7 +487,7 @@ public class SitesServiceTests : IDisposable
 
         // Assert
         Assert.Equal(3, result.Total); // example.com, gambling.com, lowdr.com
-        Assert.All(result.Items, site => Assert.Equal("US", site.Location));
+        Assert.All(result.Items, site => Assert.Equal("United States", site.Location));
     }
 
     [Fact]
@@ -474,7 +509,129 @@ public class SitesServiceTests : IDisposable
 
         // Assert
         Assert.Equal(4, result.Total); // example.com, test.com, gambling.com, lowdr.com
-        Assert.All(result.Items, site => Assert.Contains(site.Location, new[] { "US", "UK" }));
+        Assert.All(result.Items, site => Assert.Contains(site.Location, new[] { "United States", "United Kingdom" }));
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithLocationGroupFilter_ReturnsGroupLocations()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            LocationGroupKeys = ["north-america"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com", "example.com", "gambling.com", "lowdr.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithOverlappingLocationGroups_DoesNotDuplicateResults()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            LocationGroupKeys = ["north-america", "overlap"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(4, result.Total);
+        Assert.Equal(4, result.Items.Count);
+        Assert.Equal(result.Items.Select(site => site.Domain).Distinct(StringComparer.Ordinal).Count(), result.Items.Count);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithUnknownLocationFilter_ReturnsUnknownLocationRows()
+    {
+        // Arrange
+        _context.Sites.Add(CreateSite("unknown-location.com", LocationConstants.UnknownLocationKey));
+        await _context.SaveChangesAsync();
+
+        var query = new SitesQuery
+        {
+            IncludeUnknownLocation = true,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        var site = Assert.Single(result.Items);
+        Assert.Equal("unknown-location.com", site.Domain);
+        Assert.Equal("Unknown", site.Location);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithOtherLocationFilter_ReturnsNullLocationKeyRows()
+    {
+        // Arrange
+        _context.Sites.Add(CreateSite("other-location.com", null));
+        await _context.SaveChangesAsync();
+
+        var query = new SitesQuery
+        {
+            IncludeOtherLocation = true,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        var site = Assert.Single(result.Items);
+        Assert.Equal("other-location.com", site.Domain);
+        Assert.Equal("Other", site.Location);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleLocationFilters_UsesOrSemantics()
+    {
+        // Arrange
+        _context.Sites.Add(CreateSite("other-location.com", null));
+        await _context.SaveChangesAsync();
+
+        var query = new SitesQuery
+        {
+            LocationKeys = ["GB"],
+            LocationGroupKeys = ["north-america"],
+            IncludeOtherLocation = true,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com", "example.com", "gambling.com", "lowdr.com", "other-location.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
     }
 
     #endregion
@@ -1511,7 +1668,7 @@ public class SitesServiceTests : IDisposable
         Assert.Single(result.Items); // Only example.com matches all criteria
         Assert.Equal("example.com", result.Items[0].Domain);
         Assert.True(result.Items[0].DR >= 50);
-        Assert.Equal("US", result.Items[0].Location);
+        Assert.Equal("United States", result.Items[0].Location);
         Assert.NotNull(result.Items[0].PriceCrypto);
         Assert.False(result.Items[0].IsQuarantined);
     }
@@ -1527,10 +1684,7 @@ public class SitesServiceTests : IDisposable
         var result = await _service.GetLocationsAsync();
 
         // Assert
-        Assert.Equal(3, result.Count);
-        Assert.Equal("CA", result[0]);
-        Assert.Equal("UK", result[1]);
-        Assert.Equal("US", result[2]);
+        Assert.Equal(["United States", "United Kingdom", "Canada", "France", "Unknown"], result);
     }
 
     [Fact]
@@ -1538,6 +1692,7 @@ public class SitesServiceTests : IDisposable
     {
         // Arrange
         _context.Sites.RemoveRange(_context.Sites);
+        _context.CanonicalLocations.RemoveRange(_context.CanonicalLocations);
         await _context.SaveChangesAsync();
 
         // Act
@@ -1545,6 +1700,45 @@ public class SitesServiceTests : IDisposable
 
         // Assert
         Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetLocationFilterOptionsAsync_ReturnsGroupsLocationsAndUnknownSpecialValue()
+    {
+        // Arrange
+
+        // Act
+        var result = await _service.GetLocationFilterOptionsAsync();
+
+        // Assert
+        Assert.Contains(result.Groups, group =>
+            group.Key == "north-america"
+            && group.DisplayName == "North America"
+            && group.GroupType == "Region"
+            && group.LocationCount == 2);
+        Assert.Contains(result.Locations, location =>
+            location.Key == "US" && location.DisplayName == "United States");
+        Assert.Equal(LocationConstants.UnknownLocationKey, result.Special.Unknown.Key);
+        Assert.Equal("Unknown", result.Special.Unknown.DisplayName);
+        Assert.Null(result.Special.Other);
+        Assert.DoesNotContain(result.Locations, location => location.Key == LocationDisplayFormatter.OtherPseudoKey);
+    }
+
+    [Fact]
+    public async Task GetLocationFilterOptionsAsync_WhenOtherLocationsExist_ReturnsOtherSpecialValue()
+    {
+        // Arrange
+        _context.Sites.Add(CreateSite("other-filter-option.com", null));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetLocationFilterOptionsAsync();
+
+        // Assert
+        Assert.NotNull(result.Special.Other);
+        Assert.Equal(LocationDisplayFormatter.OtherPseudoKey, result.Special.Other.Key);
+        Assert.Equal("Other", result.Special.Other.DisplayName);
+        Assert.DoesNotContain(result.Locations, location => location.Key == LocationDisplayFormatter.OtherPseudoKey);
     }
 
     #endregion
@@ -1818,7 +2012,7 @@ public class SitesServiceTests : IDisposable
         Assert.NotNull(updated);
         Assert.Equal(60, updated.DR);
         Assert.Equal(20000L, updated.Traffic);
-        Assert.Equal("CA", updated.Location);
+        Assert.Equal("Canada", updated.Location);
         Assert.Equal("EN", updated.Language);
         Assert.Equal(150m, updated.PriceUsd);
         Assert.Equal(200m, updated.PriceCasino);
@@ -1838,8 +2032,29 @@ public class SitesServiceTests : IDisposable
         var dbSite = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
         Assert.Equal(60, dbSite.DR);
         Assert.Equal("CA", dbSite.Location);
+        Assert.Equal("CA", dbSite.LocationKey);
         Assert.Equal("EN", dbSite.Language);
         Assert.Equal(["updated niche"], dbSite.NicheTokens);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("Unknown")]
+    public async Task UpdateSiteAsync_EmptyOrUnknownLocation_SetsCanonicalUnknown(string? location)
+    {
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Location = location ?? string.Empty;
+
+        var updated = await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Equal("Unknown", updated.Location);
+
+        var dbSite = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        Assert.Equal(LocationConstants.UnknownLocationKey, dbSite.LocationKey);
     }
 
     [Fact]
@@ -1894,7 +2109,7 @@ public class SitesServiceTests : IDisposable
     public async Task UpdateSiteAsync_InvalidatesNicheOptionsCache()
     {
         var nicheOptionsCacheMock = new Mock<INicheFilterOptionsCache>();
-        var service = new SitesService(_context, new SitesQueryBuilder(_context), nicheOptionsCacheMock.Object);
+        var service = new SitesService(_context, new SitesQueryBuilder(_context), nicheOptionsCacheMock.Object, new LocationNormalizer());
         var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
         var request = RequestFrom(site);
         request.Niche = "Updated Cache Niche";
@@ -2065,7 +2280,7 @@ public class SitesServiceTests : IDisposable
     private static Site SiteWithNullPrice(string domain) => new()
     {
         Domain = domain,
-        DR = 50, Traffic = 10000, Location = "US",
+        DR = 50, Traffic = 10000, Location = "US", LocationKey = "US", ImportedLocationRaw = "US",
         PriceUsd = null,
         PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
         PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
@@ -2086,6 +2301,8 @@ public class SitesServiceTests : IDisposable
         DR = 50,
         Traffic = 10000,
         Location = "US",
+        LocationKey = "US",
+        ImportedLocationRaw = "US",
         PriceUsd = 100m,
         PriceCasino = priceCasino,
         PriceCasinoStatus = priceCasinoStatus,
@@ -2104,6 +2321,8 @@ public class SitesServiceTests : IDisposable
         DR = 50,
         Traffic = 10000,
         Location = "US",
+        LocationKey = "US",
+        ImportedLocationRaw = "US",
         PriceUsd = 100m,
         PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
         PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
@@ -2111,6 +2330,25 @@ public class SitesServiceTests : IDisposable
         PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
         PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
         Categories = categories,
+        IsQuarantined = false,
+        CreatedAtUtc = DateTime.UtcNow,
+        UpdatedAtUtc = DateTime.UtcNow
+    };
+
+    private static Site CreateSite(string domain, string? locationKey) => new()
+    {
+        Domain = domain,
+        DR = 50,
+        Traffic = 10000,
+        Location = locationKey ?? "Unmapped location",
+        LocationKey = locationKey,
+        ImportedLocationRaw = locationKey is null ? "Unmapped location" : locationKey,
+        PriceUsd = 100m,
+        PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+        PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+        PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
         IsQuarantined = false,
         CreatedAtUtc = DateTime.UtcNow,
         UpdatedAtUtc = DateTime.UtcNow

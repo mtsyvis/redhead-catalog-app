@@ -64,11 +64,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         // Apply range filters
         sitesQuery = ApplyRangeFilters(sitesQuery, query);
 
-        // Apply location filter
-        if (query.Locations != null && query.Locations.Count > 0)
-        {
-            sitesQuery = sitesQuery.Where(s => query.Locations.Contains(s.Location));
-        }
+        sitesQuery = ApplyLocationFilter(sitesQuery, query);
 
         sitesQuery = ApplyLanguageFilter(sitesQuery, query.Languages);
 
@@ -102,6 +98,47 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         }
 
         return NicheNormalizer.NormalizeTokens(niches);
+    }
+
+    private IQueryable<Site> ApplyLocationFilter(IQueryable<Site> query, SitesQuery filters)
+    {
+        var explicitLocationKeys = NormalizeLocationKeys(filters.LocationKeys ?? filters.Locations);
+        var groupKeys = NormalizeLocationKeys(filters.LocationGroupKeys);
+        var hasLocationFilter = explicitLocationKeys.Length > 0
+                                || groupKeys.Length > 0
+                                || filters.IncludeUnknownLocation
+                                || filters.IncludeOtherLocation;
+
+        if (!hasLocationFilter)
+        {
+            return query;
+        }
+
+        var groupLocationKeys = Array.Empty<string>();
+        if (groupKeys.Length > 0 && _context is not null)
+        {
+            groupLocationKeys = _context.LocationGroupItems
+                .Where(item => groupKeys.Contains(item.GroupKey))
+                .Select(item => item.LocationKey)
+                .Distinct()
+                .ToArray();
+        }
+
+        return query.Where(site =>
+            (site.LocationKey != null && explicitLocationKeys.Contains(site.LocationKey))
+            || (site.LocationKey != null && groupLocationKeys.Contains(site.LocationKey))
+            || (filters.IncludeUnknownLocation && site.LocationKey == LocationConstants.UnknownLocationKey)
+            || (filters.IncludeOtherLocation && site.LocationKey == null)
+            || (site.Location != null && explicitLocationKeys.Contains(site.Location)));
+    }
+
+    private static string[] NormalizeLocationKeys(IReadOnlyCollection<string>? values)
+    {
+        return values?
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray() ?? [];
     }
 
     private IQueryable<Site> ApplyCategorySearchFilter(

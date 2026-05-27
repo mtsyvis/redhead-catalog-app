@@ -9,6 +9,9 @@ internal sealed record SitesUpdateImportRow(string NormalizedDomain, IReadOnlySe
     public double DR { get; init; }
     public long Traffic { get; init; }
     public string? Location { get; init; }
+    public string? LocationKey { get; init; }
+    public string? ImportedLocationRaw { get; init; }
+    public string? LocationWarningDetails { get; init; }
     public decimal? PriceUsd { get; init; }
     public decimal? PriceCasino { get; init; }
     public ServiceAvailabilityStatus PriceCasinoStatus { get; init; }

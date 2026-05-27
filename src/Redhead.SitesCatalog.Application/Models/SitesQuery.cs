@@ -29,8 +29,14 @@ public class SitesQuery
     public decimal? PriceMin { get; set; }
     public decimal? PriceMax { get; set; }
 
-    // Location multi-select
+    // Legacy location multi-select. Prefer LocationKeys for canonical location filtering.
     public List<string>? Locations { get; set; }
+
+    // Canonical location filtering
+    public List<string>? LocationKeys { get; set; }
+    public List<string>? LocationGroupKeys { get; set; }
+    public bool IncludeUnknownLocation { get; set; }
+    public bool IncludeOtherLocation { get; set; }
 
     // Language multi-select
     public List<string>? Languages { get; set; }

@@ -3,6 +3,7 @@ using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Infrastructure.Data;
+using Redhead.SitesCatalog.Infrastructure.Locations;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
@@ -14,15 +15,18 @@ public class SitesService : ISitesService
     private readonly ApplicationDbContext _context;
     private readonly ISitesQueryBuilder _queryBuilder;
     private readonly INicheFilterOptionsCache _nicheFilterOptionsCache;
+    private readonly ILocationNormalizer _locationNormalizer;
 
     public SitesService(
         ApplicationDbContext context,
         ISitesQueryBuilder queryBuilder,
-        INicheFilterOptionsCache nicheFilterOptionsCache)
+        INicheFilterOptionsCache nicheFilterOptionsCache,
+        ILocationNormalizer locationNormalizer)
     {
         _context = context;
         _queryBuilder = queryBuilder;
         _nicheFilterOptionsCache = nicheFilterOptionsCache;
+        _locationNormalizer = locationNormalizer;
     }
 
     public async Task<SitesListResult> GetSitesAsync(SitesQuery query, CancellationToken cancellationToken = default)
@@ -40,6 +44,7 @@ public class SitesService : ISitesService
 
         // Execute query and map to DTOs
         var sites = await sitesQuery
+            .Include(s => s.CanonicalLocation)
             .Skip(skip)
             .Take(pageSize)
             .Select(s => new SiteDto
@@ -47,7 +52,13 @@ public class SitesService : ISitesService
                 Domain = s.Domain,
                 DR = s.DR,
                 Traffic = s.Traffic,
-                Location = s.Location,
+                Location = s.LocationKey == null
+                    ? LocationDisplayFormatter.OtherDisplayName
+                    : s.CanonicalLocation != null
+                        ? s.CanonicalLocation.DisplayName
+                        : s.LocationKey == LocationConstants.UnknownLocationKey
+                            ? LocationDisplayFormatter.UnknownDisplayName
+                            : s.Location,
                 Language = s.Language,
                 SponsoredTag = s.SponsoredTag,
                 PriceUsd = s.PriceUsd,
@@ -87,11 +98,71 @@ public class SitesService : ISitesService
 
     public async Task<List<string>> GetLocationsAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.Sites
-            .Select(s => s.Location)
-            .Distinct()
-            .OrderBy(l => l)
+        return await _context.CanonicalLocations
+            .AsNoTracking()
+            .Where(location => location.IsActive)
+            .OrderBy(location => location.SortOrder)
+            .ThenBy(location => location.DisplayName)
+            .Select(location => location.DisplayName)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<LocationFilterOptionsDto> GetLocationFilterOptionsAsync(CancellationToken cancellationToken = default)
+    {
+        var groups = await _context.LocationGroups
+            .AsNoTracking()
+            .OrderBy(group => group.Kind)
+            .ThenBy(group => group.SortOrder)
+            .ThenBy(group => group.DisplayName)
+            .Select(group => new LocationGroupFilterOptionDto
+            {
+                Key = group.Key,
+                DisplayName = group.DisplayName,
+                GroupType = group.Kind,
+                LocationCount = group.Items.Count
+            })
+            .ToListAsync(cancellationToken);
+
+        var locations = await _context.CanonicalLocations
+            .AsNoTracking()
+            .Where(location => location.IsActive)
+            .OrderBy(location => location.SortOrder)
+            .ThenBy(location => location.DisplayName)
+            .Select(location => new LocationFilterOptionDto
+            {
+                Key = location.Key,
+                DisplayName = location.DisplayName
+            })
+            .ToListAsync(cancellationToken);
+
+        var unknown = locations.SingleOrDefault(location =>
+            string.Equals(location.Key, LocationConstants.UnknownLocationKey, StringComparison.Ordinal))
+            ?? new LocationFilterOptionDto
+            {
+                Key = LocationConstants.UnknownLocationKey,
+                DisplayName = LocationDisplayFormatter.UnknownDisplayName
+            };
+
+        var hasOtherLocations = await _context.Sites
+            .AsNoTracking()
+            .AnyAsync(site => site.LocationKey == null, cancellationToken);
+
+        return new LocationFilterOptionsDto
+        {
+            Groups = groups,
+            Locations = locations,
+            Special = new LocationSpecialFilterOptionsDto
+            {
+                Unknown = unknown,
+                Other = hasOtherLocations
+                    ? new LocationFilterOptionDto
+                {
+                    Key = LocationDisplayFormatter.OtherPseudoKey,
+                    DisplayName = LocationDisplayFormatter.OtherDisplayName
+                }
+                    : null
+            }
+        };
     }
 
     public async Task<List<FilterOptionDto>> GetNicheOptionsAsync(CancellationToken cancellationToken = default)
@@ -115,13 +186,20 @@ public class SitesService : ISitesService
         }
 
         var found = await _context.Sites
+            .Include(s => s.CanonicalLocation)
             .Where(s => normalizedDomains.Contains(s.Domain))
             .Select(s => new SiteDto
             {
                 Domain = s.Domain,
                 DR = s.DR,
                 Traffic = s.Traffic,
-                Location = s.Location,
+                Location = s.LocationKey == null
+                    ? LocationDisplayFormatter.OtherDisplayName
+                    : s.CanonicalLocation != null
+                        ? s.CanonicalLocation.DisplayName
+                        : s.LocationKey == LocationConstants.UnknownLocationKey
+                            ? LocationDisplayFormatter.UnknownDisplayName
+                            : s.Location,
                 Language = s.Language,
                 SponsoredTag = s.SponsoredTag,
                 PriceUsd = s.PriceUsd,
@@ -178,9 +256,12 @@ public class SitesService : ISitesService
         }
 
         var now = DateTime.UtcNow;
+        var location = _locationNormalizer.Normalize(request.Location);
         site.DR = request.DR;
         site.Traffic = request.Traffic;
-        site.Location = request.Location;
+        site.Location = location.RawValue ?? string.Empty;
+        site.LocationKey = location.LocationKey;
+        site.ImportedLocationRaw = location.RawValue;
         site.Language = request.Language;
         site.SponsoredTag = request.SponsoredTag;
         site.PriceUsd = request.PriceUsd;
@@ -213,7 +294,7 @@ public class SitesService : ISitesService
             Domain = site.Domain,
             DR = site.DR,
             Traffic = site.Traffic,
-            Location = site.Location,
+            Location = LocationDisplayFormatter.Format(site.LocationKey, site.CanonicalLocation?.DisplayName, site.Location),
             Language = site.Language,
             SponsoredTag = site.SponsoredTag,
             PriceUsd = site.PriceUsd,

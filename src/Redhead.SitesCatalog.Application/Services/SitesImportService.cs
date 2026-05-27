@@ -8,6 +8,7 @@ using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
+using Redhead.SitesCatalog.Infrastructure.Locations;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
@@ -24,17 +25,20 @@ public sealed class SitesImportService : ISitesImportService
     private readonly ILogger<SitesImportService> _logger;
     private readonly IImportArtifactStorageService _importArtifactStorageService;
     private readonly INicheFilterOptionsCache _nicheFilterOptionsCache;
+    private readonly ILocationNormalizer _locationNormalizer;
 
     public SitesImportService(
         ApplicationDbContext context,
         ILogger<SitesImportService> logger,
         IImportArtifactStorageService importArtifactStorageService,
-        INicheFilterOptionsCache nicheFilterOptionsCache)
+        INicheFilterOptionsCache nicheFilterOptionsCache,
+        ILocationNormalizer locationNormalizer)
     {
         _context = context;
         _logger = logger;
         _importArtifactStorageService = importArtifactStorageService;
         _nicheFilterOptionsCache = nicheFilterOptionsCache;
+        _locationNormalizer = locationNormalizer;
     }
 
     public async Task<SitesImportResult> ImportAsync(
@@ -55,7 +59,9 @@ public sealed class SitesImportService : ISitesImportService
 
         // Phase 1: parse CSV rows and build per-domain map (last valid row wins)
         var parsedSitesByDomain = new Dictionary<string, Site>(StringComparer.Ordinal);
+        var locationWarningsByDomain = new Dictionary<string, WarningImportRowRecord>(StringComparer.Ordinal);
         var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
+        var warningRowsPayload = new WarningRowsImportArtifactPayload();
         var skippedExistingCount = 0;
         var duplicateRowsCount = 0;
         var invalidRowsCount = 0;
@@ -101,7 +107,15 @@ public sealed class SitesImportService : ISitesImportService
                     duplicateRowsCount++;
                 }
 
-                parsedSitesByDomain[domain] = BuildSiteFromValidatedRow(validatedData);
+                parsedSitesByDomain[domain] = BuildSiteFromValidatedRow(validatedData, row.RowNumber, out var locationWarning);
+                if (locationWarning is null)
+                {
+                    locationWarningsByDomain.Remove(domain);
+                }
+                else
+                {
+                    locationWarningsByDomain[domain] = locationWarning;
+                }
             }
         }
 
@@ -111,6 +125,7 @@ public sealed class SitesImportService : ISitesImportService
             AttachSummaryAndDownloads(
                 result,
                 invalidRowsPayload,
+                warningRowsPayload,
                 ImportConstants.ImportArtifactSlugSites,
                 invalidRowsCount,
                 skippedExistingCount,
@@ -143,6 +158,10 @@ public sealed class SitesImportService : ISitesImportService
             }
 
             sitesToInsert.Add(site);
+            if (locationWarningsByDomain.TryGetValue(domain, out var warning))
+            {
+                warningRowsPayload.Rows.Add(warning);
+            }
         }
 
         // Phase 3: insert new sites in batches inside a single transaction
@@ -175,6 +194,7 @@ public sealed class SitesImportService : ISitesImportService
         AttachSummaryAndDownloads(
             result,
             invalidRowsPayload,
+            warningRowsPayload,
             ImportConstants.ImportArtifactSlugSites,
             invalidRowsCount,
             skippedExistingCount,
@@ -304,16 +324,27 @@ public sealed class SitesImportService : ISitesImportService
         _context.ImportLogs.Add(log);
     }
 
-    private static Site BuildSiteFromValidatedRow(SitesImportRowValidationHelper.ValidatedSitesRow data)
+    private Site BuildSiteFromValidatedRow(
+        SitesImportRowValidationHelper.ValidatedSitesRow data,
+        int sourceRowNumber,
+        out WarningImportRowRecord? locationWarning)
     {
         var now = DateTime.UtcNow;
+        var locationResult = _locationNormalizer.Normalize(data.Location);
+        locationWarning = CreateLocationWarning(
+            data.NormalizedDomain,
+            data.Location,
+            sourceRowNumber,
+            locationResult);
 
         return new Site
         {
             Domain = data.NormalizedDomain,
             DR = data.DR,
             Traffic = data.Traffic,
-            Location = data.Location,
+            Location = locationResult.RawValue ?? string.Empty,
+            LocationKey = locationResult.LocationKey,
+            ImportedLocationRaw = locationResult.RawValue,
             PriceUsd = data.PriceUsd,
             PriceCasino = data.PriceCasino,
             PriceCasinoStatus = data.PriceCasinoStatus,
@@ -390,6 +421,26 @@ public sealed class SitesImportService : ISitesImportService
         occurrences[normalizedDomain] = 1;
     }
 
+    private static WarningImportRowRecord? CreateLocationWarning(
+        string normalizedDomain,
+        string rawLocation,
+        int sourceRowNumber,
+        LocationNormalizationResult locationResult)
+    {
+        if (locationResult.Status != LocationNormalizationStatus.Unmapped)
+        {
+            return null;
+        }
+
+        return new WarningImportRowRecord
+        {
+            Domain = normalizedDomain,
+            Location = rawLocation,
+            SourceRowNumber = sourceRowNumber,
+            WarningDetails = "Unmapped location. Site was saved with Location = Other."
+        };
+    }
+
     private static Dictionary<string, int> BuildColumnIndexes(IReadOnlyList<string> header)
     {
         var indexes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -408,6 +459,7 @@ public sealed class SitesImportService : ISitesImportService
     private void AttachSummaryAndDownloads(
         SitesImportResult result,
         InvalidRowsImportArtifactPayload invalidRowsPayload,
+        WarningRowsImportArtifactPayload warningRowsPayload,
         string importType,
         int invalidRowsCount,
         int skippedExistingCount,
@@ -415,6 +467,7 @@ public sealed class SitesImportService : ISitesImportService
     {
         result.SkippedExistingCount = skippedExistingCount;
         result.InvalidRowsCount = invalidRowsCount;
+        result.SavedWithWarningsCount = warningRowsPayload.Rows.Count;
         result.DuplicateDomainsCount = duplicateDomainsInOrder.Count;
         result.DuplicateDomainsPreview = duplicateDomainsInOrder
             .Take(ImportConstants.DuplicateDomainsPreviewLimit)
@@ -432,9 +485,22 @@ public sealed class SitesImportService : ISitesImportService
             };
         }
 
+        ImportDownloadItem? warningRowsDownload = null;
+        if (warningRowsPayload.Rows.Count > 0)
+        {
+            var handle = _importArtifactStorageService.StoreWarningRows(importType, warningRowsPayload);
+            warningRowsDownload = new ImportDownloadItem
+            {
+                Available = true,
+                Token = handle.Token,
+                FileName = handle.FileName
+            };
+        }
+
         result.Downloads = new ImportDownloadsInfo
         {
             InvalidRows = invalidRowsDownload,
+            WarningRows = warningRowsDownload
         };
     }
 }

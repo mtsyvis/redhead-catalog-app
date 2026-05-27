@@ -10,6 +10,7 @@ using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
+using Redhead.SitesCatalog.Infrastructure.Locations;
 using System.Text;
 
 namespace Redhead.SitesCatalog.Tests.Application.Services;
@@ -40,7 +41,8 @@ public sealed class SitesImportServiceTests : IDisposable
             _context,
             NullLogger<SitesImportService>.Instance,
             _artifactStorageService,
-            new NicheFilterOptionsCache(_context, _nicheOptionsMemoryCache));
+            new NicheFilterOptionsCache(_context, _nicheOptionsMemoryCache),
+            new LocationNormalizer());
 
         SeedSites();
     }
@@ -154,6 +156,103 @@ public sealed class SitesImportServiceTests : IDisposable
 
         var site = await GetSiteAsync(domain);
         Assert.Equal(expectedLanguage, site.Language);
+    }
+
+    [Theory]
+    [InlineData("USA", "US")]
+    [InlineData("US", "US")]
+    [InlineData("GB", "GB")]
+    [InlineData("UK", "GB")]
+    [InlineData("Korea", "KR")]
+    public async Task ImportAsync_LocationColumn_KnownValues_SetCanonicalLocationKey(string rawLocation, string expectedLocationKey)
+    {
+        // Arrange
+        var domain = $"location-{rawLocation.ToLowerInvariant()}.com";
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            $"{domain},55,12000,{rawLocation},100,,,,,,,,,,\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Equal(0, result.SavedWithWarningsCount);
+        Assert.Null(result.Downloads?.WarningRows);
+
+        var site = await GetSiteAsync(domain);
+        Assert.Equal(expectedLocationKey, site.LocationKey);
+        Assert.Equal(rawLocation, site.ImportedLocationRaw);
+    }
+
+    [Fact]
+    public async Task ImportAsync_EmptyLocation_SavesUnknownWithoutWarning()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "empty-location.com,55,12000,,100,,,,,,,,,,\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Equal(0, result.SavedWithWarningsCount);
+        Assert.Null(result.Downloads?.WarningRows);
+
+        var site = await GetSiteAsync("empty-location.com");
+        Assert.Equal(LocationConstants.UnknownLocationKey, site.LocationKey);
+        Assert.Null(site.ImportedLocationRaw);
+    }
+
+    [Fact]
+    public async Task ImportAsync_UnmappedLocation_SavesOtherAndCreatesWarningRowsDownload()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "bad-location-warning.com,55,12000,United Stetes,100,,,,,,,,,,\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Equal(1, result.SavedWithWarningsCount);
+        Assert.NotNull(result.Downloads?.WarningRows);
+
+        var site = await GetSiteAsync("bad-location-warning.com");
+        Assert.Null(site.LocationKey);
+        Assert.Equal("United Stetes", site.ImportedLocationRaw);
+
+        var warningLines = GetDownloadLines(result.Downloads!.WarningRows!.Token);
+        Assert.Equal("Domain,Location,Source Row Number,Warning Details", warningLines[0]);
+        Assert.Equal("bad-location-warning.com,United Stetes,2,Unmapped location. Site was saved with Location = Other.", warningLines[1]);
+        Assert.DoesNotContain("DR", warningLines[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("Traffic", warningLines[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidRowWithUnmappedLocation_IsInvalidOnlyAndDoesNotCreateWarning()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            HeaderLine() +
+            "invalid-unmapped-location.com,invalid,12000,some trash,100,,,,,,,,,,\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(0, result.InsertedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.Equal(0, result.SavedWithWarningsCount);
+        Assert.NotNull(result.Downloads?.InvalidRows);
+        Assert.Null(result.Downloads?.WarningRows);
     }
 
     [Theory]
@@ -467,7 +566,6 @@ public sealed class SitesImportServiceTests : IDisposable
     [InlineData("bad-dr-format.com,abc,12000,US,100,150,200,250,,,Tech,News,,,,", "DR is required.")]
     [InlineData("bad-dr-range.com,101,12000,US,100,150,200,250,,,Tech,News,,,,", "DR must be between 0 and 100.")]
     [InlineData("bad-traffic.com,55,,US,100,150,200,250,,,Tech,News,,,,", "Traffic is required.")]
-    [InlineData("bad-location.com,55,12000, ,100,150,200,250,,,Tech,News,,,,", "Location is required.")]
     [InlineData("bad-price-zero.com,55,12000,US,0,,,,,,Tech,News,,,", "Price USD must be greater than 0 or empty.")]
     [InlineData("bad-casino-zero.com,55,12000,US,100,0,200,250,,,Tech,News,,,,", "Optional service price must be greater than 0.")]
     [InlineData("bad-casino.com,55,12000,US,100,-1,200,250,,,Tech,News,,,,", "Optional service price must be greater than 0.")]
@@ -516,7 +614,6 @@ public sealed class SitesImportServiceTests : IDisposable
         var invalidRowLine = Assert.Single(invalidLines, line => line.Contains(",2,", StringComparison.Ordinal));
         Assert.Contains("DR is required.", invalidRowLine, StringComparison.Ordinal);
         Assert.Contains("Traffic is required.", invalidRowLine, StringComparison.Ordinal);
-        Assert.Contains("Location is required.", invalidRowLine, StringComparison.Ordinal);
         Assert.Contains("; ", invalidRowLine, StringComparison.Ordinal);
     }
 

@@ -92,7 +92,7 @@ public class ExportService : IExportService
             throw new ExportDisabledException(userRole, ExportConstants.ExportDisabledMessage);
         }
 
-        var sitesQuery = _queryBuilder.BuildQuery(_context.Sites, query);
+        var sitesQuery = _queryBuilder.BuildQuery(_context.Sites.Include(site => site.CanonicalLocation), query);
 
         var requestedRows = await sitesQuery.CountAsync(cancellationToken);
 
@@ -157,6 +157,7 @@ public class ExportService : IExportService
         var isClientRole = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
 
         IQueryable<Site> baseQuery = _context.Sites
+            .Include(site => site.CanonicalLocation)
             .Where(s => parseResult.UniqueDomains.Contains(s.Domain));
 
         var includeNotFound = !AreFiltersActive(query);
@@ -262,6 +263,9 @@ public class ExportService : IExportService
         if (query.TrafficMin.HasValue || query.TrafficMax.HasValue) { return true; }
         if (query.PriceMin.HasValue || query.PriceMax.HasValue) { return true; }
         if (query.Locations is { Count: > 0 }) { return true; }
+        if (query.LocationKeys is { Count: > 0 }) { return true; }
+        if (query.LocationGroupKeys is { Count: > 0 }) { return true; }
+        if (query.IncludeUnknownLocation || query.IncludeOtherLocation) { return true; }
         if (query.Languages is { Count: > 0 }) { return true; }
         if (NicheNormalizer.NormalizeTokens(query.Niches ?? []).Length > 0) { return true; }
         if (CategorySearchTermParser.NormalizeAndValidate(query.CategorySearchTerms) is { Count: > 0 }) { return true; }
@@ -362,7 +366,7 @@ public class ExportService : IExportService
             XlsxCell.Text(site.Domain),
             XlsxCell.Number(Convert.ToDecimal(site.DR, CultureInfo.InvariantCulture), XlsxCellStyle.Integer),
             XlsxCell.Number(site.Traffic, XlsxCellStyle.Integer),
-            XlsxCell.Text(site.Location),
+            XlsxCell.Text(LocationDisplayFormatter.Format(site.LocationKey, site.CanonicalLocation?.DisplayName, site.Location)),
             XlsxCell.Number(site.PriceUsd, XlsxCellStyle.Decimal),
             FormatOptionalService(site.PriceCasino, site.PriceCasinoStatus),
             FormatOptionalService(site.PriceCrypto, site.PriceCryptoStatus),
@@ -490,6 +494,10 @@ public class ExportService : IExportService
             query.PriceMin,
             query.PriceMax,
             query.Locations,
+            query.LocationKeys,
+            query.LocationGroupKeys,
+            query.IncludeUnknownLocation,
+            query.IncludeOtherLocation,
             query.Languages,
             query.Niches,
             query.CategorySearchTerms,

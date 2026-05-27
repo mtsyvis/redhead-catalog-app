@@ -66,14 +66,15 @@ public class SiteWriteValidatorTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void ValidateAndNormalize_EmptyLocation_ReturnsError(string? location)
+    public void ValidateAndNormalize_EmptyLocation_IsValidAndNormalizesToEmpty(string? location)
     {
         var request = BuildValidRequest();
         request.Location = location;
 
         var result = SiteWriteValidator.ValidateAndNormalize(request);
 
-        AssertError(result, "location");
+        Assert.True(result.IsValid);
+        Assert.Equal(string.Empty, result.NormalizedRequest!.Location);
     }
 
     [Fact]
@@ -444,7 +445,6 @@ public class SiteWriteValidatorTests
         Assert.False(result.IsValid);
         Assert.Contains("dr", result.FieldErrors.Keys);
         Assert.Contains("traffic", result.FieldErrors.Keys);
-        Assert.Contains("location", result.FieldErrors.Keys);
         Assert.Contains("priceUsd", result.FieldErrors.Keys);
     }
 

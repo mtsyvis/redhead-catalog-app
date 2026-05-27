@@ -21,6 +21,8 @@ internal static class SitesUpdateImportApplier
         if (update.PresentColumns.Contains(ImportConstants.SitesImportColumns.Location))
         {
             site.Location = update.Location ?? string.Empty;
+            site.LocationKey = update.LocationKey;
+            site.ImportedLocationRaw = update.ImportedLocationRaw;
         }
 
         if (update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PriceUsd))

@@ -177,8 +177,11 @@ Canonical location rules:
 * `UNKNOWN` is a real canonical location with display name `Unknown`.
 * Non-empty imported Location values that cannot be mapped are stored as unmapped with a null canonical location key and the original raw value preserved for warnings and later review.
 * `Other` is not a canonical location.
+* `Other` means the site has no canonical `LocationKey`.
 * Static aliases map common names and codes such as `USA`, `UK`, `UAE`, and `Korea` to canonical location keys.
 * Location groups can represent regions or business groups. Group kind is not a location type.
+* Sites list and export display use canonical names: mapped locations use the canonical display name, `UNKNOWN` displays as `Unknown`, and null `LocationKey` displays as `Other`.
+* Manual site edits use the same canonical normalization. Empty or `Unknown` Location values set canonical `UNKNOWN`.
 
 ### Domain
 
@@ -353,6 +356,9 @@ Main filters:
 * Traffic range
 * Price range
 * Location multi-select
+* Location group multi-select
+* Include Unknown location
+* Include Other location
 * Language multi-select
 * Niche multi-select
 * Categories substring search
@@ -429,6 +435,8 @@ General rules:
 * Import results should show summary counts and downloadable details where supported.
 * Import logs must record who ran the import, when it happened, import type, and summary counts.
 * Duplicate domains in an input file should have explicit behavior. Current update-style imports use last valid row wins.
+* Import results distinguish invalid rows that were not saved from warning rows that were saved with review warnings.
+* Warning row downloads contain only `Domain`, `Location`, `Source Row Number`, and `Warning Details`.
 
 ### Sites import
 
@@ -463,6 +471,9 @@ Rules:
 * Domain is normalized before uniqueness checks.
 * Duplicate domains inside the input are reported.
 * Invalid rows are not inserted.
+* Empty Location values are saved with canonical `UNKNOWN` and do not create warnings.
+* Recognized Location values and aliases are saved with their canonical `LocationKey` and the raw imported value preserved.
+* Non-empty unrecognized Location values are saved with null `LocationKey` (`Other`) and create a warning row, but are not invalid only because of Location.
 * Empty rows are skipped.
 * Import should support large catalog files.
 
@@ -483,7 +494,9 @@ Rules:
 * Present empty values are explicit updates and follow field-specific rules.
 * Empty `Language` values overwrite existing language with empty/null.
 * Present empty nullable fields clear existing values according to the field storage convention.
-* Present empty required fields such as `DR`, `Traffic`, and `Location` are row-level errors.
+* Present empty required fields such as `DR` and `Traffic` are row-level errors.
+* If the `Location` column is missing, existing canonical location fields are unchanged.
+* If the `Location` column is present, empty values set canonical `UNKNOWN`, recognized values set the mapped canonical `LocationKey`, and non-empty unrecognized values set null `LocationKey` (`Other`) with a warning row.
 * Unknown domains are reported as unmatched; they are not inserted.
 * Last valid row wins for duplicate domains in the file.
 * Invalid rows are reported and not applied.

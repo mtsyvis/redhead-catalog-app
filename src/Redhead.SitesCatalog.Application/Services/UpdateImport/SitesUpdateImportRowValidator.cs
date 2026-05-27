@@ -75,11 +75,7 @@ internal static class SitesUpdateImportRowValidator
         if (presentColumns.Contains(ImportConstants.SitesImportColumns.Location))
         {
             var location = row.Location?.Trim() ?? string.Empty;
-            if (location.Length == 0)
-            {
-                requiredFieldErrors.Add("Location is required.");
-            }
-            else if (location.Length > SiteFieldLimits.LocationMaxLength)
+            if (location.Length > SiteFieldLimits.LocationMaxLength)
             {
                 requiredFieldErrors.Add($"Location must be at most {SiteFieldLimits.LocationMaxLength} characters.");
             }
