@@ -9,6 +9,7 @@ using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Infrastructure.Locations;
 using Redhead.SitesCatalog.Infrastructure.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,6 +41,7 @@ builder.Services.AddScoped<IQuarantineImportService, QuarantineImportService>();
 builder.Services.AddScoped<ILastPublishedImportService, LastPublishedImportService>();
 builder.Services.AddScoped<ISitesUpdateImportService, SitesUpdateImportService>();
 builder.Services.AddSingleton<IImportArtifactStorageService, ImportArtifactStorageService>();
+builder.Services.AddSingleton<ILocationNormalizer, LocationNormalizer>();
 builder.Services.AddScoped<IGoogleDriveApiClient, GoogleDriveApiClient>();
 builder.Services.AddScoped<IGoogleDriveIntegrationService, GoogleDriveIntegrationService>();
 builder.Services.AddScoped<IGoogleDriveExportService, GoogleDriveExportService>();

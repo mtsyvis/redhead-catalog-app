@@ -1,0 +1,1793 @@
+{
+  "version": 1,
+  "notes": [
+    "Cleaned from the team regions.js source.",
+    "Unknown is a special valid location for empty imported Location values.",
+    "Other is intentionally not a canonical location; use null LocationKey for unmapped non-empty imported values."
+  ],
+  "unknownLocationKey": "UNKNOWN",
+  "locations": [
+    {
+      "key": "UNKNOWN",
+      "displayName": "Unknown",
+      "sortOrder": 0,
+      "isActive": true
+    },
+    {
+      "key": "AF",
+      "displayName": "Afghanistan",
+      "sortOrder": 10,
+      "isActive": true
+    },
+    {
+      "key": "AL",
+      "displayName": "Albania",
+      "sortOrder": 20,
+      "isActive": true
+    },
+    {
+      "key": "DZ",
+      "displayName": "Algeria",
+      "sortOrder": 30,
+      "isActive": true
+    },
+    {
+      "key": "AS",
+      "displayName": "American Samoa",
+      "sortOrder": 40,
+      "isActive": true
+    },
+    {
+      "key": "AD",
+      "displayName": "Andorra",
+      "sortOrder": 50,
+      "isActive": true
+    },
+    {
+      "key": "AO",
+      "displayName": "Angola",
+      "sortOrder": 60,
+      "isActive": true
+    },
+    {
+      "key": "AG",
+      "displayName": "Antigua and Barbuda",
+      "sortOrder": 70,
+      "isActive": true
+    },
+    {
+      "key": "AR",
+      "displayName": "Argentina",
+      "sortOrder": 80,
+      "isActive": true
+    },
+    {
+      "key": "AM",
+      "displayName": "Armenia",
+      "sortOrder": 90,
+      "isActive": true
+    },
+    {
+      "key": "AU",
+      "displayName": "Australia",
+      "sortOrder": 100,
+      "isActive": true
+    },
+    {
+      "key": "AT",
+      "displayName": "Austria",
+      "sortOrder": 110,
+      "isActive": true
+    },
+    {
+      "key": "AZ",
+      "displayName": "Azerbaijan",
+      "sortOrder": 120,
+      "isActive": true
+    },
+    {
+      "key": "BS",
+      "displayName": "Bahamas",
+      "sortOrder": 130,
+      "isActive": true
+    },
+    {
+      "key": "BH",
+      "displayName": "Bahrain",
+      "sortOrder": 140,
+      "isActive": true
+    },
+    {
+      "key": "BD",
+      "displayName": "Bangladesh",
+      "sortOrder": 150,
+      "isActive": true
+    },
+    {
+      "key": "BB",
+      "displayName": "Barbados",
+      "sortOrder": 160,
+      "isActive": true
+    },
+    {
+      "key": "BY",
+      "displayName": "Belarus",
+      "sortOrder": 170,
+      "isActive": true
+    },
+    {
+      "key": "BE",
+      "displayName": "Belgium",
+      "sortOrder": 180,
+      "isActive": true
+    },
+    {
+      "key": "BZ",
+      "displayName": "Belize",
+      "sortOrder": 190,
+      "isActive": true
+    },
+    {
+      "key": "BJ",
+      "displayName": "Benin",
+      "sortOrder": 200,
+      "isActive": true
+    },
+    {
+      "key": "BM",
+      "displayName": "Bermuda",
+      "sortOrder": 210,
+      "isActive": true
+    },
+    {
+      "key": "BT",
+      "displayName": "Bhutan",
+      "sortOrder": 220,
+      "isActive": true
+    },
+    {
+      "key": "BO",
+      "displayName": "Bolivia",
+      "sortOrder": 230,
+      "isActive": true
+    },
+    {
+      "key": "BA",
+      "displayName": "Bosnia and Herzegovina",
+      "sortOrder": 240,
+      "isActive": true
+    },
+    {
+      "key": "BW",
+      "displayName": "Botswana",
+      "sortOrder": 250,
+      "isActive": true
+    },
+    {
+      "key": "BR",
+      "displayName": "Brazil",
+      "sortOrder": 260,
+      "isActive": true
+    },
+    {
+      "key": "BN",
+      "displayName": "Brunei",
+      "sortOrder": 270,
+      "isActive": true
+    },
+    {
+      "key": "BG",
+      "displayName": "Bulgaria",
+      "sortOrder": 280,
+      "isActive": true
+    },
+    {
+      "key": "BF",
+      "displayName": "Burkina Faso",
+      "sortOrder": 290,
+      "isActive": true
+    },
+    {
+      "key": "BI",
+      "displayName": "Burundi",
+      "sortOrder": 300,
+      "isActive": true
+    },
+    {
+      "key": "KH",
+      "displayName": "Cambodia",
+      "sortOrder": 310,
+      "isActive": true
+    },
+    {
+      "key": "CM",
+      "displayName": "Cameroon",
+      "sortOrder": 320,
+      "isActive": true
+    },
+    {
+      "key": "CA",
+      "displayName": "Canada",
+      "sortOrder": 330,
+      "isActive": true
+    },
+    {
+      "key": "CV",
+      "displayName": "Cape Verde",
+      "sortOrder": 340,
+      "isActive": true
+    },
+    {
+      "key": "CF",
+      "displayName": "Central African Republic",
+      "sortOrder": 350,
+      "isActive": true
+    },
+    {
+      "key": "TD",
+      "displayName": "Chad",
+      "sortOrder": 360,
+      "isActive": true
+    },
+    {
+      "key": "CL",
+      "displayName": "Chile",
+      "sortOrder": 370,
+      "isActive": true
+    },
+    {
+      "key": "CN",
+      "displayName": "China",
+      "sortOrder": 380,
+      "isActive": true
+    },
+    {
+      "key": "CX",
+      "displayName": "Christmas Island",
+      "sortOrder": 390,
+      "isActive": true
+    },
+    {
+      "key": "CC",
+      "displayName": "Cocos (Keeling) Islands",
+      "sortOrder": 400,
+      "isActive": true
+    },
+    {
+      "key": "CO",
+      "displayName": "Colombia",
+      "sortOrder": 410,
+      "isActive": true
+    },
+    {
+      "key": "KM",
+      "displayName": "Comoros",
+      "sortOrder": 420,
+      "isActive": true
+    },
+    {
+      "key": "CK",
+      "displayName": "Cook Islands",
+      "sortOrder": 430,
+      "isActive": true
+    },
+    {
+      "key": "CR",
+      "displayName": "Costa Rica",
+      "sortOrder": 440,
+      "isActive": true
+    },
+    {
+      "key": "CI",
+      "displayName": "Cote d'Ivoire",
+      "sortOrder": 450,
+      "isActive": true
+    },
+    {
+      "key": "HR",
+      "displayName": "Croatia",
+      "sortOrder": 460,
+      "isActive": true
+    },
+    {
+      "key": "CU",
+      "displayName": "Cuba",
+      "sortOrder": 470,
+      "isActive": true
+    },
+    {
+      "key": "CY",
+      "displayName": "Cyprus",
+      "sortOrder": 480,
+      "isActive": true
+    },
+    {
+      "key": "CZ",
+      "displayName": "Czechia",
+      "sortOrder": 490,
+      "isActive": true
+    },
+    {
+      "key": "CD",
+      "displayName": "Democratic Republic of the Congo",
+      "sortOrder": 500,
+      "isActive": true
+    },
+    {
+      "key": "DK",
+      "displayName": "Denmark",
+      "sortOrder": 510,
+      "isActive": true
+    },
+    {
+      "key": "DJ",
+      "displayName": "Djibouti",
+      "sortOrder": 520,
+      "isActive": true
+    },
+    {
+      "key": "DO",
+      "displayName": "Dominican Republic",
+      "sortOrder": 530,
+      "isActive": true
+    },
+    {
+      "key": "EC",
+      "displayName": "Ecuador",
+      "sortOrder": 540,
+      "isActive": true
+    },
+    {
+      "key": "EG",
+      "displayName": "Egypt",
+      "sortOrder": 550,
+      "isActive": true
+    },
+    {
+      "key": "SV",
+      "displayName": "El Salvador",
+      "sortOrder": 560,
+      "isActive": true
+    },
+    {
+      "key": "GQ",
+      "displayName": "Equatorial Guinea",
+      "sortOrder": 570,
+      "isActive": true
+    },
+    {
+      "key": "ER",
+      "displayName": "Eritrea",
+      "sortOrder": 580,
+      "isActive": true
+    },
+    {
+      "key": "EE",
+      "displayName": "Estonia",
+      "sortOrder": 590,
+      "isActive": true
+    },
+    {
+      "key": "SZ",
+      "displayName": "Eswatini",
+      "sortOrder": 600,
+      "isActive": true
+    },
+    {
+      "key": "ET",
+      "displayName": "Ethiopia",
+      "sortOrder": 610,
+      "isActive": true
+    },
+    {
+      "key": "FK",
+      "displayName": "Falkland Islands",
+      "sortOrder": 620,
+      "isActive": true
+    },
+    {
+      "key": "FO",
+      "displayName": "Faroe Islands",
+      "sortOrder": 630,
+      "isActive": true
+    },
+    {
+      "key": "FJ",
+      "displayName": "Fiji",
+      "sortOrder": 640,
+      "isActive": true
+    },
+    {
+      "key": "FI",
+      "displayName": "Finland",
+      "sortOrder": 650,
+      "isActive": true
+    },
+    {
+      "key": "FR",
+      "displayName": "France",
+      "sortOrder": 660,
+      "isActive": true
+    },
+    {
+      "key": "GF",
+      "displayName": "French Guiana",
+      "sortOrder": 670,
+      "isActive": true
+    },
+    {
+      "key": "PF",
+      "displayName": "French Polynesia",
+      "sortOrder": 680,
+      "isActive": true
+    },
+    {
+      "key": "GA",
+      "displayName": "Gabon",
+      "sortOrder": 690,
+      "isActive": true
+    },
+    {
+      "key": "GM",
+      "displayName": "Gambia",
+      "sortOrder": 700,
+      "isActive": true
+    },
+    {
+      "key": "GE",
+      "displayName": "Georgia",
+      "sortOrder": 710,
+      "isActive": true
+    },
+    {
+      "key": "DE",
+      "displayName": "Germany",
+      "sortOrder": 720,
+      "isActive": true
+    },
+    {
+      "key": "GH",
+      "displayName": "Ghana",
+      "sortOrder": 730,
+      "isActive": true
+    },
+    {
+      "key": "GI",
+      "displayName": "Gibraltar",
+      "sortOrder": 740,
+      "isActive": true
+    },
+    {
+      "key": "GR",
+      "displayName": "Greece",
+      "sortOrder": 750,
+      "isActive": true
+    },
+    {
+      "key": "GL",
+      "displayName": "Greenland",
+      "sortOrder": 760,
+      "isActive": true
+    },
+    {
+      "key": "GD",
+      "displayName": "Grenada",
+      "sortOrder": 770,
+      "isActive": true
+    },
+    {
+      "key": "GP",
+      "displayName": "Guadeloupe",
+      "sortOrder": 780,
+      "isActive": true
+    },
+    {
+      "key": "GU",
+      "displayName": "Guam",
+      "sortOrder": 790,
+      "isActive": true
+    },
+    {
+      "key": "GT",
+      "displayName": "Guatemala",
+      "sortOrder": 800,
+      "isActive": true
+    },
+    {
+      "key": "GG",
+      "displayName": "Guernsey",
+      "sortOrder": 810,
+      "isActive": true
+    },
+    {
+      "key": "GN",
+      "displayName": "Guinea",
+      "sortOrder": 820,
+      "isActive": true
+    },
+    {
+      "key": "GW",
+      "displayName": "Guinea-Bissau",
+      "sortOrder": 830,
+      "isActive": true
+    },
+    {
+      "key": "GY",
+      "displayName": "Guyana",
+      "sortOrder": 840,
+      "isActive": true
+    },
+    {
+      "key": "HT",
+      "displayName": "Haiti",
+      "sortOrder": 850,
+      "isActive": true
+    },
+    {
+      "key": "HM",
+      "displayName": "Heard Island and McDonald Islands",
+      "sortOrder": 860,
+      "isActive": true
+    },
+    {
+      "key": "HN",
+      "displayName": "Honduras",
+      "sortOrder": 870,
+      "isActive": true
+    },
+    {
+      "key": "HK",
+      "displayName": "Hong Kong",
+      "sortOrder": 880,
+      "isActive": true
+    },
+    {
+      "key": "HU",
+      "displayName": "Hungary",
+      "sortOrder": 890,
+      "isActive": true
+    },
+    {
+      "key": "IS",
+      "displayName": "Iceland",
+      "sortOrder": 900,
+      "isActive": true
+    },
+    {
+      "key": "IN",
+      "displayName": "India",
+      "sortOrder": 910,
+      "isActive": true
+    },
+    {
+      "key": "ID",
+      "displayName": "Indonesia",
+      "sortOrder": 920,
+      "isActive": true
+    },
+    {
+      "key": "IR",
+      "displayName": "Iran",
+      "sortOrder": 930,
+      "isActive": true
+    },
+    {
+      "key": "IQ",
+      "displayName": "Iraq",
+      "sortOrder": 940,
+      "isActive": true
+    },
+    {
+      "key": "IE",
+      "displayName": "Ireland",
+      "sortOrder": 950,
+      "isActive": true
+    },
+    {
+      "key": "IM",
+      "displayName": "Isle of Man",
+      "sortOrder": 960,
+      "isActive": true
+    },
+    {
+      "key": "IL",
+      "displayName": "Israel",
+      "sortOrder": 970,
+      "isActive": true
+    },
+    {
+      "key": "IT",
+      "displayName": "Italy",
+      "sortOrder": 980,
+      "isActive": true
+    },
+    {
+      "key": "JM",
+      "displayName": "Jamaica",
+      "sortOrder": 990,
+      "isActive": true
+    },
+    {
+      "key": "JP",
+      "displayName": "Japan",
+      "sortOrder": 1000,
+      "isActive": true
+    },
+    {
+      "key": "JE",
+      "displayName": "Jersey",
+      "sortOrder": 1010,
+      "isActive": true
+    },
+    {
+      "key": "JO",
+      "displayName": "Jordan",
+      "sortOrder": 1020,
+      "isActive": true
+    },
+    {
+      "key": "KZ",
+      "displayName": "Kazakhstan",
+      "sortOrder": 1030,
+      "isActive": true
+    },
+    {
+      "key": "KE",
+      "displayName": "Kenya",
+      "sortOrder": 1040,
+      "isActive": true
+    },
+    {
+      "key": "KI",
+      "displayName": "Kiribati",
+      "sortOrder": 1050,
+      "isActive": true
+    },
+    {
+      "key": "KW",
+      "displayName": "Kuwait",
+      "sortOrder": 1060,
+      "isActive": true
+    },
+    {
+      "key": "KG",
+      "displayName": "Kyrgyzstan",
+      "sortOrder": 1070,
+      "isActive": true
+    },
+    {
+      "key": "LA",
+      "displayName": "Laos",
+      "sortOrder": 1080,
+      "isActive": true
+    },
+    {
+      "key": "LV",
+      "displayName": "Latvia",
+      "sortOrder": 1090,
+      "isActive": true
+    },
+    {
+      "key": "LB",
+      "displayName": "Lebanon",
+      "sortOrder": 1100,
+      "isActive": true
+    },
+    {
+      "key": "LS",
+      "displayName": "Lesotho",
+      "sortOrder": 1110,
+      "isActive": true
+    },
+    {
+      "key": "LR",
+      "displayName": "Liberia",
+      "sortOrder": 1120,
+      "isActive": true
+    },
+    {
+      "key": "LY",
+      "displayName": "Libya",
+      "sortOrder": 1130,
+      "isActive": true
+    },
+    {
+      "key": "LI",
+      "displayName": "Liechtenstein",
+      "sortOrder": 1140,
+      "isActive": true
+    },
+    {
+      "key": "LT",
+      "displayName": "Lithuania",
+      "sortOrder": 1150,
+      "isActive": true
+    },
+    {
+      "key": "LU",
+      "displayName": "Luxembourg",
+      "sortOrder": 1160,
+      "isActive": true
+    },
+    {
+      "key": "MO",
+      "displayName": "Macao",
+      "sortOrder": 1170,
+      "isActive": true
+    },
+    {
+      "key": "MG",
+      "displayName": "Madagascar",
+      "sortOrder": 1180,
+      "isActive": true
+    },
+    {
+      "key": "MW",
+      "displayName": "Malawi",
+      "sortOrder": 1190,
+      "isActive": true
+    },
+    {
+      "key": "MY",
+      "displayName": "Malaysia",
+      "sortOrder": 1200,
+      "isActive": true
+    },
+    {
+      "key": "MV",
+      "displayName": "Maldives",
+      "sortOrder": 1210,
+      "isActive": true
+    },
+    {
+      "key": "ML",
+      "displayName": "Mali",
+      "sortOrder": 1220,
+      "isActive": true
+    },
+    {
+      "key": "MT",
+      "displayName": "Malta",
+      "sortOrder": 1230,
+      "isActive": true
+    },
+    {
+      "key": "MH",
+      "displayName": "Marshall Islands",
+      "sortOrder": 1240,
+      "isActive": true
+    },
+    {
+      "key": "MR",
+      "displayName": "Mauritania",
+      "sortOrder": 1250,
+      "isActive": true
+    },
+    {
+      "key": "MU",
+      "displayName": "Mauritius",
+      "sortOrder": 1260,
+      "isActive": true
+    },
+    {
+      "key": "MX",
+      "displayName": "Mexico",
+      "sortOrder": 1270,
+      "isActive": true
+    },
+    {
+      "key": "FM",
+      "displayName": "Micronesia",
+      "sortOrder": 1280,
+      "isActive": true
+    },
+    {
+      "key": "MD",
+      "displayName": "Moldova",
+      "sortOrder": 1290,
+      "isActive": true
+    },
+    {
+      "key": "MC",
+      "displayName": "Monaco",
+      "sortOrder": 1300,
+      "isActive": true
+    },
+    {
+      "key": "MN",
+      "displayName": "Mongolia",
+      "sortOrder": 1310,
+      "isActive": true
+    },
+    {
+      "key": "ME",
+      "displayName": "Montenegro",
+      "sortOrder": 1320,
+      "isActive": true
+    },
+    {
+      "key": "MA",
+      "displayName": "Morocco",
+      "sortOrder": 1330,
+      "isActive": true
+    },
+    {
+      "key": "MZ",
+      "displayName": "Mozambique",
+      "sortOrder": 1340,
+      "isActive": true
+    },
+    {
+      "key": "MM",
+      "displayName": "Myanmar",
+      "sortOrder": 1350,
+      "isActive": true
+    },
+    {
+      "key": "NA",
+      "displayName": "Namibia",
+      "sortOrder": 1360,
+      "isActive": true
+    },
+    {
+      "key": "NR",
+      "displayName": "Nauru",
+      "sortOrder": 1370,
+      "isActive": true
+    },
+    {
+      "key": "NP",
+      "displayName": "Nepal",
+      "sortOrder": 1380,
+      "isActive": true
+    },
+    {
+      "key": "NL",
+      "displayName": "Netherlands",
+      "sortOrder": 1390,
+      "isActive": true
+    },
+    {
+      "key": "NC",
+      "displayName": "New Caledonia",
+      "sortOrder": 1400,
+      "isActive": true
+    },
+    {
+      "key": "NZ",
+      "displayName": "New Zealand",
+      "sortOrder": 1410,
+      "isActive": true
+    },
+    {
+      "key": "NI",
+      "displayName": "Nicaragua",
+      "sortOrder": 1420,
+      "isActive": true
+    },
+    {
+      "key": "NE",
+      "displayName": "Niger",
+      "sortOrder": 1430,
+      "isActive": true
+    },
+    {
+      "key": "NG",
+      "displayName": "Nigeria",
+      "sortOrder": 1440,
+      "isActive": true
+    },
+    {
+      "key": "NU",
+      "displayName": "Niue",
+      "sortOrder": 1450,
+      "isActive": true
+    },
+    {
+      "key": "NF",
+      "displayName": "Norfolk Island",
+      "sortOrder": 1460,
+      "isActive": true
+    },
+    {
+      "key": "MK",
+      "displayName": "North Macedonia",
+      "sortOrder": 1480,
+      "isActive": true
+    },
+    {
+      "key": "MP",
+      "displayName": "Northern Mariana Islands",
+      "sortOrder": 1490,
+      "isActive": true
+    },
+    {
+      "key": "NO",
+      "displayName": "Norway",
+      "sortOrder": 1500,
+      "isActive": true
+    },
+    {
+      "key": "OM",
+      "displayName": "Oman",
+      "sortOrder": 1510,
+      "isActive": true
+    },
+    {
+      "key": "PK",
+      "displayName": "Pakistan",
+      "sortOrder": 1520,
+      "isActive": true
+    },
+    {
+      "key": "PW",
+      "displayName": "Palau",
+      "sortOrder": 1530,
+      "isActive": true
+    },
+    {
+      "key": "PS",
+      "displayName": "Palestine",
+      "sortOrder": 1540,
+      "isActive": true
+    },
+    {
+      "key": "PA",
+      "displayName": "Panama",
+      "sortOrder": 1550,
+      "isActive": true
+    },
+    {
+      "key": "PG",
+      "displayName": "Papua New Guinea",
+      "sortOrder": 1560,
+      "isActive": true
+    },
+    {
+      "key": "PY",
+      "displayName": "Paraguay",
+      "sortOrder": 1570,
+      "isActive": true
+    },
+    {
+      "key": "PE",
+      "displayName": "Peru",
+      "sortOrder": 1580,
+      "isActive": true
+    },
+    {
+      "key": "PH",
+      "displayName": "Philippines",
+      "sortOrder": 1590,
+      "isActive": true
+    },
+    {
+      "key": "PN",
+      "displayName": "Pitcairn",
+      "sortOrder": 1600,
+      "isActive": true
+    },
+    {
+      "key": "PL",
+      "displayName": "Poland",
+      "sortOrder": 1610,
+      "isActive": true
+    },
+    {
+      "key": "PT",
+      "displayName": "Portugal",
+      "sortOrder": 1620,
+      "isActive": true
+    },
+    {
+      "key": "PR",
+      "displayName": "Puerto Rico",
+      "sortOrder": 1630,
+      "isActive": true
+    },
+    {
+      "key": "QA",
+      "displayName": "Qatar",
+      "sortOrder": 1640,
+      "isActive": true
+    },
+    {
+      "key": "CG",
+      "displayName": "Republic of the Congo",
+      "sortOrder": 1650,
+      "isActive": true
+    },
+    {
+      "key": "RE",
+      "displayName": "Reunion",
+      "sortOrder": 1660,
+      "isActive": true
+    },
+    {
+      "key": "RO",
+      "displayName": "Romania",
+      "sortOrder": 1670,
+      "isActive": true
+    },
+    {
+      "key": "RU",
+      "displayName": "Russia",
+      "sortOrder": 1680,
+      "isActive": true
+    },
+    {
+      "key": "RW",
+      "displayName": "Rwanda",
+      "sortOrder": 1690,
+      "isActive": true
+    },
+    {
+      "key": "KN",
+      "displayName": "Saint Kitts and Nevis",
+      "sortOrder": 1700,
+      "isActive": true
+    },
+    {
+      "key": "LC",
+      "displayName": "Saint Lucia",
+      "sortOrder": 1710,
+      "isActive": true
+    },
+    {
+      "key": "PM",
+      "displayName": "Saint Pierre and Miquelon",
+      "sortOrder": 1720,
+      "isActive": true
+    },
+    {
+      "key": "VC",
+      "displayName": "Saint Vincent and the Grenadines",
+      "sortOrder": 1730,
+      "isActive": true
+    },
+    {
+      "key": "WS",
+      "displayName": "Samoa",
+      "sortOrder": 1740,
+      "isActive": true
+    },
+    {
+      "key": "SM",
+      "displayName": "San Marino",
+      "sortOrder": 1750,
+      "isActive": true
+    },
+    {
+      "key": "ST",
+      "displayName": "Sao Tome and Principe",
+      "sortOrder": 1760,
+      "isActive": true
+    },
+    {
+      "key": "SA",
+      "displayName": "Saudi Arabia",
+      "sortOrder": 1770,
+      "isActive": true
+    },
+    {
+      "key": "SN",
+      "displayName": "Senegal",
+      "sortOrder": 1780,
+      "isActive": true
+    },
+    {
+      "key": "RS",
+      "displayName": "Serbia",
+      "sortOrder": 1790,
+      "isActive": true
+    },
+    {
+      "key": "SC",
+      "displayName": "Seychelles",
+      "sortOrder": 1800,
+      "isActive": true
+    },
+    {
+      "key": "SL",
+      "displayName": "Sierra Leone",
+      "sortOrder": 1810,
+      "isActive": true
+    },
+    {
+      "key": "SG",
+      "displayName": "Singapore",
+      "sortOrder": 1820,
+      "isActive": true
+    },
+    {
+      "key": "SK",
+      "displayName": "Slovakia",
+      "sortOrder": 1830,
+      "isActive": true
+    },
+    {
+      "key": "SI",
+      "displayName": "Slovenia",
+      "sortOrder": 1840,
+      "isActive": true
+    },
+    {
+      "key": "SB",
+      "displayName": "Solomon Islands",
+      "sortOrder": 1850,
+      "isActive": true
+    },
+    {
+      "key": "SO",
+      "displayName": "Somalia",
+      "sortOrder": 1860,
+      "isActive": true
+    },
+    {
+      "key": "ZA",
+      "displayName": "South Africa",
+      "sortOrder": 1870,
+      "isActive": true
+    },
+    {
+      "key": "GS",
+      "displayName": "South Georgia and the South Sandwich Islands",
+      "sortOrder": 1880,
+      "isActive": true
+    },
+    {
+      "key": "KR",
+      "displayName": "South Korea",
+      "sortOrder": 1890,
+      "isActive": true
+    },
+    {
+      "key": "SS",
+      "displayName": "South Sudan",
+      "sortOrder": 1900,
+      "isActive": true
+    },
+    {
+      "key": "ES",
+      "displayName": "Spain",
+      "sortOrder": 1910,
+      "isActive": true
+    },
+    {
+      "key": "LK",
+      "displayName": "Sri Lanka",
+      "sortOrder": 1920,
+      "isActive": true
+    },
+    {
+      "key": "SD",
+      "displayName": "Sudan",
+      "sortOrder": 1930,
+      "isActive": true
+    },
+    {
+      "key": "SR",
+      "displayName": "Suriname",
+      "sortOrder": 1940,
+      "isActive": true
+    },
+    {
+      "key": "SJ",
+      "displayName": "Svalbard and Jan Mayen",
+      "sortOrder": 1950,
+      "isActive": true
+    },
+    {
+      "key": "SE",
+      "displayName": "Sweden",
+      "sortOrder": 1960,
+      "isActive": true
+    },
+    {
+      "key": "CH",
+      "displayName": "Switzerland",
+      "sortOrder": 1970,
+      "isActive": true
+    },
+    {
+      "key": "SY",
+      "displayName": "Syria",
+      "sortOrder": 1980,
+      "isActive": true
+    },
+    {
+      "key": "TW",
+      "displayName": "Taiwan",
+      "sortOrder": 1990,
+      "isActive": true
+    },
+    {
+      "key": "TJ",
+      "displayName": "Tajikistan",
+      "sortOrder": 2000,
+      "isActive": true
+    },
+    {
+      "key": "TZ",
+      "displayName": "Tanzania",
+      "sortOrder": 2010,
+      "isActive": true
+    },
+    {
+      "key": "TH",
+      "displayName": "Thailand",
+      "sortOrder": 2020,
+      "isActive": true
+    },
+    {
+      "key": "TL",
+      "displayName": "Timor-Leste",
+      "sortOrder": 2030,
+      "isActive": true
+    },
+    {
+      "key": "TG",
+      "displayName": "Togo",
+      "sortOrder": 2040,
+      "isActive": true
+    },
+    {
+      "key": "TK",
+      "displayName": "Tokelau",
+      "sortOrder": 2050,
+      "isActive": true
+    },
+    {
+      "key": "TO",
+      "displayName": "Tonga",
+      "sortOrder": 2060,
+      "isActive": true
+    },
+    {
+      "key": "TT",
+      "displayName": "Trinidad and Tobago",
+      "sortOrder": 2070,
+      "isActive": true
+    },
+    {
+      "key": "TN",
+      "displayName": "Tunisia",
+      "sortOrder": 2080,
+      "isActive": true
+    },
+    {
+      "key": "TM",
+      "displayName": "Turkmenistan",
+      "sortOrder": 2090,
+      "isActive": true
+    },
+    {
+      "key": "TV",
+      "displayName": "Tuvalu",
+      "sortOrder": 2100,
+      "isActive": true
+    },
+    {
+      "key": "TR",
+      "displayName": "Türkiye",
+      "sortOrder": 2110,
+      "isActive": true
+    },
+    {
+      "key": "UG",
+      "displayName": "Uganda",
+      "sortOrder": 2120,
+      "isActive": true
+    },
+    {
+      "key": "UA",
+      "displayName": "Ukraine",
+      "sortOrder": 2130,
+      "isActive": true
+    },
+    {
+      "key": "AE",
+      "displayName": "United Arab Emirates",
+      "sortOrder": 2140,
+      "isActive": true
+    },
+    {
+      "key": "GB",
+      "displayName": "United Kingdom",
+      "sortOrder": 2150,
+      "isActive": true
+    },
+    {
+      "key": "US",
+      "displayName": "United States",
+      "sortOrder": 2160,
+      "isActive": true
+    },
+    {
+      "key": "UM",
+      "displayName": "United States Minor Outlying Islands",
+      "sortOrder": 2170,
+      "isActive": true
+    },
+    {
+      "key": "UY",
+      "displayName": "Uruguay",
+      "sortOrder": 2180,
+      "isActive": true
+    },
+    {
+      "key": "UZ",
+      "displayName": "Uzbekistan",
+      "sortOrder": 2190,
+      "isActive": true
+    },
+    {
+      "key": "VU",
+      "displayName": "Vanuatu",
+      "sortOrder": 2200,
+      "isActive": true
+    },
+    {
+      "key": "VA",
+      "displayName": "Vatican City",
+      "sortOrder": 2210,
+      "isActive": true
+    },
+    {
+      "key": "VE",
+      "displayName": "Venezuela",
+      "sortOrder": 2220,
+      "isActive": true
+    },
+    {
+      "key": "VN",
+      "displayName": "Vietnam",
+      "sortOrder": 2230,
+      "isActive": true
+    },
+    {
+      "key": "WF",
+      "displayName": "Wallis and Futuna",
+      "sortOrder": 2240,
+      "isActive": true
+    },
+    {
+      "key": "EH",
+      "displayName": "Western Sahara",
+      "sortOrder": 2250,
+      "isActive": true
+    },
+    {
+      "key": "YE",
+      "displayName": "Yemen",
+      "sortOrder": 2260,
+      "isActive": true
+    },
+    {
+      "key": "ZM",
+      "displayName": "Zambia",
+      "sortOrder": 2270,
+      "isActive": true
+    },
+    {
+      "key": "ZW",
+      "displayName": "Zimbabwe",
+      "sortOrder": 2280,
+      "isActive": true
+    }
+  ],
+  "groups": [
+    {
+      "key": "africa",
+      "displayName": "Africa",
+      "kind": "Region",
+      "sortOrder": 10,
+      "locationKeys": [
+        "DZ",
+        "AO",
+        "BJ",
+        "BW",
+        "BF",
+        "BI",
+        "CM",
+        "CV",
+        "CF",
+        "TD",
+        "KM",
+        "CG",
+        "CD",
+        "CI",
+        "DJ",
+        "EG",
+        "GQ",
+        "ER",
+        "SZ",
+        "ET",
+        "GA",
+        "GM",
+        "GH",
+        "GN",
+        "GW",
+        "KE",
+        "LS",
+        "LR",
+        "LY",
+        "MG",
+        "MW",
+        "ML",
+        "MR",
+        "MU",
+        "MA",
+        "MZ",
+        "NA",
+        "NE",
+        "NG",
+        "RE",
+        "RW",
+        "ST",
+        "SN",
+        "SC",
+        "SL",
+        "SO",
+        "ZA",
+        "SS",
+        "SD",
+        "TZ",
+        "TG",
+        "TN",
+        "UG",
+        "EH",
+        "ZM",
+        "ZW"
+      ]
+    },
+    {
+      "key": "asia",
+      "displayName": "Asia",
+      "kind": "Region",
+      "sortOrder": 20,
+      "locationKeys": [
+        "AF",
+        "AM",
+        "AZ",
+        "BH",
+        "BD",
+        "BT",
+        "BN",
+        "MM",
+        "KH",
+        "CN",
+        "CY",
+        "GE",
+        "HK",
+        "IN",
+        "ID",
+        "IR",
+        "IQ",
+        "IL",
+        "JP",
+        "JO",
+        "KZ",
+        "KR",
+        "KW",
+        "KG",
+        "LA",
+        "LB",
+        "MO",
+        "MY",
+        "MV",
+        "MN",
+        "NP",
+        "OM",
+        "PK",
+        "PS",
+        "PH",
+        "QA",
+        "SA",
+        "SG",
+        "LK",
+        "SY",
+        "TW",
+        "TJ",
+        "TH",
+        "TL",
+        "TM",
+        "TR",
+        "AE",
+        "UZ",
+        "VN",
+        "YE"
+      ]
+    },
+    {
+      "key": "south-america",
+      "displayName": "South America",
+      "kind": "Region",
+      "sortOrder": 30,
+      "locationKeys": [
+        "AR",
+        "BO",
+        "BR",
+        "CL",
+        "CO",
+        "EC",
+        "FK",
+        "GF",
+        "GY",
+        "PY",
+        "PE",
+        "SR",
+        "UY",
+        "VE"
+      ]
+    },
+    {
+      "key": "north-america",
+      "displayName": "North America",
+      "kind": "Region",
+      "sortOrder": 40,
+      "locationKeys": [
+        "BS",
+        "BB",
+        "BZ",
+        "AG",
+        "BM",
+        "CA",
+        "CR",
+        "CU",
+        "DO",
+        "SV",
+        "GL",
+        "GD",
+        "GP",
+        "GT",
+        "HT",
+        "HN",
+        "JM",
+        "MX",
+        "NI",
+        "PA",
+        "PR",
+        "KN",
+        "LC",
+        "PM",
+        "VC",
+        "TT",
+        "US"
+      ]
+    },
+    {
+      "key": "europe",
+      "displayName": "Europe",
+      "kind": "Region",
+      "sortOrder": 50,
+      "locationKeys": [
+        "AL",
+        "AD",
+        "AT",
+        "BY",
+        "BE",
+        "BA",
+        "BG",
+        "HR",
+        "CZ",
+        "DK",
+        "EE",
+        "FO",
+        "FI",
+        "FR",
+        "DE",
+        "GI",
+        "GR",
+        "GG",
+        "VA",
+        "HU",
+        "IS",
+        "IE",
+        "IM",
+        "IT",
+        "JE",
+        "LV",
+        "LI",
+        "LT",
+        "LU",
+        "MK",
+        "MT",
+        "MD",
+        "MC",
+        "ME",
+        "NL",
+        "NO",
+        "PL",
+        "PT",
+        "RO",
+        "RU",
+        "SM",
+        "RS",
+        "SK",
+        "SI",
+        "ES",
+        "SJ",
+        "SE",
+        "CH",
+        "GB",
+        "UA"
+      ]
+    },
+    {
+      "key": "australia-and-oceania",
+      "displayName": "Australia and Oceania",
+      "kind": "Region",
+      "sortOrder": 60,
+      "locationKeys": [
+        "AS",
+        "AU",
+        "CX",
+        "CC",
+        "CK",
+        "FJ",
+        "PF",
+        "GU",
+        "HM",
+        "KI",
+        "MH",
+        "FM",
+        "NR",
+        "NC",
+        "NZ",
+        "NU",
+        "NF",
+        "MP",
+        "PW",
+        "PG",
+        "PN",
+        "WS",
+        "SB",
+        "GS",
+        "TK",
+        "TO",
+        "TV",
+        "UM",
+        "VU",
+        "WF"
+      ]
+    },
+    {
+      "key": "first-world",
+      "displayName": "First World",
+      "kind": "Business",
+      "sortOrder": 70,
+      "locationKeys": [
+        "AD",
+        "AU",
+        "AT",
+        "BE",
+        "CA",
+        "DK",
+        "FI",
+        "FR",
+        "DE",
+        "IS",
+        "IE",
+        "IT",
+        "JP",
+        "LI",
+        "LU",
+        "MC",
+        "NL",
+        "NZ",
+        "NO",
+        "PT",
+        "SM",
+        "SG",
+        "ES",
+        "SE",
+        "CH",
+        "GB",
+        "US"
+      ]
+    },
+    {
+      "key": "arab-countries",
+      "displayName": "Arab countries",
+      "kind": "Business",
+      "sortOrder": 80,
+      "locationKeys": [
+        "DZ",
+        "BH",
+        "DJ",
+        "EG",
+        "IQ",
+        "JO",
+        "KW",
+        "LB",
+        "LY",
+        "MA",
+        "OM",
+        "QA",
+        "SA",
+        "SO",
+        "SD",
+        "SY",
+        "TN",
+        "AE",
+        "YE"
+      ]
+    },
+    {
+      "key": "mena",
+      "displayName": "MENA",
+      "kind": "Business",
+      "sortOrder": 90,
+      "locationKeys": [
+        "DZ",
+        "BH",
+        "DJ",
+        "EG",
+        "IR",
+        "IQ",
+        "IL",
+        "JO",
+        "KW",
+        "LB",
+        "LY",
+        "MA",
+        "OM",
+        "PS",
+        "QA",
+        "SA",
+        "SD",
+        "SY",
+        "TN",
+        "AE",
+        "YE"
+      ]
+    },
+    {
+      "key": "latam",
+      "displayName": "LatAm",
+      "kind": "Business",
+      "sortOrder": 100,
+      "locationKeys": [
+        "BS",
+        "BB",
+        "BZ",
+        "AG",
+        "BM",
+        "CR",
+        "CU",
+        "DO",
+        "SV",
+        "GD",
+        "GP",
+        "GT",
+        "HT",
+        "HN",
+        "JM",
+        "MX",
+        "NI",
+        "PA",
+        "PR",
+        "KN",
+        "LC",
+        "PM",
+        "VC",
+        "TT",
+        "AR",
+        "BO",
+        "BR",
+        "CL",
+        "CO",
+        "EC",
+        "FK",
+        "GF",
+        "GY",
+        "PY",
+        "PE",
+        "SR",
+        "UY",
+        "VE"
+      ]
+    }
+  ]
+}

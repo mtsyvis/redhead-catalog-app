@@ -56,6 +56,19 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
 
         builder.HasIndex(s => s.Location);
 
+        builder.Property(s => s.LocationKey)
+            .HasMaxLength(LocationConstants.LocationKeyMaxLength);
+
+        builder.HasOne(s => s.CanonicalLocation)
+            .WithMany(location => location.Sites)
+            .HasForeignKey(s => s.LocationKey)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(s => s.LocationKey);
+
+        builder.Property(s => s.ImportedLocationRaw)
+            .HasMaxLength(SiteFieldLimits.LocationMaxLength);
+
         builder.Property(s => s.Language)
             .HasMaxLength(SiteFieldLimits.LanguageMaxLength);
 

@@ -1,0 +1,2648 @@
+{
+  "version": 1,
+  "normalization": {
+    "trim": true,
+    "caseInsensitive": true,
+    "removeDiacritics": true,
+    "collapseNonAlphanumericToSingleSpace": true,
+    "collapseWhitespace": true
+  },
+  "aliases": [
+    {
+      "alias": "ad",
+      "locationKey": "AD"
+    },
+    {
+      "alias": "andorra",
+      "locationKey": "AD"
+    },
+    {
+      "alias": "principality of andorra",
+      "locationKey": "AD"
+    },
+    {
+      "alias": "ae",
+      "locationKey": "AE"
+    },
+    {
+      "alias": "u a e",
+      "locationKey": "AE"
+    },
+    {
+      "alias": "uae",
+      "locationKey": "AE"
+    },
+    {
+      "alias": "united arab emirates",
+      "locationKey": "AE"
+    },
+    {
+      "alias": "af",
+      "locationKey": "AF"
+    },
+    {
+      "alias": "afghanistan",
+      "locationKey": "AF"
+    },
+    {
+      "alias": "islamic republic of afghanistan",
+      "locationKey": "AF"
+    },
+    {
+      "alias": "ag",
+      "locationKey": "AG"
+    },
+    {
+      "alias": "antigua and barbuda",
+      "locationKey": "AG"
+    },
+    {
+      "alias": "al",
+      "locationKey": "AL"
+    },
+    {
+      "alias": "albania",
+      "locationKey": "AL"
+    },
+    {
+      "alias": "republic of albania",
+      "locationKey": "AL"
+    },
+    {
+      "alias": "am",
+      "locationKey": "AM"
+    },
+    {
+      "alias": "armenia",
+      "locationKey": "AM"
+    },
+    {
+      "alias": "republic of armenia",
+      "locationKey": "AM"
+    },
+    {
+      "alias": "angola",
+      "locationKey": "AO"
+    },
+    {
+      "alias": "ao",
+      "locationKey": "AO"
+    },
+    {
+      "alias": "republic of angola",
+      "locationKey": "AO"
+    },
+    {
+      "alias": "ar",
+      "locationKey": "AR"
+    },
+    {
+      "alias": "argentina",
+      "locationKey": "AR"
+    },
+    {
+      "alias": "argentine republic",
+      "locationKey": "AR"
+    },
+    {
+      "alias": "american samoa",
+      "locationKey": "AS"
+    },
+    {
+      "alias": "as",
+      "locationKey": "AS"
+    },
+    {
+      "alias": "at",
+      "locationKey": "AT"
+    },
+    {
+      "alias": "austria",
+      "locationKey": "AT"
+    },
+    {
+      "alias": "republic of austria",
+      "locationKey": "AT"
+    },
+    {
+      "alias": "au",
+      "locationKey": "AU"
+    },
+    {
+      "alias": "australia",
+      "locationKey": "AU"
+    },
+    {
+      "alias": "az",
+      "locationKey": "AZ"
+    },
+    {
+      "alias": "azerbaijan",
+      "locationKey": "AZ"
+    },
+    {
+      "alias": "republic of azerbaijan",
+      "locationKey": "AZ"
+    },
+    {
+      "alias": "ba",
+      "locationKey": "BA"
+    },
+    {
+      "alias": "bosnia and herzegovina",
+      "locationKey": "BA"
+    },
+    {
+      "alias": "republic of bosnia and herzegovina",
+      "locationKey": "BA"
+    },
+    {
+      "alias": "barbados",
+      "locationKey": "BB"
+    },
+    {
+      "alias": "bb",
+      "locationKey": "BB"
+    },
+    {
+      "alias": "bangladesh",
+      "locationKey": "BD"
+    },
+    {
+      "alias": "bd",
+      "locationKey": "BD"
+    },
+    {
+      "alias": "people s republic of bangladesh",
+      "locationKey": "BD"
+    },
+    {
+      "alias": "be",
+      "locationKey": "BE"
+    },
+    {
+      "alias": "belgium",
+      "locationKey": "BE"
+    },
+    {
+      "alias": "kingdom of belgium",
+      "locationKey": "BE"
+    },
+    {
+      "alias": "bf",
+      "locationKey": "BF"
+    },
+    {
+      "alias": "burkina faso",
+      "locationKey": "BF"
+    },
+    {
+      "alias": "bg",
+      "locationKey": "BG"
+    },
+    {
+      "alias": "bulgaria",
+      "locationKey": "BG"
+    },
+    {
+      "alias": "republic of bulgaria",
+      "locationKey": "BG"
+    },
+    {
+      "alias": "bahrain",
+      "locationKey": "BH"
+    },
+    {
+      "alias": "bh",
+      "locationKey": "BH"
+    },
+    {
+      "alias": "kingdom of bahrain",
+      "locationKey": "BH"
+    },
+    {
+      "alias": "bi",
+      "locationKey": "BI"
+    },
+    {
+      "alias": "burundi",
+      "locationKey": "BI"
+    },
+    {
+      "alias": "republic of burundi",
+      "locationKey": "BI"
+    },
+    {
+      "alias": "benin",
+      "locationKey": "BJ"
+    },
+    {
+      "alias": "bj",
+      "locationKey": "BJ"
+    },
+    {
+      "alias": "republic of benin",
+      "locationKey": "BJ"
+    },
+    {
+      "alias": "bermuda",
+      "locationKey": "BM"
+    },
+    {
+      "alias": "bm",
+      "locationKey": "BM"
+    },
+    {
+      "alias": "bn",
+      "locationKey": "BN"
+    },
+    {
+      "alias": "brunei",
+      "locationKey": "BN"
+    },
+    {
+      "alias": "brunei darussalam",
+      "locationKey": "BN"
+    },
+    {
+      "alias": "bo",
+      "locationKey": "BO"
+    },
+    {
+      "alias": "bolivia",
+      "locationKey": "BO"
+    },
+    {
+      "alias": "bolivia plurinational state of",
+      "locationKey": "BO"
+    },
+    {
+      "alias": "plurinational state of bolivia",
+      "locationKey": "BO"
+    },
+    {
+      "alias": "br",
+      "locationKey": "BR"
+    },
+    {
+      "alias": "brazil",
+      "locationKey": "BR"
+    },
+    {
+      "alias": "federative republic of brazil",
+      "locationKey": "BR"
+    },
+    {
+      "alias": "bahamas",
+      "locationKey": "BS"
+    },
+    {
+      "alias": "bs",
+      "locationKey": "BS"
+    },
+    {
+      "alias": "commonwealth of the bahamas",
+      "locationKey": "BS"
+    },
+    {
+      "alias": "bhutan",
+      "locationKey": "BT"
+    },
+    {
+      "alias": "bt",
+      "locationKey": "BT"
+    },
+    {
+      "alias": "kingdom of bhutan",
+      "locationKey": "BT"
+    },
+    {
+      "alias": "botswana",
+      "locationKey": "BW"
+    },
+    {
+      "alias": "bw",
+      "locationKey": "BW"
+    },
+    {
+      "alias": "republic of botswana",
+      "locationKey": "BW"
+    },
+    {
+      "alias": "belarus",
+      "locationKey": "BY"
+    },
+    {
+      "alias": "by",
+      "locationKey": "BY"
+    },
+    {
+      "alias": "republic of belarus",
+      "locationKey": "BY"
+    },
+    {
+      "alias": "belize",
+      "locationKey": "BZ"
+    },
+    {
+      "alias": "bz",
+      "locationKey": "BZ"
+    },
+    {
+      "alias": "ca",
+      "locationKey": "CA"
+    },
+    {
+      "alias": "canada",
+      "locationKey": "CA"
+    },
+    {
+      "alias": "cc",
+      "locationKey": "CC"
+    },
+    {
+      "alias": "cocos keeling islands",
+      "locationKey": "CC"
+    },
+    {
+      "alias": "cd",
+      "locationKey": "CD"
+    },
+    {
+      "alias": "congo democratic republic of the",
+      "locationKey": "CD"
+    },
+    {
+      "alias": "congo the democratic republic of the",
+      "locationKey": "CD"
+    },
+    {
+      "alias": "democratic republic of the congo",
+      "locationKey": "CD"
+    },
+    {
+      "alias": "dr congo",
+      "locationKey": "CD"
+    },
+    {
+      "alias": "drc",
+      "locationKey": "CD"
+    },
+    {
+      "alias": "central african republic",
+      "locationKey": "CF"
+    },
+    {
+      "alias": "cf",
+      "locationKey": "CF"
+    },
+    {
+      "alias": "cg",
+      "locationKey": "CG"
+    },
+    {
+      "alias": "congo",
+      "locationKey": "CG"
+    },
+    {
+      "alias": "congo republic",
+      "locationKey": "CG"
+    },
+    {
+      "alias": "republic of the congo",
+      "locationKey": "CG"
+    },
+    {
+      "alias": "ch",
+      "locationKey": "CH"
+    },
+    {
+      "alias": "swiss confederation",
+      "locationKey": "CH"
+    },
+    {
+      "alias": "switzerland",
+      "locationKey": "CH"
+    },
+    {
+      "alias": "ci",
+      "locationKey": "CI"
+    },
+    {
+      "alias": "cote d ivoire",
+      "locationKey": "CI"
+    },
+    {
+      "alias": "ivory coast",
+      "locationKey": "CI"
+    },
+    {
+      "alias": "republic of cote d ivoire",
+      "locationKey": "CI"
+    },
+    {
+      "alias": "ck",
+      "locationKey": "CK"
+    },
+    {
+      "alias": "cook islands",
+      "locationKey": "CK"
+    },
+    {
+      "alias": "chile",
+      "locationKey": "CL"
+    },
+    {
+      "alias": "cl",
+      "locationKey": "CL"
+    },
+    {
+      "alias": "republic of chile",
+      "locationKey": "CL"
+    },
+    {
+      "alias": "cameroon",
+      "locationKey": "CM"
+    },
+    {
+      "alias": "cm",
+      "locationKey": "CM"
+    },
+    {
+      "alias": "republic of cameroon",
+      "locationKey": "CM"
+    },
+    {
+      "alias": "china",
+      "locationKey": "CN"
+    },
+    {
+      "alias": "cn",
+      "locationKey": "CN"
+    },
+    {
+      "alias": "people s republic of china",
+      "locationKey": "CN"
+    },
+    {
+      "alias": "co",
+      "locationKey": "CO"
+    },
+    {
+      "alias": "colombia",
+      "locationKey": "CO"
+    },
+    {
+      "alias": "republic of colombia",
+      "locationKey": "CO"
+    },
+    {
+      "alias": "costa rica",
+      "locationKey": "CR"
+    },
+    {
+      "alias": "cr",
+      "locationKey": "CR"
+    },
+    {
+      "alias": "republic of costa rica",
+      "locationKey": "CR"
+    },
+    {
+      "alias": "cu",
+      "locationKey": "CU"
+    },
+    {
+      "alias": "cuba",
+      "locationKey": "CU"
+    },
+    {
+      "alias": "republic of cuba",
+      "locationKey": "CU"
+    },
+    {
+      "alias": "cabo verde",
+      "locationKey": "CV"
+    },
+    {
+      "alias": "cape verde",
+      "locationKey": "CV"
+    },
+    {
+      "alias": "cv",
+      "locationKey": "CV"
+    },
+    {
+      "alias": "republic of cabo verde",
+      "locationKey": "CV"
+    },
+    {
+      "alias": "christmas island",
+      "locationKey": "CX"
+    },
+    {
+      "alias": "cx",
+      "locationKey": "CX"
+    },
+    {
+      "alias": "cy",
+      "locationKey": "CY"
+    },
+    {
+      "alias": "cyprus",
+      "locationKey": "CY"
+    },
+    {
+      "alias": "republic of cyprus",
+      "locationKey": "CY"
+    },
+    {
+      "alias": "cz",
+      "locationKey": "CZ"
+    },
+    {
+      "alias": "czech republic",
+      "locationKey": "CZ"
+    },
+    {
+      "alias": "czechia",
+      "locationKey": "CZ"
+    },
+    {
+      "alias": "de",
+      "locationKey": "DE"
+    },
+    {
+      "alias": "federal republic of germany",
+      "locationKey": "DE"
+    },
+    {
+      "alias": "germany",
+      "locationKey": "DE"
+    },
+    {
+      "alias": "dj",
+      "locationKey": "DJ"
+    },
+    {
+      "alias": "djibouti",
+      "locationKey": "DJ"
+    },
+    {
+      "alias": "republic of djibouti",
+      "locationKey": "DJ"
+    },
+    {
+      "alias": "denmark",
+      "locationKey": "DK"
+    },
+    {
+      "alias": "dk",
+      "locationKey": "DK"
+    },
+    {
+      "alias": "kingdom of denmark",
+      "locationKey": "DK"
+    },
+    {
+      "alias": "do",
+      "locationKey": "DO"
+    },
+    {
+      "alias": "dominican republic",
+      "locationKey": "DO"
+    },
+    {
+      "alias": "algeria",
+      "locationKey": "DZ"
+    },
+    {
+      "alias": "dz",
+      "locationKey": "DZ"
+    },
+    {
+      "alias": "people s democratic republic of algeria",
+      "locationKey": "DZ"
+    },
+    {
+      "alias": "ec",
+      "locationKey": "EC"
+    },
+    {
+      "alias": "ecuador",
+      "locationKey": "EC"
+    },
+    {
+      "alias": "republic of ecuador",
+      "locationKey": "EC"
+    },
+    {
+      "alias": "ee",
+      "locationKey": "EE"
+    },
+    {
+      "alias": "estonia",
+      "locationKey": "EE"
+    },
+    {
+      "alias": "republic of estonia",
+      "locationKey": "EE"
+    },
+    {
+      "alias": "arab republic of egypt",
+      "locationKey": "EG"
+    },
+    {
+      "alias": "eg",
+      "locationKey": "EG"
+    },
+    {
+      "alias": "egypt",
+      "locationKey": "EG"
+    },
+    {
+      "alias": "eh",
+      "locationKey": "EH"
+    },
+    {
+      "alias": "western sahara",
+      "locationKey": "EH"
+    },
+    {
+      "alias": "er",
+      "locationKey": "ER"
+    },
+    {
+      "alias": "eritrea",
+      "locationKey": "ER"
+    },
+    {
+      "alias": "the state of eritrea",
+      "locationKey": "ER"
+    },
+    {
+      "alias": "es",
+      "locationKey": "ES"
+    },
+    {
+      "alias": "kingdom of spain",
+      "locationKey": "ES"
+    },
+    {
+      "alias": "spain",
+      "locationKey": "ES"
+    },
+    {
+      "alias": "et",
+      "locationKey": "ET"
+    },
+    {
+      "alias": "ethiopia",
+      "locationKey": "ET"
+    },
+    {
+      "alias": "federal democratic republic of ethiopia",
+      "locationKey": "ET"
+    },
+    {
+      "alias": "fi",
+      "locationKey": "FI"
+    },
+    {
+      "alias": "finland",
+      "locationKey": "FI"
+    },
+    {
+      "alias": "republic of finland",
+      "locationKey": "FI"
+    },
+    {
+      "alias": "fiji",
+      "locationKey": "FJ"
+    },
+    {
+      "alias": "fj",
+      "locationKey": "FJ"
+    },
+    {
+      "alias": "republic of fiji",
+      "locationKey": "FJ"
+    },
+    {
+      "alias": "falkland islands",
+      "locationKey": "FK"
+    },
+    {
+      "alias": "falkland islands malvinas",
+      "locationKey": "FK"
+    },
+    {
+      "alias": "fk",
+      "locationKey": "FK"
+    },
+    {
+      "alias": "federated states of micronesia",
+      "locationKey": "FM"
+    },
+    {
+      "alias": "fm",
+      "locationKey": "FM"
+    },
+    {
+      "alias": "micronesia",
+      "locationKey": "FM"
+    },
+    {
+      "alias": "micronesia federated states of",
+      "locationKey": "FM"
+    },
+    {
+      "alias": "faroe islands",
+      "locationKey": "FO"
+    },
+    {
+      "alias": "fo",
+      "locationKey": "FO"
+    },
+    {
+      "alias": "fr",
+      "locationKey": "FR"
+    },
+    {
+      "alias": "france",
+      "locationKey": "FR"
+    },
+    {
+      "alias": "french republic",
+      "locationKey": "FR"
+    },
+    {
+      "alias": "ga",
+      "locationKey": "GA"
+    },
+    {
+      "alias": "gabon",
+      "locationKey": "GA"
+    },
+    {
+      "alias": "gabonese republic",
+      "locationKey": "GA"
+    },
+    {
+      "alias": "britain",
+      "locationKey": "GB"
+    },
+    {
+      "alias": "gb",
+      "locationKey": "GB"
+    },
+    {
+      "alias": "great britain",
+      "locationKey": "GB"
+    },
+    {
+      "alias": "u k",
+      "locationKey": "GB"
+    },
+    {
+      "alias": "uk",
+      "locationKey": "GB"
+    },
+    {
+      "alias": "united kingdom",
+      "locationKey": "GB"
+    },
+    {
+      "alias": "united kingdom of great britain and northern ireland",
+      "locationKey": "GB"
+    },
+    {
+      "alias": "gd",
+      "locationKey": "GD"
+    },
+    {
+      "alias": "grenada",
+      "locationKey": "GD"
+    },
+    {
+      "alias": "ge",
+      "locationKey": "GE"
+    },
+    {
+      "alias": "georgia",
+      "locationKey": "GE"
+    },
+    {
+      "alias": "french guiana",
+      "locationKey": "GF"
+    },
+    {
+      "alias": "gf",
+      "locationKey": "GF"
+    },
+    {
+      "alias": "gg",
+      "locationKey": "GG"
+    },
+    {
+      "alias": "guernsey",
+      "locationKey": "GG"
+    },
+    {
+      "alias": "gh",
+      "locationKey": "GH"
+    },
+    {
+      "alias": "ghana",
+      "locationKey": "GH"
+    },
+    {
+      "alias": "republic of ghana",
+      "locationKey": "GH"
+    },
+    {
+      "alias": "gi",
+      "locationKey": "GI"
+    },
+    {
+      "alias": "gibraltar",
+      "locationKey": "GI"
+    },
+    {
+      "alias": "gl",
+      "locationKey": "GL"
+    },
+    {
+      "alias": "greenland",
+      "locationKey": "GL"
+    },
+    {
+      "alias": "gambia",
+      "locationKey": "GM"
+    },
+    {
+      "alias": "gm",
+      "locationKey": "GM"
+    },
+    {
+      "alias": "republic of the gambia",
+      "locationKey": "GM"
+    },
+    {
+      "alias": "gn",
+      "locationKey": "GN"
+    },
+    {
+      "alias": "guinea",
+      "locationKey": "GN"
+    },
+    {
+      "alias": "republic of guinea",
+      "locationKey": "GN"
+    },
+    {
+      "alias": "gp",
+      "locationKey": "GP"
+    },
+    {
+      "alias": "guadeloupe",
+      "locationKey": "GP"
+    },
+    {
+      "alias": "equatorial guinea",
+      "locationKey": "GQ"
+    },
+    {
+      "alias": "gq",
+      "locationKey": "GQ"
+    },
+    {
+      "alias": "republic of equatorial guinea",
+      "locationKey": "GQ"
+    },
+    {
+      "alias": "gr",
+      "locationKey": "GR"
+    },
+    {
+      "alias": "greece",
+      "locationKey": "GR"
+    },
+    {
+      "alias": "hellenic republic",
+      "locationKey": "GR"
+    },
+    {
+      "alias": "gs",
+      "locationKey": "GS"
+    },
+    {
+      "alias": "south georgia and the south sandwich islands",
+      "locationKey": "GS"
+    },
+    {
+      "alias": "gt",
+      "locationKey": "GT"
+    },
+    {
+      "alias": "guatemala",
+      "locationKey": "GT"
+    },
+    {
+      "alias": "republic of guatemala",
+      "locationKey": "GT"
+    },
+    {
+      "alias": "gu",
+      "locationKey": "GU"
+    },
+    {
+      "alias": "guam",
+      "locationKey": "GU"
+    },
+    {
+      "alias": "guinea bissau",
+      "locationKey": "GW"
+    },
+    {
+      "alias": "gw",
+      "locationKey": "GW"
+    },
+    {
+      "alias": "republic of guinea bissau",
+      "locationKey": "GW"
+    },
+    {
+      "alias": "guyana",
+      "locationKey": "GY"
+    },
+    {
+      "alias": "gy",
+      "locationKey": "GY"
+    },
+    {
+      "alias": "republic of guyana",
+      "locationKey": "GY"
+    },
+    {
+      "alias": "hk",
+      "locationKey": "HK"
+    },
+    {
+      "alias": "hong kong",
+      "locationKey": "HK"
+    },
+    {
+      "alias": "hong kong special administrative region of china",
+      "locationKey": "HK"
+    },
+    {
+      "alias": "heard island and mcdonald islands",
+      "locationKey": "HM"
+    },
+    {
+      "alias": "hm",
+      "locationKey": "HM"
+    },
+    {
+      "alias": "hn",
+      "locationKey": "HN"
+    },
+    {
+      "alias": "honduras",
+      "locationKey": "HN"
+    },
+    {
+      "alias": "republic of honduras",
+      "locationKey": "HN"
+    },
+    {
+      "alias": "croatia",
+      "locationKey": "HR"
+    },
+    {
+      "alias": "hr",
+      "locationKey": "HR"
+    },
+    {
+      "alias": "republic of croatia",
+      "locationKey": "HR"
+    },
+    {
+      "alias": "haiti",
+      "locationKey": "HT"
+    },
+    {
+      "alias": "ht",
+      "locationKey": "HT"
+    },
+    {
+      "alias": "republic of haiti",
+      "locationKey": "HT"
+    },
+    {
+      "alias": "hu",
+      "locationKey": "HU"
+    },
+    {
+      "alias": "hungary",
+      "locationKey": "HU"
+    },
+    {
+      "alias": "id",
+      "locationKey": "ID"
+    },
+    {
+      "alias": "indonesia",
+      "locationKey": "ID"
+    },
+    {
+      "alias": "republic of indonesia",
+      "locationKey": "ID"
+    },
+    {
+      "alias": "ie",
+      "locationKey": "IE"
+    },
+    {
+      "alias": "ireland",
+      "locationKey": "IE"
+    },
+    {
+      "alias": "il",
+      "locationKey": "IL"
+    },
+    {
+      "alias": "israel",
+      "locationKey": "IL"
+    },
+    {
+      "alias": "state of israel",
+      "locationKey": "IL"
+    },
+    {
+      "alias": "im",
+      "locationKey": "IM"
+    },
+    {
+      "alias": "isle of man",
+      "locationKey": "IM"
+    },
+    {
+      "alias": "in",
+      "locationKey": "IN"
+    },
+    {
+      "alias": "india",
+      "locationKey": "IN"
+    },
+    {
+      "alias": "republic of india",
+      "locationKey": "IN"
+    },
+    {
+      "alias": "iq",
+      "locationKey": "IQ"
+    },
+    {
+      "alias": "iraq",
+      "locationKey": "IQ"
+    },
+    {
+      "alias": "republic of iraq",
+      "locationKey": "IQ"
+    },
+    {
+      "alias": "ir",
+      "locationKey": "IR"
+    },
+    {
+      "alias": "iran",
+      "locationKey": "IR"
+    },
+    {
+      "alias": "iran islamic republic of",
+      "locationKey": "IR"
+    },
+    {
+      "alias": "islamic republic of iran",
+      "locationKey": "IR"
+    },
+    {
+      "alias": "iceland",
+      "locationKey": "IS"
+    },
+    {
+      "alias": "is",
+      "locationKey": "IS"
+    },
+    {
+      "alias": "republic of iceland",
+      "locationKey": "IS"
+    },
+    {
+      "alias": "it",
+      "locationKey": "IT"
+    },
+    {
+      "alias": "italian republic",
+      "locationKey": "IT"
+    },
+    {
+      "alias": "italy",
+      "locationKey": "IT"
+    },
+    {
+      "alias": "je",
+      "locationKey": "JE"
+    },
+    {
+      "alias": "jersey",
+      "locationKey": "JE"
+    },
+    {
+      "alias": "jamaica",
+      "locationKey": "JM"
+    },
+    {
+      "alias": "jm",
+      "locationKey": "JM"
+    },
+    {
+      "alias": "hashemite kingdom of jordan",
+      "locationKey": "JO"
+    },
+    {
+      "alias": "jo",
+      "locationKey": "JO"
+    },
+    {
+      "alias": "jordan",
+      "locationKey": "JO"
+    },
+    {
+      "alias": "japan",
+      "locationKey": "JP"
+    },
+    {
+      "alias": "jp",
+      "locationKey": "JP"
+    },
+    {
+      "alias": "ke",
+      "locationKey": "KE"
+    },
+    {
+      "alias": "kenya",
+      "locationKey": "KE"
+    },
+    {
+      "alias": "republic of kenya",
+      "locationKey": "KE"
+    },
+    {
+      "alias": "kg",
+      "locationKey": "KG"
+    },
+    {
+      "alias": "kyrgyz republic",
+      "locationKey": "KG"
+    },
+    {
+      "alias": "kyrgyzstan",
+      "locationKey": "KG"
+    },
+    {
+      "alias": "cambodia",
+      "locationKey": "KH"
+    },
+    {
+      "alias": "kh",
+      "locationKey": "KH"
+    },
+    {
+      "alias": "kingdom of cambodia",
+      "locationKey": "KH"
+    },
+    {
+      "alias": "ki",
+      "locationKey": "KI"
+    },
+    {
+      "alias": "kiribati",
+      "locationKey": "KI"
+    },
+    {
+      "alias": "republic of kiribati",
+      "locationKey": "KI"
+    },
+    {
+      "alias": "comoros",
+      "locationKey": "KM"
+    },
+    {
+      "alias": "km",
+      "locationKey": "KM"
+    },
+    {
+      "alias": "union of the comoros",
+      "locationKey": "KM"
+    },
+    {
+      "alias": "kn",
+      "locationKey": "KN"
+    },
+    {
+      "alias": "saint kitts and nevis",
+      "locationKey": "KN"
+    },
+    {
+      "alias": "korea",
+      "locationKey": "KR"
+    },
+    {
+      "alias": "korea republic of",
+      "locationKey": "KR"
+    },
+    {
+      "alias": "kr",
+      "locationKey": "KR"
+    },
+    {
+      "alias": "republic of korea",
+      "locationKey": "KR"
+    },
+    {
+      "alias": "south korea",
+      "locationKey": "KR"
+    },
+    {
+      "alias": "kuwait",
+      "locationKey": "KW"
+    },
+    {
+      "alias": "kw",
+      "locationKey": "KW"
+    },
+    {
+      "alias": "state of kuwait",
+      "locationKey": "KW"
+    },
+    {
+      "alias": "kazakhstan",
+      "locationKey": "KZ"
+    },
+    {
+      "alias": "kz",
+      "locationKey": "KZ"
+    },
+    {
+      "alias": "republic of kazakhstan",
+      "locationKey": "KZ"
+    },
+    {
+      "alias": "la",
+      "locationKey": "LA"
+    },
+    {
+      "alias": "lao",
+      "locationKey": "LA"
+    },
+    {
+      "alias": "lao people s democratic republic",
+      "locationKey": "LA"
+    },
+    {
+      "alias": "laos",
+      "locationKey": "LA"
+    },
+    {
+      "alias": "lb",
+      "locationKey": "LB"
+    },
+    {
+      "alias": "lebanese republic",
+      "locationKey": "LB"
+    },
+    {
+      "alias": "lebanon",
+      "locationKey": "LB"
+    },
+    {
+      "alias": "lc",
+      "locationKey": "LC"
+    },
+    {
+      "alias": "saint lucia",
+      "locationKey": "LC"
+    },
+    {
+      "alias": "li",
+      "locationKey": "LI"
+    },
+    {
+      "alias": "liechtenstein",
+      "locationKey": "LI"
+    },
+    {
+      "alias": "principality of liechtenstein",
+      "locationKey": "LI"
+    },
+    {
+      "alias": "democratic socialist republic of sri lanka",
+      "locationKey": "LK"
+    },
+    {
+      "alias": "lk",
+      "locationKey": "LK"
+    },
+    {
+      "alias": "sri lanka",
+      "locationKey": "LK"
+    },
+    {
+      "alias": "liberia",
+      "locationKey": "LR"
+    },
+    {
+      "alias": "lr",
+      "locationKey": "LR"
+    },
+    {
+      "alias": "republic of liberia",
+      "locationKey": "LR"
+    },
+    {
+      "alias": "kingdom of lesotho",
+      "locationKey": "LS"
+    },
+    {
+      "alias": "lesotho",
+      "locationKey": "LS"
+    },
+    {
+      "alias": "ls",
+      "locationKey": "LS"
+    },
+    {
+      "alias": "lithuania",
+      "locationKey": "LT"
+    },
+    {
+      "alias": "lt",
+      "locationKey": "LT"
+    },
+    {
+      "alias": "republic of lithuania",
+      "locationKey": "LT"
+    },
+    {
+      "alias": "grand duchy of luxembourg",
+      "locationKey": "LU"
+    },
+    {
+      "alias": "lu",
+      "locationKey": "LU"
+    },
+    {
+      "alias": "luxembourg",
+      "locationKey": "LU"
+    },
+    {
+      "alias": "latvia",
+      "locationKey": "LV"
+    },
+    {
+      "alias": "lv",
+      "locationKey": "LV"
+    },
+    {
+      "alias": "republic of latvia",
+      "locationKey": "LV"
+    },
+    {
+      "alias": "libya",
+      "locationKey": "LY"
+    },
+    {
+      "alias": "libyan arab jamahiriya",
+      "locationKey": "LY"
+    },
+    {
+      "alias": "ly",
+      "locationKey": "LY"
+    },
+    {
+      "alias": "kingdom of morocco",
+      "locationKey": "MA"
+    },
+    {
+      "alias": "ma",
+      "locationKey": "MA"
+    },
+    {
+      "alias": "morocco",
+      "locationKey": "MA"
+    },
+    {
+      "alias": "mc",
+      "locationKey": "MC"
+    },
+    {
+      "alias": "monaco",
+      "locationKey": "MC"
+    },
+    {
+      "alias": "principality of monaco",
+      "locationKey": "MC"
+    },
+    {
+      "alias": "md",
+      "locationKey": "MD"
+    },
+    {
+      "alias": "moldova",
+      "locationKey": "MD"
+    },
+    {
+      "alias": "moldova republic of",
+      "locationKey": "MD"
+    },
+    {
+      "alias": "republic of moldova",
+      "locationKey": "MD"
+    },
+    {
+      "alias": "me",
+      "locationKey": "ME"
+    },
+    {
+      "alias": "montenegro",
+      "locationKey": "ME"
+    },
+    {
+      "alias": "madagascar",
+      "locationKey": "MG"
+    },
+    {
+      "alias": "mg",
+      "locationKey": "MG"
+    },
+    {
+      "alias": "republic of madagascar",
+      "locationKey": "MG"
+    },
+    {
+      "alias": "marshall islands",
+      "locationKey": "MH"
+    },
+    {
+      "alias": "mh",
+      "locationKey": "MH"
+    },
+    {
+      "alias": "republic of the marshall islands",
+      "locationKey": "MH"
+    },
+    {
+      "alias": "macedonia",
+      "locationKey": "MK"
+    },
+    {
+      "alias": "mk",
+      "locationKey": "MK"
+    },
+    {
+      "alias": "north macedonia",
+      "locationKey": "MK"
+    },
+    {
+      "alias": "republic of north macedonia",
+      "locationKey": "MK"
+    },
+    {
+      "alias": "mali",
+      "locationKey": "ML"
+    },
+    {
+      "alias": "ml",
+      "locationKey": "ML"
+    },
+    {
+      "alias": "republic of mali",
+      "locationKey": "ML"
+    },
+    {
+      "alias": "mm",
+      "locationKey": "MM"
+    },
+    {
+      "alias": "myanmar",
+      "locationKey": "MM"
+    },
+    {
+      "alias": "republic of myanmar",
+      "locationKey": "MM"
+    },
+    {
+      "alias": "mn",
+      "locationKey": "MN"
+    },
+    {
+      "alias": "mongolia",
+      "locationKey": "MN"
+    },
+    {
+      "alias": "macao",
+      "locationKey": "MO"
+    },
+    {
+      "alias": "macao special administrative region of china",
+      "locationKey": "MO"
+    },
+    {
+      "alias": "macau",
+      "locationKey": "MO"
+    },
+    {
+      "alias": "mo",
+      "locationKey": "MO"
+    },
+    {
+      "alias": "commonwealth of the northern mariana islands",
+      "locationKey": "MP"
+    },
+    {
+      "alias": "mp",
+      "locationKey": "MP"
+    },
+    {
+      "alias": "northern mariana islands",
+      "locationKey": "MP"
+    },
+    {
+      "alias": "islamic republic of mauritania",
+      "locationKey": "MR"
+    },
+    {
+      "alias": "mauritania",
+      "locationKey": "MR"
+    },
+    {
+      "alias": "mr",
+      "locationKey": "MR"
+    },
+    {
+      "alias": "malta",
+      "locationKey": "MT"
+    },
+    {
+      "alias": "mt",
+      "locationKey": "MT"
+    },
+    {
+      "alias": "republic of malta",
+      "locationKey": "MT"
+    },
+    {
+      "alias": "mauritius",
+      "locationKey": "MU"
+    },
+    {
+      "alias": "mu",
+      "locationKey": "MU"
+    },
+    {
+      "alias": "republic of mauritius",
+      "locationKey": "MU"
+    },
+    {
+      "alias": "maldives",
+      "locationKey": "MV"
+    },
+    {
+      "alias": "mv",
+      "locationKey": "MV"
+    },
+    {
+      "alias": "republic of maldives",
+      "locationKey": "MV"
+    },
+    {
+      "alias": "malawi",
+      "locationKey": "MW"
+    },
+    {
+      "alias": "mw",
+      "locationKey": "MW"
+    },
+    {
+      "alias": "republic of malawi",
+      "locationKey": "MW"
+    },
+    {
+      "alias": "mexico",
+      "locationKey": "MX"
+    },
+    {
+      "alias": "mx",
+      "locationKey": "MX"
+    },
+    {
+      "alias": "united mexican states",
+      "locationKey": "MX"
+    },
+    {
+      "alias": "malaysia",
+      "locationKey": "MY"
+    },
+    {
+      "alias": "my",
+      "locationKey": "MY"
+    },
+    {
+      "alias": "mozambique",
+      "locationKey": "MZ"
+    },
+    {
+      "alias": "mz",
+      "locationKey": "MZ"
+    },
+    {
+      "alias": "republic of mozambique",
+      "locationKey": "MZ"
+    },
+    {
+      "alias": "na",
+      "locationKey": "NA"
+    },
+    {
+      "alias": "namibia",
+      "locationKey": "NA"
+    },
+    {
+      "alias": "republic of namibia",
+      "locationKey": "NA"
+    },
+    {
+      "alias": "nc",
+      "locationKey": "NC"
+    },
+    {
+      "alias": "new caledonia",
+      "locationKey": "NC"
+    },
+    {
+      "alias": "ne",
+      "locationKey": "NE"
+    },
+    {
+      "alias": "niger",
+      "locationKey": "NE"
+    },
+    {
+      "alias": "republic of the niger",
+      "locationKey": "NE"
+    },
+    {
+      "alias": "nf",
+      "locationKey": "NF"
+    },
+    {
+      "alias": "norfolk island",
+      "locationKey": "NF"
+    },
+    {
+      "alias": "federal republic of nigeria",
+      "locationKey": "NG"
+    },
+    {
+      "alias": "ng",
+      "locationKey": "NG"
+    },
+    {
+      "alias": "nigeria",
+      "locationKey": "NG"
+    },
+    {
+      "alias": "ni",
+      "locationKey": "NI"
+    },
+    {
+      "alias": "nicaragua",
+      "locationKey": "NI"
+    },
+    {
+      "alias": "republic of nicaragua",
+      "locationKey": "NI"
+    },
+    {
+      "alias": "kingdom of the netherlands",
+      "locationKey": "NL"
+    },
+    {
+      "alias": "netherlands",
+      "locationKey": "NL"
+    },
+    {
+      "alias": "nl",
+      "locationKey": "NL"
+    },
+    {
+      "alias": "kingdom of norway",
+      "locationKey": "NO"
+    },
+    {
+      "alias": "no",
+      "locationKey": "NO"
+    },
+    {
+      "alias": "norway",
+      "locationKey": "NO"
+    },
+    {
+      "alias": "federal democratic republic of nepal",
+      "locationKey": "NP"
+    },
+    {
+      "alias": "nepal",
+      "locationKey": "NP"
+    },
+    {
+      "alias": "np",
+      "locationKey": "NP"
+    },
+    {
+      "alias": "nauru",
+      "locationKey": "NR"
+    },
+    {
+      "alias": "nr",
+      "locationKey": "NR"
+    },
+    {
+      "alias": "republic of nauru",
+      "locationKey": "NR"
+    },
+    {
+      "alias": "niue",
+      "locationKey": "NU"
+    },
+    {
+      "alias": "nu",
+      "locationKey": "NU"
+    },
+    {
+      "alias": "new zealand",
+      "locationKey": "NZ"
+    },
+    {
+      "alias": "nz",
+      "locationKey": "NZ"
+    },
+    {
+      "alias": "om",
+      "locationKey": "OM"
+    },
+    {
+      "alias": "oman",
+      "locationKey": "OM"
+    },
+    {
+      "alias": "sultanate of oman",
+      "locationKey": "OM"
+    },
+    {
+      "alias": "pa",
+      "locationKey": "PA"
+    },
+    {
+      "alias": "panama",
+      "locationKey": "PA"
+    },
+    {
+      "alias": "republic of panama",
+      "locationKey": "PA"
+    },
+    {
+      "alias": "pe",
+      "locationKey": "PE"
+    },
+    {
+      "alias": "peru",
+      "locationKey": "PE"
+    },
+    {
+      "alias": "republic of peru",
+      "locationKey": "PE"
+    },
+    {
+      "alias": "french polynesia",
+      "locationKey": "PF"
+    },
+    {
+      "alias": "pf",
+      "locationKey": "PF"
+    },
+    {
+      "alias": "independent state of papua new guinea",
+      "locationKey": "PG"
+    },
+    {
+      "alias": "papua new guinea",
+      "locationKey": "PG"
+    },
+    {
+      "alias": "pg",
+      "locationKey": "PG"
+    },
+    {
+      "alias": "ph",
+      "locationKey": "PH"
+    },
+    {
+      "alias": "philippines",
+      "locationKey": "PH"
+    },
+    {
+      "alias": "republic of the philippines",
+      "locationKey": "PH"
+    },
+    {
+      "alias": "islamic republic of pakistan",
+      "locationKey": "PK"
+    },
+    {
+      "alias": "pakistan",
+      "locationKey": "PK"
+    },
+    {
+      "alias": "pk",
+      "locationKey": "PK"
+    },
+    {
+      "alias": "pl",
+      "locationKey": "PL"
+    },
+    {
+      "alias": "poland",
+      "locationKey": "PL"
+    },
+    {
+      "alias": "republic of poland",
+      "locationKey": "PL"
+    },
+    {
+      "alias": "pm",
+      "locationKey": "PM"
+    },
+    {
+      "alias": "saint pierre and miquelon",
+      "locationKey": "PM"
+    },
+    {
+      "alias": "pitcairn",
+      "locationKey": "PN"
+    },
+    {
+      "alias": "pn",
+      "locationKey": "PN"
+    },
+    {
+      "alias": "pr",
+      "locationKey": "PR"
+    },
+    {
+      "alias": "puerto rico",
+      "locationKey": "PR"
+    },
+    {
+      "alias": "palestine",
+      "locationKey": "PS"
+    },
+    {
+      "alias": "palestine state of",
+      "locationKey": "PS"
+    },
+    {
+      "alias": "palestinian territory",
+      "locationKey": "PS"
+    },
+    {
+      "alias": "ps",
+      "locationKey": "PS"
+    },
+    {
+      "alias": "the state of palestine",
+      "locationKey": "PS"
+    },
+    {
+      "alias": "portugal",
+      "locationKey": "PT"
+    },
+    {
+      "alias": "portuguese republic",
+      "locationKey": "PT"
+    },
+    {
+      "alias": "pt",
+      "locationKey": "PT"
+    },
+    {
+      "alias": "palau",
+      "locationKey": "PW"
+    },
+    {
+      "alias": "pw",
+      "locationKey": "PW"
+    },
+    {
+      "alias": "republic of palau",
+      "locationKey": "PW"
+    },
+    {
+      "alias": "paraguay",
+      "locationKey": "PY"
+    },
+    {
+      "alias": "py",
+      "locationKey": "PY"
+    },
+    {
+      "alias": "republic of paraguay",
+      "locationKey": "PY"
+    },
+    {
+      "alias": "qa",
+      "locationKey": "QA"
+    },
+    {
+      "alias": "qatar",
+      "locationKey": "QA"
+    },
+    {
+      "alias": "state of qatar",
+      "locationKey": "QA"
+    },
+    {
+      "alias": "re",
+      "locationKey": "RE"
+    },
+    {
+      "alias": "reunion",
+      "locationKey": "RE"
+    },
+    {
+      "alias": "ro",
+      "locationKey": "RO"
+    },
+    {
+      "alias": "romania",
+      "locationKey": "RO"
+    },
+    {
+      "alias": "republic of serbia",
+      "locationKey": "RS"
+    },
+    {
+      "alias": "rs",
+      "locationKey": "RS"
+    },
+    {
+      "alias": "serbia",
+      "locationKey": "RS"
+    },
+    {
+      "alias": "ru",
+      "locationKey": "RU"
+    },
+    {
+      "alias": "russia",
+      "locationKey": "RU"
+    },
+    {
+      "alias": "russian federation",
+      "locationKey": "RU"
+    },
+    {
+      "alias": "rw",
+      "locationKey": "RW"
+    },
+    {
+      "alias": "rwanda",
+      "locationKey": "RW"
+    },
+    {
+      "alias": "rwandese republic",
+      "locationKey": "RW"
+    },
+    {
+      "alias": "kingdom of saudi arabia",
+      "locationKey": "SA"
+    },
+    {
+      "alias": "sa",
+      "locationKey": "SA"
+    },
+    {
+      "alias": "saudi arabia",
+      "locationKey": "SA"
+    },
+    {
+      "alias": "sb",
+      "locationKey": "SB"
+    },
+    {
+      "alias": "solomon islands",
+      "locationKey": "SB"
+    },
+    {
+      "alias": "republic of seychelles",
+      "locationKey": "SC"
+    },
+    {
+      "alias": "sc",
+      "locationKey": "SC"
+    },
+    {
+      "alias": "seychelles",
+      "locationKey": "SC"
+    },
+    {
+      "alias": "republic of the sudan",
+      "locationKey": "SD"
+    },
+    {
+      "alias": "sd",
+      "locationKey": "SD"
+    },
+    {
+      "alias": "sudan",
+      "locationKey": "SD"
+    },
+    {
+      "alias": "kingdom of sweden",
+      "locationKey": "SE"
+    },
+    {
+      "alias": "se",
+      "locationKey": "SE"
+    },
+    {
+      "alias": "sweden",
+      "locationKey": "SE"
+    },
+    {
+      "alias": "republic of singapore",
+      "locationKey": "SG"
+    },
+    {
+      "alias": "sg",
+      "locationKey": "SG"
+    },
+    {
+      "alias": "singapore",
+      "locationKey": "SG"
+    },
+    {
+      "alias": "republic of slovenia",
+      "locationKey": "SI"
+    },
+    {
+      "alias": "si",
+      "locationKey": "SI"
+    },
+    {
+      "alias": "slovenia",
+      "locationKey": "SI"
+    },
+    {
+      "alias": "sj",
+      "locationKey": "SJ"
+    },
+    {
+      "alias": "svalbard and jan mayen",
+      "locationKey": "SJ"
+    },
+    {
+      "alias": "sk",
+      "locationKey": "SK"
+    },
+    {
+      "alias": "slovak republic",
+      "locationKey": "SK"
+    },
+    {
+      "alias": "slovakia",
+      "locationKey": "SK"
+    },
+    {
+      "alias": "republic of sierra leone",
+      "locationKey": "SL"
+    },
+    {
+      "alias": "sierra leone",
+      "locationKey": "SL"
+    },
+    {
+      "alias": "sl",
+      "locationKey": "SL"
+    },
+    {
+      "alias": "republic of san marino",
+      "locationKey": "SM"
+    },
+    {
+      "alias": "san marino",
+      "locationKey": "SM"
+    },
+    {
+      "alias": "sm",
+      "locationKey": "SM"
+    },
+    {
+      "alias": "republic of senegal",
+      "locationKey": "SN"
+    },
+    {
+      "alias": "senegal",
+      "locationKey": "SN"
+    },
+    {
+      "alias": "sn",
+      "locationKey": "SN"
+    },
+    {
+      "alias": "federal republic of somalia",
+      "locationKey": "SO"
+    },
+    {
+      "alias": "so",
+      "locationKey": "SO"
+    },
+    {
+      "alias": "somalia",
+      "locationKey": "SO"
+    },
+    {
+      "alias": "republic of suriname",
+      "locationKey": "SR"
+    },
+    {
+      "alias": "sr",
+      "locationKey": "SR"
+    },
+    {
+      "alias": "suriname",
+      "locationKey": "SR"
+    },
+    {
+      "alias": "republic of south sudan",
+      "locationKey": "SS"
+    },
+    {
+      "alias": "south sudan",
+      "locationKey": "SS"
+    },
+    {
+      "alias": "ss",
+      "locationKey": "SS"
+    },
+    {
+      "alias": "democratic republic of sao tome and principe",
+      "locationKey": "ST"
+    },
+    {
+      "alias": "sao tome and principe",
+      "locationKey": "ST"
+    },
+    {
+      "alias": "st",
+      "locationKey": "ST"
+    },
+    {
+      "alias": "el salvador",
+      "locationKey": "SV"
+    },
+    {
+      "alias": "republic of el salvador",
+      "locationKey": "SV"
+    },
+    {
+      "alias": "sv",
+      "locationKey": "SV"
+    },
+    {
+      "alias": "sy",
+      "locationKey": "SY"
+    },
+    {
+      "alias": "syria",
+      "locationKey": "SY"
+    },
+    {
+      "alias": "syrian arab republic",
+      "locationKey": "SY"
+    },
+    {
+      "alias": "eswatini",
+      "locationKey": "SZ"
+    },
+    {
+      "alias": "kingdom of eswatini",
+      "locationKey": "SZ"
+    },
+    {
+      "alias": "sz",
+      "locationKey": "SZ"
+    },
+    {
+      "alias": "chad",
+      "locationKey": "TD"
+    },
+    {
+      "alias": "republic of chad",
+      "locationKey": "TD"
+    },
+    {
+      "alias": "td",
+      "locationKey": "TD"
+    },
+    {
+      "alias": "tg",
+      "locationKey": "TG"
+    },
+    {
+      "alias": "togo",
+      "locationKey": "TG"
+    },
+    {
+      "alias": "togolese republic",
+      "locationKey": "TG"
+    },
+    {
+      "alias": "kingdom of thailand",
+      "locationKey": "TH"
+    },
+    {
+      "alias": "th",
+      "locationKey": "TH"
+    },
+    {
+      "alias": "thailand",
+      "locationKey": "TH"
+    },
+    {
+      "alias": "republic of tajikistan",
+      "locationKey": "TJ"
+    },
+    {
+      "alias": "tajikistan",
+      "locationKey": "TJ"
+    },
+    {
+      "alias": "tj",
+      "locationKey": "TJ"
+    },
+    {
+      "alias": "tk",
+      "locationKey": "TK"
+    },
+    {
+      "alias": "tokelau",
+      "locationKey": "TK"
+    },
+    {
+      "alias": "democratic republic of timor leste",
+      "locationKey": "TL"
+    },
+    {
+      "alias": "timor leste",
+      "locationKey": "TL"
+    },
+    {
+      "alias": "tl",
+      "locationKey": "TL"
+    },
+    {
+      "alias": "tm",
+      "locationKey": "TM"
+    },
+    {
+      "alias": "turkmenistan",
+      "locationKey": "TM"
+    },
+    {
+      "alias": "republic of tunisia",
+      "locationKey": "TN"
+    },
+    {
+      "alias": "tn",
+      "locationKey": "TN"
+    },
+    {
+      "alias": "tunisia",
+      "locationKey": "TN"
+    },
+    {
+      "alias": "kingdom of tonga",
+      "locationKey": "TO"
+    },
+    {
+      "alias": "to",
+      "locationKey": "TO"
+    },
+    {
+      "alias": "tonga",
+      "locationKey": "TO"
+    },
+    {
+      "alias": "republic of turkiye",
+      "locationKey": "TR"
+    },
+    {
+      "alias": "tr",
+      "locationKey": "TR"
+    },
+    {
+      "alias": "turkey",
+      "locationKey": "TR"
+    },
+    {
+      "alias": "turkiye",
+      "locationKey": "TR"
+    },
+    {
+      "alias": "republic of trinidad and tobago",
+      "locationKey": "TT"
+    },
+    {
+      "alias": "trinidad and tobago",
+      "locationKey": "TT"
+    },
+    {
+      "alias": "tt",
+      "locationKey": "TT"
+    },
+    {
+      "alias": "tuvalu",
+      "locationKey": "TV"
+    },
+    {
+      "alias": "tv",
+      "locationKey": "TV"
+    },
+    {
+      "alias": "taiwan",
+      "locationKey": "TW"
+    },
+    {
+      "alias": "taiwan province of china",
+      "locationKey": "TW"
+    },
+    {
+      "alias": "tw",
+      "locationKey": "TW"
+    },
+    {
+      "alias": "tanzania",
+      "locationKey": "TZ"
+    },
+    {
+      "alias": "tanzania united republic of",
+      "locationKey": "TZ"
+    },
+    {
+      "alias": "tz",
+      "locationKey": "TZ"
+    },
+    {
+      "alias": "united republic of tanzania",
+      "locationKey": "TZ"
+    },
+    {
+      "alias": "ua",
+      "locationKey": "UA"
+    },
+    {
+      "alias": "ukraine",
+      "locationKey": "UA"
+    },
+    {
+      "alias": "republic of uganda",
+      "locationKey": "UG"
+    },
+    {
+      "alias": "ug",
+      "locationKey": "UG"
+    },
+    {
+      "alias": "uganda",
+      "locationKey": "UG"
+    },
+    {
+      "alias": "um",
+      "locationKey": "UM"
+    },
+    {
+      "alias": "united states minor outlying islands",
+      "locationKey": "UM"
+    },
+    {
+      "alias": "unknown",
+      "locationKey": "UNKNOWN"
+    },
+    {
+      "alias": "america",
+      "locationKey": "US"
+    },
+    {
+      "alias": "u s",
+      "locationKey": "US"
+    },
+    {
+      "alias": "u s a",
+      "locationKey": "US"
+    },
+    {
+      "alias": "united states",
+      "locationKey": "US"
+    },
+    {
+      "alias": "united states of america",
+      "locationKey": "US"
+    },
+    {
+      "alias": "us",
+      "locationKey": "US"
+    },
+    {
+      "alias": "usa",
+      "locationKey": "US"
+    },
+    {
+      "alias": "eastern republic of uruguay",
+      "locationKey": "UY"
+    },
+    {
+      "alias": "uruguay",
+      "locationKey": "UY"
+    },
+    {
+      "alias": "uy",
+      "locationKey": "UY"
+    },
+    {
+      "alias": "republic of uzbekistan",
+      "locationKey": "UZ"
+    },
+    {
+      "alias": "uz",
+      "locationKey": "UZ"
+    },
+    {
+      "alias": "uzbekistan",
+      "locationKey": "UZ"
+    },
+    {
+      "alias": "holy see",
+      "locationKey": "VA"
+    },
+    {
+      "alias": "holy see vatican city state",
+      "locationKey": "VA"
+    },
+    {
+      "alias": "va",
+      "locationKey": "VA"
+    },
+    {
+      "alias": "vatican",
+      "locationKey": "VA"
+    },
+    {
+      "alias": "vatican city",
+      "locationKey": "VA"
+    },
+    {
+      "alias": "saint vincent and the grenadines",
+      "locationKey": "VC"
+    },
+    {
+      "alias": "vc",
+      "locationKey": "VC"
+    },
+    {
+      "alias": "bolivarian republic of venezuela",
+      "locationKey": "VE"
+    },
+    {
+      "alias": "ve",
+      "locationKey": "VE"
+    },
+    {
+      "alias": "venezuela",
+      "locationKey": "VE"
+    },
+    {
+      "alias": "venezuela bolivarian republic of",
+      "locationKey": "VE"
+    },
+    {
+      "alias": "socialist republic of viet nam",
+      "locationKey": "VN"
+    },
+    {
+      "alias": "viet nam",
+      "locationKey": "VN"
+    },
+    {
+      "alias": "vietnam",
+      "locationKey": "VN"
+    },
+    {
+      "alias": "vn",
+      "locationKey": "VN"
+    },
+    {
+      "alias": "republic of vanuatu",
+      "locationKey": "VU"
+    },
+    {
+      "alias": "vanuatu",
+      "locationKey": "VU"
+    },
+    {
+      "alias": "vu",
+      "locationKey": "VU"
+    },
+    {
+      "alias": "wallis and futuna",
+      "locationKey": "WF"
+    },
+    {
+      "alias": "wf",
+      "locationKey": "WF"
+    },
+    {
+      "alias": "independent state of samoa",
+      "locationKey": "WS"
+    },
+    {
+      "alias": "samoa",
+      "locationKey": "WS"
+    },
+    {
+      "alias": "ws",
+      "locationKey": "WS"
+    },
+    {
+      "alias": "republic of yemen",
+      "locationKey": "YE"
+    },
+    {
+      "alias": "ye",
+      "locationKey": "YE"
+    },
+    {
+      "alias": "yemen",
+      "locationKey": "YE"
+    },
+    {
+      "alias": "republic of south africa",
+      "locationKey": "ZA"
+    },
+    {
+      "alias": "south africa",
+      "locationKey": "ZA"
+    },
+    {
+      "alias": "za",
+      "locationKey": "ZA"
+    },
+    {
+      "alias": "republic of zambia",
+      "locationKey": "ZM"
+    },
+    {
+      "alias": "zambia",
+      "locationKey": "ZM"
+    },
+    {
+      "alias": "zm",
+      "locationKey": "ZM"
+    },
+    {
+      "alias": "republic of zimbabwe",
+      "locationKey": "ZW"
+    },
+    {
+      "alias": "zimbabwe",
+      "locationKey": "ZW"
+    },
+    {
+      "alias": "zw",
+      "locationKey": "ZW"
+    }
+  ]
+}

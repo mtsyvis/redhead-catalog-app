@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Exceptions;
+using Redhead.SitesCatalog.Infrastructure.Locations;
 
 namespace Redhead.SitesCatalog.Infrastructure.Data;
 
@@ -29,6 +30,10 @@ public static class SeedData
 
             // Seed roles
             await SeedRolesAsync(roleManager, logger);
+
+            // Seed canonical locations and groups
+            await SeedLocationsAsync(context, logger);
+            await BackfillMissingSiteLocationsAsync(context, logger);
 
             // Seed SuperAdmin user
             await SeedSuperAdminAsync(userManager, configuration, logger);
@@ -65,6 +70,151 @@ public static class SeedData
                 logger.LogDebug("Role already exists: {RoleName}", roleName);
             }
         }
+    }
+
+    private static async Task SeedLocationsAsync(ApplicationDbContext context, ILogger logger)
+    {
+        logger.LogInformation("Seeding canonical locations...");
+
+        var (locationsAndGroups, aliases) = LocationSeedDataProvider.Load();
+        LocationConfigValidator.Validate(locationsAndGroups, aliases);
+
+        var existingLocations = await context.CanonicalLocations.ToDictionaryAsync(
+            location => location.Key,
+            StringComparer.Ordinal);
+        foreach (var seedLocation in locationsAndGroups.Locations)
+        {
+            if (existingLocations.TryGetValue(seedLocation.Key, out var location))
+            {
+                location.DisplayName = seedLocation.DisplayName;
+                location.SortOrder = seedLocation.SortOrder;
+                location.IsActive = seedLocation.IsActive;
+                continue;
+            }
+
+            context.CanonicalLocations.Add(new CanonicalLocation
+            {
+                Key = seedLocation.Key,
+                DisplayName = seedLocation.DisplayName,
+                SortOrder = seedLocation.SortOrder,
+                IsActive = seedLocation.IsActive
+            });
+        }
+
+        var existingGroups = await context.LocationGroups.ToDictionaryAsync(
+            group => group.Key,
+            StringComparer.Ordinal);
+        foreach (var seedGroup in locationsAndGroups.Groups)
+        {
+            if (existingGroups.TryGetValue(seedGroup.Key, out var group))
+            {
+                group.DisplayName = seedGroup.DisplayName;
+                group.Kind = seedGroup.Kind;
+                group.SortOrder = seedGroup.SortOrder;
+                continue;
+            }
+
+            context.LocationGroups.Add(new LocationGroup
+            {
+                Key = seedGroup.Key,
+                DisplayName = seedGroup.DisplayName,
+                Kind = seedGroup.Kind,
+                SortOrder = seedGroup.SortOrder
+            });
+        }
+
+        await context.SaveChangesAsync();
+
+        var seedLocationKeys = locationsAndGroups.Locations
+            .Select(location => location.Key)
+            .ToArray();
+        var desiredItems = locationsAndGroups.Groups
+            .SelectMany(group => group.LocationKeys.Select(locationKey => new LocationGroupItem
+            {
+                GroupKey = group.Key,
+                LocationKey = locationKey
+            }))
+            .ToList();
+        var desiredItemKeys = desiredItems
+            .Select(item => (item.GroupKey, item.LocationKey))
+            .ToHashSet();
+        var existingItems = await context.LocationGroupItems.ToListAsync();
+        var existingItemKeys = existingItems
+            .Select(item => (item.GroupKey, item.LocationKey))
+            .ToHashSet();
+
+        foreach (var staleItem in existingItems.Where(item => !desiredItemKeys.Contains((item.GroupKey, item.LocationKey))))
+        {
+            context.LocationGroupItems.Remove(staleItem);
+        }
+
+        foreach (var desiredItem in desiredItems.Where(item => !existingItemKeys.Contains((item.GroupKey, item.LocationKey))))
+        {
+            context.LocationGroupItems.Add(desiredItem);
+        }
+
+        await context.SaveChangesAsync();
+
+        var staleLocations = await context.CanonicalLocations
+            .Where(location => !seedLocationKeys.Contains(location.Key))
+            .ToListAsync();
+        foreach (var staleLocation in staleLocations)
+        {
+            var affectedSites = await context.Sites
+                .Where(site => site.LocationKey == staleLocation.Key)
+                .ToListAsync();
+            foreach (var site in affectedSites)
+            {
+                site.ImportedLocationRaw ??= site.Location;
+                site.LocationKey = null;
+            }
+
+            context.CanonicalLocations.Remove(staleLocation);
+        }
+
+        await context.SaveChangesAsync();
+
+        var forbiddenLocations = await context.CanonicalLocations
+            .AsNoTracking()
+            .Where(location => location.DisplayName == "Other"
+                               || location.Key == "OTHER")
+            .Select(location => location.DisplayName)
+            .ToListAsync();
+        if (forbiddenLocations.Count > 0)
+        {
+            throw new SeedDataException(
+                $"Forbidden canonical locations exist in the database: {string.Join(", ", forbiddenLocations)}");
+        }
+    }
+
+    private static async Task BackfillMissingSiteLocationsAsync(ApplicationDbContext context, ILogger logger)
+    {
+        logger.LogInformation("Backfilling canonical site locations...");
+
+        var normalizer = new LocationNormalizer(LocationSeedDataProvider.Load());
+        var sites = await context.Sites
+            .Where(site => site.LocationKey == null && site.ImportedLocationRaw == null)
+            .ToListAsync();
+
+        if (sites.Count == 0)
+        {
+            logger.LogDebug("No sites require canonical location backfill.");
+            return;
+        }
+
+        foreach (var site in sites)
+        {
+            var result = normalizer.Normalize(site.Location);
+
+            site.LocationKey = result.LocationKey;
+            site.ImportedLocationRaw = result.Status == LocationNormalizationStatus.Unknown
+                ? null
+                : site.Location;
+        }
+
+        await context.SaveChangesAsync();
+
+        logger.LogInformation("Canonical site location backfill completed. Updated={Updated}", sites.Count);
     }
 
     private static async Task SeedSuperAdminAsync(

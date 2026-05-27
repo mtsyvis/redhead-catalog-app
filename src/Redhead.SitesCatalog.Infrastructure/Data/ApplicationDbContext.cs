@@ -19,6 +19,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<GoogleDriveConnection> GoogleDriveConnections => Set<GoogleDriveConnection>();
     public DbSet<UserTablePreference> UserTablePreferences => Set<UserTablePreference>();
     public DbSet<UserTableCustomView> UserTableCustomViews => Set<UserTableCustomView>();
+    public DbSet<CanonicalLocation> CanonicalLocations => Set<CanonicalLocation>();
+    public DbSet<LocationGroup> LocationGroups => Set<LocationGroup>();
+    public DbSet<LocationGroupItem> LocationGroupItems => Set<LocationGroupItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

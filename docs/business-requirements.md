@@ -167,6 +167,19 @@ Core site fields:
 * `CreatedAtUtc`
 * `UpdatedAtUtc`
 
+### Location
+
+Location is the product term for the site geography field. Locations can include countries and territories.
+
+Canonical location rules:
+
+* Canonical locations are keyed by stable location codes, plus `UNKNOWN` for empty imported Location values.
+* `UNKNOWN` is a real canonical location with display name `Unknown`.
+* Non-empty imported Location values that cannot be mapped are stored as unmapped with a null canonical location key and the original raw value preserved for warnings and later review.
+* `Other` is not a canonical location.
+* Static aliases map common names and codes such as `USA`, `UK`, `UAE`, and `Korea` to canonical location keys.
+* Location groups can represent regions or business groups. Group kind is not a location type.
+
 ### Domain
 
 `Domain` is the unique catalog key.

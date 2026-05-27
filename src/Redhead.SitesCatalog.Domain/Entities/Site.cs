@@ -8,6 +8,9 @@ public class Site
     public double DR { get; set; }
     public long Traffic { get; set; }
     public string Location { get; set; } = string.Empty;
+    public string? LocationKey { get; set; }
+    public CanonicalLocation? CanonicalLocation { get; set; }
+    public string? ImportedLocationRaw { get; set; }
     public string? Language { get; set; }
     public decimal? PriceUsd { get; set; }
     public decimal? PriceCasino { get; set; }
