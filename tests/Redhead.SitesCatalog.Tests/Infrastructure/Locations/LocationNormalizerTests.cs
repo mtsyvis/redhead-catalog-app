@@ -64,4 +64,20 @@ public class LocationNormalizerTests
         Assert.Null(result.LocationKey);
         Assert.Equal(value, result.RawValue);
     }
+
+    [Theory]
+    [InlineData("#N/A")]
+    [InlineData("N/A")]
+    public void Normalize_NotAvailablePlaceholder_ReturnsUnknown(string value)
+    {
+        // Arrange
+
+        // Act
+        var result = _normalizer.Normalize(value);
+
+        // Assert
+        Assert.Equal(LocationNormalizationStatus.Known, result.Status);
+        Assert.Equal(LocationConstants.UnknownLocationKey, result.LocationKey);
+        Assert.Equal(value, result.RawValue);
+    }
 }

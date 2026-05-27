@@ -193,7 +193,7 @@ public static class SeedData
 
         var normalizer = new LocationNormalizer(LocationSeedDataProvider.Load());
         var sites = await context.Sites
-            .Where(site => site.LocationKey == null && site.ImportedLocationRaw == null)
+            .Where(site => site.LocationKey == null)
             .ToListAsync();
 
         if (sites.Count == 0)
@@ -202,19 +202,30 @@ public static class SeedData
             return;
         }
 
+        var updated = 0;
         foreach (var site in sites)
         {
-            var result = normalizer.Normalize(site.Location);
+            var rawLocation = site.ImportedLocationRaw ?? site.Location;
+            var result = normalizer.Normalize(rawLocation);
+
+            if (result.LocationKey == null && string.Equals(site.ImportedLocationRaw, rawLocation, StringComparison.Ordinal))
+            {
+                continue;
+            }
 
             site.LocationKey = result.LocationKey;
             site.ImportedLocationRaw = result.Status == LocationNormalizationStatus.Unknown
                 ? null
-                : site.Location;
+                : rawLocation;
+            updated++;
         }
 
-        await context.SaveChangesAsync();
+        if (updated > 0)
+        {
+            await context.SaveChangesAsync();
+        }
 
-        logger.LogInformation("Canonical site location backfill completed. Updated={Updated}", sites.Count);
+        logger.LogInformation("Canonical site location backfill completed. Updated={Updated}", updated);
     }
 
     private static async Task SeedSuperAdminAsync(

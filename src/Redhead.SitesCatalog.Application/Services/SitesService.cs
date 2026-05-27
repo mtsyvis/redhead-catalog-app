@@ -59,6 +59,7 @@ public class SitesService : ISitesService
                         : s.LocationKey == LocationConstants.UnknownLocationKey
                             ? LocationDisplayFormatter.UnknownDisplayName
                             : s.Location,
+                ImportedLocationRaw = s.ImportedLocationRaw,
                 Language = s.Language,
                 SponsoredTag = s.SponsoredTag,
                 PriceUsd = s.PriceUsd,
@@ -200,6 +201,7 @@ public class SitesService : ISitesService
                         : s.LocationKey == LocationConstants.UnknownLocationKey
                             ? LocationDisplayFormatter.UnknownDisplayName
                             : s.Location,
+                ImportedLocationRaw = s.ImportedLocationRaw,
                 Language = s.Language,
                 SponsoredTag = s.SponsoredTag,
                 PriceUsd = s.PriceUsd,
@@ -295,6 +297,7 @@ public class SitesService : ISitesService
             DR = site.DR,
             Traffic = site.Traffic,
             Location = LocationDisplayFormatter.Format(site.LocationKey, site.CanonicalLocation?.DisplayName, site.Location),
+            ImportedLocationRaw = site.ImportedLocationRaw,
             Language = site.Language,
             SponsoredTag = site.SponsoredTag,
             PriceUsd = site.PriceUsd,

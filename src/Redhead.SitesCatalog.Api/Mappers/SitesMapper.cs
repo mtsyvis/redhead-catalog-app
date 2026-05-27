@@ -109,6 +109,7 @@ public static class SitesMapper
             DR = dto.DR,
             Traffic = dto.Traffic,
             Location = dto.Location,
+            ImportedLocationRaw = dto.ImportedLocationRaw,
             Language = dto.Language,
             SponsoredTag = dto.SponsoredTag,
             PriceUsd = dto.PriceUsd,
