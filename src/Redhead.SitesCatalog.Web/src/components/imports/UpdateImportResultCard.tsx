@@ -1,4 +1,4 @@
-import { Box, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Box, Paper, Stack, Typography } from '@mui/material';
 import { useState } from 'react';
 import { downloadImportArtifactCsv, type UpdateImportResult } from '../../services/import.service';
 import { DuplicateDomainsPreview } from './DuplicateDomainsPreview';
@@ -14,22 +14,28 @@ export function UpdateImportResultCard({
   result,
 }: UpdateImportResultCardProps) {
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [downloadingAction, setDownloadingAction] = useState<'invalid' | 'unmatched' | null>(null);
+  const [downloadingAction, setDownloadingAction] = useState<
+    'invalid' | 'unmatched' | 'warning' | null
+  >(null);
 
   const updatedCount = result.updatedCount ?? 0;
   const unmatchedRowsCount = result.unmatchedRowsCount ?? 0;
   const duplicateDomainsCount = result.duplicateDomainsCount ?? 0;
   const duplicateDomainsPreview = result.duplicateDomainsPreview ?? [];
   const invalidRowsCount = result.invalidRowsCount ?? 0;
+  const savedWithWarningsCount = result.savedWithWarningsCount ?? 0;
   const invalidRowsDownload = result.downloads?.invalidRows;
   const unmatchedRowsDownload = result.downloads?.unmatchedRows;
+  const warningRowsDownload = result.downloads?.warningRows;
   const canDownloadInvalidRows =
     invalidRowsCount > 0 && !!invalidRowsDownload?.available && !!invalidRowsDownload.token;
   const canDownloadUnmatchedRows =
     unmatchedRowsCount > 0 && !!unmatchedRowsDownload?.available && !!unmatchedRowsDownload.token;
+  const canDownloadWarningRows =
+    savedWithWarningsCount > 0 && !!warningRowsDownload?.available && !!warningRowsDownload.token;
 
   const handleDownload = async (
-    action: 'invalid' | 'unmatched',
+    action: 'invalid' | 'unmatched' | 'warning',
     token: string | undefined,
     fallbackFileName: string,
   ) => {
@@ -64,6 +70,14 @@ export function UpdateImportResultCard({
     );
   };
 
+  const onDownloadWarningRows = async () => {
+    await handleDownload(
+      'warning',
+      warningRowsDownload?.token,
+      warningRowsDownload?.fileName ?? 'update-import-warning-rows.csv',
+    );
+  };
+
   return (
     <Paper sx={{ p: 3 }}>
       <Stack spacing={3}>
@@ -72,7 +86,7 @@ export function UpdateImportResultCard({
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(0, 1fr))' },
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(5, minmax(0, 1fr))' },
               gap: 1.5,
             }}
           >
@@ -100,10 +114,22 @@ export function UpdateImportResultCard({
               </Typography>
               <Typography variant="h6">{invalidRowsCount}</Typography>
             </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Saved with warnings
+              </Typography>
+              <Typography variant="h6">{savedWithWarningsCount}</Typography>
+            </Box>
           </Box>
         </Stack>
 
-        {(canDownloadInvalidRows || canDownloadUnmatchedRows) && (
+        {savedWithWarningsCount > 0 && (
+          <Alert severity="warning">
+            Some rows were imported, but their Location could not be mapped and was saved as Other.
+          </Alert>
+        )}
+
+        {(canDownloadInvalidRows || canDownloadUnmatchedRows || canDownloadWarningRows) && (
           <Box
             sx={{
               display: 'grid',
@@ -126,6 +152,14 @@ export function UpdateImportResultCard({
                 label="Download unmatched rows"
                 helperText="Includes domains that were not found in the catalog."
                 onClick={onDownloadUnmatchedRows}
+                disabled={downloadingAction !== null}
+              />
+            )}
+            {canDownloadWarningRows && (
+              <ImportResultDownloadAction
+                label="Download warning rows"
+                helperText="Rows saved as Other because Location could not be mapped."
+                onClick={onDownloadWarningRows}
                 disabled={downloadingAction !== null}
               />
             )}

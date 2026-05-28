@@ -6,6 +6,7 @@ export interface Site {
   dr: number;
   traffic: number;
   location: string;
+  importedLocationRaw: string | null;
   language: string | null;
   priceUsd: number | null;
   priceCasino: number | null;
@@ -58,7 +59,12 @@ export interface SitesQueryParams {
   priceMin?: number;
   priceMax?: number;
   stopListDomains?: string[];
+  /** Legacy location display-name filter. Prefer canonical locationKeys/locationGroupKeys. */
   location?: string[];
+  locationKeys?: string[];
+  locationGroupKeys?: string[];
+  includeUnknownLocation?: boolean;
+  includeOtherLocation?: boolean;
   niches?: string[];
   categorySearchTerms?: string[];
   languages?: string[];
@@ -86,8 +92,59 @@ export interface FilterOption {
   label: string;
 }
 
+export interface LocationGroupFilterOption {
+  key: string;
+  displayName: string;
+  groupType: string;
+  locationCount: number;
+}
+
+export interface LocationFilterOption {
+  key: string;
+  displayName: string;
+}
+
+export interface LocationSpecialFilterOptions {
+  unknown: LocationFilterOption;
+  other?: LocationFilterOption | null;
+}
+
+export interface LocationFilterOptions {
+  groups: LocationGroupFilterOption[];
+  locations: LocationFilterOption[];
+  special: LocationSpecialFilterOptions;
+}
+
 export interface FilterOptionsResponse {
   niches: FilterOption[];
+  locations?: LocationFilterOptions | null;
+}
+
+export type LocationFilterSelection =
+  | {
+      kind: 'group';
+      key: string;
+      displayName: string;
+      groupType: string;
+      locationCount?: number;
+    }
+  | {
+      kind: 'location';
+      key: string;
+      displayName: string;
+    }
+  | {
+      kind: 'special';
+      key: 'unknown' | 'other';
+      displayName: string;
+      locationKey?: string;
+    };
+
+export interface SitesLocationFilterRequestFields {
+  locationKeys?: string[];
+  locationGroupKeys?: string[];
+  includeUnknownLocation?: boolean;
+  includeOtherLocation?: boolean;
 }
 
 /**
@@ -102,7 +159,7 @@ export interface SitesFilters {
   priceMin: string;
   priceMax: string;
   stopListDomains: string[];
-  location: string[];
+  locationSelections: LocationFilterSelection[];
   niches: string[];
   categorySearchTerms: string[];
   languages: string[];

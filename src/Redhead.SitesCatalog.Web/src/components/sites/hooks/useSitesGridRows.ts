@@ -39,7 +39,13 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
     if (f.trafficMax !== '' && s.traffic > Number(f.trafficMax)) return false;
     if (f.priceMin !== '' && (s.priceUsd ?? 0) < Number(f.priceMin)) return false;
     if (f.priceMax !== '' && (s.priceUsd ?? 0) > Number(f.priceMax)) return false;
-    if (f.location.length > 0 && !f.location.includes(s.location)) return false;
+    const hasLocationGroups = f.locationSelections.some((selection) => selection.kind === 'group');
+    const selectedLocationNames = f.locationSelections
+      .filter((selection) => selection.kind !== 'group')
+      .map((selection) => selection.displayName);
+    if (!hasLocationGroups && selectedLocationNames.length > 0 && !selectedLocationNames.includes(s.location)) {
+      return false;
+    }
     if (f.niches.length > 0 && !f.niches.some((niche) => (s.nicheTokens ?? []).includes(niche))) return false;
     if (
       f.categorySearchTerms.length > 0 &&

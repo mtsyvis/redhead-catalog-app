@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
+  Alert,
+  Autocomplete,
   Box,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -11,8 +14,10 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import type {
+  LocationFilterOption,
   ServiceAvailabilityStatusValue,
   Site,
   TermTypeValue,
@@ -72,6 +77,7 @@ const PRICE_VALIDATION_FIELDS: ReadonlySet<keyof EditSiteFormState> = new Set([
   'priceDating',
   'priceDatingStatus',
 ]);
+const OTHER_LOCATION_FORM_VALUE = '__OTHER__';
 
 function syncPriceUsdErrors(
   errors: Record<string, string[]>,
@@ -147,6 +153,9 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
   );
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [locationOptions, setLocationOptions] = useState<LocationFilterOption[]>([]);
+  const [locationOptionsLoading, setLocationOptionsLoading] = useState(false);
+  const [locationOptionsError, setLocationOptionsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !site) return;
@@ -154,6 +163,67 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     setFieldErrors({});
     setSaving(false);
   }, [open, site]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+    const loadLocationOptions = async () => {
+      setLocationOptionsLoading(true);
+      setLocationOptionsError(null);
+      try {
+        const data = await sitesService.getFilterOptions();
+        if (cancelled) return;
+
+        const locations = data.locations;
+        if (!locations) {
+          setLocationOptions([]);
+          setLocationOptionsError('Location options could not be loaded.');
+          return;
+        }
+
+        const optionsByKey = new Map<string, LocationFilterOption>();
+        for (const option of locations.locations) {
+          optionsByKey.set(option.key, option);
+        }
+        optionsByKey.set(locations.special.unknown.key, locations.special.unknown);
+        setLocationOptions([...optionsByKey.values()]);
+      } catch (error) {
+        console.error('Failed to load location options:', error);
+        if (!cancelled) {
+          setLocationOptions([]);
+          setLocationOptionsError('Location options could not be loaded.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLocationOptionsLoading(false);
+        }
+      }
+    };
+
+    loadLocationOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !site || locationOptions.length === 0) return;
+
+    setForm((prev) => {
+      if (locationOptions.some((option) => option.key === prev.location)) {
+        return prev;
+      }
+
+      if (site.location === 'Other') {
+        return { ...prev, location: OTHER_LOCATION_FORM_VALUE };
+      }
+
+      const matchingOption = locationOptions.find((option) => option.displayName === site.location);
+      return matchingOption ? { ...prev, location: matchingOption.key } : prev;
+    });
+  }, [open, site, locationOptions]);
 
   const updateField = <K extends keyof EditSiteFormState>(
     key: K,
@@ -218,6 +288,10 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     if (!site) return;
 
     const localErrors = validateEditSiteForm(form);
+    if (!locationOptions.some((option) => option.key === form.location)) {
+      localErrors.location = ['Select a valid location or Unknown.'];
+    }
+
     if (Object.keys(localErrors).length > 0) {
       setFieldErrors(localErrors);
       return;
@@ -240,13 +314,52 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     }
   };
 
-  const canSave = Boolean(site) && !saving && !fieldErrors.priceUsd?.length;
+  const currentLocationOption =
+    locationOptions.find((option) => option.key === form.location) ??
+    (form.location === OTHER_LOCATION_FORM_VALUE
+      ? { key: OTHER_LOCATION_FORM_VALUE, displayName: 'Other' }
+      : null);
+  const editLocationOptions =
+    currentLocationOption?.key === OTHER_LOCATION_FORM_VALUE
+      ? [currentLocationOption, ...locationOptions]
+      : locationOptions;
+  const hasValidLocation = locationOptions.some((option) => option.key === form.location);
+  const canSave =
+    Boolean(site) &&
+    !saving &&
+    !locationOptionsLoading &&
+    !locationOptionsError &&
+    hasValidLocation &&
+    !fieldErrors.priceUsd?.length;
   const currentLanguageOption = getLanguageOption(form.language);
   const languageOptions =
     currentLanguageOption &&
     !LANGUAGE_OPTIONS.some((option) => option.value === currentLanguageOption.value)
       ? [...LANGUAGE_OPTIONS, currentLanguageOption]
       : LANGUAGE_OPTIONS;
+  const importedOtherLocationValue =
+    site?.location === 'Other' ? site.importedLocationRaw?.trim() : undefined;
+  const locationNeedsReplacement = form.location === OTHER_LOCATION_FORM_VALUE;
+  const locationHelperText =
+    fieldErrors.location?.[0] ??
+    locationOptionsError ??
+    (locationNeedsReplacement ? (
+      <Box
+        component="span"
+        sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 0.5,
+          color: 'warning.dark',
+          fontWeight: 600,
+        }}
+      >
+        <WarningAmberIcon sx={{ fontSize: 16 }} />
+        {importedOtherLocationValue
+          ? `Imported value: ${importedOtherLocationValue}. Choose a canonical location or Unknown to replace Other.`
+          : 'Choose a canonical location or Unknown to replace Other.'}
+      </Box>
+    ) : undefined);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -284,15 +397,58 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
               helperText={fieldErrors.traffic?.[0]}
             />
 
-            <TextField
-              label="Location"
-              value={form.location}
-              onChange={(e) => updateField('location', e.target.value)}
+            <Autocomplete
               size="small"
-              fullWidth
-              error={Boolean(fieldErrors.location?.length)}
-              helperText={fieldErrors.location?.[0]}
+              options={editLocationOptions}
+              value={currentLocationOption}
+              loading={locationOptionsLoading}
+              disabled={Boolean(locationOptionsError)}
+              getOptionLabel={(option) => option.displayName}
+              getOptionDisabled={(option) => option.key === OTHER_LOCATION_FORM_VALUE}
+              isOptionEqualToValue={(option, value) => option.key === value.key}
+              onChange={(_, option) =>
+                updateField('location', option?.key ?? '')
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Location"
+                  fullWidth
+                  color={locationNeedsReplacement ? 'warning' : 'primary'}
+                  error={Boolean(fieldErrors.location?.length || locationOptionsError)}
+                  helperText={locationHelperText}
+                  sx={
+                    locationNeedsReplacement
+                      ? {
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: 'warning.main',
+                          },
+                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: 'warning.dark',
+                          },
+                        }
+                      : undefined
+                  }
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {locationOptionsLoading ? (
+                          <CircularProgress color="inherit" size={18} />
+                        ) : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
             />
+
+            {locationOptionsError && (
+              <Alert severity="warning">
+                Location cannot be edited until options are available.
+              </Alert>
+            )}
 
             <TextField
               select

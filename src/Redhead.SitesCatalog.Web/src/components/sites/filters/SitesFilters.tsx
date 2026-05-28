@@ -17,7 +17,11 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
-import type { FilterOption, SitesFilters } from '../../../types/sites.types';
+import type {
+  FilterOption,
+  LocationFilterOptions,
+  SitesFilters,
+} from '../../../types/sites.types';
 import { sitesService } from '../../../services/sites.service';
 import { BrandButton } from '../../common/BrandButton';
 import { SERVICE_AVAILABILITY_FILTER_OPTIONS } from '../../../utils/serviceAvailability';
@@ -29,6 +33,7 @@ import {
   CategoriesSearchFilter,
   type CategoriesSearchFilterHandle,
 } from './CategoriesSearchFilter';
+import { LocationFilter } from './LocationFilter';
 
 interface SitesFiltersProps {
   filters: SitesFilters;
@@ -49,7 +54,7 @@ const INITIAL_FILTERS: SitesFilters = {
   priceMin: '',
   priceMax: '',
   stopListDomains: [],
-  location: [],
+  locationSelections: [],
   niches: [],
   categorySearchTerms: [],
   languages: [],
@@ -77,32 +82,28 @@ export function SitesFilters({
   onMultiSearchModeChange,
   filterOptionsRefreshKey = 0,
 }: SitesFiltersProps) {
-  const [locations, setLocations] = useState<string[]>([]);
+  const [locationOptions, setLocationOptions] = useState<LocationFilterOptions | null>(null);
+  const [locationOptionsLoading, setLocationOptionsLoading] = useState(false);
+  const [locationOptionsError, setLocationOptionsError] = useState<string | null>(null);
   const [nicheOptions, setNicheOptions] = useState<FilterOption[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [stopListDialogOpen, setStopListDialogOpen] = useState(false);
   const categoriesSearchFilterRef = useRef<CategoriesSearchFilterHandle>(null);
 
   useEffect(() => {
-    const loadLocations = async () => {
-      try {
-        const data = await sitesService.getLocations();
-        setLocations(data);
-      } catch (error) {
-        console.error('Failed to load locations:', error);
-      }
-    };
-
-    loadLocations();
-  }, []);
-
-  useEffect(() => {
     const loadFilterOptions = async () => {
+      setLocationOptionsLoading(true);
+      setLocationOptionsError(null);
       try {
         const data = await sitesService.getFilterOptions();
         setNicheOptions(data.niches);
+        setLocationOptions(data.locations ?? null);
       } catch (error) {
         console.error('Failed to load filter options:', error);
+        setLocationOptions(null);
+        setLocationOptionsError('Location options could not be loaded.');
+      } finally {
+        setLocationOptionsLoading(false);
       }
     };
 
@@ -141,7 +142,7 @@ export function SitesFilters({
     if (filters.trafficMin !== '' || filters.trafficMax !== '') count += 1;
     if (filters.priceMin !== '' || filters.priceMax !== '') count += 1;
     if (!multiSearchMode && filters.stopListDomains.length > 0) count += 1;
-    if (filters.location.length > 0) count += 1;
+    if (filters.locationSelections.length > 0) count += 1;
     if (filters.niches.length > 0) count += 1;
     if (filters.categorySearchTerms.length > 0) count += 1;
     if (filters.languages.length > 0) count += 1;
@@ -168,7 +169,7 @@ export function SitesFilters({
       filters.priceMin !== '' ||
       filters.priceMax !== '' ||
       (!multiSearchMode && filters.stopListDomains.length > 0) ||
-      filters.location.length > 0 ||
+      filters.locationSelections.length > 0 ||
       filters.niches.length > 0 ||
       filters.categorySearchTerms.length > 0 ||
       filters.languages.length > 0 ||
@@ -397,27 +398,13 @@ export function SitesFilters({
                 </Box>
               </Box>
 
-              {/* Location Multi-Select */}
-              <Box sx={{ flex: 1, minWidth: '200px', maxWidth: '350px' }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Location
-                </Typography>
-                <Autocomplete
-                  multiple
-                  size="small"
-                  options={locations}
-                  value={filters.location}
-                  onChange={(_, newValue) => handleChange('location', newValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      placeholder={filters.location.length === 0 ? "Select locations" : ""}
-                    />
-                  )}
-                  disableCloseOnSelect
-                  limitTags={2}
-                />
-              </Box>
+              <LocationFilter
+                value={filters.locationSelections}
+                options={locationOptions}
+                loading={locationOptionsLoading}
+                error={locationOptionsError}
+                onChange={(value) => handleChange('locationSelections', value)}
+              />
             </Box>
 
             {/* Row 2: Last Publication + Quarantine */}

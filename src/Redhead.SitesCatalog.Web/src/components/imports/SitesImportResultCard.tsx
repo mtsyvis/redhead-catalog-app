@@ -1,4 +1,4 @@
-import { Box, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Box, Paper, Stack, Typography } from '@mui/material';
 import { useState } from 'react';
 import { downloadImportArtifactCsv, type SitesImportResult } from '../../services/import.service';
 import { DuplicateDomainsPreview } from './DuplicateDomainsPreview';
@@ -10,34 +10,55 @@ export interface SitesImportResultCardProps {
 
 export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [downloadingAction, setDownloadingAction] = useState<'invalid' | 'warning' | null>(null);
 
   const insertedCount = result.insertedCount ?? 0;
   const skippedExistingCount = result.skippedExistingCount ?? 0;
   const duplicateDomainsCount = result.duplicateDomainsCount ?? 0;
   const duplicateDomainsPreview = result.duplicateDomainsPreview ?? [];
   const invalidRowsCount = result.invalidRowsCount ?? 0;
+  const savedWithWarningsCount = result.savedWithWarningsCount ?? 0;
   const invalidRowsDownload = result.downloads?.invalidRows;
+  const warningRowsDownload = result.downloads?.warningRows;
   const canDownloadInvalidRows =
     invalidRowsCount > 0 && !!invalidRowsDownload?.available && !!invalidRowsDownload.token;
+  const canDownloadWarningRows =
+    savedWithWarningsCount > 0 && !!warningRowsDownload?.available && !!warningRowsDownload.token;
 
-  const handleDownloadInvalidRows = async () => {
-    if (!invalidRowsDownload?.token) {
+  const handleDownload = async (
+    action: 'invalid' | 'warning',
+    token: string | undefined,
+    fallbackFileName: string,
+  ) => {
+    if (!token) {
       return;
     }
 
     setDownloadError(null);
-    setDownloading(true);
+    setDownloadingAction(action);
     try {
-      await downloadImportArtifactCsv(
-        invalidRowsDownload.token,
-        invalidRowsDownload.fileName ?? 'sites-import-invalid-rows.csv',
-      );
+      await downloadImportArtifactCsv(token, fallbackFileName);
     } catch (error) {
       setDownloadError(error instanceof Error ? error.message : 'Download failed');
     } finally {
-      setDownloading(false);
+      setDownloadingAction(null);
     }
+  };
+
+  const handleDownloadInvalidRows = async () => {
+    await handleDownload(
+      'invalid',
+      invalidRowsDownload?.token,
+      invalidRowsDownload?.fileName ?? 'sites-import-invalid-rows.csv',
+    );
+  };
+
+  const handleDownloadWarningRows = async () => {
+    await handleDownload(
+      'warning',
+      warningRowsDownload?.token,
+      warningRowsDownload?.fileName ?? 'sites-import-warning-rows.csv',
+    );
   };
 
   return (
@@ -48,7 +69,7 @@ export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, minmax(0, 1fr))' },
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(5, minmax(0, 1fr))' },
               gap: 1.5,
             }}
           >
@@ -76,10 +97,22 @@ export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
               </Typography>
               <Typography variant="h6">{invalidRowsCount}</Typography>
             </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Saved with warnings
+              </Typography>
+              <Typography variant="h6">{savedWithWarningsCount}</Typography>
+            </Box>
           </Box>
         </Stack>
 
-        {canDownloadInvalidRows && (
+        {savedWithWarningsCount > 0 && (
+          <Alert severity="warning">
+            Some rows were imported, but their Location could not be mapped and was saved as Other.
+          </Alert>
+        )}
+
+        {(canDownloadInvalidRows || canDownloadWarningRows) && (
           <Box
             sx={{
               display: 'grid',
@@ -89,12 +122,22 @@ export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
               justifyContent: 'start',
             }}
           >
-            <ImportResultDownloadAction
-              label="Download invalid rows"
-              helperText="Includes row number and validation details."
-              onClick={handleDownloadInvalidRows}
-              disabled={downloading}
-            />
+            {canDownloadInvalidRows && (
+              <ImportResultDownloadAction
+                label="Download invalid rows"
+                helperText="Includes row number and validation details."
+                onClick={handleDownloadInvalidRows}
+                disabled={downloadingAction !== null}
+              />
+            )}
+            {canDownloadWarningRows && (
+              <ImportResultDownloadAction
+                label="Download warning rows"
+                helperText="Rows saved as Other because Location could not be mapped."
+                onClick={handleDownloadWarningRows}
+                disabled={downloadingAction !== null}
+              />
+            )}
           </Box>
         )}
 

@@ -31,6 +31,7 @@ import { useUserRoles } from '../hooks/useUserRoles';
 import { useAuth } from '../contexts/AuthContext';
 import { useSitesExport } from '../hooks/useSitesExport';
 import type {
+  LocationFilterSelection,
   Site,
   SitesFilters as FiltersType,
   SitesQueryParams,
@@ -49,7 +50,7 @@ const INITIAL_FILTERS: FiltersType = {
   priceMin: '',
   priceMax: '',
   stopListDomains: [],
-  location: [],
+  locationSelections: [],
   niches: [],
   categorySearchTerms: [],
   languages: [],
@@ -67,6 +68,43 @@ function createInitialFilters(): FiltersType {
   return {
     ...INITIAL_FILTERS,
     stopListDomains: loadStoredStopListDomains(),
+  };
+}
+
+function hasLocationFilters(filters: FiltersType): boolean {
+  return filters.locationSelections.length > 0;
+}
+
+function buildLocationFilterRequestFields(
+  selections: LocationFilterSelection[]
+): Pick<
+  SitesQueryParams,
+  'locationKeys' | 'locationGroupKeys' | 'includeUnknownLocation' | 'includeOtherLocation'
+> {
+  const locationKeys = selections
+    .filter((selection): selection is Extract<LocationFilterSelection, { kind: 'location' }> =>
+      selection.kind === 'location'
+    )
+    .map((selection) => selection.key);
+  const locationGroupKeys = selections
+    .filter((selection): selection is Extract<LocationFilterSelection, { kind: 'group' }> =>
+      selection.kind === 'group'
+    )
+    .map((selection) => selection.key);
+
+  return {
+    locationKeys: locationKeys.length > 0 ? locationKeys : undefined,
+    locationGroupKeys: locationGroupKeys.length > 0 ? locationGroupKeys : undefined,
+    includeUnknownLocation: selections.some(
+      (selection) => selection.kind === 'special' && selection.key === 'unknown'
+    )
+      ? true
+      : undefined,
+    includeOtherLocation: selections.some(
+      (selection) => selection.kind === 'special' && selection.key === 'other'
+    )
+      ? true
+      : undefined,
   };
 }
 
@@ -139,7 +177,7 @@ export function Sites() {
       filters.trafficMax !== INITIAL_FILTERS.trafficMax ||
       filters.priceMin !== INITIAL_FILTERS.priceMin ||
       filters.priceMax !== INITIAL_FILTERS.priceMax ||
-      filters.location.length !== 0 ||
+      hasLocationFilters(filters) ||
       filters.niches.length !== 0 ||
       filters.categorySearchTerms.length !== 0 ||
       filters.languages.length !== 0 ||
@@ -171,7 +209,7 @@ export function Sites() {
         !multiSearchMode && filters.stopListDomains.length > 0
           ? filters.stopListDomains
           : undefined,
-      location: filters.location.length > 0 ? filters.location : undefined,
+      ...buildLocationFilterRequestFields(filters.locationSelections),
       niches: filters.niches.length > 0 ? filters.niches : undefined,
       categorySearchTerms:
         filters.categorySearchTerms.length > 0 ? filters.categorySearchTerms : undefined,
@@ -195,7 +233,7 @@ export function Sites() {
       filters.priceMin,
       filters.priceMax,
       filters.stopListDomains,
-      filters.location,
+      filters.locationSelections,
       filters.niches,
       filters.categorySearchTerms,
       filters.languages,
@@ -350,7 +388,7 @@ export function Sites() {
     if (filters.drMin || filters.drMax) activeColumnIds.add('dr');
     if (filters.trafficMin || filters.trafficMax) activeColumnIds.add('traffic');
     if (filters.priceMin || filters.priceMax) activeColumnIds.add('priceUsd');
-    if (filters.location.length > 0) activeColumnIds.add('location');
+    if (filters.locationSelections.length > 0) activeColumnIds.add('location');
     if (filters.niches.length > 0) activeColumnIds.add('niche');
     if (filters.categorySearchTerms.length > 0) activeColumnIds.add('categories');
     if (filters.languages.length > 0) activeColumnIds.add('language');
@@ -383,7 +421,7 @@ export function Sites() {
     filters.trafficMax,
     filters.priceMin,
     filters.priceMax,
-    filters.location,
+    filters.locationSelections,
     filters.niches,
     filters.categorySearchTerms,
     filters.languages,
@@ -427,7 +465,9 @@ export function Sites() {
       trafficMax: hidden.has('traffic') ? INITIAL_FILTERS.trafficMax : current.trafficMax,
       priceMin: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMin : current.priceMin,
       priceMax: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMax : current.priceMax,
-      location: hidden.has('location') ? INITIAL_FILTERS.location : current.location,
+      locationSelections: hidden.has('location')
+        ? INITIAL_FILTERS.locationSelections
+        : current.locationSelections,
       niches: hidden.has('niche') ? INITIAL_FILTERS.niches : current.niches,
       categorySearchTerms: hidden.has('categories')
         ? INITIAL_FILTERS.categorySearchTerms

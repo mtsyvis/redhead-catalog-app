@@ -7,10 +7,12 @@ export interface ImportDownloadInfo {
 export interface ImportDownloadsInfo {
   invalidRows?: ImportDownloadInfo | null;
   unmatchedRows?: ImportDownloadInfo | null;
+  warningRows?: ImportDownloadInfo | null;
 }
 
 export interface ImportResultBase {
   invalidRowsCount?: number;
+  savedWithWarningsCount?: number;
   downloads?: ImportDownloadsInfo;
 }
 

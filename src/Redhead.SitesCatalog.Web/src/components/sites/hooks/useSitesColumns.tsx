@@ -43,6 +43,18 @@ function formatNullableInteger(row: GridRow, value: number | null): string {
   return formatCell(row, value, (v) => (v == null ? '—' : String(v)));
 }
 
+function formatLocationCell(row: GridRow, value: string | null): string {
+  if (isNotFoundRow(row)) return '—';
+
+  const location = value || '—';
+  const importedLocationRaw = (row as Site).importedLocationRaw?.trim();
+  if (location === 'Other' && importedLocationRaw) {
+    return `Other - ${importedLocationRaw}`;
+  }
+
+  return location;
+}
+
 const columnMetadata: Record<string, SitesColumnMetadata> = Object.fromEntries(
   sitesColumnRegistry.map((column) => [column.id, column])
 );
@@ -103,7 +115,7 @@ export function useSitesColumns({
         {
           ...gridColumnDefaults('location', columnWidths),
           field: 'location',
-          valueFormatter: (value, row) => formatCell(row, value as string, (v) => v ?? '—'),
+          valueFormatter: (value, row) => formatLocationCell(row, value as string | null),
         },
         {
           ...gridColumnDefaults('priceUsd', columnWidths),
