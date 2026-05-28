@@ -21,6 +21,7 @@ interface UseSitesExportOptions {
   buildSitesQueryParams: (page: number, pageSize: number) => SitesQueryParams;
   multiSearchResult: MultiSearchResponse | null;
   searchText: string;
+  visibleColumnKeys: string[];
   showSnackbar: (snackbar: SitesSnackbarState) => void;
 }
 
@@ -45,6 +46,7 @@ export function useSitesExport({
   buildSitesQueryParams,
   multiSearchResult,
   searchText,
+  visibleColumnKeys,
   showSnackbar,
 }: UseSitesExportOptions) {
   const location = useLocation();
@@ -111,11 +113,12 @@ export function useSitesExport({
       return {
         searchText: searchText.trim(),
         filters: params,
+        visibleColumnKeys,
       };
     }
 
-    return { filters: params };
-  }, [buildSitesQueryParams, multiSearchResult, searchText]);
+    return { filters: params, visibleColumnKeys };
+  }, [buildSitesQueryParams, multiSearchResult, searchText, visibleColumnKeys]);
 
   const handleDownloadExport = useCallback(async () => {
     setExporting(true);
@@ -127,9 +130,10 @@ export function useSitesExport({
         metadata = await sitesService.exportSitesMultiSearch({
           searchText: searchText.trim(),
           filters: params,
+          visibleColumnKeys,
         });
       } else {
-        metadata = await sitesService.exportSites(params);
+        metadata = await sitesService.exportSites({ filters: params, visibleColumnKeys });
       }
 
       if (metadata.truncated) {
@@ -151,7 +155,7 @@ export function useSitesExport({
     } finally {
       setExporting(false);
     }
-  }, [buildSitesQueryParams, multiSearchResult, searchText, showSnackbar]);
+  }, [buildSitesQueryParams, multiSearchResult, searchText, visibleColumnKeys, showSnackbar]);
 
   const handleSaveToGoogleDrive = useCallback(async () => {
     if (googleDriveStatus?.needsReconnect) {
@@ -221,6 +225,12 @@ export function useSitesExport({
           },
         });
       } else if (error instanceof ApiClientError && error.statusCode === 403) {
+        showSnackbar({
+          open: true,
+          message: error.message,
+          severity: 'error',
+        });
+      } else if (error instanceof ApiClientError && error.statusCode === 400) {
         showSnackbar({
           open: true,
           message: error.message,

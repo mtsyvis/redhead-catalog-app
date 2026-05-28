@@ -71,17 +71,16 @@ class SitesService {
   /**
    * Export sites as Excel with current filters. Returns metadata from response headers.
    */
-  async exportSites(params: SitesQueryParams): Promise<ExportMetadata> {
+  async exportSites(payload: ExportSitesPayload): Promise<ExportMetadata> {
     const response = await fetch('/api/export/sites.xlsx', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filters: params } satisfies ExportSitesPayload),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Export failed' }));
-      throw new Error((error as { error?: string }).error || 'Export failed');
+      throw new Error(await readExportErrorMessage(response, 'Export failed'));
     }
 
     const metadata = readExportMetadata(response.headers);
@@ -113,8 +112,7 @@ class SitesService {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Export failed' }));
-      throw new Error((error as { detail?: string }).detail || 'Export failed');
+      throw new Error(await readExportErrorMessage(response, 'Export failed'));
     }
 
     const metadata = readExportMetadata(response.headers);
@@ -156,4 +154,31 @@ function readExportMetadata(headers: Headers): ExportMetadata {
       ? parseInt(headers.get('X-Export-Limit-Rows')!, 10)
       : undefined,
   };
+}
+
+async function readExportErrorMessage(response: Response, fallback: string): Promise<string> {
+  const error = (await response.json().catch(() => null)) as {
+    error?: string;
+    message?: string;
+    detail?: string;
+    title?: string;
+    errors?: string[] | Record<string, string[]>;
+  } | null;
+
+  if (!error) {
+    return response.statusText || fallback;
+  }
+
+  if (Array.isArray(error.errors) && error.errors.length > 0) {
+    return error.errors.join(' ');
+  }
+
+  if (error.errors && typeof error.errors === 'object') {
+    const messages = Object.values(error.errors).flat();
+    if (messages.length > 0) {
+      return messages.join(' ');
+    }
+  }
+
+  return error.error || error.message || error.detail || error.title || response.statusText || fallback;
 }

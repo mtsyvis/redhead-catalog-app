@@ -190,6 +190,7 @@ export interface MultiSearchResponse {
 export interface ExportMultiSearchPayload {
   searchText: string;
   filters: SitesQueryParams;
+  visibleColumnKeys: string[];
 }
 
 /**
@@ -197,6 +198,7 @@ export interface ExportMultiSearchPayload {
  */
 export interface ExportSitesPayload {
   filters: SitesQueryParams;
+  visibleColumnKeys: string[];
 }
 
 /**
@@ -205,6 +207,7 @@ export interface ExportSitesPayload {
 export interface GoogleDriveExportPayload {
   filters: SitesQueryParams;
   searchText?: string;
+  visibleColumnKeys: string[];
 }
 
 /**

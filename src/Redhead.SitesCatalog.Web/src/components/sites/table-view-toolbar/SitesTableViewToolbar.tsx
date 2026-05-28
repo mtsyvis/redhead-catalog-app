@@ -33,12 +33,18 @@ import { SitesHiddenFiltersPopover } from './SitesHiddenFiltersPopover';
 import { SitesToolbarPill } from './SitesToolbarPill';
 import { SitesViewSelectorMenu, SitesViewOverflowMenu } from './SitesTableViewMenus';
 import { SitesViewChangesPopover } from './SitesViewChangesPopover';
+import { SitesExportMenu } from '../export/SitesExportMenu';
 
 export function SitesTableViewToolbar({
   tableViews,
   hiddenFilteredColumns,
+  canExport,
+  exporting,
+  loading,
   onShowFilteredColumns,
   onClearHiddenFilters,
+  onDownloadExcel,
+  onSaveToGoogleDrive,
   onSuccess,
   onError,
 }: SitesTableViewToolbarProps) {
@@ -473,6 +479,15 @@ export function SitesTableViewToolbar({
         )}
 
         <Box sx={{ flexGrow: 1 }} />
+
+        {canExport && (
+          <SitesExportMenu
+            exporting={exporting}
+            loading={loading}
+            onDownloadExcel={onDownloadExcel}
+            onSaveToGoogleDrive={onSaveToGoogleDrive}
+          />
+        )}
 
         <Tooltip title="More view options">
           <span>

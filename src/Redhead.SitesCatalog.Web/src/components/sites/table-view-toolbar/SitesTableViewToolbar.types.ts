@@ -16,8 +16,13 @@ export interface NameDialogState {
 export interface SitesTableViewToolbarProps {
   tableViews: SitesTableViewsState;
   hiddenFilteredColumns: SitesColumnMetadata[];
+  canExport: boolean;
+  exporting: boolean;
+  loading: boolean;
   onShowFilteredColumns: () => void;
   onClearHiddenFilters: () => void;
+  onDownloadExcel: () => void;
+  onSaveToGoogleDrive: () => void;
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
 }

@@ -576,6 +576,7 @@ Rules:
 * If export is truncated by limit, the user must be informed.
 * Disabled export must be enforced by backend, not only by hiding the button.
 * The Sites export UI offers both `Download Excel` and `Save to Google Drive`.
+* On `/sites`, export actions live in the Sites table toolbar so they are tied to the current table view, visible columns, search, filters, and sorting.
 * The existing Excel download export must remain available and unchanged when Google Drive is not connected or unavailable.
 
 ### Google Drive export connection

@@ -18,7 +18,6 @@ import type {
 import { PageShell } from '../components/layout/PageShell';
 import { SitesFilters } from '../components/sites/filters/SitesFilters';
 import { EditSiteDialog } from '../components/sites/dialogs/EditSiteDialog';
-import { SitesExportMenu } from '../components/sites/export/SitesExportMenu';
 import { GoogleDriveConnectionDialog } from '../components/sites/dialogs/GoogleDriveConnectionDialog';
 import { SitesTableViewToolbar } from '../components/sites/table-view-toolbar/SitesTableViewToolbar';
 import { SitesSnackbar } from '../components/sites/feedback/SitesSnackbar';
@@ -262,6 +261,7 @@ export function Sites() {
     buildSitesQueryParams,
     multiSearchResult,
     searchText: filters.search,
+    visibleColumnKeys: tableViews.visibleColumnIds,
     showSnackbar: setSnackbar,
   });
 
@@ -502,16 +502,8 @@ export function Sites() {
   return (
     <PageShell maxWidth="xl">
       <Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box sx={{ mb: 2 }}>
           <Typography variant="h4">Sites Catalog</Typography>
-          {canExport && (
-            <SitesExportMenu
-              exporting={exporting}
-              loading={loading}
-              onDownloadExcel={handleDownloadExport}
-              onSaveToGoogleDrive={handleSaveToGoogleDrive}
-            />
-          )}
         </Box>
 
         <SitesFilters
@@ -555,8 +547,13 @@ export function Sites() {
           <SitesTableViewToolbar
             tableViews={tableViews}
             hiddenFilteredColumns={hiddenFilteredColumns}
+            canExport={canExport}
+            exporting={exporting}
+            loading={loading || tableViews.loading}
             onShowFilteredColumns={handleShowFilteredColumns}
             onClearHiddenFilters={handleClearHiddenFilters}
+            onDownloadExcel={handleDownloadExport}
+            onSaveToGoogleDrive={handleSaveToGoogleDrive}
             onSuccess={(message) => setSnackbar({ open: true, message, severity: 'success' })}
             onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
           />
