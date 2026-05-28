@@ -15,6 +15,7 @@ public interface IExportService
         string userId,
         string userEmail,
         string userRole,
+        IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -27,5 +28,6 @@ public interface IExportService
         string userId,
         string userEmail,
         string userRole,
+        IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken = default);
 }

@@ -14,6 +14,7 @@ using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Tests;
 
 namespace Redhead.SitesCatalog.Tests.Application.Integrations.GoogleDrive;
 
@@ -118,6 +119,48 @@ public sealed class GoogleDriveExportServiceTests
         var connection = await db.GoogleDriveConnections.SingleAsync();
         Assert.Equal("folder-created", connection.ExportFolderId);
         Assert.Equal("Redhead Catalog Exports", connection.ExportFolderName);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsync_UsesVisibleColumnLogicWhenUploadingWorkbook()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        SeedExportData(db, ExportLimitMode.Unlimited);
+        SeedConnection(db);
+        MemoryStream? uploadedWorkbook = null;
+        var driveClient = CreateDriveClientMock();
+        driveClient
+            .Setup(client => client.UploadFileAsync(
+                It.IsAny<string>(),
+                "folder-1",
+                ExportConstants.SitesFileName,
+                It.IsAny<Stream>(),
+                ExportConstants.ExcelContentType,
+                It.IsAny<CancellationToken>()))
+            .Returns<string, string, string, Stream, string, CancellationToken>(async (_, _, fileName, content, _, _) =>
+            {
+                uploadedWorkbook = new MemoryStream();
+                await content.CopyToAsync(uploadedWorkbook);
+                uploadedWorkbook.Position = 0;
+
+                return new GoogleDriveUploadedFile("file-1", fileName, null);
+            });
+        var sut = CreateService(db, driveClient.Object);
+
+        // Act
+        await sut.ExportSitesAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            ["traffic", "domain"],
+            CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(uploadedWorkbook);
+        var headers = XlsxTestWorkbook.ReadHeaders(uploadedWorkbook, "Sites");
+        Assert.Equal(["Traffic", "Domain"], headers);
     }
 
     [Fact]

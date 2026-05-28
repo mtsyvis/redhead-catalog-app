@@ -110,6 +110,7 @@ public class ExportController : ControllerBase
                 userContext.UserId,
                 userContext.UserEmail,
                 userContext.UserRole,
+                request.VisibleColumnKeys,
                 cancellationToken);
 
             AddExportHeaders(result);
@@ -139,6 +140,7 @@ public class ExportController : ControllerBase
                 userContext.UserId,
                 userContext.UserEmail,
                 userContext.UserRole,
+                request.VisibleColumnKeys,
                 cancellationToken);
 
             AddExportHeaders(result);
@@ -167,6 +169,7 @@ public class ExportController : ControllerBase
             userContext.UserId,
             userContext.UserEmail,
             userContext.UserRole,
+            request.VisibleColumnKeys,
             cancellationToken);
     }
 
@@ -183,6 +186,7 @@ public class ExportController : ControllerBase
             userContext.UserId,
             userContext.UserEmail,
             userContext.UserRole,
+            request.VisibleColumnKeys,
             cancellationToken);
     }
 

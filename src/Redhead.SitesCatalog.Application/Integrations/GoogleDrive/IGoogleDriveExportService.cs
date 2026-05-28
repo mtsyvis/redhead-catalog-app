@@ -9,6 +9,7 @@ public interface IGoogleDriveExportService
         string userId,
         string userEmail,
         string userRole,
+        IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken);
 
     Task<GoogleDriveExportResponse> ExportMultiSearchAsync(
@@ -17,5 +18,6 @@ public interface IGoogleDriveExportService
         string userId,
         string userEmail,
         string userRole,
+        IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken);
 }

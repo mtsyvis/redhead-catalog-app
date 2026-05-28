@@ -775,9 +775,204 @@ public class ExportServiceTests : IDisposable
                 "DF Links",
                 "Sponsored Tag",
                 "Term",
-                "Language"
+                "Language",
+                "Status",
+                "Last Published"
             ],
             headers);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientRole_ExportsOnlyRequestedClientAllowedVisibleColumns()
+    {
+        // Arrange
+        var visibleColumnKeys = new[] { "domain", "priceUsd", "isQuarantined" };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var headers = await ReadSitesSheetHeaderFromStream(result.FileStream);
+        Assert.Equal(["Domain", "Price USD", "Status"], headers);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientRole_WhenInternalOnlyColumnRequested_ThrowsValidationError()
+    {
+        // Arrange
+        var visibleColumnKeys = new[] { "domain", "quarantineReason" };
+
+        // Act
+        var act = () => _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var ex = await Assert.ThrowsAsync<RequestValidationException>(act);
+        Assert.Contains("quarantineReason", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_InternalRole_CanExportInternalAllowedColumns()
+    {
+        // Arrange
+        var visibleColumnKeys = new[] { "domain", "quarantineReason" };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Internal,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var headers = await ReadSitesSheetHeaderFromStream(result.FileStream);
+        Assert.Equal(["Domain", "Quarantine reason"], headers);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WhenUnknownColumnKeyRequested_ThrowsValidationError()
+    {
+        // Arrange
+        var visibleColumnKeys = new[] { "domain", "unknownColumn" };
+
+        // Act
+        var act = () => _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var ex = await Assert.ThrowsAsync<RequestValidationException>(act);
+        Assert.Contains("Unknown export column key", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("unknownColumn", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WhenDuplicateColumnKeyRequested_ExportsDistinctColumnsInFirstSeenOrder()
+    {
+        // Arrange
+        var visibleColumnKeys = new[] { "domain", "traffic", "traffic", "dr" };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var headers = await ReadSitesSheetHeaderFromStream(result.FileStream);
+        Assert.Equal(["Domain", "Traffic", "DR"], headers);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WhenVisibleColumnKeysEmpty_ThrowsValidationError()
+    {
+        // Arrange
+        var visibleColumnKeys = Array.Empty<string>();
+
+        // Act
+        var act = () => _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var ex = await Assert.ThrowsAsync<RequestValidationException>(act);
+        Assert.Contains("At least one visible column key is required", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_HeadersMatchRequestedVisibleColumnOrder()
+    {
+        // Arrange
+        var visibleColumnKeys = new[] { "traffic", "domain", "lastPublishedDate", "dr" };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var headers = await ReadSitesSheetHeaderFromStream(result.FileStream);
+        Assert.Equal(["Traffic", "Domain", "Last Published", "DR"], headers);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_HiddenColumnsAreNotExported()
+    {
+        // Arrange
+        var visibleColumnKeys = new[] { "domain", "traffic" };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var headers = await ReadSitesSheetHeaderFromStream(result.FileStream);
+        Assert.Equal(["Domain", "Traffic"], headers);
+        Assert.DoesNotContain("Price USD", headers);
+        Assert.DoesNotContain("DR", headers);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithVisibleColumns_PreservesSearchFilterAndSort()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            Search = "com",
+            DrMin = 60,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.DR,
+            SortDir = SortingDefaults.Descending,
+            Quarantine = QuarantineFilterValues.All
+        };
+        var visibleColumnKeys = new[] { "domain", "dr" };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        Assert.Equal(["gambling.com", "test.com"], rows.Select(row => row["Domain"]).ToArray());
     }
 
     [Fact]
@@ -810,10 +1005,8 @@ public class ExportServiceTests : IDisposable
                 "Term",
                 "Language",
                 "Status",
-                "Quarantine reason",
                 "Last Published",
-                "CreatedAtUtc (Internal)",
-                "UpdatedAtUtc (Internal)"
+                "Quarantine reason"
             ],
             headers);
     }

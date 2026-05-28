@@ -559,10 +559,13 @@ Exports produce Excel `.xlsx` files from the current catalog context.
 Rules:
 
 * Export respects current filters, search, sorting where supported, and multi-search mode.
-* Export includes all user-visible site data needed for business use.
+* Export includes only the Sites table columns currently visible in the UI, including unsaved column visibility/order changes.
+* Export column order must match the current Sites table visible column order.
 * Export column names should match the Sites UI table where a matching UI column exists.
 * Export values should match Sites UI display formatting where practical, including `Last Published` display values.
-* Export-only internal columns should be clearly labeled with `(Internal)`.
+* The backend must validate requested export column keys and reject unknown, blank, UI-only/action, non-exportable, or role-forbidden columns.
+* Duplicate requested export column keys are normalized to the first occurrence.
+* Client-role users must not be able to export internal-only columns by manually editing export requests.
 * Export workbooks should remain editable to the right of exported site columns in spreadsheet tools.
 * Export workbooks include a `Sites` sheet and an `Export info` sheet.
 * Export workbooks include a `Not found` sheet only for multi-search exports that have not-found domains included by the export rules.

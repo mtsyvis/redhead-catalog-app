@@ -12,4 +12,6 @@ public sealed class GoogleDriveExportRequest
     public SitesQueryRequest? Filters { get; set; }
 
     public string? SearchText { get; set; }
+
+    public List<string> VisibleColumnKeys { get; set; } = new();
 }

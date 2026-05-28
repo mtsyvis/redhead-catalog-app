@@ -16,4 +16,9 @@ public sealed class ExportMultiSearchRequest
     /// Current list filters (same semantics as Sites list). Search is taken from SearchText, not Filters.
     /// </summary>
     public SitesQueryRequest? Filters { get; set; }
+
+    /// <summary>
+    /// Current UI-visible Sites table column keys in display order.
+    /// </summary>
+    public List<string> VisibleColumnKeys { get; set; } = new();
 }

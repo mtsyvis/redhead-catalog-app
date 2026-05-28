@@ -36,6 +36,7 @@ public sealed class ExportControllerTests
                 "user-1",
                 "user@example.com",
                 AppRoles.Admin,
+                It.IsAny<IReadOnlyList<string>>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(GoogleDriveExportException.NotConnected());
         var controller = CreateController(googleDriveExportService: googleDriveExportService.Object);
@@ -60,6 +61,7 @@ public sealed class ExportControllerTests
                 "user-1",
                 "user@example.com",
                 AppRoles.Admin,
+                It.Is<IReadOnlyList<string>>(keys => keys.SequenceEqual(new[] { "domain", "traffic" })),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GoogleDriveExportResponse(
                 "file-1",
@@ -78,7 +80,8 @@ public sealed class ExportControllerTests
             {
                 SortBy = "domain",
                 SortDir = "asc"
-            }
+            },
+            VisibleColumnKeys = ["domain", "traffic"]
         };
 
         var result = await controller.ExportSitesToGoogleDrive(request, CancellationToken.None);
@@ -92,6 +95,7 @@ public sealed class ExportControllerTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<string>(),
+                It.IsAny<IReadOnlyList<string>>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
     }

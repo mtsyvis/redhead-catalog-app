@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Domain;
@@ -16,51 +15,6 @@ namespace Redhead.SitesCatalog.Application.Services;
 /// </summary>
 public class ExportService : IExportService
 {
-    private static readonly string[] ClientExportHeaders =
-    [
-        "Domain",
-        "DR",
-        "Traffic",
-        "Location",
-        "Price USD",
-        "Casino",
-        "Crypto",
-        "Link Insert",
-        "Link Insert Casino",
-        "Dating",
-        "Niche",
-        "Categories",
-        "DF Links",
-        "Sponsored Tag",
-        "Term",
-        "Language",
-    ];
-
-    private static readonly string[] NonClientExportHeaders =
-    [
-        "Domain",
-        "DR",
-        "Traffic",
-        "Location",
-        "Price USD",
-        "Casino",
-        "Crypto",
-        "Link Insert",
-        "Link Insert Casino",
-        "Dating",
-        "Niche",
-        "Categories",
-        "DF Links",
-        "Sponsored Tag",
-        "Term",
-        "Language",
-        "Status",
-        "Quarantine reason",
-        "Last Published",
-        "CreatedAtUtc (Internal)",
-        "UpdatedAtUtc (Internal)"
-    ];
-
     private readonly ApplicationDbContext _context;
     private readonly ISitesQueryBuilder _queryBuilder;
     private readonly IEffectiveExportPolicyService _effectiveExportPolicyService;
@@ -80,8 +34,10 @@ public class ExportService : IExportService
         string userId,
         string userEmail,
         string userRole,
+        IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken = default)
     {
+        var exportColumns = SitesExportColumnRegistry.ValidateRequestedColumns(visibleColumnKeys, userRole);
         var policy = await _effectiveExportPolicyService.GetEffectivePolicyAsync(
             userId,
             userRole,
@@ -103,13 +59,12 @@ public class ExportService : IExportService
 
         var sites = await sitesQuery.ToListAsync(cancellationToken);
 
-        var isClientRole = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
         var exportedRows = sites.Count;
         var truncated = policy.Mode == ExportLimitMode.Limited && requestedRows > exportedRows;
         var stream = CreateWorkbook(
             sites,
             notFoundDomains: [],
-            isClientRole,
+            exportColumns,
             userEmail,
             userRole,
             query,
@@ -129,14 +84,30 @@ public class ExportService : IExportService
             LimitRows: policy.Mode == ExportLimitMode.Limited ? policy.Rows : null);
     }
 
+    public Task<ExportResult> ExportSitesAsExcelAsync(
+        SitesQuery query,
+        string userId,
+        string userEmail,
+        string userRole,
+        CancellationToken cancellationToken = default)
+        => ExportSitesAsExcelAsync(
+            query,
+            userId,
+            userEmail,
+            userRole,
+            SitesExportColumnRegistry.GetDefaultColumnKeysForRole(userRole),
+            cancellationToken);
+
     public async Task<ExportResult> ExportMultiSearchAsExcelAsync(
         string searchText,
         SitesQuery query,
         string userId,
         string userEmail,
         string userRole,
+        IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken = default)
     {
+        var exportColumns = SitesExportColumnRegistry.ValidateRequestedColumns(visibleColumnKeys, userRole);
         if (query.StopListDomains is { Count: > 0 })
         {
             throw new RequestValidationException(StopListConstants.MultiSearchNotSupportedMessage);
@@ -197,7 +168,7 @@ public class ExportService : IExportService
         var stream = CreateWorkbook(
             sites,
             includeNotFound ? notFound : [],
-            isClientRole,
+            exportColumns,
             userEmail,
             userRole,
             query,
@@ -223,6 +194,22 @@ public class ExportService : IExportService
             Truncated: truncated,
             LimitRows: policy.Mode == ExportLimitMode.Limited ? policy.Rows : null);
     }
+
+    public Task<ExportResult> ExportMultiSearchAsExcelAsync(
+        string searchText,
+        SitesQuery query,
+        string userId,
+        string userEmail,
+        string userRole,
+        CancellationToken cancellationToken = default)
+        => ExportMultiSearchAsExcelAsync(
+            searchText,
+            query,
+            userId,
+            userEmail,
+            userRole,
+            SitesExportColumnRegistry.GetDefaultColumnKeysForRole(userRole),
+            cancellationToken);
 
     private async Task LogExportAsync(
         string userId,
@@ -302,15 +289,10 @@ public class ExportService : IExportService
         return false;
     }
 
-    private static string[] GetHeaders(bool isClientRole)
-    {
-        return isClientRole ? ClientExportHeaders : NonClientExportHeaders;
-    }
-
     private static MemoryStream CreateWorkbook(
         IReadOnlyList<Site> sites,
         IReadOnlyList<string> notFoundDomains,
-        bool isClientRole,
+        IReadOnlyList<SitesExportColumnDefinition> siteColumns,
         string userEmail,
         string userRole,
         SitesQuery query,
@@ -320,14 +302,13 @@ public class ExportService : IExportService
         int? limitRows,
         bool notFoundIncluded)
     {
-        var siteHeaders = GetHeaders(isClientRole);
         var sheets = new List<XlsxSheet>
         {
             new(
                 "Sites",
-                siteHeaders,
-                sites.Select(site => CreateSiteRow(site, isClientRole)).ToList(),
-                GetSiteColumnWidths(isClientRole))
+                siteColumns.Select(column => column.Header).ToArray(),
+                sites.Select(site => CreateSiteRow(site, siteColumns)).ToList(),
+                siteColumns.Select(column => column.Width).ToArray())
         };
 
         if (notFoundDomains.Count > 0)
@@ -359,93 +340,10 @@ public class ExportService : IExportService
         return XlsxWorkbookWriter.CreateWorkbook(sheets);
     }
 
-    private static IReadOnlyList<XlsxCell> CreateSiteRow(Site site, bool isClientRole)
-    {
-        var row = new List<XlsxCell>
-        {
-            XlsxCell.Text(site.Domain),
-            XlsxCell.Number(Convert.ToDecimal(site.DR, CultureInfo.InvariantCulture), XlsxCellStyle.Integer),
-            XlsxCell.Number(site.Traffic, XlsxCellStyle.Integer),
-            XlsxCell.Text(LocationDisplayFormatter.Format(site.LocationKey, site.CanonicalLocation?.DisplayName, site.Location)),
-            XlsxCell.Number(site.PriceUsd, XlsxCellStyle.Decimal),
-            FormatOptionalService(site.PriceCasino, site.PriceCasinoStatus),
-            FormatOptionalService(site.PriceCrypto, site.PriceCryptoStatus),
-            FormatOptionalService(site.PriceLinkInsert, site.PriceLinkInsertStatus),
-            FormatOptionalService(site.PriceLinkInsertCasino, site.PriceLinkInsertCasinoStatus),
-            FormatOptionalService(site.PriceDating, site.PriceDatingStatus),
-            XlsxCell.Text(site.Niche),
-            XlsxCell.Text(site.Categories),
-            XlsxCell.Number(site.NumberDFLinks, XlsxCellStyle.Integer),
-            XlsxCell.Text(site.SponsoredTag),
-            XlsxCell.Text(FormatTerm(site.TermType, site.TermValue, site.TermUnit)),
-            XlsxCell.Text(FormatLanguage(site.Language))
-        };
-
-        if (isClientRole)
-        {
-            return row;
-        }
-
-        row.Add(XlsxCell.Text(site.IsQuarantined ? "Unavailable" : "Available"));
-        row.Add(XlsxCell.Text(site.QuarantineReason));
-        row.Add(XlsxCell.Text(FormatLastPublishedDate(site)));
-        row.Add(XlsxCell.DateTime(site.CreatedAtUtc));
-        row.Add(XlsxCell.DateTime(site.UpdatedAtUtc));
-        return row;
-    }
-
-    private static string FormatLastPublishedDate(Site site)
-    {
-        if (!site.LastPublishedDate.HasValue)
-        {
-            return "Before January 2026";
-        }
-
-        return site.LastPublishedDateIsMonthOnly
-            ? site.LastPublishedDate.Value.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
-            : site.LastPublishedDate.Value.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
-    }
-
-    private static XlsxCell FormatOptionalService(decimal? price, ServiceAvailabilityStatus status)
-    {
-        return status switch
-        {
-            ServiceAvailabilityStatus.Available when price.HasValue => XlsxCell.Number(price, XlsxCellStyle.Decimal),
-            ServiceAvailabilityStatus.AvailableWithUnknownPrice => XlsxCell.Text("YES"),
-            ServiceAvailabilityStatus.NotAvailable => XlsxCell.Text("NO"),
-            _ => XlsxCell.Blank()
-        };
-    }
-
-    private static IReadOnlyList<double> GetSiteColumnWidths(bool isClientRole)
-    {
-        var widths = new List<double>
-        {
-            28,
-            8,
-            14,
-            14,
-            12,
-            16,
-            16,
-            18,
-            24,
-            16,
-            20,
-            28,
-            16,
-            16,
-            16,
-            14
-        };
-
-        if (!isClientRole)
-        {
-            widths.AddRange([14, 28, 24, 28, 28]);
-        }
-
-        return widths;
-    }
+    private static IReadOnlyList<XlsxCell> CreateSiteRow(
+        Site site,
+        IReadOnlyList<SitesExportColumnDefinition> siteColumns)
+        => siteColumns.Select(column => column.CreateCell(site)).ToList();
 
     private static IReadOnlyList<IReadOnlyList<XlsxCell>> CreateExportInfoRows(
         string userEmail,
@@ -511,26 +409,4 @@ public class ExportService : IExportService
             query.LastPublishedToExclusive
         };
 
-    private static string FormatTerm(TermType? termType, int? termValue, TermUnit? termUnit)
-    {
-        if (termType is null)
-        {
-            return string.Empty;
-        }
-
-        if (termType == TermType.Permanent)
-        {
-            return "permanent";
-        }
-
-        if (termType == TermType.Finite && termValue.HasValue && termUnit == TermUnit.Year)
-        {
-            return termValue.Value == 1 ? "1 year" : $"{termValue.Value} years";
-        }
-
-        return string.Empty;
-    }
-
-    private static string FormatLanguage(string? language)
-        => language ?? LanguageNormalizer.Unknown;
 }

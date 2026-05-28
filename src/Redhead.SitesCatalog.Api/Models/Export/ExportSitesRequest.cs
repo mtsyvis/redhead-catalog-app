@@ -11,5 +11,9 @@ public sealed class ExportSitesRequest
     /// Current list filters, sorting, and search context.
     /// </summary>
     public SitesQueryRequest? Filters { get; set; }
-}
 
+    /// <summary>
+    /// Current UI-visible Sites table column keys in display order.
+    /// </summary>
+    public List<string> VisibleColumnKeys { get; set; } = new();
+}

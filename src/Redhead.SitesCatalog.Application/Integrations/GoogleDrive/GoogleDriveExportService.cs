@@ -39,6 +39,7 @@ public sealed class GoogleDriveExportService : IGoogleDriveExportService
         string userId,
         string userEmail,
         string userRole,
+        IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken)
     {
         var connection = await GetActiveConnectionAsync(userId, cancellationToken);
@@ -52,10 +53,25 @@ public sealed class GoogleDriveExportService : IGoogleDriveExportService
             userId,
             userEmail,
             userRole,
+            visibleColumnKeys,
             cancellationToken);
 
         return await UploadExportAsync(connection, export, cancellationToken);
     }
+
+    public Task<GoogleDriveExportResponse> ExportSitesAsync(
+        SitesQuery query,
+        string userId,
+        string userEmail,
+        string userRole,
+        CancellationToken cancellationToken)
+        => ExportSitesAsync(
+            query,
+            userId,
+            userEmail,
+            userRole,
+            SitesExportColumnRegistry.GetDefaultColumnKeysForRole(userRole),
+            cancellationToken);
 
     public async Task<GoogleDriveExportResponse> ExportMultiSearchAsync(
         string searchText,
@@ -63,6 +79,7 @@ public sealed class GoogleDriveExportService : IGoogleDriveExportService
         string userId,
         string userEmail,
         string userRole,
+        IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken)
     {
         var connection = await GetActiveConnectionAsync(userId, cancellationToken);
@@ -77,10 +94,27 @@ public sealed class GoogleDriveExportService : IGoogleDriveExportService
             userId,
             userEmail,
             userRole,
+            visibleColumnKeys,
             cancellationToken);
 
         return await UploadExportAsync(connection, export, cancellationToken);
     }
+
+    public Task<GoogleDriveExportResponse> ExportMultiSearchAsync(
+        string searchText,
+        SitesQuery query,
+        string userId,
+        string userEmail,
+        string userRole,
+        CancellationToken cancellationToken)
+        => ExportMultiSearchAsync(
+            searchText,
+            query,
+            userId,
+            userEmail,
+            userRole,
+            SitesExportColumnRegistry.GetDefaultColumnKeysForRole(userRole),
+            cancellationToken);
 
     private async Task<GoogleDriveExportResponse> UploadExportAsync(
         GoogleDriveConnection connection,
