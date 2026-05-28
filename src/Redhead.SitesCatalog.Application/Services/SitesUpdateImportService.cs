@@ -116,6 +116,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
         var sitesByDomain = await LoadSitesByDomainAsync(updateCandidatesByDomain.Keys.ToList(), cancellationToken);
         var now = DateTime.UtcNow;
+        var auditUser = AuditUserFormatter.Format(userEmail);
 
         foreach (var (domain, candidates) in updateCandidatesByDomain)
         {
@@ -138,6 +139,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
             SitesUpdateImportApplier.Apply(site, update);
             site.UpdatedAtUtc = now;
+            site.UpdatedBy = auditUser;
             result.UpdatedCount++;
 
             var warning = CreateLocationWarning(update);

@@ -85,6 +85,8 @@ public class SitesService : ISitesService
                 QuarantineUpdatedAtUtc = s.QuarantineUpdatedAtUtc,
                 CreatedAtUtc = s.CreatedAtUtc,
                 UpdatedAtUtc = s.UpdatedAtUtc,
+                CreatedBy = s.CreatedBy,
+                UpdatedBy = s.UpdatedBy,
                 LastPublishedDate = s.LastPublishedDate,
                 LastPublishedDateIsMonthOnly = s.LastPublishedDateIsMonthOnly
             })
@@ -227,6 +229,8 @@ public class SitesService : ISitesService
                 QuarantineUpdatedAtUtc = s.QuarantineUpdatedAtUtc,
                 CreatedAtUtc = s.CreatedAtUtc,
                 UpdatedAtUtc = s.UpdatedAtUtc,
+                CreatedBy = s.CreatedBy,
+                UpdatedBy = s.UpdatedBy,
                 LastPublishedDate = s.LastPublishedDate,
                 LastPublishedDateIsMonthOnly = s.LastPublishedDateIsMonthOnly
             })
@@ -243,7 +247,11 @@ public class SitesService : ISitesService
         };
     }
 
-    public async Task<SiteDto?> UpdateSiteAsync(string domain, UpdateSiteRequest request, CancellationToken cancellationToken = default)
+    public async Task<SiteDto?> UpdateSiteAsync(
+        string domain,
+        UpdateSiteRequest request,
+        string? userEmail,
+        CancellationToken cancellationToken = default)
     {
         var normalized = DomainNormalizer.Normalize(domain);
         if (string.IsNullOrEmpty(normalized))
@@ -288,6 +296,7 @@ public class SitesService : ISitesService
         site.QuarantineReason = request.IsQuarantined ? request.QuarantineReason : null;
         site.QuarantineUpdatedAtUtc = request.IsQuarantined ? now : null;
         site.UpdatedAtUtc = now;
+        site.UpdatedBy = AuditUserFormatter.Format(userEmail);
         await _context.SaveChangesAsync(cancellationToken);
         _nicheFilterOptionsCache.Invalidate();
 
@@ -323,6 +332,8 @@ public class SitesService : ISitesService
             QuarantineUpdatedAtUtc = site.QuarantineUpdatedAtUtc,
             CreatedAtUtc = site.CreatedAtUtc,
             UpdatedAtUtc = site.UpdatedAtUtc,
+            CreatedBy = site.CreatedBy,
+            UpdatedBy = site.UpdatedBy,
             LastPublishedDate = site.LastPublishedDate,
             LastPublishedDateIsMonthOnly = site.LastPublishedDateIsMonthOnly
         };

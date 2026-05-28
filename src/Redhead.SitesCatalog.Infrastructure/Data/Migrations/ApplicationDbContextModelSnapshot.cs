@@ -556,6 +556,10 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
                     b.Property<double>("DR")
                         .HasColumnType("double precision");
 
@@ -673,6 +677,10 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
 
                     b.HasKey("Domain");
 

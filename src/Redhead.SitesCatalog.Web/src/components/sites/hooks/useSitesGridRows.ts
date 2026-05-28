@@ -100,6 +100,12 @@ function compareOptionalServicePrice(a: Site, b: Site, field: keyof Site, dir: '
   return priceDiff === 0 ? a.domain.localeCompare(b.domain) : priceDiff;
 }
 
+function getSortValue(site: Site, field: string): Site[keyof Site] | undefined {
+  if (field === 'createdAt') return site.createdAtUtc;
+  if (field === 'updatedAt') return site.updatedAtUtc;
+  return site[field as keyof Site];
+}
+
 export function useSitesGridRows({
   sites,
   total,
@@ -123,8 +129,8 @@ export function useSitesGridRows({
         return compareOptionalServicePrice(a, b, field as keyof Site, dir);
       }
 
-      const av = a[field as keyof Site];
-      const bv = b[field as keyof Site];
+      const av = getSortValue(a, field);
+      const bv = getSortValue(b, field);
       if (av == null && bv == null) return 0;
       if (av == null) return dir === 'asc' ? 1 : -1;
       if (bv == null) return dir === 'asc' ? -1 : 1;

@@ -89,6 +89,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(["tech"], first.NicheTokens);
         Assert.Equal("News", first.Categories);
         Assert.Equal("Sponsored", first.SponsoredTag);
+        Assert.Equal(UserEmail, first.UpdatedBy);
 
         var second = await GetSiteAsync("second.com");
         Assert.Equal(42, second.DR);

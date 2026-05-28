@@ -37,7 +37,11 @@ internal static class SitesExportColumnRegistry
         Exportable("language", "Language", site => XlsxCell.Text(FormatLanguage(site.Language)), 14),
         Exportable("isQuarantined", "Status", site => XlsxCell.Text(site.IsQuarantined ? "Unavailable" : "Available"), 14),
         Exportable("lastPublishedDate", "Last Published", site => XlsxCell.Text(FormatLastPublishedDate(site)), 24),
+        Exportable("createdAt", "Created Date", site => XlsxCell.Text(FormatAuditDate(site.CreatedAtUtc)), 16),
         Exportable("quarantineReason", "Quarantine reason", site => XlsxCell.Text(site.QuarantineReason), 28, NonClientOnly),
+        Exportable("updatedAt", "Updated Date", site => XlsxCell.Text(FormatAuditDate(site.UpdatedAtUtc)), 16, NonClientOnly),
+        Exportable("createdBy", "Created By", site => XlsxCell.Text(AuditUserFormatter.Format(site.CreatedBy)), 28, NonClientOnly),
+        Exportable("updatedBy", "Updated By", site => XlsxCell.Text(AuditUserFormatter.Format(site.UpdatedBy)), 28, NonClientOnly),
         NonExportable("actions", "Actions")
     ];
 
@@ -122,6 +126,11 @@ internal static class SitesExportColumnRegistry
             ? site.LastPublishedDate.Value.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
             : site.LastPublishedDate.Value.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     }
+
+    private static string FormatAuditDate(DateTime? value)
+        => value.HasValue
+            ? value.Value.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)
+            : "—";
 
     private static XlsxCell FormatOptionalService(decimal? price, ServiceAvailabilityStatus status)
     {

@@ -45,5 +45,5 @@ public interface ISitesService
     /// <param name="request">Validated update request (all required fields present)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated site DTO or null if not found</returns>
-    Task<SiteDto?> UpdateSiteAsync(string domain, UpdateSiteRequest request, CancellationToken cancellationToken = default);
+    Task<SiteDto?> UpdateSiteAsync(string domain, UpdateSiteRequest request, string? userEmail, CancellationToken cancellationToken = default);
 }

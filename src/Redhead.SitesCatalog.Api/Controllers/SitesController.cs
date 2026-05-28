@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Mappers;
@@ -37,7 +38,7 @@ public class SitesController : ControllerBase
         var query = SitesMapper.ToQuery(request);
 
         var result = await _sitesService.GetSitesAsync(query, cancellationToken);
-        var response = SitesMapper.ToResponse(result);
+        var response = SitesMapper.ToResponse(result, includeInternalFields: CanViewInternalSiteFields());
 
         return Ok(response);
     }
@@ -75,7 +76,7 @@ public class SitesController : ControllerBase
 
         var response = new MultiSearchResponse
         {
-            Found = result.Found.Select(SitesMapper.ToSiteResponse).ToList(),
+            Found = result.Found.Select(site => SitesMapper.ToSiteResponse(site, CanViewInternalSiteFields())).ToList(),
             NotFound = result.NotFound,
             Duplicates = result.Duplicates
         };
@@ -193,7 +194,11 @@ public class SitesController : ControllerBase
             });
         }
 
-        var updated = await _sitesService.UpdateSiteAsync(domain, validationResult.NormalizedRequest!, cancellationToken);
+        var updated = await _sitesService.UpdateSiteAsync(
+            domain,
+            validationResult.NormalizedRequest!,
+            HttpContext?.User?.FindFirstValue(ClaimTypes.Email),
+            cancellationToken);
 
         if (updated == null)
         {
@@ -202,4 +207,7 @@ public class SitesController : ControllerBase
 
         return Ok(SitesMapper.ToSiteResponse(updated));
     }
+
+    private bool CanViewInternalSiteFields()
+        => !User.IsInRole(AppRoles.Client);
 }

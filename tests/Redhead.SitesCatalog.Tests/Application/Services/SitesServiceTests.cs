@@ -14,6 +14,8 @@ namespace Redhead.SitesCatalog.Tests;
 
 public class SitesServiceTests : IDisposable
 {
+    private const string TestAuditUserEmail = "editor@test.com";
+
     private readonly ApplicationDbContext _context;
     private readonly MemoryCache _memoryCache;
     private readonly SitesService _service;
@@ -1327,6 +1329,34 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(150m, result.Items[2].PriceUsd); // crypto.com
     }
 
+    [Fact]
+    public async Task GetSitesAsync_SortByCreatedAtAsc_ReturnsSortedResults()
+    {
+        // Arrange
+        SetAuditDatesForSorting();
+        await _context.SaveChangesAsync();
+
+        // Act
+        var domains = await GetSortedDomainsAsync(SortFields.CreatedAt, SortingDefaults.Ascending);
+
+        // Assert
+        Assert.Equal(["lowdr.com", "example.com", "test.com", "crypto.com", "gambling.com"], domains);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_SortByUpdatedAtDesc_ReturnsSortedResults()
+    {
+        // Arrange
+        SetAuditDatesForSorting();
+        await _context.SaveChangesAsync();
+
+        // Act
+        var domains = await GetSortedDomainsAsync(SortFields.UpdatedAt, SortingDefaults.Descending);
+
+        // Assert
+        Assert.Equal(["gambling.com", "crypto.com", "test.com", "example.com", "lowdr.com"], domains);
+    }
+
     public static TheoryData<string, string, string[]> ServicePriceSortCases => new()
     {
         {
@@ -1891,7 +1921,7 @@ public class SitesServiceTests : IDisposable
         var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
         var request = RequestFrom(site, isQuarantined: true, "Policy violation");
 
-        var updated = await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
 
         Assert.NotNull(updated);
         Assert.True(updated.IsQuarantined);
@@ -1909,7 +1939,7 @@ public class SitesServiceTests : IDisposable
         var site = await _context.Sites.FirstAsync(s => s.Domain == "gambling.com");
         var request = RequestFrom(site, isQuarantined: false, null);
 
-        var updated = await _service.UpdateSiteAsync("gambling.com", request, CancellationToken.None);
+        var updated = await _service.UpdateSiteAsync("gambling.com", request, TestAuditUserEmail, CancellationToken.None);
 
         Assert.NotNull(updated);
         Assert.False(updated.IsQuarantined);
@@ -1927,7 +1957,7 @@ public class SitesServiceTests : IDisposable
         var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
         var request = RequestFrom(site, isQuarantined: true, "Test");
 
-        var updated = await _service.UpdateSiteAsync("HTTPS://www.Example.COM/", request, CancellationToken.None);
+        var updated = await _service.UpdateSiteAsync("HTTPS://www.Example.COM/", request, TestAuditUserEmail, CancellationToken.None);
 
         Assert.NotNull(updated);
         Assert.Equal("example.com", updated.Domain);
@@ -1950,7 +1980,7 @@ public class SitesServiceTests : IDisposable
             QuarantineReason = "X"
         };
 
-        var updated = await _service.UpdateSiteAsync("nonexistent.org", request, CancellationToken.None);
+        var updated = await _service.UpdateSiteAsync("nonexistent.org", request, TestAuditUserEmail, CancellationToken.None);
 
         Assert.Null(updated);
     }
@@ -1971,7 +2001,7 @@ public class SitesServiceTests : IDisposable
             QuarantineReason = "X"
         };
 
-        var updated = await _service.UpdateSiteAsync("  ", request, CancellationToken.None);
+        var updated = await _service.UpdateSiteAsync("  ", request, TestAuditUserEmail, CancellationToken.None);
 
         Assert.Null(updated);
     }
@@ -2007,7 +2037,7 @@ public class SitesServiceTests : IDisposable
             QuarantineReason = site.QuarantineReason
         };
 
-        var updated = await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
 
         Assert.NotNull(updated);
         Assert.Equal(60, updated.DR);
@@ -2037,6 +2067,28 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(["updated niche"], dbSite.NicheTokens);
     }
 
+    [Fact]
+    public async Task UpdateSiteAsync_WithUserEmail_SetsUpdatedBy()
+    {
+        // Arrange
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+
+        // Act
+        var updated = await _service.UpdateSiteAsync(
+            "example.com",
+            request,
+            TestAuditUserEmail,
+            CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        Assert.Equal(TestAuditUserEmail, updated.UpdatedBy);
+
+        var dbSite = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        Assert.Equal(TestAuditUserEmail, dbSite.UpdatedBy);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -2048,7 +2100,7 @@ public class SitesServiceTests : IDisposable
         var request = RequestFrom(site);
         request.Location = location ?? string.Empty;
 
-        var updated = await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
 
         Assert.NotNull(updated);
         Assert.Equal("Unknown", updated.Location);
@@ -2064,7 +2116,7 @@ public class SitesServiceTests : IDisposable
         var request = RequestFrom(site);
         request.Language = null;
 
-        var updated = await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
 
         Assert.NotNull(updated);
         Assert.Null(updated.Language);
@@ -2080,7 +2132,7 @@ public class SitesServiceTests : IDisposable
         var request = RequestFrom(site);
         request.Niche = "N/A";
 
-        var updated = await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
 
         Assert.NotNull(updated);
         Assert.Empty(updated.NicheTokens);
@@ -2099,7 +2151,7 @@ public class SitesServiceTests : IDisposable
         var request = RequestFrom(site);
         request.Niche = "Updated Cache Niche";
 
-        await _service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+        await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
 
         var after = await _service.GetNicheOptionsAsync();
         Assert.Contains(after, option => option.Value == "updated cache niche");
@@ -2114,7 +2166,7 @@ public class SitesServiceTests : IDisposable
         var request = RequestFrom(site);
         request.Niche = "Updated Cache Niche";
 
-        await service.UpdateSiteAsync("example.com", request, CancellationToken.None);
+        await service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
 
         nicheOptionsCacheMock.Verify(cache => cache.Invalidate(), Times.Once);
     }
@@ -2242,6 +2294,22 @@ public class SitesServiceTests : IDisposable
         empty.TermType = null;
         empty.TermValue = null;
         empty.TermUnit = null;
+    }
+
+    private void SetAuditDatesForSorting()
+    {
+        SetAuditDates("lowdr.com", 1);
+        SetAuditDates("example.com", 2);
+        SetAuditDates("test.com", 3);
+        SetAuditDates("crypto.com", 4);
+        SetAuditDates("gambling.com", 5);
+    }
+
+    private void SetAuditDates(string domain, int day)
+    {
+        var site = _context.Sites.Single(s => s.Domain == domain);
+        site.CreatedAtUtc = new DateTime(2025, 1, day, 0, 0, 0, DateTimeKind.Utc);
+        site.UpdatedAtUtc = new DateTime(2025, 2, day, 0, 0, 0, DateTimeKind.Utc);
     }
 
     private void SetFiniteTerm(string domain, int years)

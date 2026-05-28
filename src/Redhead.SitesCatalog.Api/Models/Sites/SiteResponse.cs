@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Api.Models.Sites;
@@ -36,7 +37,12 @@ public class SiteResponse
     public string? QuarantineReason { get; set; }
     public DateTime? QuarantineUpdatedAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public DateTime UpdatedAtUtc { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CreatedBy { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UpdatedBy { get; set; }
     public DateTime? LastPublishedDate { get; set; }
     public bool LastPublishedDateIsMonthOnly { get; set; }
 }

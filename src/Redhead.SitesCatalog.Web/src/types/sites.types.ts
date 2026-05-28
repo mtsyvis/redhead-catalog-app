@@ -30,7 +30,9 @@ export interface Site {
   isQuarantined: boolean;
   quarantineReason: string | null;
   createdAtUtc: string;
-  updatedAtUtc: string;
+  updatedAtUtc?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
   lastPublishedDate: string | null;
   lastPublishedDateIsMonthOnly: boolean;
 }

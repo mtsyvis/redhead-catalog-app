@@ -130,7 +130,9 @@ public class SitesMapperTests
             QuarantineReason = "Under review",
             QuarantineUpdatedAtUtc = new DateTime(2026, 1, 15, 10, 30, 0, DateTimeKind.Utc),
             CreatedAtUtc = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            UpdatedAtUtc = new DateTime(2026, 1, 15, 10, 30, 0, DateTimeKind.Utc)
+            UpdatedAtUtc = new DateTime(2026, 1, 15, 10, 30, 0, DateTimeKind.Utc),
+            CreatedBy = "creator@test.com",
+            UpdatedBy = "updater@test.com"
         };
 
         // Act
@@ -165,6 +167,31 @@ public class SitesMapperTests
         Assert.Equal(new DateTime(2026, 1, 15, 10, 30, 0, DateTimeKind.Utc), response.QuarantineUpdatedAtUtc);
         Assert.Equal(new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc), response.CreatedAtUtc);
         Assert.Equal(new DateTime(2026, 1, 15, 10, 30, 0, DateTimeKind.Utc), response.UpdatedAtUtc);
+        Assert.Equal("creator@test.com", response.CreatedBy);
+        Assert.Equal("updater@test.com", response.UpdatedBy);
+    }
+
+    [Fact]
+    public void ToSiteResponse_WithoutInternalFields_HidesInternalAuditFieldsButKeepsCreatedAt()
+    {
+        // Arrange
+        var dto = new SiteDto
+        {
+            Domain = "example.com",
+            CreatedAtUtc = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            UpdatedAtUtc = new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc),
+            CreatedBy = "creator@test.com",
+            UpdatedBy = "updater@test.com"
+        };
+
+        // Act
+        var response = SitesMapper.ToSiteResponse(dto, includeInternalFields: false);
+
+        // Assert
+        Assert.Equal(new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc), response.CreatedAtUtc);
+        Assert.Equal(default, response.UpdatedAtUtc);
+        Assert.Null(response.CreatedBy);
+        Assert.Null(response.UpdatedBy);
     }
 
     [Fact]

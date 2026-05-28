@@ -70,6 +70,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
         var duplicateRowsCount = 0;
         var unmatchedDomainsCount = 0;
         var now = DateTime.UtcNow;
+        var auditUser = AuditUserFormatter.Format(userEmail);
         var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
         var unmatchedRowsPayload = new UnmatchedRowsImportArtifactPayload();
         var validRowsByDomain = new Dictionary<string, List<UnmatchedImportRowRecord>>(StringComparer.Ordinal);
@@ -183,6 +184,7 @@ public sealed class LastPublishedImportService : ILastPublishedImportService
             site.LastPublishedDate = update.DateUtc;
             site.LastPublishedDateIsMonthOnly = update.IsMonthOnly;
             site.UpdatedAtUtc = now;
+            site.UpdatedBy = auditUser;
 
             result.UpdatedCount++;
         }

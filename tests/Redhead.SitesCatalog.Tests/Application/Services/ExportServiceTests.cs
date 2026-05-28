@@ -748,6 +748,37 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportSitesAsExcelAsync_AuditColumns_UseDateFormatAndSystemFallbacks()
+    {
+        // Arrange
+        var site = await _context.Sites.SingleAsync(s => s.Domain == "example.com");
+        site.CreatedAtUtc = new DateTime(2025, 4, 5, 13, 45, 0, DateTimeKind.Utc);
+        site.UpdatedAtUtc = new DateTime(2026, 6, 7, 8, 30, 0, DateTimeKind.Utc);
+        site.CreatedBy = null;
+        site.UpdatedBy = "   ";
+        await _context.SaveChangesAsync();
+
+        var visibleColumnKeys = new[] { "domain", "createdAt", "updatedAt", "createdBy", "updatedBy" };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        var row = rows.Single(row => row["Domain"] == "example.com");
+        Assert.Equal("05.04.2025", row["Created Date"]);
+        Assert.Equal("07.06.2026", row["Updated Date"]);
+        Assert.Equal("system", row["Created By"]);
+        Assert.Equal("system", row["Updated By"]);
+    }
+
+    [Fact]
     public async Task ExportSitesAsExcelAsync_WithClientRole_UsesExpectedHeaderOrder()
     {
         var result = await _service.ExportSitesAsExcelAsync(
@@ -777,7 +808,8 @@ public class ExportServiceTests : IDisposable
                 "Term",
                 "Language",
                 "Status",
-                "Last Published"
+                "Last Published",
+                "Created Date"
             ],
             headers);
     }
@@ -806,7 +838,7 @@ public class ExportServiceTests : IDisposable
     public async Task ExportSitesAsExcelAsync_ClientRole_WhenInternalOnlyColumnRequested_ThrowsValidationError()
     {
         // Arrange
-        var visibleColumnKeys = new[] { "domain", "quarantineReason" };
+        var visibleColumnKeys = new[] { "domain", "quarantineReason", "updatedAt", "createdBy", "updatedBy" };
 
         // Act
         var act = () => _service.ExportSitesAsExcelAsync(
@@ -822,11 +854,56 @@ public class ExportServiceTests : IDisposable
         Assert.Contains("quarantineReason", ex.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task ExportSitesAsExcelAsync_InternalRole_CanExportInternalAllowedColumns()
+    [Theory]
+    [InlineData("updatedAt")]
+    [InlineData("createdBy")]
+    [InlineData("updatedBy")]
+    public async Task ExportSitesAsExcelAsync_ClientRole_WhenInternalAuditColumnRequested_ThrowsValidationError(string columnKey)
     {
         // Arrange
-        var visibleColumnKeys = new[] { "domain", "quarantineReason" };
+        var visibleColumnKeys = new[] { "domain", columnKey };
+
+        // Act
+        var act = () => _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var ex = await Assert.ThrowsAsync<RequestValidationException>(act);
+        Assert.Contains(columnKey, ex.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(AppRoles.Admin)]
+    [InlineData(AppRoles.SuperAdmin)]
+    public async Task ExportSitesAsExcelAsync_AdminRoles_CanExportInternalAuditColumns(string role)
+    {
+        // Arrange
+        var visibleColumnKeys = new[] { "domain", "updatedAt", "createdBy", "updatedBy" };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            role,
+            visibleColumnKeys,
+            CancellationToken.None);
+
+        // Assert
+        var headers = await ReadSitesSheetHeaderFromStream(result.FileStream);
+        Assert.Equal(["Domain", "Updated Date", "Created By", "Updated By"], headers);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_InternalRole_CanExportQuarantineRestrictedAuditColumns()
+    {
+        // Arrange
+        var visibleColumnKeys = new[] { "domain", "quarantineReason", "updatedAt", "createdBy", "updatedBy" };
 
         // Act
         var result = await _service.ExportSitesAsExcelAsync(
@@ -839,7 +916,7 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         var headers = await ReadSitesSheetHeaderFromStream(result.FileStream);
-        Assert.Equal(["Domain", "Quarantine reason"], headers);
+        Assert.Equal(["Domain", "Quarantine reason", "Updated Date", "Created By", "Updated By"], headers);
     }
 
     [Fact]
@@ -907,7 +984,7 @@ public class ExportServiceTests : IDisposable
     public async Task ExportSitesAsExcelAsync_HeadersMatchRequestedVisibleColumnOrder()
     {
         // Arrange
-        var visibleColumnKeys = new[] { "traffic", "domain", "lastPublishedDate", "dr" };
+        var visibleColumnKeys = new[] { "traffic", "createdAt", "domain", "updatedAt", "dr" };
 
         // Act
         var result = await _service.ExportSitesAsExcelAsync(
@@ -920,7 +997,7 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         var headers = await ReadSitesSheetHeaderFromStream(result.FileStream);
-        Assert.Equal(["Traffic", "Domain", "Last Published", "DR"], headers);
+        Assert.Equal(["Traffic", "Created Date", "Domain", "Updated Date", "DR"], headers);
     }
 
     [Fact]
@@ -1006,7 +1083,11 @@ public class ExportServiceTests : IDisposable
                 "Language",
                 "Status",
                 "Last Published",
-                "Quarantine reason"
+                "Created Date",
+                "Quarantine reason",
+                "Updated Date",
+                "Created By",
+                "Updated By"
             ],
             headers);
     }

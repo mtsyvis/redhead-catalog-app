@@ -345,8 +345,8 @@ public static class ExportAnalyticsSnapshotBuilder
             SortFields.PriceDating => "priceDating",
             SortFields.NumberDFLinks => "numberDFLinks",
             SortFields.Term => "term",
-            SortFields.CreatedAt => "createdAtUtc",
-            SortFields.UpdatedAt => "updatedAtUtc",
+            SortFields.CreatedAt => "createdAt",
+            SortFields.UpdatedAt => "updatedAt",
             SortFields.LastPublishedDate => "lastPublishedDate",
             _ => SortingDefaults.DefaultSortBy
         };

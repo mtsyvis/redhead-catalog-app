@@ -90,10 +90,13 @@ public static class SitesMapper
     /// Maps application result to API response
     /// </summary>
     public static SitesListResponse ToResponse(SitesListResult result)
+        => ToResponse(result, includeInternalFields: true);
+
+    public static SitesListResponse ToResponse(SitesListResult result, bool includeInternalFields)
     {
         return new SitesListResponse
         {
-            Items = result.Items.Select(ToSiteResponse).ToList(),
+            Items = result.Items.Select(dto => ToSiteResponse(dto, includeInternalFields)).ToList(),
             Total = result.Total
         };
     }
@@ -102,6 +105,9 @@ public static class SitesMapper
     /// Maps application site DTO to API site response
     /// </summary>
     public static SiteResponse ToSiteResponse(SiteDto dto)
+        => ToSiteResponse(dto, includeInternalFields: true);
+
+    public static SiteResponse ToSiteResponse(SiteDto dto, bool includeInternalFields)
     {
         return new SiteResponse
         {
@@ -134,7 +140,9 @@ public static class SitesMapper
             QuarantineReason = dto.QuarantineReason,
             QuarantineUpdatedAtUtc = dto.QuarantineUpdatedAtUtc,
             CreatedAtUtc = dto.CreatedAtUtc,
-            UpdatedAtUtc = dto.UpdatedAtUtc,
+            UpdatedAtUtc = includeInternalFields ? dto.UpdatedAtUtc : default,
+            CreatedBy = includeInternalFields ? AuditUserFormatter.Format(dto.CreatedBy) : null,
+            UpdatedBy = includeInternalFields ? AuditUserFormatter.Format(dto.UpdatedBy) : null,
             LastPublishedDate = dto.LastPublishedDate,
             LastPublishedDateIsMonthOnly = dto.LastPublishedDateIsMonthOnly
         };

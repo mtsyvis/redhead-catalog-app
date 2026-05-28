@@ -107,7 +107,11 @@ public sealed class SitesImportService : ISitesImportService
                     duplicateRowsCount++;
                 }
 
-                parsedSitesByDomain[domain] = BuildSiteFromValidatedRow(validatedData, row.RowNumber, out var locationWarning);
+                parsedSitesByDomain[domain] = BuildSiteFromValidatedRow(
+                    validatedData,
+                    row.RowNumber,
+                    userEmail,
+                    out var locationWarning);
                 if (locationWarning is null)
                 {
                     locationWarningsByDomain.Remove(domain);
@@ -327,9 +331,11 @@ public sealed class SitesImportService : ISitesImportService
     private Site BuildSiteFromValidatedRow(
         SitesImportRowValidationHelper.ValidatedSitesRow data,
         int sourceRowNumber,
+        string? userEmail,
         out WarningImportRowRecord? locationWarning)
     {
         var now = DateTime.UtcNow;
+        var auditUser = AuditUserFormatter.Format(userEmail);
         var locationResult = _locationNormalizer.Normalize(data.Location);
         locationWarning = CreateLocationWarning(
             data.NormalizedDomain,
@@ -369,7 +375,9 @@ public sealed class SitesImportService : ISitesImportService
             QuarantineReason = null,
             QuarantineUpdatedAtUtc = null,
             CreatedAtUtc = now,
-            UpdatedAtUtc = now
+            UpdatedAtUtc = now,
+            CreatedBy = auditUser,
+            UpdatedBy = auditUser
         };
     }
 

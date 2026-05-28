@@ -43,6 +43,23 @@ function formatNullableInteger(row: GridRow, value: number | null): string {
   return formatCell(row, value, (v) => (v == null ? '—' : String(v)));
 }
 
+function formatAuditDate(row: GridRow, value: string | null | undefined): string {
+  if (isNotFoundRow(row) || !value) return '—';
+
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const year = d.getUTCFullYear();
+  return `${day}.${month}.${year}`;
+}
+
+function formatAuditUser(row: GridRow, value: string | null | undefined): string {
+  if (isNotFoundRow(row)) return '—';
+  return value?.trim() || 'system';
+}
+
 function formatLocationCell(row: GridRow, value: string | null): string {
   if (isNotFoundRow(row)) return '—';
 
@@ -239,6 +256,14 @@ export function useSitesColumns({
             return `${day}.${month}.${year}`;
           },
         },
+        {
+          ...gridColumnDefaults('createdAt', columnWidths),
+          field: 'createdAt',
+          valueFormatter: (value, row) => {
+            const site = row as Site;
+            return formatAuditDate(row, (value as string | null | undefined) ?? site.createdAtUtc);
+          },
+        },
         ...(!isClient
           ? [
               {
@@ -250,6 +275,28 @@ export function useSitesColumns({
                   const site = row as Site;
                   return site.isQuarantined ? site.quarantineReason || '—' : '—';
                 },
+              } as GridColDef<GridRow>,
+              {
+                ...gridColumnDefaults('updatedAt', columnWidths),
+                field: 'updatedAt',
+                valueFormatter: (value, row) => {
+                  const site = row as Site;
+                  return formatAuditDate(row, (value as string | null | undefined) ?? site.updatedAtUtc);
+                },
+              } as GridColDef<GridRow>,
+              {
+                ...gridColumnDefaults('createdBy', columnWidths),
+                field: 'createdBy',
+                sortable: false,
+                valueFormatter: (value, row) =>
+                  formatAuditUser(row, value as string | null | undefined),
+              } as GridColDef<GridRow>,
+              {
+                ...gridColumnDefaults('updatedBy', columnWidths),
+                field: 'updatedBy',
+                sortable: false,
+                valueFormatter: (value, row) =>
+                  formatAuditUser(row, value as string | null | undefined),
               } as GridColDef<GridRow>,
             ]
           : []),

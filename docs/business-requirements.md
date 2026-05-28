@@ -166,6 +166,8 @@ Core site fields:
 * `LastPublishedDateIsMonthOnly`
 * `CreatedAtUtc`
 * `UpdatedAtUtc`
+* `CreatedBy`
+* `UpdatedBy`
 
 ### Location
 
@@ -339,6 +341,8 @@ Rules:
 * System table views are readonly and defined by the frontend.
 * Available system table views are `Default`, `Pricing`, `SEO`, and `Full`.
 * System table views use `Standard` density by default.
+* `Created Date` is available to all users. `Updated Date`, `Created By`, and `Updated By` follow the same internal-only visibility and export restrictions as `QuarantineReason`.
+* Audit dates display and export as `DD.MM.YYYY`. Missing audit users display and export as `system`.
 * Custom table views are stored per user and per table; users can create, update, rename, duplicate, and delete custom views.
 * Custom view names must be unique per user/table ignoring case.
 * The active table view selection is stored per user/table.

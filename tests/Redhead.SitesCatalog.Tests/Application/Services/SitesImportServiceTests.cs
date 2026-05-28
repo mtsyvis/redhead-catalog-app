@@ -99,6 +99,8 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal("News", newSite.Categories);
         Assert.Equal("Sponsored", newSite.SponsoredTag);
         Assert.False(newSite.IsQuarantined);
+        Assert.Equal(UserEmail, newSite.CreatedBy);
+        Assert.Equal(UserEmail, newSite.UpdatedBy);
 
         var secondSite = await GetSiteAsync("secondsite.com");
         Assert.Equal(42, secondSite.DR);

@@ -66,6 +66,7 @@ public sealed class QuarantineImportService : IQuarantineImportService
         var duplicateRowsCount = 0;
         var unmatchedDomainsCount = 0;
         var now = DateTime.UtcNow;
+        var auditUser = AuditUserFormatter.Format(userEmail);
         var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
         var unmatchedRowsPayload = new UnmatchedRowsImportArtifactPayload();
         var validRowsByDomain = new Dictionary<string, List<UnmatchedImportRowRecord>>(StringComparer.Ordinal);
@@ -166,6 +167,7 @@ public sealed class QuarantineImportService : IQuarantineImportService
             site.QuarantineReason = update.Reason;
             site.QuarantineUpdatedAtUtc = now;
             site.UpdatedAtUtc = now;
+            site.UpdatedBy = auditUser;
 
             result.UpdatedCount++;
         }

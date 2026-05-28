@@ -171,6 +171,12 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(s => s.UpdatedAtUtc)
             .IsRequired();
 
+        builder.Property(s => s.CreatedBy)
+            .HasMaxLength(320);
+
+        builder.Property(s => s.UpdatedBy)
+            .HasMaxLength(320);
+
         builder.Property(s => s.LastPublishedDate)
             .HasColumnType("date");
 

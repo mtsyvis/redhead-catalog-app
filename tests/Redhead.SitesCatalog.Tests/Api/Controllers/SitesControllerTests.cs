@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Redhead.SitesCatalog.Api.Controllers;
@@ -117,6 +118,85 @@ public class SitesControllerTests
     }
 
     [Fact]
+    public async Task SearchSites_ClientUser_ReturnsCreatedAtAndHidesInternalAuditFields()
+    {
+        // Arrange
+        var sitesService = new Mock<ISitesService>();
+        sitesService
+            .Setup(service => service.GetSitesAsync(
+                It.IsAny<SitesQuery>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SitesListResult
+            {
+                Items =
+                [
+                    new()
+                    {
+                        Domain = "example.com",
+                        CreatedAtUtc = new DateTime(2025, 1, 2, 0, 0, 0, DateTimeKind.Utc),
+                        UpdatedAtUtc = new DateTime(2025, 2, 3, 0, 0, 0, DateTimeKind.Utc),
+                        CreatedBy = "creator@test.com",
+                        UpdatedBy = "updater@test.com"
+                    }
+                ],
+                Total = 1
+            });
+        var controller = new SitesController(sitesService.Object);
+        SetUser(controller, AppRoles.Client, "client@test.com");
+
+        // Act
+        var result = await controller.SearchSites(new SitesQueryRequest(), CancellationToken.None);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<SitesListResponse>(ok.Value);
+        var site = Assert.Single(response.Items);
+        Assert.Equal(new DateTime(2025, 1, 2, 0, 0, 0, DateTimeKind.Utc), site.CreatedAtUtc);
+        Assert.Equal(default, site.UpdatedAtUtc);
+        Assert.Null(site.CreatedBy);
+        Assert.Null(site.UpdatedBy);
+    }
+
+    [Fact]
+    public async Task SearchSites_AdminUser_ReturnsInternalAuditFields()
+    {
+        // Arrange
+        var sitesService = new Mock<ISitesService>();
+        sitesService
+            .Setup(service => service.GetSitesAsync(
+                It.IsAny<SitesQuery>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SitesListResult
+            {
+                Items =
+                [
+                    new()
+                    {
+                        Domain = "example.com",
+                        CreatedAtUtc = new DateTime(2025, 1, 2, 0, 0, 0, DateTimeKind.Utc),
+                        UpdatedAtUtc = new DateTime(2025, 2, 3, 0, 0, 0, DateTimeKind.Utc),
+                        CreatedBy = null,
+                        UpdatedBy = "updater@test.com"
+                    }
+                ],
+                Total = 1
+            });
+        var controller = new SitesController(sitesService.Object);
+        SetUser(controller, AppRoles.Admin, "admin@test.com");
+
+        // Act
+        var result = await controller.SearchSites(new SitesQueryRequest(), CancellationToken.None);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<SitesListResponse>(ok.Value);
+        var site = Assert.Single(response.Items);
+        Assert.Equal(new DateTime(2025, 2, 3, 0, 0, 0, DateTimeKind.Utc), site.UpdatedAtUtc);
+        Assert.Equal("system", site.CreatedBy);
+        Assert.Equal("updater@test.com", site.UpdatedBy);
+    }
+
+    [Fact]
     public void SitesListResponse_DefaultValues_AreCorrect()
     {
         // Arrange & Act
@@ -180,9 +260,10 @@ public class SitesControllerTests
             .Setup(service => service.UpdateSiteAsync(
                 "example.com",
                 It.IsAny<AppUpdateSiteRequest>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<string, AppUpdateSiteRequest, CancellationToken>((_, request, _) => capturedRequest = request)
-            .ReturnsAsync((string _, AppUpdateSiteRequest request, CancellationToken _) => new SiteDto
+            .Callback<string, AppUpdateSiteRequest, string?, CancellationToken>((_, request, _, _) => capturedRequest = request)
+            .ReturnsAsync((string _, AppUpdateSiteRequest request, string? _, CancellationToken _) => new SiteDto
             {
                 Domain = "example.com",
                 DR = request.DR,
@@ -223,8 +304,26 @@ public class SitesControllerTests
             service => service.UpdateSiteAsync(
                 It.IsAny<string>(),
                 It.IsAny<AppUpdateSiteRequest>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    private static void SetUser(SitesController controller, string role, string email)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [
+                        new Claim(ClaimTypes.NameIdentifier, "user-1"),
+                        new Claim(ClaimTypes.Email, email),
+                        new Claim(ClaimTypes.Role, role)
+                    ],
+                    "Test"))
+            }
+        };
     }
 
     private static ApiUpdateSiteRequest BuildValidUpdateRequest()
