@@ -3,12 +3,23 @@ import { useState } from 'react';
 import { downloadImportArtifactCsv, type SitesImportResult } from '../../services/import.service';
 import { DuplicateDomainsPreview } from './DuplicateDomainsPreview';
 import { ImportResultDownloadAction } from './ImportResultDownloadAction';
+import { ImportResultHeader } from './ImportResultHeader';
 
 export interface SitesImportResultCardProps {
   readonly result: SitesImportResult;
+  readonly fileName?: string;
+  readonly fileSize?: number;
+  readonly completedAtUtc?: string;
+  readonly onStartNewImport?: () => void;
 }
 
-export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
+export function SitesImportResultCard({
+  result,
+  fileName,
+  fileSize,
+  completedAtUtc,
+  onStartNewImport,
+}: SitesImportResultCardProps) {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloadingAction, setDownloadingAction] = useState<'invalid' | 'warning' | null>(null);
 
@@ -65,7 +76,13 @@ export function SitesImportResultCard({ result }: SitesImportResultCardProps) {
     <Paper sx={{ p: 3 }}>
       <Stack spacing={3}>
         <Stack spacing={1.5}>
-          <Typography variant="h6">Import result</Typography>
+          <ImportResultHeader
+            title="Import result"
+            fileName={fileName}
+            fileSize={fileSize}
+            completedAtUtc={completedAtUtc}
+            onStartNewImport={onStartNewImport}
+          />
           <Box
             sx={{
               display: 'grid',

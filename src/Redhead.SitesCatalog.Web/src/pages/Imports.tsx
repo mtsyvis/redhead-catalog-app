@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { Typography, Tabs, Tab } from '@mui/material';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { PageShell } from '../components/layout/PageShell';
 import {
   importSites,
@@ -26,19 +26,55 @@ import {
   SitesUpdateImportInstructions,
   SitesUpdateImportUploadNotes,
 } from '../components/imports/SitesUpdateImportInstructions';
+import { useAuth } from '../contexts/AuthContext';
 
-function SitesImportTab() {
+const IMPORT_RESULT_STORAGE_PREFIX = 'redhead.importResults.v1';
+
+const IMPORT_ROUTES = [
+  {
+    key: 'sites-import',
+    path: '/imports/sites-import',
+    label: 'Sites Import',
+  },
+  {
+    key: 'sites-update-import',
+    path: '/imports/sites-update-import',
+    label: 'Sites Update Import',
+  },
+  {
+    key: 'quarantine-import',
+    path: '/imports/quarantine-import',
+    label: 'Quarantine Import',
+  },
+  {
+    key: 'last-published-import',
+    path: '/imports/last-published-import',
+    label: 'Last Published Import',
+  },
+] as const;
+
+type ImportRoute = (typeof IMPORT_ROUTES)[number];
+
+function buildPersistedStateKey(userId: string, importKey: string) {
+  return `${IMPORT_RESULT_STORAGE_PREFIX}.${userId}.${importKey}`;
+}
+
+function SitesImportTab({ persistedStateKey }: { readonly persistedStateKey: string }) {
   const {
     file,
+    fileInputKey,
     loading,
     error,
     result,
+    persistedResult,
     setError,
+    clearImportState,
     handleFileChange,
     handleSubmit,
   } = useImportTab<SitesImportResult>(importSites, {
     maxFileSizeBytes: MAX_IMPORT_FILE_SIZE_BYTES,
     fileTooLargeMessage: FILE_TOO_LARGE_MESSAGE,
+    persistedStateKey,
   });
 
   const instructions = (
@@ -52,6 +88,7 @@ function SitesImportTab() {
   const uploadSection = (
     <ImportUploadSection
       file={file}
+      fileInputKey={fileInputKey}
       loading={loading}
       accept={ACCEPT_FILES}
       maxFileSizeBytes={MAX_IMPORT_FILE_SIZE_BYTES}
@@ -60,7 +97,15 @@ function SitesImportTab() {
     />
   );
 
-  const resultContent = result ? <SitesImportResultCard result={result} /> : null;
+  const resultContent = result ? (
+    <SitesImportResultCard
+      result={result}
+      fileName={persistedResult?.fileName}
+      fileSize={persistedResult?.fileSize}
+      completedAtUtc={persistedResult?.completedAtUtc}
+      onStartNewImport={clearImportState}
+    />
+  ) : null;
 
   return (
     <ImportTabContent
@@ -73,45 +118,89 @@ function SitesImportTab() {
   );
 }
 
+function ImportRouteContent({
+  activeImport,
+  persistedStateKey,
+}: {
+  readonly activeImport: ImportRoute;
+  readonly persistedStateKey: string;
+}) {
+  if (activeImport.key === 'sites-import') {
+    return <SitesImportTab persistedStateKey={persistedStateKey} />;
+  }
+
+  if (activeImport.key === 'sites-update-import') {
+    return (
+      <UpdateImportTab
+        resultTitle="Sites update import result"
+        runImport={importSitesUpdate}
+        persistedStateKey={persistedStateKey}
+        instructionsContent={<SitesUpdateImportInstructions />}
+        uploadHelper={<SitesUpdateImportUploadNotes />}
+      />
+    );
+  }
+
+  if (activeImport.key === 'quarantine-import') {
+    return (
+      <UpdateImportTab
+        resultTitle="Quarantine import result"
+        runImport={importQuarantine}
+        persistedStateKey={persistedStateKey}
+        instructions={{
+          description: QUARANTINE_IMPORT_INSTRUCTIONS.description,
+          requiredColumns: QUARANTINE_IMPORT_INSTRUCTIONS.requiredColumns,
+          optionalNote: QUARANTINE_IMPORT_INSTRUCTIONS.optionalNote,
+        }}
+      />
+    );
+  }
+
+  return (
+    <UpdateImportTab
+      resultTitle="Last published import result"
+      runImport={importLastPublished}
+      persistedStateKey={persistedStateKey}
+      instructions={{
+        description: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.description,
+        requiredColumns: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.requiredColumns,
+        optionalNote: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.optionalNote,
+      }}
+    />
+  );
+}
+
 export function Imports() {
-  const [tab, setTab] = useState(0);
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeImport = IMPORT_ROUTES.find((route) => route.path === location.pathname);
+
+  if (!activeImport || !user) {
+    return <Navigate to="/imports/sites-import" replace />;
+  }
+
+  const persistedStateKey = buildPersistedStateKey(user.id, activeImport.key);
 
   return (
     <PageShell maxWidth="md">
       <Typography variant="h4" gutterBottom>
         Imports
       </Typography>
-      <Tabs value={tab} onChange={(_e, v) => setTab(v)} sx={{ mb: 3 }}>
-        <Tab label="Sites Import" />
-        <Tab label="Sites Update Import" />
-        <Tab label="Quarantine Import" />
-        <Tab label="Last Published Import" />
+      <Tabs
+        value={activeImport.path}
+        onChange={(_event, nextPath) => navigate(nextPath)}
+        sx={{ mb: 3 }}
+      >
+        {IMPORT_ROUTES.map((route) => (
+          <Tab key={route.path} label={route.label} value={route.path} />
+        ))}
       </Tabs>
-      {tab === 0 && <SitesImportTab />}
-      {tab === 1 && <UpdateImportTab
-        resultTitle="Sites update import result"
-        runImport={importSitesUpdate}
-        instructionsContent={<SitesUpdateImportInstructions />}
-        uploadHelper={<SitesUpdateImportUploadNotes />}
-      />}
-      {tab === 2 && <UpdateImportTab
-        resultTitle="Quarantine import result"
-        runImport={importQuarantine}
-        instructions= {{
-          description: QUARANTINE_IMPORT_INSTRUCTIONS.description,
-          requiredColumns: QUARANTINE_IMPORT_INSTRUCTIONS.requiredColumns,
-          optionalNote: QUARANTINE_IMPORT_INSTRUCTIONS.optionalNote,
-        }}
-      />}
-      {tab === 3 && <UpdateImportTab
-        resultTitle="Last published import result"
-        runImport={importLastPublished}
-        instructions= {{
-          description: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.description,
-          requiredColumns: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.requiredColumns,
-          optionalNote: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.optionalNote,
-        }}
-      />}
+      <ImportRouteContent
+        key={activeImport.key}
+        activeImport={activeImport}
+        persistedStateKey={persistedStateKey}
+      />
     </PageShell>
   );
 }

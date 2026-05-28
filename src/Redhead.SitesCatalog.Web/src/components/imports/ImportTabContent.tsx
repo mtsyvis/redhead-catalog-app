@@ -17,6 +17,10 @@ export function ImportTabContent({
   onClearError,
   result,
 }: ImportTabContentProps) {
+  if (result) {
+    return <Box>{result}</Box>;
+  }
+
   return (
     <Box>
       {instructions}

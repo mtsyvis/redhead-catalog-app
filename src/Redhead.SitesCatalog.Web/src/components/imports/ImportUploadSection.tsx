@@ -5,6 +5,7 @@ import { BrandButton } from '../common/BrandButton';
 
 export interface ImportUploadSectionProps {
   file: File | null;
+  fileInputKey?: number;
   loading: boolean;
   accept?: string;
   maxFileSizeBytes?: number;
@@ -20,6 +21,7 @@ const DEFAULT_LOADING_LABEL = 'Importing…';
 
 export function ImportUploadSection({
   file,
+  fileInputKey,
   loading,
   accept,
   maxFileSizeBytes,
@@ -47,6 +49,7 @@ export function ImportUploadSection({
           >
             Choose file (CSV)
             <input
+              key={fileInputKey}
               type="file"
               hidden
               accept={accept}

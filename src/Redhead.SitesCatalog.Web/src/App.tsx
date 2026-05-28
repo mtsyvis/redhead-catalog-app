@@ -54,6 +54,11 @@ const App: React.FC = () => {
 
             <Route
               path="/imports"
+              element={<Navigate to="/imports/sites-import" replace />}
+            />
+
+            <Route
+              path="/imports/:importType"
               element={
                 <ProtectedRoute>
                   <AccountSetupRequiredRoute>
@@ -96,7 +101,7 @@ const App: React.FC = () => {
               }
             />
 
-            <Route path="/import/sites" element={<Navigate to="/imports" replace />} />
+            <Route path="/import/sites" element={<Navigate to="/imports/sites-import" replace />} />
 
             <Route
               path="/profile"

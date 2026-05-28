@@ -436,6 +436,9 @@ General rules:
 * Normalize domains before matching or inserting.
 * Avoid N+1 database operations; batch database reads and writes.
 * Import results should show summary counts and downloadable details where supported.
+* Import result summaries are kept per user and per import type in browser storage for up to 30 minutes after a successful import.
+* Starting a new import clears only the current import type's selected file, errors, and saved result summary.
+* Import types have dedicated frontend routes under `/imports`, including `/imports/sites-import` and `/imports/sites-update-import`.
 * Import logs must record who ran the import, when it happened, import type, and summary counts.
 * Duplicate domains in an input file should have explicit behavior. Current update-style imports use last valid row wins.
 * Import results distinguish invalid rows that were not saved from warning rows that were saved with review warnings.

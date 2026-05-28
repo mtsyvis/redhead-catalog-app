@@ -17,6 +17,7 @@ type UpdateImportTabProps = {
   readonly instructionsContent?: React.ReactNode;
   readonly uploadHelper?: React.ReactNode;
   readonly resultTitle: string;
+  readonly persistedStateKey: string;
 };
 
 export function UpdateImportTab({
@@ -25,18 +26,23 @@ export function UpdateImportTab({
   instructionsContent,
   uploadHelper,
   resultTitle,
+  persistedStateKey,
 }: UpdateImportTabProps) {
   const {
     file,
+    fileInputKey,
     loading,
     error,
     result,
+    persistedResult,
     setError,
+    clearImportState,
     handleFileChange,
     handleSubmit,
   } = useImportTab<UpdateImportResult>(runImport, {
     maxFileSizeBytes: MAX_IMPORT_FILE_SIZE_BYTES,
     fileTooLargeMessage: FILE_TOO_LARGE_MESSAGE,
+    persistedStateKey,
   });
 
   return (
@@ -53,6 +59,7 @@ export function UpdateImportTab({
       uploadSection={
         <ImportUploadSection
           file={file}
+          fileInputKey={fileInputKey}
           loading={loading}
           accept={ACCEPT_FILES}
           maxFileSizeBytes={MAX_IMPORT_FILE_SIZE_BYTES}
@@ -68,6 +75,10 @@ export function UpdateImportTab({
           <UpdateImportResultCard
             title={resultTitle}
             result={result}
+            fileName={persistedResult?.fileName}
+            fileSize={persistedResult?.fileSize}
+            completedAtUtc={persistedResult?.completedAtUtc}
+            onStartNewImport={clearImportState}
           />
         ) : null
       }

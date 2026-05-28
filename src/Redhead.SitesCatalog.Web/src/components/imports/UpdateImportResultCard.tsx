@@ -3,15 +3,24 @@ import { useState } from 'react';
 import { downloadImportArtifactCsv, type UpdateImportResult } from '../../services/import.service';
 import { DuplicateDomainsPreview } from './DuplicateDomainsPreview';
 import { ImportResultDownloadAction } from './ImportResultDownloadAction';
+import { ImportResultHeader } from './ImportResultHeader';
 
 export interface UpdateImportResultCardProps {
   readonly title: string;
   readonly result: UpdateImportResult;
+  readonly fileName?: string;
+  readonly fileSize?: number;
+  readonly completedAtUtc?: string;
+  readonly onStartNewImport?: () => void;
 }
 
 export function UpdateImportResultCard({
   title,
   result,
+  fileName,
+  fileSize,
+  completedAtUtc,
+  onStartNewImport,
 }: UpdateImportResultCardProps) {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloadingAction, setDownloadingAction] = useState<
@@ -82,7 +91,13 @@ export function UpdateImportResultCard({
     <Paper sx={{ p: 3 }}>
       <Stack spacing={3}>
         <Stack spacing={1.5}>
-          <Typography variant="h6">{title}</Typography>
+          <ImportResultHeader
+            title={title}
+            fileName={fileName}
+            fileSize={fileSize}
+            completedAtUtc={completedAtUtc}
+            onStartNewImport={onStartNewImport}
+          />
           <Box
             sx={{
               display: 'grid',
