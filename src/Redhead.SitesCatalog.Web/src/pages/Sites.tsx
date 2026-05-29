@@ -29,6 +29,7 @@ import { useSitesTableViews } from '../components/sites/table-views/useSitesTabl
 import { useUserRoles } from '../hooks/useUserRoles';
 import { useAuth } from '../contexts/AuthContext';
 import { useSitesExport } from '../hooks/useSitesExport';
+import { dataGridLocaleText } from '../utils/numberFormat';
 import type {
   LocationFilterSelection,
   Site,
@@ -581,6 +582,7 @@ export function Sites() {
             onColumnWidthChange={handleColumnWidthChange}
             density={tableViews.density}
             columnVisibilityModel={tableViews.columnVisibilityModel}
+            localeText={dataGridLocaleText}
             disableRowSelectionOnClick
             disableColumnMenu
             autoHeight

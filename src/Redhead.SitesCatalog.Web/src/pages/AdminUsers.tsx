@@ -35,6 +35,7 @@ import { ROLES } from '../types/adminUsers.types';
 import type { RoleSettingItem } from '../types/roleSettings.types';
 import type { ExportLimitMode } from '../utils/exportLimit';
 import { formatExportLimit } from '../utils/exportLimit';
+import { dataGridLocaleText } from '../utils/numberFormat';
 import { ApiClientError } from '../services/api.client';
 
 type ExportLimitOverrideOption = 'role-default' | ExportLimitMode;
@@ -678,6 +679,7 @@ export const AdminUsers: React.FC = () => {
           paginationMode="server"
           onPaginationModelChange={handlePaginationModelChange}
           onRowClick={handleRowClick}
+          localeText={dataGridLocaleText}
           disableRowSelectionOnClick
           disableColumnMenu
           autoHeight

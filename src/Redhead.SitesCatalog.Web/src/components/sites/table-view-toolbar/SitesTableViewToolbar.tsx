@@ -34,6 +34,7 @@ import { SitesToolbarPill } from './SitesToolbarPill';
 import { SitesViewSelectorMenu, SitesViewOverflowMenu } from './SitesTableViewMenus';
 import { SitesViewChangesPopover } from './SitesViewChangesPopover';
 import { SitesExportMenu } from '../export/SitesExportMenu';
+import { formatInteger } from '../../../utils/numberFormat';
 
 export function SitesTableViewToolbar({
   tableViews,
@@ -406,7 +407,7 @@ export function SitesTableViewToolbar({
   )}`;
   const hiddenColumnsLabel = pluralize('column', hiddenFiltersCount);
   const columnsButtonLabel = pluralize('Column', visibleCount);
-  const formattedResultCount = resultCount.toLocaleString();
+  const formattedResultCount = formatInteger(resultCount);
 
   return (
     <>
