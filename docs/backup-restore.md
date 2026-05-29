@@ -59,7 +59,7 @@ The Excel export should not contain technical/internal database data unless expl
 Access should be limited to:
 
 - App owner
-- Developer support
+- Developer
 - backup service account
 
 Employees should not have access to this Shared Drive because PostgreSQL dumps may contain users, roles, settings, internal notes, and other system data.
@@ -219,6 +219,97 @@ A safe production restore script should be implemented separately with a strong 
 ```text
 RESTORE_PRODUCTION_DATABASE
 ```
+
+
+## Restore from Google Shared Drive into a test database
+
+This is the safest way to verify that a backup stored in Google Shared Drive can actually be restored.
+
+This flow does **not** touch the production database. It downloads the latest dump from Google Drive and restores it into a temporary database named `redhead_restore_test`.
+
+### 1. Download the latest backup from Google Shared Drive
+
+```bash
+cd /opt/readhead-catalog/app
+
+mkdir -p /tmp/redhead-restore-from-drive
+
+LATEST_REMOTE_BACKUP="$(rclone lsf redhead-tech-backups:PostgreSQL --files-only | grep '^redhead-prod-postgres-.*\.dump$' | sort | tail -n 1)"
+
+echo "$LATEST_REMOTE_BACKUP"
+
+rclone copy "redhead-tech-backups:PostgreSQL/$LATEST_REMOTE_BACKUP" /tmp/redhead-restore-from-drive
+
+ls -lh "/tmp/redhead-restore-from-drive/$LATEST_REMOTE_BACKUP"
+```
+
+### 2. Check that PostgreSQL can read the downloaded dump
+
+```bash
+docker compose exec -T postgres pg_restore --list < "/tmp/redhead-restore-from-drive/$LATEST_REMOTE_BACKUP" | head -40
+```
+
+Expected result: the command should print dump metadata and database objects such as tables, indexes, constraints, and extensions.
+
+### 3. Restore the downloaded dump into a temporary test database
+
+```bash
+cd /opt/readhead-catalog/app
+
+LATEST_REMOTE_BACKUP="$(rclone lsf redhead-tech-backups:PostgreSQL --files-only | grep '^redhead-prod-postgres-.*\.dump$' | sort | tail -n 1)"
+DOWNLOADED_BACKUP="/tmp/redhead-restore-from-drive/$LATEST_REMOTE_BACKUP"
+TEST_DB="redhead_restore_test"
+
+docker compose exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS ${TEST_DB};"
+docker compose exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${TEST_DB};"
+
+docker compose exec -T postgres pg_restore \
+  -U postgres \
+  -d "${TEST_DB}" \
+  --no-owner \
+  --no-privileges \
+  --verbose \
+  < "$DOWNLOADED_BACKUP"
+```
+
+### 4. Verify restored data
+
+```bash
+docker compose exec -T postgres psql -U postgres -d redhead_restore_test -c '
+SELECT COUNT(*) AS sites_count FROM "Sites";
+'
+
+docker compose exec -T postgres psql -U postgres -d redhead_restore_test -c '
+SELECT COUNT(*) AS users_count FROM "AspNetUsers";
+'
+```
+
+Expected result: counts should be consistent with the production database at the moment the dump was created.
+
+Example from the initial verification:
+
+```text
+sites_count = 67710
+users_count = 14
+```
+
+### 5. Clean up the temporary test database and downloaded dump
+
+```bash
+docker compose exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "
+DROP DATABASE IF EXISTS redhead_restore_test;
+"
+
+rm -rf /tmp/redhead-restore-from-drive
+```
+
+Verify that the temporary database is gone:
+
+```bash
+docker compose exec -T postgres psql -U postgres -d postgres -c "\l" | grep redhead_restore_test
+```
+
+Expected result: no output.
 
 ## Safe restore test recommendation
 
