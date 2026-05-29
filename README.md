@@ -12,6 +12,7 @@ Use this repository documentation in the following way:
 * `AGENTS.md` — short operating instructions for AI coding agents such as Codex and Cursor.
 * `docs/business-requirements.md` — current business rules and product behavior.
 * `docs/deployment.md` — production deployment, VPS, Docker, Caddy, PostgreSQL, and backup notes.
+* `docs/backup-restore.md` — production PostgreSQL backup setup, manual backup checks, and restore guidance.
 
 Old planning files, commit summaries, and legacy specs are historical context only. They should not be treated as current source of truth unless a task explicitly says so.
 
@@ -287,4 +288,4 @@ Persistent volumes are important:
 * ASP.NET Core Data Protection keys
 * Caddy data/config volumes
 
-See `docs/deployment.md` for operational details and backup expectations.
+See `docs/deployment.md` for operational details and backup expectations. See `docs/backup-restore.md` for the current backup and restore runbook.

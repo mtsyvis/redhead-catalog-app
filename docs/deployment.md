@@ -274,6 +274,8 @@ Be careful with destructive SQL commands. Always create a backup before manual d
 
 Provider-level VPS backups are useful, but they should not be the only database backup strategy.
 
+The current production PostgreSQL backup setup, Google Drive storage details, manual backup checks, and restore guidance are documented in [`backup-restore.md`](backup-restore.md).
+
 Use both:
 
 1. VPS/provider backups for full-server disaster recovery.
