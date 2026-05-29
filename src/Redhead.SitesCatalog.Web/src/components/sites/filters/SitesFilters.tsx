@@ -1,10 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   TextField,
   MenuItem,
-  FormControlLabel,
-  Checkbox,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -13,6 +11,9 @@ import {
   Autocomplete,
   Chip,
   Button,
+  IconButton,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
@@ -34,6 +35,10 @@ import {
   type CategoriesSearchFilterHandle,
 } from './CategoriesSearchFilter';
 import { LocationFilter } from './LocationFilter';
+import {
+  ActiveFiltersSummary,
+} from './ActiveFiltersSummary';
+import { buildAdvancedActiveFilterSummaries } from './ActiveFiltersSummary.helpers';
 
 interface SitesFiltersProps {
   filters: SitesFilters;
@@ -68,7 +73,7 @@ const INITIAL_FILTERS: SitesFilters = {
   lastPublishedToMonth: null,
 };
 
-const FILTER_GROUP_GAP = 5;
+const FILTER_GROUP_GAP = 2.5;
 
 function areStringArraysEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
@@ -202,6 +207,10 @@ export function SitesFilters({
   const stopListPaused = multiSearchMode && stopListCount > 0;
   const stopListApplied = !multiSearchMode && stopListCount > 0;
   const advancedActiveFilterCount = getAdvancedActiveFilterCount();
+  const activeFilterSummaryItems = useMemo(
+    () => buildAdvancedActiveFilterSummaries(filters, multiSearchMode),
+    [filters, multiSearchMode]
+  );
   const stopListStatusText =
     stopListCount === 0
       ? 'No domains excluded'
@@ -227,54 +236,162 @@ export function SitesFilters({
     setStopListDialogOpen(false);
   };
 
+  const handleClearSearch = () => {
+    if (filters.search === '') return;
+
+    const nextFilters = { ...filters, search: '' };
+    onFiltersChange(nextFilters);
+
+    if (!multiSearchMode) {
+      onApply(nextFilters);
+    }
+  };
+
+  const searchModeControl = onMultiSearchModeChange ? (
+    <ToggleButtonGroup
+      exclusive
+      size="small"
+      value={multiSearchMode ? 'multi' : 'single'}
+      onChange={(_, value: 'single' | 'multi' | null) => {
+        if (value === null) return;
+        onMultiSearchModeChange(value === 'multi');
+      }}
+      aria-label="Search mode"
+      sx={{
+        flex: multiSearchMode ? '0 0 auto' : { xs: '1 1 100%', md: '0 0 auto' },
+        maxWidth: { xs: '100%', md: 'none' },
+        borderRadius: 999,
+        bgcolor: 'background.paper',
+        '& .MuiToggleButton-root': {
+          px: 1.75,
+          py: 0.75,
+          minHeight: 38,
+          textTransform: 'none',
+          borderColor: 'divider',
+          color: 'text.primary',
+          bgcolor: 'background.paper',
+          lineHeight: 1.2,
+          '&:first-of-type': {
+            borderTopLeftRadius: 999,
+            borderBottomLeftRadius: 999,
+          },
+          '&:last-of-type': {
+            borderTopRightRadius: 999,
+            borderBottomRightRadius: 999,
+          },
+          '&.Mui-selected': {
+            color: 'primary.main',
+            bgcolor: 'rgba(255, 69, 91, 0.08)',
+            borderColor: 'rgba(255, 69, 91, 0.35)',
+            fontWeight: 600,
+            '&:hover': {
+              bgcolor: 'rgba(255, 69, 91, 0.12)',
+            },
+          },
+          '&:not(.Mui-selected)': {
+            '&:hover': {
+              bgcolor: 'action.hover',
+            },
+          },
+        },
+      }}
+    >
+      <ToggleButton value="single">Single search</ToggleButton>
+      <ToggleButton value="multi">Multi-search</ToggleButton>
+    </ToggleButtonGroup>
+  ) : null;
+
+  const searchInput = (
+    <TextField
+      fullWidth
+      multiline={multiSearchMode}
+      minRows={multiSearchMode ? 3 : 1}
+      maxRows={multiSearchMode ? 8 : 1}
+      placeholder={
+        multiSearchMode
+          ? 'Paste domains or URLs (one per line or space-separated, max 500)'
+          : 'Search by domain (example.com or https://www.example.com/path)'
+      }
+      value={filters.search}
+      onChange={(e) => handleChange('search', e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !multiSearchMode) {
+          e.preventDefault();
+          handleApply();
+        }
+      }}
+      InputProps={{
+        startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+        endAdornment: filters.search ? (
+          <IconButton
+            aria-label="Clear search"
+            edge="end"
+            size="small"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleClearSearch}
+            sx={{ color: 'text.secondary' }}
+          >
+            <ClearIcon fontSize="small" />
+          </IconButton>
+        ) : undefined,
+      }}
+      sx={multiSearchMode ? undefined : { flex: '1 1 360px', minWidth: { xs: '100%', md: 320 } }}
+    />
+  );
+
   return (
-    <Box sx={{ mb: 3 }}>
+    <Box sx={{ mb: 1.5 }}>
       {/* Search Bar */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'flex-start' }}>
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <TextField
-            fullWidth
-            multiline={multiSearchMode}
-            minRows={multiSearchMode ? 3 : 1}
-            maxRows={multiSearchMode ? 12 : 1}
-            placeholder={
-              multiSearchMode
-                ? 'Paste domains or URLs (one per line or space-separated, max 500)'
-                : 'Search by domain (example.com or https://www.example.com/path)'
-            }
-            value={filters.search}
-            onChange={(e) => handleChange('search', e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !multiSearchMode) {
-                handleApply();
-              }
+      <Box sx={{ mb: 1 }}>
+        {multiSearchMode ? (
+          <Stack spacing={0.75}>
+            {searchModeControl}
+            {searchInput}
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <BrandButton kind="primary" onClick={handleApply} sx={{ minWidth: 120 }}>
+                Search
+              </BrandButton>
+            </Box>
+          </Stack>
+        ) : (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.25,
+              flexWrap: 'wrap',
             }}
-            InputProps={{
-              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-            }}
-          />
-          {onMultiSearchModeChange && (
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={multiSearchMode}
-                  onChange={(e) => onMultiSearchModeChange(e.target.checked)}
-                />
-              }
-              label="Multi-search"
-            />
-          )}
-        </Box>
-        <BrandButton kind="primary" onClick={handleApply} sx={{ minWidth: 120 }}>
-          Search
-        </BrandButton>
+          >
+            {searchModeControl}
+            {searchInput}
+          </Box>
+        )}
       </Box>
 
       {/* Advanced Filters */}
       <Accordion expanded={expanded} onChange={() => setExpanded(!expanded)}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography>Advanced Filters</Typography>
+        <AccordionSummary
+          expandIcon={<ExpandMoreIcon />}
+          sx={{
+            minHeight: 44,
+            '&.Mui-expanded': { minHeight: 44 },
+            '& .MuiAccordionSummary-content': {
+              minWidth: 0,
+              my: 0.75,
+              alignItems: 'center',
+            },
+            '& .MuiAccordionSummary-content.Mui-expanded': {
+              my: 0.75,
+            },
+          }}
+        >
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{ minWidth: 0, width: '100%' }}
+          >
+            <Typography sx={{ flexShrink: 0, fontWeight: 500 }}>Advanced Filters</Typography>
             {advancedActiveFilterCount > 0 && (
               <Chip
                 label={`${advancedActiveFilterCount} active`}
@@ -286,13 +403,17 @@ export function SitesFilters({
                   bgcolor: 'background.paper',
                   color: 'text.secondary',
                   fontWeight: 600,
+                  flexShrink: 0,
                 }}
               />
             )}
+            {!expanded && activeFilterSummaryItems.length > 0 && (
+              <ActiveFiltersSummary items={activeFilterSummaryItems} />
+            )}
           </Stack>
         </AccordionSummary>
-        <AccordionDetails>
-          <Stack spacing={3}>
+        <AccordionDetails sx={{ pt: 1.5 }}>
+          <Stack spacing={2}>
             {stopListApplied && !expanded && (
               <Box sx={{ display: 'inline-flex' }}>
                 <Chip
@@ -313,7 +434,7 @@ export function SitesFilters({
             )}
 
             {/* Range Filters Row */}
-            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 2, flexWrap: 'wrap' }}>
               {/* DR Range */}
               <Box sx={{ flex: 1, minWidth: '200px' }}>
                 <Typography variant="subtitle2" gutterBottom>
@@ -408,7 +529,7 @@ export function SitesFilters({
             </Box>
 
             {/* Row 2: Last Publication + Quarantine */}
-            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <LastPublishedRangeFilter
                 fromValue={filters.lastPublishedFromMonth}
                 toValue={filters.lastPublishedToMonth}
@@ -491,7 +612,7 @@ export function SitesFilters({
             </Box>
 
             {/* Row 3: Categories */}
-            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <Box sx={{ flex: 1, minWidth: '280px' }}>
                 <CategoriesSearchFilter
                   ref={categoriesSearchFilterRef}
@@ -502,7 +623,7 @@ export function SitesFilters({
             </Box>
 
             {/* Row 4: Service Availability */}
-            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 3, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               {/* Optional Service Availability */}
               <Box sx={{ flex: '0 0 auto' }}>
                 <Typography variant="subtitle2" gutterBottom>
@@ -650,16 +771,13 @@ export function SitesFilters({
             </Box>
 
             {/* Action Buttons */}
-            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
               <BrandButton
                 startIcon={<ClearIcon />}
                 onClick={handleClear}
                 disabled={!hasSearchOrAdvancedFilters()}
               >
                 Clear All
-              </BrandButton>
-              <BrandButton kind="primary" onClick={handleApply} disabled={!!lastPublishedRangeError}>
-                Apply Filters
               </BrandButton>
             </Box>
           </Stack>

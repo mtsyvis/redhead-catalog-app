@@ -378,6 +378,14 @@ Main filters:
 * The default quarantine status filter excludes quarantined sites (`Available Only`).
 * Last publication date range/month filter
 
+Sites search and filter UX rules:
+
+* Normal domain search auto-applies after a short debounce; users do not need to press a Search button for single-search browsing.
+* Multi-search does not auto-run while the user is typing or pasting input; users must explicitly press Search.
+* The search area uses a two-option mode selector for Single search and Multi-search.
+* The Sites table toolbar shows the current total result count for the active search/filter/multi-search context.
+* Collapsed Advanced Filters shows a compact, single-line summary of active advanced filters alongside the active filter count.
+
 Stop list rules:
 
 * Stop list accepts domains or URLs and normalizes them before matching.

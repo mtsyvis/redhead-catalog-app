@@ -19,6 +19,8 @@ export interface SitesTableViewToolbarProps {
   canExport: boolean;
   exporting: boolean;
   loading: boolean;
+  resultCount: number;
+  resultLoading: boolean;
   onShowFilteredColumns: () => void;
   onClearHiddenFilters: () => void;
   onDownloadExcel: () => void;

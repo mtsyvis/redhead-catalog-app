@@ -152,6 +152,11 @@ export function Sites() {
 
   const [sortModel, setSortModel] = useState<GridSortModel>([{ field: 'domain', sort: 'asc' }]);
 
+  const handleFiltersChange = useCallback((nextFilters: FiltersType) => {
+    setFilters(nextFilters);
+    setPaginationModel((prev) => (prev.page === 0 ? prev : { ...prev, page: 0 }));
+  }, []);
+
   useEffect(() => {
     if (multiSearchMode) {
       setDebouncedSearch(filters.search);
@@ -502,13 +507,13 @@ export function Sites() {
   return (
     <PageShell maxWidth="xl">
       <Box>
-        <Box sx={{ mb: 2 }}>
+        <Box sx={{ mb: 1 }}>
           <Typography variant="h4">Sites Catalog</Typography>
         </Box>
 
         <SitesFilters
           filters={filters}
-          onFiltersChange={setFilters}
+          onFiltersChange={handleFiltersChange}
           onApply={handleFiltersApply}
           multiSearchMode={multiSearchMode}
           onMultiSearchModeChange={handleMultiSearchModeChange}
@@ -518,7 +523,7 @@ export function Sites() {
         {multiSearchResult && multiSearchResult.duplicates.length > 0 && (
           <Alert
             severity="warning"
-            sx={{ mb: 2 }}
+            sx={{ mb: 1.5 }}
             action={
               <BrandButton size="small" onClick={(e) => setDuplicatesAnchor(e.currentTarget)}>
                 View list
@@ -532,7 +537,7 @@ export function Sites() {
         {multiSearchResult && multiSearchResult.notFound.length > 0 && gridFiltersActive && (
           <Alert
             severity="info"
-            sx={{ mb: 2 }}
+            sx={{ mb: 1.5 }}
             action={
               <BrandButton size="small" onClick={handleClearFilters}>
                 Clear filters
@@ -550,6 +555,8 @@ export function Sites() {
             canExport={canExport}
             exporting={exporting}
             loading={loading || tableViews.loading}
+            resultCount={gridRowCount}
+            resultLoading={gridLoading}
             onShowFilteredColumns={handleShowFilteredColumns}
             onClearHiddenFilters={handleClearHiddenFilters}
             onDownloadExcel={handleDownloadExport}

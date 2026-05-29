@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { DragEvent, KeyboardEvent } from 'react';
-import { Box, Button, IconButton, Tooltip } from '@mui/material';
+import { Box, Button, CircularProgress, IconButton, Tooltip, Typography } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { ApiClientError } from '../../../services/api.client';
@@ -41,6 +41,8 @@ export function SitesTableViewToolbar({
   canExport,
   exporting,
   loading,
+  resultCount,
+  resultLoading,
   onShowFilteredColumns,
   onClearHiddenFilters,
   onDownloadExcel,
@@ -404,6 +406,7 @@ export function SitesTableViewToolbar({
   )}`;
   const hiddenColumnsLabel = pluralize('column', hiddenFiltersCount);
   const columnsButtonLabel = pluralize('Column', visibleCount);
+  const formattedResultCount = resultCount.toLocaleString();
 
   return (
     <>
@@ -477,6 +480,27 @@ export function SitesTableViewToolbar({
             onClick={(event) => setHiddenFiltersAnchor(event.currentTarget)}
           />
         )}
+
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.75,
+            minHeight: 32,
+            whiteSpace: 'nowrap',
+            ml: { xs: 0, sm: 0.5 },
+          }}
+        >
+          {formattedResultCount} {pluralize('result', resultCount)}
+          {resultLoading && (
+            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+              <CircularProgress size={12} color="inherit" />
+              Updating...
+            </Box>
+          )}
+        </Typography>
 
         <Box sx={{ flexGrow: 1 }} />
 
