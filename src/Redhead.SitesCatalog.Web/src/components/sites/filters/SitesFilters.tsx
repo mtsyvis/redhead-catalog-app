@@ -10,6 +10,7 @@ import {
   Stack,
   Autocomplete,
   Chip,
+  Checkbox,
   Button,
   IconButton,
   ToggleButton,
@@ -21,11 +22,15 @@ import ClearIcon from '@mui/icons-material/Clear';
 import type {
   FilterOption,
   LocationFilterOptions,
+  ServiceAvailabilityFilter,
   SitesFilters,
 } from '../../../types/sites.types';
 import { sitesService } from '../../../services/sites.service';
 import { BrandButton } from '../../common/BrandButton';
-import { SERVICE_AVAILABILITY_FILTER_OPTIONS } from '../../../utils/serviceAvailability';
+import {
+  SERVICE_AVAILABILITY_FILTER_OPTIONS,
+  normalizeServiceAvailabilityFilter,
+} from '../../../utils/serviceAvailability';
 import { LANGUAGE_OPTIONS, getLanguageOption } from '../../../utils/language';
 import { LastPublishedRangeFilter } from './LastPublishedRangeFilter';
 import { StopListDialog } from '../dialogs/StopListDialog';
@@ -63,11 +68,11 @@ const INITIAL_FILTERS: SitesFilters = {
   niches: [],
   categorySearchTerms: [],
   languages: [],
-  casinoAvailability: 'all',
-  cryptoAvailability: 'all',
-  linkInsertAvailability: 'all',
-  linkInsertCasinoAvailability: 'all',
-  datingAvailability: 'all',
+  casinoAvailability: [],
+  cryptoAvailability: [],
+  linkInsertAvailability: [],
+  linkInsertCasinoAvailability: [],
+  datingAvailability: [],
   quarantine: 'exclude',
   lastPublishedFromMonth: null,
   lastPublishedToMonth: null,
@@ -77,6 +82,73 @@ const FILTER_GROUP_GAP = 2.5;
 
 function areStringArraysEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function hasAvailabilityFilter(filter: ServiceAvailabilityFilter): boolean {
+  return normalizeServiceAvailabilityFilter(filter).length > 0;
+}
+
+function renderAvailabilityValue(
+  selectedOptions: typeof SERVICE_AVAILABILITY_FILTER_OPTIONS
+): string {
+  if (selectedOptions.length === 0) return '';
+  if (selectedOptions.length <= 2) {
+    return selectedOptions.map((option) => option.label).join(', ');
+  }
+  return `${selectedOptions.length} selected`;
+}
+
+interface OptionalServiceAvailabilitySelectProps {
+  label: string;
+  value: ServiceAvailabilityFilter;
+  onChange: (value: ServiceAvailabilityFilter) => void;
+}
+
+function OptionalServiceAvailabilitySelect({
+  label,
+  value,
+  onChange,
+}: Readonly<OptionalServiceAvailabilitySelectProps>) {
+  const normalizedValue = normalizeServiceAvailabilityFilter(value);
+  const selectedOptions = SERVICE_AVAILABILITY_FILTER_OPTIONS.filter((option) =>
+    normalizedValue.includes(option.value)
+  );
+
+  return (
+    <Autocomplete
+      multiple
+      size="small"
+      options={SERVICE_AVAILABILITY_FILTER_OPTIONS}
+      value={selectedOptions}
+      onChange={(_, nextOptions) => onChange(nextOptions.map((option) => option.value))}
+      getOptionLabel={(option) => option.label}
+      isOptionEqualToValue={(option, selected) => option.value === selected.value}
+      disableCloseOnSelect
+      clearOnBlur={false}
+      renderTags={(selected) => (
+        <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>
+          {renderAvailabilityValue(selected)}
+        </Typography>
+      )}
+      renderOption={(props, option, { selected }) => {
+        const { key, ...optionProps } = props;
+        return (
+          <li key={key} {...optionProps}>
+            <Checkbox checked={selected} size="small" sx={{ mr: 1, p: 0.25 }} />
+            {option.label}
+          </li>
+        );
+      }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={label}
+          placeholder={normalizedValue.length === 0 ? 'All' : ''}
+        />
+      )}
+      sx={{ width: 185 }}
+    />
+  );
 }
 
 export function SitesFilters({
@@ -151,11 +223,11 @@ export function SitesFilters({
     if (filters.niches.length > 0) count += 1;
     if (filters.categorySearchTerms.length > 0) count += 1;
     if (filters.languages.length > 0) count += 1;
-    if (filters.casinoAvailability !== 'all') count += 1;
-    if (filters.cryptoAvailability !== 'all') count += 1;
-    if (filters.linkInsertAvailability !== 'all') count += 1;
-    if (filters.linkInsertCasinoAvailability !== 'all') count += 1;
-    if (filters.datingAvailability !== 'all') count += 1;
+    if (hasAvailabilityFilter(filters.casinoAvailability)) count += 1;
+    if (hasAvailabilityFilter(filters.cryptoAvailability)) count += 1;
+    if (hasAvailabilityFilter(filters.linkInsertAvailability)) count += 1;
+    if (hasAvailabilityFilter(filters.linkInsertCasinoAvailability)) count += 1;
+    if (hasAvailabilityFilter(filters.datingAvailability)) count += 1;
     if (filters.quarantine !== INITIAL_FILTERS.quarantine) count += 1;
     if (filters.lastPublishedFromMonth !== null || filters.lastPublishedToMonth !== null) {
       count += 1;
@@ -178,11 +250,11 @@ export function SitesFilters({
       filters.niches.length > 0 ||
       filters.categorySearchTerms.length > 0 ||
       filters.languages.length > 0 ||
-      filters.casinoAvailability !== 'all' ||
-      filters.cryptoAvailability !== 'all' ||
-      filters.linkInsertAvailability !== 'all' ||
-      filters.linkInsertCasinoAvailability !== 'all' ||
-      filters.datingAvailability !== 'all' ||
+      hasAvailabilityFilter(filters.casinoAvailability) ||
+      hasAvailabilityFilter(filters.cryptoAvailability) ||
+      hasAvailabilityFilter(filters.linkInsertAvailability) ||
+      hasAvailabilityFilter(filters.linkInsertCasinoAvailability) ||
+      hasAvailabilityFilter(filters.datingAvailability) ||
       filters.quarantine !== INITIAL_FILTERS.quarantine ||
       filters.lastPublishedFromMonth !== null ||
       filters.lastPublishedToMonth !== null
@@ -630,78 +702,31 @@ export function SitesFilters({
                   Optional Service Availability
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <TextField
-                    select
-                    size="small"
+                  <OptionalServiceAvailabilitySelect
                     label="Casino"
                     value={filters.casinoAvailability}
-                    onChange={(e) => handleChange('casinoAvailability', e.target.value as SitesFilters['casinoAvailability'])}
-                    sx={{ width: 185 }}
-                  >
-                    {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select
-                    size="small"
+                    onChange={(value) => handleChange('casinoAvailability', value)}
+                  />
+                  <OptionalServiceAvailabilitySelect
                     label="Crypto"
                     value={filters.cryptoAvailability}
-                    onChange={(e) => handleChange('cryptoAvailability', e.target.value as SitesFilters['cryptoAvailability'])}
-                    sx={{ width: 185 }}
-                  >
-                    {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select
-                    size="small"
+                    onChange={(value) => handleChange('cryptoAvailability', value)}
+                  />
+                  <OptionalServiceAvailabilitySelect
                     label="Link Insert"
                     value={filters.linkInsertAvailability}
-                    onChange={(e) =>
-                      handleChange('linkInsertAvailability', e.target.value as SitesFilters['linkInsertAvailability'])
-                    }
-                    sx={{ width: 185 }}
-                  >
-                    {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select
-                    size="small"
+                    onChange={(value) => handleChange('linkInsertAvailability', value)}
+                  />
+                  <OptionalServiceAvailabilitySelect
                     label="Link Insert Casino"
                     value={filters.linkInsertCasinoAvailability}
-                    onChange={(e) => handleChange('linkInsertCasinoAvailability', e.target.value as SitesFilters['linkInsertCasinoAvailability'])}
-                    sx={{ width: 185 }}
-                  >
-                    {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select
-                    size="small"
+                    onChange={(value) => handleChange('linkInsertCasinoAvailability', value)}
+                  />
+                  <OptionalServiceAvailabilitySelect
                     label="Dating"
                     value={filters.datingAvailability}
-                    onChange={(e) => handleChange('datingAvailability', e.target.value as SitesFilters['datingAvailability'])}
-                    sx={{ width: 185 }}
-                  >
-                    {SERVICE_AVAILABILITY_FILTER_OPTIONS.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                    onChange={(value) => handleChange('datingAvailability', value)}
+                  />
                 </Box>
               </Box>
             </Box>

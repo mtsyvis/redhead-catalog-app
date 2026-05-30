@@ -40,6 +40,7 @@ import type {
 import { sitesService } from '../services/sites.service';
 import { BrandButton } from '../components/common/BrandButton';
 import { loadStoredStopListDomains, persistStopListDomains } from '../utils/stopList';
+import { normalizeServiceAvailabilityFilter } from '../utils/serviceAvailability';
 
 const INITIAL_FILTERS: FiltersType = {
   search: '',
@@ -54,11 +55,11 @@ const INITIAL_FILTERS: FiltersType = {
   niches: [],
   categorySearchTerms: [],
   languages: [],
-  casinoAvailability: 'all',
-  cryptoAvailability: 'all',
-  linkInsertAvailability: 'all',
-  linkInsertCasinoAvailability: 'all',
-  datingAvailability: 'all',
+  casinoAvailability: [],
+  cryptoAvailability: [],
+  linkInsertAvailability: [],
+  linkInsertCasinoAvailability: [],
+  datingAvailability: [],
   quarantine: 'exclude',
   lastPublishedFromMonth: null,
   lastPublishedToMonth: null,
@@ -73,6 +74,15 @@ function createInitialFilters(): FiltersType {
 
 function hasLocationFilters(filters: FiltersType): boolean {
   return filters.locationSelections.length > 0;
+}
+
+function hasAvailabilityFilter(filter: FiltersType['casinoAvailability']): boolean {
+  return normalizeServiceAvailabilityFilter(filter).length > 0;
+}
+
+function buildAvailabilityRequestField(filter: FiltersType['casinoAvailability']) {
+  const normalizedFilter = normalizeServiceAvailabilityFilter(filter);
+  return normalizedFilter.length > 0 ? normalizedFilter : undefined;
 }
 
 function buildLocationFilterRequestFields(
@@ -186,11 +196,11 @@ export function Sites() {
       filters.niches.length !== 0 ||
       filters.categorySearchTerms.length !== 0 ||
       filters.languages.length !== 0 ||
-      filters.casinoAvailability !== INITIAL_FILTERS.casinoAvailability ||
-      filters.cryptoAvailability !== INITIAL_FILTERS.cryptoAvailability ||
-      filters.linkInsertAvailability !== INITIAL_FILTERS.linkInsertAvailability ||
-      filters.linkInsertCasinoAvailability !== INITIAL_FILTERS.linkInsertCasinoAvailability ||
-      filters.datingAvailability !== INITIAL_FILTERS.datingAvailability ||
+      hasAvailabilityFilter(filters.casinoAvailability) ||
+      hasAvailabilityFilter(filters.cryptoAvailability) ||
+      hasAvailabilityFilter(filters.linkInsertAvailability) ||
+      hasAvailabilityFilter(filters.linkInsertCasinoAvailability) ||
+      hasAvailabilityFilter(filters.datingAvailability) ||
       filters.quarantine !== INITIAL_FILTERS.quarantine ||
       filters.lastPublishedFromMonth !== null ||
       filters.lastPublishedToMonth !== null,
@@ -219,11 +229,13 @@ export function Sites() {
       categorySearchTerms:
         filters.categorySearchTerms.length > 0 ? filters.categorySearchTerms : undefined,
       languages: filters.languages.length > 0 ? filters.languages : undefined,
-      casinoAvailability: filters.casinoAvailability,
-      cryptoAvailability: filters.cryptoAvailability,
-      linkInsertAvailability: filters.linkInsertAvailability,
-      linkInsertCasinoAvailability: filters.linkInsertCasinoAvailability,
-      datingAvailability: filters.datingAvailability,
+      casinoAvailability: buildAvailabilityRequestField(filters.casinoAvailability),
+      cryptoAvailability: buildAvailabilityRequestField(filters.cryptoAvailability),
+      linkInsertAvailability: buildAvailabilityRequestField(filters.linkInsertAvailability),
+      linkInsertCasinoAvailability: buildAvailabilityRequestField(
+        filters.linkInsertCasinoAvailability
+      ),
+      datingAvailability: buildAvailabilityRequestField(filters.datingAvailability),
       quarantine: filters.quarantine,
       lastPublishedFromMonth: filters.lastPublishedFromMonth ?? undefined,
       lastPublishedToMonth: filters.lastPublishedToMonth ?? undefined,
@@ -398,17 +410,17 @@ export function Sites() {
     if (filters.niches.length > 0) activeColumnIds.add('niche');
     if (filters.categorySearchTerms.length > 0) activeColumnIds.add('categories');
     if (filters.languages.length > 0) activeColumnIds.add('language');
-    if (filters.casinoAvailability !== INITIAL_FILTERS.casinoAvailability)
+    if (hasAvailabilityFilter(filters.casinoAvailability))
       activeColumnIds.add('priceCasino');
-    if (filters.cryptoAvailability !== INITIAL_FILTERS.cryptoAvailability)
+    if (hasAvailabilityFilter(filters.cryptoAvailability))
       activeColumnIds.add('priceCrypto');
-    if (filters.linkInsertAvailability !== INITIAL_FILTERS.linkInsertAvailability) {
+    if (hasAvailabilityFilter(filters.linkInsertAvailability)) {
       activeColumnIds.add('priceLinkInsert');
     }
-    if (filters.linkInsertCasinoAvailability !== INITIAL_FILTERS.linkInsertCasinoAvailability) {
+    if (hasAvailabilityFilter(filters.linkInsertCasinoAvailability)) {
       activeColumnIds.add('priceLinkInsertCasino');
     }
-    if (filters.datingAvailability !== INITIAL_FILTERS.datingAvailability)
+    if (hasAvailabilityFilter(filters.datingAvailability))
       activeColumnIds.add('priceDating');
     if (filters.quarantine !== INITIAL_FILTERS.quarantine) activeColumnIds.add('isQuarantined');
     if (filters.lastPublishedFromMonth !== null || filters.lastPublishedToMonth !== null) {

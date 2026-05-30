@@ -494,7 +494,7 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
             >
               <Typography variant="subtitle2">Optional Services</Typography>
               <Typography variant="caption" color="text.secondary">
-                Available with price = show price, Available unknown = YES, Not available = NO, Unknown = —.
+                Has price = show price, YES = available with unknown price, NO = not available, Unknown = —.
               </Typography>
 
               <OptionalServiceSection

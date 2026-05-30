@@ -1,5 +1,8 @@
 import type { SitesFilters } from '../../../types/sites.types';
-import { SERVICE_AVAILABILITY_FILTER_OPTIONS } from '../../../utils/serviceAvailability';
+import {
+  getServiceAvailabilityFilterLabel,
+  normalizeServiceAvailabilityFilter,
+} from '../../../utils/serviceAvailability';
 import { pluralize } from '../../../utils/pluralize';
 
 const FILTER_VALUE_SUMMARY_MAX_LENGTH = 22;
@@ -96,12 +99,14 @@ export function buildAdvancedActiveFilterSummaries(
     ['Dating', filters.datingAvailability],
   ];
 
-  for (const [label, value] of serviceFilters) {
-    if (value === 'all') continue;
-    const optionLabel =
-      SERVICE_AVAILABILITY_FILTER_OPTIONS.find((option) => option.value === value)?.label ??
-      value;
-    summaries.push({ label, value: optionLabel });
+  for (const [label, values] of serviceFilters) {
+    const serviceSummary = formatSelectionSummary(
+      label,
+      normalizeServiceAvailabilityFilter(values).map((value) =>
+        getServiceAvailabilityFilterLabel(value)
+      )
+    );
+    if (serviceSummary) summaries.push(serviceSummary);
   }
 
   if (filters.quarantine !== 'exclude') {

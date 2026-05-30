@@ -173,7 +173,7 @@ function validateOptionalServicePrice(
 ): void {
   const parsed = parseNumberOrNull(price);
   if (parsed === null) {
-    errors[fieldKey] = ['Required when status is Available with price.'];
+    errors[fieldKey] = ['Required when status is Has price.'];
   } else if (parsed <= 0) {
     errors[fieldKey] = ['Must be greater than 0.'];
   }

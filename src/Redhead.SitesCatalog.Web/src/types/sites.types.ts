@@ -266,7 +266,12 @@ export type ServiceAvailabilityStatus =
   | 2
   | 3;
 export type ServiceAvailabilityStatusValue = 0 | 1 | 2 | 3;
-export type ServiceAvailabilityFilter = 'all' | 'available' | 'notAvailable' | 'unknown';
+export type ServiceAvailabilityFilterValue =
+  | 'unknown'
+  | 'available'
+  | 'notAvailable'
+  | 'availableWithUnknownPrice';
+export type ServiceAvailabilityFilter = ServiceAvailabilityFilterValue[];
 export type TermType = 'Permanent' | 'Finite' | 1 | 2;
 export type TermTypeValue = 1 | 2;
 export type TermUnit = 'Year' | 1;
