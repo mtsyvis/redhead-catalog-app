@@ -104,8 +104,11 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
         active: { type: 'system' as const, key: systemView.key, name: systemView.name },
         visibleColumnIds: systemView.visibleColumnIds,
         density: systemView.density,
-        columnWidths: createSanitizedSettings(systemView.visibleColumnIds, systemView.density)
-          .columnWidths,
+        columnWidths: createSanitizedSettings(
+          systemView.visibleColumnIds,
+          systemView.density,
+          systemView.columnWidths
+        ).columnWidths,
       };
     },
     [allowedViewColumns, createSanitizedSettings, getSystemView]
@@ -177,7 +180,11 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
     }
 
     const systemView = getSystemView(activeView.key);
-    return createSanitizedSettings(systemView.visibleColumnIds, systemView.density);
+    return createSanitizedSettings(
+      systemView.visibleColumnIds,
+      systemView.density,
+      systemView.columnWidths
+    );
   }, [
     activeView,
     allowedViewColumns,

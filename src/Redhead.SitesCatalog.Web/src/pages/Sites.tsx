@@ -507,7 +507,7 @@ export function Sites() {
 
   return (
     <PageShell maxWidth="xl">
-      <Box>
+      <Box sx={{ display: 'flex', flex: 1, minHeight: 0, flexDirection: 'column' }}>
         <Box sx={{ mb: 1 }}>
           <Typography variant="h4">Sites Catalog</Typography>
         </Box>
@@ -549,7 +549,15 @@ export function Sites() {
           </Alert>
         )}
 
-        <Paper>
+        <Paper
+          sx={{
+            display: 'flex',
+            flex: 1,
+            minHeight: { xs: 520, md: 420 },
+            overflow: 'hidden',
+            flexDirection: 'column',
+          }}
+        >
           <SitesTableViewToolbar
             tableViews={tableViews}
             hiddenFilteredColumns={hiddenFilteredColumns}
@@ -566,51 +574,94 @@ export function Sites() {
             onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
           />
 
-          <DataGrid
-            rows={gridRows}
-            columns={columns}
-            getRowId={(row) => (isNotFoundRow(row) ? `notfound:${row.domain}` : row.domain)}
-            rowCount={gridRowCount}
-            loading={gridLoading}
-            pageSizeOptions={[10, 25, 50, 100]}
-            paginationModel={paginationModel}
-            paginationMode={isMultiSearchView ? 'client' : 'server'}
-            onPaginationModelChange={setPaginationModel}
-            sortingMode="server"
-            sortModel={sortModel}
-            onSortModelChange={setSortModel}
-            onColumnWidthChange={handleColumnWidthChange}
-            density={tableViews.density}
-            columnVisibilityModel={tableViews.columnVisibilityModel}
-            localeText={dataGridLocaleText}
-            disableRowSelectionOnClick
-            disableColumnMenu
-            autoHeight
+          <Box
             sx={{
-              borderTopLeftRadius: 0,
-              borderTopRightRadius: 0,
-              '& .MuiDataGrid-cell': {
-                display: 'flex',
-                alignItems: 'center',
-                py: 1,
-              },
-              '& .MuiDataGrid-cell:focus': {
-                outline: 'none',
-              },
-              '& .MuiDataGrid-cell:focus-within': {
-                outline: 'none',
-              },
-              '& .MuiDataGrid-columnHeader': {
-                backgroundColor: 'action.hover',
-              },
-              '& .MuiDataGrid-columnHeader:focus': {
-                outline: 'none',
-              },
-              '& .MuiDataGrid-columnHeader:focus-within': {
-                outline: 'none',
-              },
+              flex: 1,
+              minHeight: { xs: 440, md: 360 },
             }}
-          />
+          >
+            <DataGrid
+              rows={gridRows}
+              columns={columns}
+              getRowId={(row) => (isNotFoundRow(row) ? `notfound:${row.domain}` : row.domain)}
+              rowCount={gridRowCount}
+              loading={gridLoading}
+              pageSizeOptions={[10, 25, 50, 100]}
+              paginationModel={paginationModel}
+              paginationMode={isMultiSearchView ? 'client' : 'server'}
+              onPaginationModelChange={setPaginationModel}
+              sortingMode="server"
+              sortModel={sortModel}
+              onSortModelChange={setSortModel}
+              onColumnWidthChange={handleColumnWidthChange}
+              density={tableViews.density}
+              columnVisibilityModel={tableViews.columnVisibilityModel}
+              localeText={dataGridLocaleText}
+              disableRowSelectionOnClick
+              disableColumnMenu
+              // Keep manually pinned Domain cells mounted while users scroll across Full view columns.
+              disableVirtualization
+              sx={{
+                borderTopLeftRadius: 0,
+                borderTopRightRadius: 0,
+                backgroundColor: 'background.paper',
+                '& .MuiDataGrid-cell': {
+                  display: 'flex',
+                  alignItems: 'center',
+                  py: 1,
+                },
+                '& .MuiDataGrid-cell:focus': {
+                  outline: 'none',
+                },
+                '& .MuiDataGrid-cell:focus-within': {
+                  outline: 'none',
+                },
+                '& .MuiDataGrid-container--top': {
+                  zIndex: 40,
+                  backgroundColor: 'grey.100',
+                },
+                '& .MuiDataGrid-columnHeaders': {
+                  backgroundColor: 'grey.100',
+                },
+                '& .MuiDataGrid-columnHeader': {
+                  backgroundColor: 'grey.100',
+                },
+                '& .MuiDataGrid-columnHeader:focus': {
+                  outline: 'none',
+                },
+                '& .MuiDataGrid-columnHeader:focus-within': {
+                  outline: 'none',
+                },
+                '& .SitesGrid-domainCell, & .SitesGrid-domainHeader': {
+                  position: 'sticky',
+                  left: 0,
+                  boxSizing: 'border-box',
+                  overflow: 'hidden',
+                  borderRight: '1px solid',
+                  borderRightColor: 'divider',
+                  boxShadow: '6px 0 10px -12px rgba(0, 0, 0, 0.5)',
+                  backgroundClip: 'padding-box',
+                },
+                '& .SitesGrid-domainCell': {
+                  zIndex: 30,
+                  backgroundColor: 'background.paper',
+                },
+                '& .SitesGrid-domainHeader': {
+                  zIndex: 45,
+                  backgroundColor: 'grey.100',
+                },
+                '& .MuiDataGrid-row:hover .SitesGrid-domainCell': {
+                  backgroundColor: 'grey.50',
+                },
+                '& .MuiDataGrid-row.Mui-selected .SitesGrid-domainCell': {
+                  backgroundColor: 'grey.100',
+                },
+                '& .MuiDataGrid-row.Mui-selected:hover .SitesGrid-domainCell': {
+                  backgroundColor: 'grey.100',
+                },
+              }}
+            />
+          </Box>
         </Paper>
 
         <Popover

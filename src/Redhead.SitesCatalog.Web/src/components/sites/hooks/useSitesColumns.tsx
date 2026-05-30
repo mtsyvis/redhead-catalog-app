@@ -7,6 +7,7 @@ import { formatLanguageTableValue } from '../../../utils/language';
 import { formatOptionalServicePrice } from '../../../utils/serviceAvailability';
 import { formatTerm } from '../../../utils/term';
 import { StatusBadge } from '../feedback/StatusBadge';
+import { TruncatedTextCell } from '../cells/TruncatedTextCell';
 import type { GridRow } from './useSitesGridRows';
 import { isNotFoundRow } from './useSitesGridRows';
 import {
@@ -72,10 +73,13 @@ function formatLocationCell(row: GridRow, value: string | null): string {
   return location;
 }
 
+function renderTruncatedTextCell(value: string) {
+  return <TruncatedTextCell value={value} />;
+}
+
 const columnMetadata: Record<string, SitesColumnMetadata> = Object.fromEntries(
   sitesColumnRegistry.map((column) => [column.id, column])
 );
-const domainDefaultWidth = columnMetadata.domain.width;
 
 function gridColumnDefaults(
   field: string,
@@ -110,7 +114,9 @@ export function useSitesColumns({
         {
           ...gridColumnDefaults('domain', columnWidths),
           field: 'domain',
-          ...(columnWidths.domain === domainDefaultWidth ? { flex: 1 } : {}),
+          cellClassName: 'SitesGrid-domainCell',
+          headerClassName: 'SitesGrid-domainHeader',
+          renderCell: (params) => renderTruncatedTextCell(String(params.value ?? '—')),
         },
         {
           ...gridColumnDefaults('dr', columnWidths),
@@ -133,6 +139,8 @@ export function useSitesColumns({
           ...gridColumnDefaults('location', columnWidths),
           field: 'location',
           valueFormatter: (value, row) => formatLocationCell(row, value as string | null),
+          renderCell: (params) =>
+            renderTruncatedTextCell(formatLocationCell(params.row, params.value as string | null)),
         },
         {
           ...gridColumnDefaults('priceUsd', columnWidths),
@@ -188,12 +196,20 @@ export function useSitesColumns({
           field: 'niche',
           sortable: false,
           valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
+          renderCell: (params) =>
+            renderTruncatedTextCell(
+              formatCell(params.row, params.value as string | null, (v) => v || '—')
+            ),
         },
         {
           ...gridColumnDefaults('categories', columnWidths),
           field: 'categories',
           sortable: false,
           valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
+          renderCell: (params) =>
+            renderTruncatedTextCell(
+              formatCell(params.row, params.value as string | null, (v) => v || '—')
+            ),
         },
         {
           ...gridColumnDefaults('numberDFLinks', columnWidths),
@@ -206,6 +222,10 @@ export function useSitesColumns({
           field: 'sponsoredTag',
           sortable: false,
           valueFormatter: (value, row) => formatCell(row, value as string | null, (v) => v || '—'),
+          renderCell: (params) =>
+            renderTruncatedTextCell(
+              formatCell(params.row, params.value as string | null, (v) => v || '—')
+            ),
         },
         {
           ...gridColumnDefaults('term', columnWidths),
@@ -215,6 +235,11 @@ export function useSitesColumns({
             const site = row as Site;
             return formatTerm(site.termType, site.termValue, site.termUnit);
           },
+          renderCell: (params) => {
+            if (isNotFoundRow(params.row)) return renderTruncatedTextCell('—');
+            const site = params.row as Site;
+            return renderTruncatedTextCell(formatTerm(site.termType, site.termValue, site.termUnit));
+          },
         },
         {
           ...gridColumnDefaults('language', columnWidths),
@@ -223,6 +248,10 @@ export function useSitesColumns({
           valueFormatter: (value, row) => {
             if (isNotFoundRow(row)) return '—';
             return formatLanguageTableValue(value as string | null);
+          },
+          renderCell: (params) => {
+            if (isNotFoundRow(params.row)) return renderTruncatedTextCell('—');
+            return renderTruncatedTextCell(formatLanguageTableValue(params.value as string | null));
           },
         },
         {
@@ -275,6 +304,13 @@ export function useSitesColumns({
                   const site = row as Site;
                   return site.isQuarantined ? site.quarantineReason || '—' : '—';
                 },
+                renderCell: (params) => {
+                  if (isNotFoundRow(params.row)) return renderTruncatedTextCell('—');
+                  const site = params.row as Site;
+                  return renderTruncatedTextCell(
+                    site.isQuarantined ? site.quarantineReason || '—' : '—'
+                  );
+                },
               } as GridColDef<GridRow>,
               {
                 ...gridColumnDefaults('updatedAt', columnWidths),
@@ -290,6 +326,10 @@ export function useSitesColumns({
                 sortable: false,
                 valueFormatter: (value, row) =>
                   formatAuditUser(row, value as string | null | undefined),
+                renderCell: (params) =>
+                  renderTruncatedTextCell(
+                    formatAuditUser(params.row, params.value as string | null | undefined)
+                  ),
               } as GridColDef<GridRow>,
               {
                 ...gridColumnDefaults('updatedBy', columnWidths),
@@ -297,6 +337,10 @@ export function useSitesColumns({
                 sortable: false,
                 valueFormatter: (value, row) =>
                   formatAuditUser(row, value as string | null | undefined),
+                renderCell: (params) =>
+                  renderTruncatedTextCell(
+                    formatAuditUser(params.row, params.value as string | null | undefined)
+                  ),
               } as GridColDef<GridRow>,
             ]
           : []),

@@ -350,6 +350,8 @@ Rules:
 * Unsaved table view changes are saved or reset from the view-changed workflow, not automatically when applying columns.
 * The `Domain` column is always visible and cannot be hidden.
 * The `Domain` column is always first; workflow/system columns such as row actions stay system-managed and last when present.
+* The `Domain` column remains pinned on the left while horizontally scrolling the Sites table.
+* Long text values in the Sites table stay single-line with truncation and reveal the full value on hover when truncated.
 * Workflow/system columns such as row actions are not saved in table views.
 * If active filters target hidden columns, the UI should warn the user and offer to show those columns or clear only those hidden-column filters.
 * Sorting by service-specific price fields keeps available services first in both ascending and descending order. Known numeric prices sort first by price, available-with-unknown-price (`YES`) sorts after known prices, not-available sorts after `YES`, and unknown sorts last.

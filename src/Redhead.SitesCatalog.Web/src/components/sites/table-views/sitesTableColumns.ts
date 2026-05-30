@@ -22,6 +22,7 @@ export interface SitesSystemView {
   name: string;
   density: TableViewDensity;
   visibleColumnIds: string[];
+  columnWidths?: Record<string, number>;
 }
 
 export const SITES_TABLE_KEY = 'sites';
@@ -269,6 +270,9 @@ export const sitesSystemViews: SitesSystemView[] = [
     key: 'pricing',
     name: 'Pricing',
     density: 'standard',
+    columnWidths: {
+      domain: 380,
+    },
     visibleColumnIds: [
       'domain',
       'priceUsd',
