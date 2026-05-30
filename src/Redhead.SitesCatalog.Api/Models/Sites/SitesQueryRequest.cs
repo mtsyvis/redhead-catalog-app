@@ -66,34 +66,34 @@ public class SitesQueryRequest
     public List<string?>? CategorySearchTerms { get; set; }
 
     /// <summary>
-    /// Optional availability filter for PriceCasino status.
-    /// Allowed values: all, available, notAvailable, unknown.
+    /// Optional availability filters for PriceCasino status.
+    /// Allowed values: unknown, available, notAvailable, availableWithUnknownPrice.
     /// </summary>
-    public string? CasinoAvailability { get; set; }
+    public List<string>? CasinoAvailability { get; set; }
 
     /// <summary>
-    /// Optional availability filter for PriceCrypto status.
-    /// Allowed values: all, available, notAvailable, unknown.
+    /// Optional availability filters for PriceCrypto status.
+    /// Allowed values: unknown, available, notAvailable, availableWithUnknownPrice.
     /// </summary>
-    public string? CryptoAvailability { get; set; }
+    public List<string>? CryptoAvailability { get; set; }
 
     /// <summary>
-    /// Optional availability filter for PriceLinkInsert status.
-    /// Allowed values: all, available, notAvailable, unknown.
+    /// Optional availability filters for PriceLinkInsert status.
+    /// Allowed values: unknown, available, notAvailable, availableWithUnknownPrice.
     /// </summary>
-    public string? LinkInsertAvailability { get; set; }
+    public List<string>? LinkInsertAvailability { get; set; }
 
     /// <summary>
-    /// Optional availability filter for PriceLinkInsertCasino status.
-    /// Allowed values: all, available, notAvailable, unknown.
+    /// Optional availability filters for PriceLinkInsertCasino status.
+    /// Allowed values: unknown, available, notAvailable, availableWithUnknownPrice.
     /// </summary>
-    public string? LinkInsertCasinoAvailability { get; set; }
+    public List<string>? LinkInsertCasinoAvailability { get; set; }
 
     /// <summary>
-    /// Optional availability filter for PriceDating status.
-    /// Allowed values: all, available, notAvailable, unknown.
+    /// Optional availability filters for PriceDating status.
+    /// Allowed values: unknown, available, notAvailable, availableWithUnknownPrice.
     /// </summary>
-    public string? DatingAvailability { get; set; }
+    public List<string>? DatingAvailability { get; set; }
 
     /// <summary>
     /// Quarantine filter. Valid values: all (default - returns all sites), only (returns only quarantined sites), exclude (excludes quarantined sites)

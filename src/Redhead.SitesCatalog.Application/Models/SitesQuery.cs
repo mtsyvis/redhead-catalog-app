@@ -47,11 +47,11 @@ public class SitesQuery
     // Categories substring search terms
     public List<string>? CategorySearchTerms { get; set; }
 
-    public ServiceAvailabilityFilter? CasinoAvailability { get; set; }
-    public ServiceAvailabilityFilter? CryptoAvailability { get; set; }
-    public ServiceAvailabilityFilter? LinkInsertAvailability { get; set; }
-    public ServiceAvailabilityFilter? LinkInsertCasinoAvailability { get; set; }
-    public ServiceAvailabilityFilter? DatingAvailability { get; set; }
+    public List<ServiceAvailabilityStatus>? CasinoAvailability { get; set; }
+    public List<ServiceAvailabilityStatus>? CryptoAvailability { get; set; }
+    public List<ServiceAvailabilityStatus>? LinkInsertAvailability { get; set; }
+    public List<ServiceAvailabilityStatus>? LinkInsertCasinoAvailability { get; set; }
+    public List<ServiceAvailabilityStatus>? DatingAvailability { get; set; }
 
     // Quarantine filter
     public string Quarantine { get; set; } = string.Empty;

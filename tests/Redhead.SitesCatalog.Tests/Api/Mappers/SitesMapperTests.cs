@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Redhead.SitesCatalog.Api.Mappers;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
@@ -31,11 +32,11 @@ public class SitesMapperTests
             Languages = new List<string> { "english", "de", "en-US", "UNKNOWN" },
             Niches = new List<string> { "crypto", "finance" },
             CategorySearchTerms = new List<string?> { " sports betting ", "Crypto" },
-            CasinoAvailability = "notAvailable",
-            CryptoAvailability = "unknown",
-            LinkInsertAvailability = "available",
-            LinkInsertCasinoAvailability = "notAvailable",
-            DatingAvailability = "available",
+            CasinoAvailability = ["notAvailable"],
+            CryptoAvailability = ["unknown"],
+            LinkInsertAvailability = ["available"],
+            LinkInsertCasinoAvailability = ["notAvailable"],
+            DatingAvailability = ["availableWithUnknownPrice"],
             Quarantine = QuarantineFilterValues.Exclude
         };
 
@@ -61,11 +62,11 @@ public class SitesMapperTests
         Assert.Equal(["EN", "DE", "UNKNOWN"], query.Languages);
         Assert.Equal(["crypto", "finance"], query.Niches);
         Assert.Equal(["sports betting", "Crypto"], query.CategorySearchTerms);
-        Assert.Equal(ServiceAvailabilityFilter.NotAvailable, query.CasinoAvailability);
-        Assert.Equal(ServiceAvailabilityFilter.Unknown, query.CryptoAvailability);
-        Assert.Equal(ServiceAvailabilityFilter.Available, query.LinkInsertAvailability);
-        Assert.Equal(ServiceAvailabilityFilter.NotAvailable, query.LinkInsertCasinoAvailability);
-        Assert.Equal(ServiceAvailabilityFilter.Available, query.DatingAvailability);
+        Assert.Equal([ServiceAvailabilityStatus.NotAvailable], query.CasinoAvailability);
+        Assert.Equal([ServiceAvailabilityStatus.Unknown], query.CryptoAvailability);
+        Assert.Equal([ServiceAvailabilityStatus.Available], query.LinkInsertAvailability);
+        Assert.Equal([ServiceAvailabilityStatus.NotAvailable], query.LinkInsertCasinoAvailability);
+        Assert.Equal([ServiceAvailabilityStatus.AvailableWithUnknownPrice], query.DatingAvailability);
         Assert.Equal(QuarantineFilterValues.Exclude, query.Quarantine);
     }
 
@@ -262,7 +263,7 @@ public class SitesMapperTests
         // Arrange
         var request = new SitesQueryRequest
         {
-            CasinoAvailability = "badValue"
+            CasinoAvailability = ["badValue"]
         };
 
         // Act
@@ -270,6 +271,50 @@ public class SitesMapperTests
 
         // Assert
         Assert.Contains("Invalid availability filter value", ex.Message);
+    }
+
+    [Fact]
+    public void ToQuery_WithDuplicateAvailabilityValues_DedupesValues()
+    {
+        // Arrange
+        var request = new SitesQueryRequest
+        {
+            CasinoAvailability = ["available", "unknown", "availableWithUnknownPrice", "available"]
+        };
+
+        // Act
+        var query = SitesMapper.ToQuery(request);
+
+        // Assert
+        Assert.Equal(
+            [
+                ServiceAvailabilityStatus.Available,
+                ServiceAvailabilityStatus.Unknown,
+                ServiceAvailabilityStatus.AvailableWithUnknownPrice
+            ],
+            query.CasinoAvailability);
+    }
+
+    [Fact]
+    public void SitesQueryRequest_WithAvailabilityArray_DeserializesValues()
+    {
+        // Arrange
+        var json = """{"casinoAvailability":["available","unknown","availableWithUnknownPrice"]}""";
+
+        // Act
+        var request = JsonSerializer.Deserialize<SitesQueryRequest>(
+            json,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var query = SitesMapper.ToQuery(request!);
+
+        // Assert
+        Assert.Equal(
+            [
+                ServiceAvailabilityStatus.Available,
+                ServiceAvailabilityStatus.Unknown,
+                ServiceAvailabilityStatus.AvailableWithUnknownPrice
+            ],
+            query.CasinoAvailability);
     }
 
     [Fact]

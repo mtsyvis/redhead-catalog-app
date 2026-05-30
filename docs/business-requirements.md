@@ -380,6 +380,14 @@ Main filters:
 * The default quarantine status filter excludes quarantined sites (`Available Only`).
 * Last publication date range/month filter
 
+Optional service availability filter rules:
+
+* Optional service filters use the existing `ServiceAvailabilityStatus` values: `unknown`, `available`, `notAvailable`, and `availableWithUnknownPrice`.
+* Empty or missing optional service filter values mean no filter.
+* Multiple selected values for one optional service use OR semantics.
+* Filters across different optional services use AND semantics.
+* The `available` and `availableWithUnknownPrice` values are distinct filter states.
+
 Sites search and filter UX rules:
 
 * Normal domain search auto-applies after a short debounce; users do not need to press a Search button for single-search browsing.

@@ -503,7 +503,7 @@ public class ExportServiceTests : IDisposable
 
         var query = new SitesQuery
         {
-            CasinoAvailability = ServiceAvailabilityFilter.NotAvailable,
+            CasinoAvailability = [ServiceAvailabilityStatus.NotAvailable],
             Page = 1,
             PageSize = 100,
             SortBy = SortFields.Domain,
@@ -561,7 +561,7 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_WithCasinoAvailabilityAvailable_IncludesKnownAndUnknownPriceAvailableSites()
+    public async Task ExportSitesAsExcelAsync_WithCasinoAvailabilityAvailable_ExportsOnlyAvailableSites()
     {
         // Arrange
         _context.Sites.Add(new Site
@@ -584,7 +584,7 @@ public class ExportServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         var query = DefaultQuery();
-        query.CasinoAvailability = ServiceAvailabilityFilter.Available;
+        query.CasinoAvailability = [ServiceAvailabilityStatus.Available];
 
         // Act
         var result = await _service.ExportSitesAsExcelAsync(
@@ -596,7 +596,74 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
-        Assert.Equal(["example.com", "gambling.com", "yes-casino.com"], rows.Select(row => row["Domain"]).ToArray());
+        Assert.Equal(["example.com", "gambling.com"], rows.Select(row => row["Domain"]).ToArray());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithCasinoAvailabilityAvailableWithUnknownPrice_ExportsOnlyMatchingSites()
+    {
+        // Arrange
+        _context.Sites.Add(new Site
+        {
+            Domain = "yes-casino.com",
+            DR = 20,
+            Traffic = 1000,
+            Location = "US",
+            PriceUsd = 25m,
+            PriceCasino = null,
+            PriceCasinoStatus = ServiceAvailabilityStatus.AvailableWithUnknownPrice,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+            IsQuarantined = false,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        var query = DefaultQuery();
+        query.CasinoAvailability = [ServiceAvailabilityStatus.AvailableWithUnknownPrice];
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        Assert.Equal(["yes-casino.com"], rows.Select(row => row["Domain"]).ToArray());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithMultipleCasinoAvailabilityValues_ExportsOnlyMatchingSites()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            CasinoAvailability = [ServiceAvailabilityStatus.NotAvailable, ServiceAvailabilityStatus.Unknown],
+            Page = 1,
+            PageSize = 100,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        Assert.Equal(["test.com"], rows.Select(row => row["Domain"]).ToArray());
+        Assert.Equal(1, result.RequestedRows);
     }
 
     [Fact]
@@ -604,7 +671,7 @@ public class ExportServiceTests : IDisposable
     {
         var query = new SitesQuery
         {
-            LinkInsertCasinoAvailability = ServiceAvailabilityFilter.NotAvailable,
+            LinkInsertCasinoAvailability = [ServiceAvailabilityStatus.NotAvailable],
             Page = 1,
             PageSize = 100,
             SortBy = SortFields.Domain,
@@ -628,7 +695,7 @@ public class ExportServiceTests : IDisposable
     {
         var query = new SitesQuery
         {
-            DatingAvailability = ServiceAvailabilityFilter.Unknown,
+            DatingAvailability = [ServiceAvailabilityStatus.Unknown],
             Page = 1,
             PageSize = 100,
             SortBy = SortFields.Domain,
@@ -1505,8 +1572,8 @@ public class ExportServiceTests : IDisposable
             Languages = ["EN", "UNKNOWN"],
             Niches = ["Casino", " crypto ", "casino"],
             CategorySearchTerms = [" Sports Betting ", "crypto", "SPORTS BETTING"],
-            CasinoAvailability = ServiceAvailabilityFilter.Available,
-            LinkInsertAvailability = ServiceAvailabilityFilter.Available,
+            CasinoAvailability = [ServiceAvailabilityStatus.Available],
+            LinkInsertAvailability = [ServiceAvailabilityStatus.Available],
             StopListDomains = ["test.com"],
             Quarantine = QuarantineFilterValues.Exclude,
             LastPublishedToExclusive = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -1560,10 +1627,12 @@ public class ExportServiceTests : IDisposable
             filter.GetProperty("value").GetBoolean());
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "priceCasinoAvailability" &&
-            filter.GetProperty("value").GetString() == "available");
+            filter.GetProperty("operator").GetString() == "in" &&
+            filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["available"]));
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "priceLinkInsertAvailability" &&
-            filter.GetProperty("value").GetString() == "available");
+            filter.GetProperty("operator").GetString() == "in" &&
+            filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["available"]));
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "lastPublishedDate" &&
             filter.GetProperty("kind").GetString() == "monthRange" &&
@@ -1919,3 +1988,4 @@ public class ExportServiceTests : IDisposable
         UpdatedAtUtc = DateTime.UtcNow
     };
 }
+

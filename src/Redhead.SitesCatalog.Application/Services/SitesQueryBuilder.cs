@@ -299,77 +299,42 @@ public class SitesQueryBuilder : ISitesQueryBuilder
 
     private static IQueryable<Site> ApplyAvailabilityFilters(IQueryable<Site> query, SitesQuery filters)
     {
-        if (filters.CasinoAvailability.HasValue)
-        {
-            query = filters.CasinoAvailability.Value switch
-            {
-                ServiceAvailabilityFilter.All => query,
-                ServiceAvailabilityFilter.Available => query.Where(s =>
-                    s.PriceCasinoStatus == ServiceAvailabilityStatus.Available
-                    || s.PriceCasinoStatus == ServiceAvailabilityStatus.AvailableWithUnknownPrice),
-                ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.NotAvailable),
-                ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceCasinoStatus == ServiceAvailabilityStatus.Unknown),
-                _ => query
-            };
-        }
-
-        if (filters.CryptoAvailability.HasValue)
-        {
-            query = filters.CryptoAvailability.Value switch
-            {
-                ServiceAvailabilityFilter.All => query,
-                ServiceAvailabilityFilter.Available => query.Where(s =>
-                    s.PriceCryptoStatus == ServiceAvailabilityStatus.Available
-                    || s.PriceCryptoStatus == ServiceAvailabilityStatus.AvailableWithUnknownPrice),
-                ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.NotAvailable),
-                ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceCryptoStatus == ServiceAvailabilityStatus.Unknown),
-                _ => query
-            };
-        }
-
-        if (filters.LinkInsertAvailability.HasValue)
-        {
-            query = filters.LinkInsertAvailability.Value switch
-            {
-                ServiceAvailabilityFilter.All => query,
-                ServiceAvailabilityFilter.Available => query.Where(s =>
-                    s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Available
-                    || s.PriceLinkInsertStatus == ServiceAvailabilityStatus.AvailableWithUnknownPrice),
-                ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.NotAvailable),
-                ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceLinkInsertStatus == ServiceAvailabilityStatus.Unknown),
-                _ => query
-            };
-        }
-
-        if (filters.LinkInsertCasinoAvailability.HasValue)
-        {
-            query = filters.LinkInsertCasinoAvailability.Value switch
-            {
-                ServiceAvailabilityFilter.All => query,
-                ServiceAvailabilityFilter.Available => query.Where(s =>
-                    s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Available
-                    || s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.AvailableWithUnknownPrice),
-                ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.NotAvailable),
-                ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceLinkInsertCasinoStatus == ServiceAvailabilityStatus.Unknown),
-                _ => query
-            };
-        }
-
-        if (filters.DatingAvailability.HasValue)
-        {
-            query = filters.DatingAvailability.Value switch
-            {
-                ServiceAvailabilityFilter.All => query,
-                ServiceAvailabilityFilter.Available => query.Where(s =>
-                    s.PriceDatingStatus == ServiceAvailabilityStatus.Available
-                    || s.PriceDatingStatus == ServiceAvailabilityStatus.AvailableWithUnknownPrice),
-                ServiceAvailabilityFilter.NotAvailable => query.Where(s => s.PriceDatingStatus == ServiceAvailabilityStatus.NotAvailable),
-                ServiceAvailabilityFilter.Unknown => query.Where(s => s.PriceDatingStatus == ServiceAvailabilityStatus.Unknown),
-                _ => query
-            };
-        }
+        query = ApplyAvailabilityFilter(query, filters.CasinoAvailability, s => s.PriceCasinoStatus);
+        query = ApplyAvailabilityFilter(query, filters.CryptoAvailability, s => s.PriceCryptoStatus);
+        query = ApplyAvailabilityFilter(query, filters.LinkInsertAvailability, s => s.PriceLinkInsertStatus);
+        query = ApplyAvailabilityFilter(query, filters.LinkInsertCasinoAvailability, s => s.PriceLinkInsertCasinoStatus);
+        query = ApplyAvailabilityFilter(query, filters.DatingAvailability, s => s.PriceDatingStatus);
 
         return query;
+    }
+
+    private static IQueryable<Site> ApplyAvailabilityFilter(
+        IQueryable<Site> query,
+        IReadOnlyCollection<ServiceAvailabilityStatus>? filters,
+        Expression<Func<Site, ServiceAvailabilityStatus>> statusSelector)
+    {
+        if (filters is null || filters.Count == 0)
+        {
+            return query;
+        }
+
+        var statuses = filters
+            .Distinct()
+            .ToArray();
+
+        if (statuses.Length == 0)
+        {
+            return query;
+        }
+
+        var contains = Expression.Call(
+            typeof(Enumerable),
+            nameof(Enumerable.Contains),
+            [typeof(ServiceAvailabilityStatus)],
+            Expression.Constant(statuses),
+            statusSelector.Body);
+
+        return query.Where(Expression.Lambda<Func<Site, bool>>(contains, statusSelector.Parameters));
     }
 
     private static IQueryable<Site> ApplyLastPublishedDateFilter(IQueryable<Site> query, SitesQuery filters)

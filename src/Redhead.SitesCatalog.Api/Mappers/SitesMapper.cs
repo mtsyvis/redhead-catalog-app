@@ -44,11 +44,11 @@ public static class SitesMapper
             Languages = ParseLanguageFilter(request.Languages),
             Niches = request.Niches,
             CategorySearchTerms = CategorySearchTermParser.NormalizeAndValidate(request.CategorySearchTerms),
-            CasinoAvailability = ParseAvailabilityFilter(request.CasinoAvailability),
-            CryptoAvailability = ParseAvailabilityFilter(request.CryptoAvailability),
-            LinkInsertAvailability = ParseAvailabilityFilter(request.LinkInsertAvailability),
-            LinkInsertCasinoAvailability = ParseAvailabilityFilter(request.LinkInsertCasinoAvailability),
-            DatingAvailability = ParseAvailabilityFilter(request.DatingAvailability),
+            CasinoAvailability = ParseAvailabilityFilters(request.CasinoAvailability),
+            CryptoAvailability = ParseAvailabilityFilters(request.CryptoAvailability),
+            LinkInsertAvailability = ParseAvailabilityFilters(request.LinkInsertAvailability),
+            LinkInsertCasinoAvailability = ParseAvailabilityFilters(request.LinkInsertCasinoAvailability),
+            DatingAvailability = ParseAvailabilityFilters(request.DatingAvailability),
             Quarantine = request.Quarantine,
             LastPublishedFrom = lastPublishedFrom,
             LastPublishedToExclusive = lastPublishedToExclusive
@@ -148,22 +148,42 @@ public static class SitesMapper
         };
     }
 
-    private static ServiceAvailabilityFilter? ParseAvailabilityFilter(string? rawValue)
+    private static List<ServiceAvailabilityStatus>? ParseAvailabilityFilters(IReadOnlyCollection<string>? rawValues)
     {
-        if (string.IsNullOrWhiteSpace(rawValue))
+        if (rawValues is null || rawValues.Count == 0)
         {
             return null;
         }
 
+        var filters = new List<ServiceAvailabilityStatus>();
+        foreach (var rawValue in rawValues)
+        {
+            if (string.IsNullOrWhiteSpace(rawValue))
+            {
+                continue;
+            }
+
+            var filter = ParseAvailabilityFilter(rawValue);
+            if (!filters.Contains(filter))
+            {
+                filters.Add(filter);
+            }
+        }
+
+        return filters.Count == 0 ? null : filters;
+    }
+
+    private static ServiceAvailabilityStatus ParseAvailabilityFilter(string rawValue)
+    {
         var normalized = rawValue.Trim().ToLowerInvariant();
         return normalized switch
         {
-            "all" => ServiceAvailabilityFilter.All,
-            "available" => ServiceAvailabilityFilter.Available,
-            "notavailable" => ServiceAvailabilityFilter.NotAvailable,
-            "unknown" => ServiceAvailabilityFilter.Unknown,
+            "available" => ServiceAvailabilityStatus.Available,
+            "notavailable" => ServiceAvailabilityStatus.NotAvailable,
+            "unknown" => ServiceAvailabilityStatus.Unknown,
+            "availablewithunknownprice" => ServiceAvailabilityStatus.AvailableWithUnknownPrice,
             _ => throw new RequestValidationException(
-                $"Invalid availability filter value '{rawValue}'. Allowed values: all, available, notAvailable, unknown.")
+                $"Invalid availability filter value '{rawValue}'. Allowed values: unknown, available, notAvailable, availableWithUnknownPrice.")
         };
     }
 

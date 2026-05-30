@@ -256,30 +256,11 @@ public class ExportService : IExportService
         if (query.Languages is { Count: > 0 }) { return true; }
         if (NicheNormalizer.NormalizeTokens(query.Niches ?? []).Length > 0) { return true; }
         if (CategorySearchTermParser.NormalizeAndValidate(query.CategorySearchTerms) is { Count: > 0 }) { return true; }
-        if (query.CasinoAvailability.HasValue)
-        {
-            if (query.CasinoAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
-        }
-
-        if (query.CryptoAvailability.HasValue)
-        {
-            if (query.CryptoAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
-        }
-
-        if (query.LinkInsertAvailability.HasValue)
-        {
-            if (query.LinkInsertAvailability.Value != ServiceAvailabilityFilter.All) { return true; }
-        }
-        if (query.LinkInsertCasinoAvailability.HasValue &&
-            query.LinkInsertCasinoAvailability.Value != ServiceAvailabilityFilter.All)
-        {
-            return true;
-        }
-        if (query.DatingAvailability.HasValue &&
-            query.DatingAvailability.Value != ServiceAvailabilityFilter.All)
-        {
-            return true;
-        }
+        if (IsAvailabilityFilterActive(query.CasinoAvailability)) { return true; }
+        if (IsAvailabilityFilterActive(query.CryptoAvailability)) { return true; }
+        if (IsAvailabilityFilterActive(query.LinkInsertAvailability)) { return true; }
+        if (IsAvailabilityFilterActive(query.LinkInsertCasinoAvailability)) { return true; }
+        if (IsAvailabilityFilterActive(query.DatingAvailability)) { return true; }
         if (!string.IsNullOrEmpty(query.Quarantine) &&
             !string.Equals(query.Quarantine, QuarantineFilterValues.All, StringComparison.OrdinalIgnoreCase))
         {
@@ -288,6 +269,9 @@ public class ExportService : IExportService
 
         return false;
     }
+
+    private static bool IsAvailabilityFilterActive(IReadOnlyCollection<ServiceAvailabilityStatus>? availability)
+        => availability is { Count: > 0 };
 
     private static MemoryStream CreateWorkbook(
         IReadOnlyList<Site> sites,

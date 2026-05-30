@@ -240,18 +240,23 @@ public static class ExportAnalyticsSnapshotBuilder
     private static void AddAvailability(
         List<FilterSnapshotItemDto> filters,
         string field,
-        ServiceAvailabilityFilter? availability)
+        IReadOnlyCollection<ServiceAvailabilityStatus>? availability)
     {
-        if (!availability.HasValue || availability.Value == ServiceAvailabilityFilter.All)
+        if (availability is null || availability.Count == 0)
         {
             return;
         }
 
+        var values = availability
+            .Distinct()
+            .Select(FormatAvailability)
+            .ToArray();
+
         filters.Add(new FilterSnapshotItemDto(
             Field: field,
             Kind: "availability",
-            Operator: "eq",
-            Value: FormatAvailability(availability.Value)));
+            Operator: "in",
+            Value: values));
     }
 
     private static void AddQuarantine(List<FilterSnapshotItemDto> filters, string? quarantine)
@@ -321,13 +326,13 @@ public static class ExportAnalyticsSnapshotBuilder
     private static string FormatMonth(DateTime value)
         => value.ToString("yyyy-MM", CultureInfo.InvariantCulture);
 
-    private static string FormatAvailability(ServiceAvailabilityFilter availability)
+    private static string FormatAvailability(ServiceAvailabilityStatus availability)
         => availability switch
         {
-            ServiceAvailabilityFilter.Available => "available",
-            ServiceAvailabilityFilter.NotAvailable => "notAvailable",
-            ServiceAvailabilityFilter.Unknown => "unknown",
-            _ => "all"
+            ServiceAvailabilityStatus.Available => "available",
+            ServiceAvailabilityStatus.NotAvailable => "notAvailable",
+            ServiceAvailabilityStatus.AvailableWithUnknownPrice => "availableWithUnknownPrice",
+            _ => "unknown"
         };
 
     private static string ToBusinessFieldName(string sortBy)

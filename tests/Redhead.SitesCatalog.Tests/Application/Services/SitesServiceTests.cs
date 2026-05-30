@@ -1036,7 +1036,7 @@ public class SitesServiceTests : IDisposable
     {
         var query = new SitesQuery
         {
-            CasinoAvailability = ServiceAvailabilityFilter.NotAvailable,
+            CasinoAvailability = [ServiceAvailabilityStatus.NotAvailable],
             Page = 1,
             PageSize = 10,
             SortBy = SortFields.Domain,
@@ -1051,7 +1051,7 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetSitesAsync_WithCasinoAvailabilityAvailable_IncludesKnownAndUnknownPriceAvailableSites()
+    public async Task GetSitesAsync_WithCasinoAvailabilityAvailable_ReturnsOnlyAvailableSites()
     {
         // Arrange
         _context.Sites.Add(new Site
@@ -1075,7 +1075,7 @@ public class SitesServiceTests : IDisposable
 
         var query = new SitesQuery
         {
-            CasinoAvailability = ServiceAvailabilityFilter.Available,
+            CasinoAvailability = [ServiceAvailabilityStatus.Available],
             Page = 1,
             PageSize = 10,
             SortBy = SortFields.Domain,
@@ -1087,7 +1087,48 @@ public class SitesServiceTests : IDisposable
         var result = await _service.GetSitesAsync(query);
 
         // Assert
-        Assert.Equal(["example.com", "gambling.com", "yes-casino.com"], result.Items.Select(site => site.Domain).ToArray());
+        Assert.Equal(["example.com", "gambling.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithCasinoAvailabilityAvailableWithUnknownPrice_ReturnsOnlyAvailableWithUnknownPriceSites()
+    {
+        // Arrange
+        _context.Sites.Add(new Site
+        {
+            Domain = "yes-casino.com",
+            DR = 40,
+            Traffic = 4000,
+            Location = "US",
+            PriceUsd = 100m,
+            PriceCasino = null,
+            PriceCasinoStatus = ServiceAvailabilityStatus.AvailableWithUnknownPrice,
+            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
+            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
+            PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
+            IsQuarantined = false,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+
+        var query = new SitesQuery
+        {
+            CasinoAvailability = [ServiceAvailabilityStatus.AvailableWithUnknownPrice],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Single(result.Items);
+        Assert.Equal("yes-casino.com", result.Items[0].Domain);
     }
 
     [Fact]
@@ -1095,7 +1136,7 @@ public class SitesServiceTests : IDisposable
     {
         var query = new SitesQuery
         {
-            CryptoAvailability = ServiceAvailabilityFilter.Unknown,
+            CryptoAvailability = [ServiceAvailabilityStatus.Unknown],
             Page = 1,
             PageSize = 10,
             SortBy = SortFields.Domain,
@@ -1114,7 +1155,7 @@ public class SitesServiceTests : IDisposable
     {
         var query = new SitesQuery
         {
-            LinkInsertAvailability = ServiceAvailabilityFilter.NotAvailable,
+            LinkInsertAvailability = [ServiceAvailabilityStatus.NotAvailable],
             Page = 1,
             PageSize = 10,
             SortBy = SortFields.Domain,
@@ -1133,7 +1174,7 @@ public class SitesServiceTests : IDisposable
     {
         var query = new SitesQuery
         {
-            LinkInsertCasinoAvailability = ServiceAvailabilityFilter.NotAvailable,
+            LinkInsertCasinoAvailability = [ServiceAvailabilityStatus.NotAvailable],
             Page = 1,
             PageSize = 10,
             SortBy = SortFields.Domain,
@@ -1152,7 +1193,7 @@ public class SitesServiceTests : IDisposable
     {
         var query = new SitesQuery
         {
-            DatingAvailability = ServiceAvailabilityFilter.Unknown,
+            DatingAvailability = [ServiceAvailabilityStatus.Unknown],
             Page = 1,
             PageSize = 10,
             SortBy = SortFields.Domain,
@@ -1164,6 +1205,202 @@ public class SitesServiceTests : IDisposable
 
         Assert.Equal(2, result.Items.Count);
         Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Unknown, site.PriceDatingStatus));
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithEmptyAvailabilityFilters_DoesNotFilter()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            CasinoAvailability = [],
+            CryptoAvailability = null,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(5, result.Total);
+        Assert.Equal(["crypto.com", "example.com", "gambling.com", "lowdr.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleCasinoAvailabilityValues_UsesOrSemantics()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            CasinoAvailability = [ServiceAvailabilityStatus.NotAvailable, ServiceAvailabilityStatus.Unknown],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com", "lowdr.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleCryptoAvailabilityValues_UsesOrSemantics()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            CryptoAvailability = [ServiceAvailabilityStatus.Available, ServiceAvailabilityStatus.Unknown],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com", "example.com", "lowdr.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleLinkInsertAvailabilityValues_UsesOrSemantics()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            LinkInsertAvailability = [ServiceAvailabilityStatus.NotAvailable, ServiceAvailabilityStatus.Unknown],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleLinkInsertCasinoAvailabilityValues_UsesOrSemantics()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            LinkInsertCasinoAvailability = [ServiceAvailabilityStatus.Available, ServiceAvailabilityStatus.Unknown],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com", "example.com", "lowdr.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleDatingAvailabilityValues_UsesOrSemantics()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            DatingAvailability = [ServiceAvailabilityStatus.NotAvailable, ServiceAvailabilityStatus.Unknown],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com", "lowdr.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleAvailabilityFiltersAcrossServices_CombinesWithAnd()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            CasinoAvailability = [ServiceAvailabilityStatus.NotAvailable, ServiceAvailabilityStatus.Unknown],
+            CryptoAvailability = [ServiceAvailabilityStatus.Available],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleAvailabilityValuesAndLanguageFilter_CombinesWithAnd()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            CasinoAvailability = [ServiceAvailabilityStatus.NotAvailable, ServiceAvailabilityStatus.Unknown],
+            Languages = ["DE"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Single(result.Items);
+        Assert.Equal("lowdr.com", result.Items[0].Domain);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultipleAvailabilityValues_ReturnsCorrectCountAndPage()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            CasinoAvailability = [ServiceAvailabilityStatus.NotAvailable, ServiceAvailabilityStatus.Unknown],
+            Page = 2,
+            PageSize = 2,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(3, result.Total);
+        Assert.Single(result.Items);
+        Assert.Equal("test.com", result.Items[0].Domain);
     }
 
     #endregion
@@ -1683,7 +1920,7 @@ public class SitesServiceTests : IDisposable
         {
             DrMin = 50,
             Locations = new List<string> { "US" },
-            CryptoAvailability = ServiceAvailabilityFilter.Available,
+            CryptoAvailability = [ServiceAvailabilityStatus.Available],
             Quarantine = QuarantineFilterValues.Exclude,
             Page = 1,
             PageSize = 10,
@@ -2422,3 +2659,4 @@ public class SitesServiceTests : IDisposable
         UpdatedAtUtc = DateTime.UtcNow
     };
 }
+
