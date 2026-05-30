@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import type { MouseEvent } from 'react';
 import {
   Box,
   TextField,
@@ -199,6 +200,36 @@ export function SitesFilters({
     onApply(INITIAL_FILTERS);
   };
 
+  const handleClearAdvancedFilters = () => {
+    onFiltersChange({
+      ...filters,
+      drMin: INITIAL_FILTERS.drMin,
+      drMax: INITIAL_FILTERS.drMax,
+      trafficMin: INITIAL_FILTERS.trafficMin,
+      trafficMax: INITIAL_FILTERS.trafficMax,
+      priceMin: INITIAL_FILTERS.priceMin,
+      priceMax: INITIAL_FILTERS.priceMax,
+      stopListDomains: multiSearchMode ? filters.stopListDomains : INITIAL_FILTERS.stopListDomains,
+      locationSelections: INITIAL_FILTERS.locationSelections,
+      niches: INITIAL_FILTERS.niches,
+      categorySearchTerms: INITIAL_FILTERS.categorySearchTerms,
+      languages: INITIAL_FILTERS.languages,
+      casinoAvailability: INITIAL_FILTERS.casinoAvailability,
+      cryptoAvailability: INITIAL_FILTERS.cryptoAvailability,
+      linkInsertAvailability: INITIAL_FILTERS.linkInsertAvailability,
+      linkInsertCasinoAvailability: INITIAL_FILTERS.linkInsertCasinoAvailability,
+      datingAvailability: INITIAL_FILTERS.datingAvailability,
+      quarantine: INITIAL_FILTERS.quarantine,
+      lastPublishedFromMonth: INITIAL_FILTERS.lastPublishedFromMonth,
+      lastPublishedToMonth: INITIAL_FILTERS.lastPublishedToMonth,
+    });
+  };
+
+  const handleClearAdvancedFiltersClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    handleClearAdvancedFilters();
+  };
+
   const handleApply = () => {
     const categorySearchTerms =
       categoriesSearchFilterRef.current?.commitPendingInput() ?? filters.categorySearchTerms;
@@ -279,6 +310,7 @@ export function SitesFilters({
   const stopListPaused = multiSearchMode && stopListCount > 0;
   const stopListApplied = !multiSearchMode && stopListCount > 0;
   const advancedActiveFilterCount = getAdvancedActiveFilterCount();
+  const advancedFiltersActive = advancedActiveFilterCount > 0;
   const activeFilterSummaryItems = useMemo(
     () => buildAdvancedActiveFilterSummaries(filters, multiSearchMode),
     [filters, multiSearchMode]
@@ -464,7 +496,7 @@ export function SitesFilters({
             sx={{ minWidth: 0, width: '100%' }}
           >
             <Typography sx={{ flexShrink: 0, fontWeight: 500 }}>Advanced Filters</Typography>
-            {advancedActiveFilterCount > 0 && (
+            {advancedFiltersActive && (
               <Chip
                 label={`${advancedActiveFilterCount} active`}
                 size="small"
@@ -481,6 +513,37 @@ export function SitesFilters({
             )}
             {!expanded && activeFilterSummaryItems.length > 0 && (
               <ActiveFiltersSummary items={activeFilterSummaryItems} />
+            )}
+            {!expanded && advancedFiltersActive && (
+              <Button
+                size="small"
+                variant="outlined"
+                color="inherit"
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={handleClearAdvancedFiltersClick}
+                sx={{
+                  flexShrink: 0,
+                  minWidth: 'auto',
+                  height: 24,
+                  px: 1.25,
+                  py: 0,
+                  borderRadius: 999,
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  color: 'text.secondary',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  textTransform: 'none',
+                  whiteSpace: 'nowrap',
+                  '&:hover': {
+                    borderColor: 'rgba(255, 69, 91, 0.32)',
+                    bgcolor: 'rgba(255, 69, 91, 0.06)',
+                  },
+                }}
+              >
+                Clear filters
+              </Button>
             )}
           </Stack>
         </AccordionSummary>

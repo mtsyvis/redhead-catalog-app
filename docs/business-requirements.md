@@ -395,6 +395,7 @@ Sites search and filter UX rules:
 * The search area uses a two-option mode selector for Single search and Multi-search.
 * The Sites table toolbar shows the current total result count for the active search/filter/multi-search context.
 * Collapsed Advanced Filters shows a compact, single-line summary of active advanced filters alongside the active filter count.
+* When advanced filters are active, collapsed Advanced Filters provides a secondary `Clear filters` action that clears advanced filters only and preserves single-search text, multi-search mode, and multi-search results.
 
 Stop list rules:
 
