@@ -17,6 +17,11 @@ public static class StopListParser
 
         foreach (var rawDomain in rawDomains)
         {
+            if (string.IsNullOrWhiteSpace(rawDomain))
+            {
+                continue;
+            }
+
             var normalizedDomain = DomainNormalizer.Normalize(rawDomain);
             if (!IsValidNormalizedDomain(normalizedDomain))
             {
@@ -27,10 +32,10 @@ public static class StopListParser
             normalizedDomains.Add(normalizedDomain);
         }
 
-        if (normalizedDomains.Count > StopListConstants.MaxDomains)
+        if (normalizedDomains.Count > StopListConstants.MaxStopListDomains)
         {
             throw new RequestValidationException(
-                $"Stop list accepts at most {StopListConstants.MaxDomains} unique domains. Received {normalizedDomains.Count}.");
+                $"Stop list accepts at most {StopListConstants.MaxStopListDomains} unique domains. Received {normalizedDomains.Count}.");
         }
 
         return normalizedDomains.Count == 0
@@ -39,7 +44,7 @@ public static class StopListParser
     }
 
     public static bool HasAnyInput(IReadOnlyCollection<string>? rawDomains)
-        => rawDomains is { Count: > 0 };
+        => rawDomains?.Any(domain => !string.IsNullOrWhiteSpace(domain)) == true;
 
     private static bool IsValidNormalizedDomain(string normalizedDomain)
     {
@@ -69,8 +74,10 @@ public static class StopListParser
         }
 
         return label.All(c =>
-            c is >= 'a' and <= 'z' ||
-            c is >= '0' and <= '9' ||
+            char.IsLetterOrDigit(c) ||
+            char.GetUnicodeCategory(c) is
+                System.Globalization.UnicodeCategory.NonSpacingMark or
+                System.Globalization.UnicodeCategory.SpacingCombiningMark ||
             c == '-');
     }
 }

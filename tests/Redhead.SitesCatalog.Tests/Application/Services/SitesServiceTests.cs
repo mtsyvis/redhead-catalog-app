@@ -308,6 +308,28 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetSitesAsync_WithUnnormalizedStopList_NormalizesAndDeduplicatesBeforeFiltering()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            StopListDomains = new List<string> { "https://www.Example.com/path", "example.com" },
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(4, result.Total);
+        Assert.DoesNotContain(result.Items, site => site.Domain == "example.com");
+    }
+
+    [Fact]
     public async Task GetSitesAsync_WithStopList_AppliesBeforeSortingPaginationAndCount()
     {
         var query = new SitesQuery

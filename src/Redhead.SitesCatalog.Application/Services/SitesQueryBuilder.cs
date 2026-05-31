@@ -57,8 +57,11 @@ public class SitesQueryBuilder : ISitesQueryBuilder
 
         if (query.StopListDomains is { Count: > 0 })
         {
-            var stopListDomains = query.StopListDomains;
-            sitesQuery = sitesQuery.Where(s => !stopListDomains.Contains(s.Domain));
+            var stopListDomains = StopListParser.Parse(query.StopListDomains);
+            if (stopListDomains is { Count: > 0 })
+            {
+                sitesQuery = sitesQuery.Where(s => !stopListDomains.Contains(s.Domain));
+            }
         }
 
         // Apply range filters

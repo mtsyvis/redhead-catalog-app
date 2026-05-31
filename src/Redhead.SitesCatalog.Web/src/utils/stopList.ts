@@ -1,4 +1,4 @@
-export const STOP_LIST_MAX_DOMAINS = 1000;
+export const STOP_LIST_MAX_DOMAINS = 50000;
 export const STOP_LIST_STORAGE_KEY = 'redhead.sitesCatalog.stopListDomains';
 
 const TOKEN_SEPARATOR = /[\s,;]+/;
@@ -6,6 +6,8 @@ const TOKEN_SEPARATOR = /[\s,;]+/;
 export interface StopListParseResult {
   domains: string[];
   invalidValues: string[];
+  totalEntries: number;
+  duplicateCount: number;
 }
 
 export function normalizeDomainInput(input: string | null | undefined): string {
@@ -51,6 +53,7 @@ export function parseStopListInput(input: string): StopListParseResult {
 
   const domains = new Set<string>();
   const invalidValues: string[] = [];
+  let validEntryCount = 0;
 
   for (const token of tokens) {
     const normalized = normalizeDomainInput(token);
@@ -59,12 +62,15 @@ export function parseStopListInput(input: string): StopListParseResult {
       continue;
     }
 
+    validEntryCount += 1;
     domains.add(normalized);
   }
 
   return {
     domains: Array.from(domains).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
     invalidValues,
+    totalEntries: tokens.length,
+    duplicateCount: validEntryCount - domains.size,
   };
 }
 
@@ -126,5 +132,5 @@ function isValidDomainLabel(label: string): boolean {
     return false;
   }
 
-  return /^[a-z0-9-]+$/.test(label);
+  return /^[\p{L}\p{N}\p{M}-]+$/u.test(label);
 }

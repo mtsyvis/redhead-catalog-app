@@ -350,6 +350,41 @@ public class SitesMapperTests
     }
 
     [Fact]
+    public void ToQuery_WithInternationalStopListDomains_AllowsUnicodeDomainLabels()
+    {
+        // Arrange
+        var request = new SitesQueryRequest
+        {
+            StopListDomains = new List<string>
+            {
+                "kasino-ilman-rekisteröintiä.fi",
+                "kiosk-in-der-nähe.de",
+                "kjerringråd.org",
+                "kjøpegull.com",
+                "kysymyksiä.com",
+                "kändisskvaller.com",
+                "レアゲーム攻略速報.com"
+            }
+        };
+
+        // Act
+        var query = SitesMapper.ToQuery(request);
+
+        // Assert
+        Assert.Equal(
+            [
+                "kasino-ilman-rekisteröintiä.fi",
+                "kiosk-in-der-nähe.de",
+                "kjerringråd.org",
+                "kjøpegull.com",
+                "kysymyksiä.com",
+                "kändisskvaller.com",
+                "レアゲーム攻略速報.com"
+            ],
+            query.StopListDomains);
+    }
+
+    [Fact]
     public void ToQuery_WithInvalidStopListDomain_ThrowsRequestValidationException()
     {
         var request = new SitesQueryRequest
@@ -364,25 +399,47 @@ public class SitesMapperTests
     }
 
     [Fact]
-    public void ToQuery_WithMoreThan1000UniqueStopListDomains_ThrowsRequestValidationException()
+    public void ToQuery_WithExactlyMaxStopListDomains_AllowsRequest()
     {
+        // Arrange
         var request = new SitesQueryRequest
         {
-            StopListDomains = Enumerable.Range(0, 1001)
+            StopListDomains = Enumerable.Range(0, StopListConstants.MaxStopListDomains)
                 .Select(i => $"site{i}.com")
                 .ToList()
         };
 
+        // Act
+        var query = SitesMapper.ToQuery(request);
+
+        // Assert
+        Assert.Equal(StopListConstants.MaxStopListDomains, query.StopListDomains!.Count);
+    }
+
+    [Fact]
+    public void ToQuery_WithMoreThanMaxStopListDomains_ThrowsRequestValidationException()
+    {
+        // Arrange
+        var request = new SitesQueryRequest
+        {
+            StopListDomains = Enumerable.Range(0, StopListConstants.MaxStopListDomains + 1)
+                .Select(i => $"site{i}.com")
+                .ToList()
+        };
+
+        // Act
         var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
 
-        Assert.Contains("at most 1000 unique domains", ex.Message);
-        Assert.Contains("1001", ex.Message);
+        // Assert
+        Assert.Contains($"at most {StopListConstants.MaxStopListDomains} unique domains", ex.Message);
+        Assert.Contains((StopListConstants.MaxStopListDomains + 1).ToString(), ex.Message);
     }
 
     [Fact]
     public void ToQuery_StopListLimit_IsCountedAfterNormalizationAndDuplicateRemoval()
     {
-        var domains = Enumerable.Range(0, 1000)
+        // Arrange
+        var domains = Enumerable.Range(0, StopListConstants.MaxStopListDomains)
             .Select(i => $"site{i}.com")
             .ToList();
         domains.Add("https://www.SITE0.com/path");
@@ -392,9 +449,27 @@ public class SitesMapperTests
             StopListDomains = domains
         };
 
+        // Act
         var query = SitesMapper.ToQuery(request);
 
-        Assert.Equal(1000, query.StopListDomains!.Count);
+        // Assert
+        Assert.Equal(StopListConstants.MaxStopListDomains, query.StopListDomains!.Count);
+    }
+
+    [Fact]
+    public void ToQuery_WithEmptyStopListEntries_IgnoresThem()
+    {
+        // Arrange
+        var request = new SitesQueryRequest
+        {
+            StopListDomains = new List<string> { "", "   ", "example.com" }
+        };
+
+        // Act
+        var query = SitesMapper.ToQuery(request);
+
+        // Assert
+        Assert.Equal(["example.com"], query.StopListDomains);
     }
 
     [Fact]

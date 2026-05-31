@@ -404,7 +404,7 @@ Stop list rules:
 * Stop list filtering happens before pagination, sorting, and total count calculation.
 * Duplicate stop-list values after normalization are ignored.
 * Invalid stop-list values must reject the request; valid values are not partially applied.
-* Stop list supports at most 1000 unique normalized domains.
+* Stop list supports at most 50,000 unique normalized domains.
 * Stop list is not available in Multi-search mode.
 
 Niche filter rules:

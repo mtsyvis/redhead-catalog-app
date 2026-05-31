@@ -108,7 +108,7 @@ public class ExportService : IExportService
         CancellationToken cancellationToken = default)
     {
         var exportColumns = SitesExportColumnRegistry.ValidateRequestedColumns(visibleColumnKeys, userRole);
-        if (query.StopListDomains is { Count: > 0 })
+        if (StopListParser.HasAnyInput(query.StopListDomains))
         {
             throw new RequestValidationException(StopListConstants.MultiSearchNotSupportedMessage);
         }
