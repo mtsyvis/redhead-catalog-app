@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Application.Models.Import;
 using Redhead.SitesCatalog.Application.Services;
+using System.Security.Claims;
 
 namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 
@@ -49,13 +50,62 @@ public sealed class ImportControllerTests
     }
 
     [Fact]
-    public async Task ImportQuarantine_WhenUnsupportedFileType_ReturnsBadRequest_AndDoesNotCallService()
+    public async Task ImportAvailability_WhenUnsupportedFileType_ReturnsBadRequest_AndDoesNotCallService()
     {
         var quarantineService = new StubQuarantineImportService();
         var sut = CreateController(new StubImportArtifactStorageService(), quarantineImportService: quarantineService);
 
-        var result = await sut.ImportQuarantine(CreateUnsupportedFile("quarantine.xlsx"), CancellationToken.None);
+        var result = await sut.ImportAvailability(CreateUnsupportedFile("availability.xlsx"), "markUnavailable", CancellationToken.None);
 
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Equal(400, badRequest.StatusCode);
+        Assert.Equal(0, quarantineService.CallCount);
+    }
+
+    [Fact]
+    public async Task ImportAvailability_WhenActionMissing_ReturnsBadRequest_AndDoesNotCallService()
+    {
+        // Arrange
+        var quarantineService = new StubQuarantineImportService();
+        var sut = CreateController(new StubImportArtifactStorageService(), quarantineImportService: quarantineService);
+
+        // Act
+        var result = await sut.ImportAvailability(CreateCsvFile("availability.csv"), null, CancellationToken.None);
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Equal(400, badRequest.StatusCode);
+        Assert.Equal(0, quarantineService.CallCount);
+    }
+
+    [Fact]
+    public async Task ImportAvailability_WhenRestoreAvailableAction_CallsServiceWithRestoreAvailable()
+    {
+        // Arrange
+        var quarantineService = new StubQuarantineImportService();
+        var sut = CreateController(new StubImportArtifactStorageService(), quarantineImportService: quarantineService);
+        AttachUser(sut);
+
+        // Act
+        var result = await sut.ImportAvailability(CreateCsvFile("availability.csv"), "restoreAvailable", CancellationToken.None);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(1, quarantineService.CallCount);
+        Assert.Equal(SiteAvailabilityImportAction.RestoreAvailable, quarantineService.LastAction);
+    }
+
+    [Fact]
+    public async Task ImportAvailability_WhenUnsupportedAction_ReturnsBadRequest_AndDoesNotCallService()
+    {
+        // Arrange
+        var quarantineService = new StubQuarantineImportService();
+        var sut = CreateController(new StubImportArtifactStorageService(), quarantineImportService: quarantineService);
+
+        // Act
+        var result = await sut.ImportAvailability(CreateCsvFile("availability.csv"), "restore", CancellationToken.None);
+
+        // Assert
         var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
         Assert.Equal(400, badRequest.StatusCode);
         Assert.Equal(0, quarantineService.CallCount);
@@ -105,6 +155,36 @@ public sealed class ImportControllerTests
         };
     }
 
+    private static IFormFile CreateCsvFile(string fileName)
+    {
+        var bytes = "Domain,Reason\nexample.com,Reason\n"u8.ToArray();
+        var stream = new MemoryStream(bytes);
+        return new FormFile(stream, 0, bytes.Length, "file", fileName)
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "text/csv"
+        };
+    }
+
+    private static void AttachUser(ControllerBase controller)
+    {
+        var identity = new ClaimsIdentity(
+            new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, "user-1"),
+                new Claim(ClaimTypes.Email, "admin@test.com")
+            },
+            authenticationType: "Test");
+
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(identity)
+            }
+        };
+    }
+
     private static ImportController CreateController(
         IImportArtifactStorageService artifactStorage,
         ISitesImportService? sitesImportService = null,
@@ -151,10 +231,19 @@ public sealed class ImportControllerTests
     private sealed class StubQuarantineImportService : IQuarantineImportService
     {
         public int CallCount { get; private set; }
+        public SiteAvailabilityImportAction? LastAction { get; private set; }
 
-        public Task<SitesUpdateImportResult> ImportAsync(Stream fileStream, string fileName, string? contentType, string userId, string userEmail, CancellationToken cancellationToken = default)
+        public Task<SitesUpdateImportResult> ImportAsync(
+            Stream fileStream,
+            string fileName,
+            string? contentType,
+            string userId,
+            string userEmail,
+            SiteAvailabilityImportAction action,
+            CancellationToken cancellationToken = default)
         {
             CallCount++;
+            LastAction = action;
             return Task.FromResult(new SitesUpdateImportResult());
         }
     }

@@ -211,7 +211,7 @@ Use the same normalization in:
 
 * sites import
 * sites update import
-* quarantine import
+* availability import
 * last published date import
 * single search
 * multi-search
@@ -532,21 +532,32 @@ Rules:
 * Invalid and unmatched row downloads preserve the original uploaded headers.
 * Updates must preserve quarantine and last published fields unless explicitly part of the import behavior.
 
-### Quarantine import
+### Availability import
 
-Purpose: mark existing sites as unavailable.
+Purpose: update whether existing sites are currently available.
 
-Required columns, in order:
+Supported actions:
+
+* `markUnavailable`: mark matched sites as unavailable.
+* `restoreAvailable`: restore matched sites as available.
+
+Required columns for `markUnavailable`, in order:
 
 1. `Domain`
 2. `Reason`
+
+Required columns for `restoreAvailable`, in order:
+
+1. `Domain`
 
 Rules:
 
 * Updates existing sites only.
 * Domain is normalized and matched by exact equality.
-* Matched rows set `IsQuarantined = true`.
-* `Reason` is optional and stored as `QuarantineReason` when provided.
+* `markUnavailable` matched rows set `IsQuarantined = true`.
+* `markUnavailable` stores the optional `Reason` as `QuarantineReason`; an empty reason clears any previous reason.
+* `restoreAvailable` matched rows set `IsQuarantined = false` and clear `QuarantineReason`.
+* `restoreAvailable` is idempotent; already available sites are processed without error.
 * `QuarantineUpdatedAtUtc` is updated for matched rows.
 * Unknown domains are reported as unmatched.
 * Invalid rows are reported.

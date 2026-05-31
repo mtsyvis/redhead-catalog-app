@@ -342,6 +342,157 @@ public sealed class QuarantineImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportAsync_MarkUnavailable_AlreadyQuarantinedSite_UpdatesReason()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain,Reason\n" +
+            "unavailable.com,New reason\n");
+
+        // Act
+        var result = await ImportAsync(stream, SiteAvailabilityImportAction.MarkUnavailable);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("unavailable.com");
+        Assert.True(site.IsQuarantined);
+        Assert.Equal("New reason", site.QuarantineReason);
+    }
+
+    [Fact]
+    public async Task ImportAsync_RestoreAvailable_ValidCsv_RestoresMatchedSite()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain\n" +
+            "unavailable.com\n");
+
+        // Act
+        var result = await ImportAsync(stream, SiteAvailabilityImportAction.RestoreAvailable);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Equal(0, result.UnmatchedRowsCount);
+
+        var site = await GetSiteAsync("unavailable.com");
+        Assert.False(site.IsQuarantined);
+        Assert.Null(site.QuarantineReason);
+        Assert.NotNull(site.QuarantineUpdatedAtUtc);
+    }
+
+    [Fact]
+    public async Task ImportAsync_RestoreAvailable_DomainReasonHeader_ThrowsImportHeaderValidationException()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain,Reason\n" +
+            "unavailable.com,Old reason\n");
+
+        // Act
+        var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(
+            () => ImportAsync(stream, SiteAvailabilityImportAction.RestoreAvailable));
+
+        // Assert
+        Assert.StartsWith("CSV header is invalid.", exception.Message);
+    }
+
+    [Fact]
+    public async Task ImportAsync_RestoreAvailable_AlreadyAvailableSite_IsIdempotent()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain\n" +
+            "example.com\n");
+
+        // Act
+        var result = await ImportAsync(stream, SiteAvailabilityImportAction.RestoreAvailable);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("example.com");
+        Assert.False(site.IsQuarantined);
+        Assert.Null(site.QuarantineReason);
+    }
+
+    [Fact]
+    public async Task ImportAsync_RestoreAvailable_UnmatchedDomain_IsReported()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain\n" +
+            "missing-site.com\n");
+
+        // Act
+        var result = await ImportAsync(stream, SiteAvailabilityImportAction.RestoreAvailable);
+
+        // Assert
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Equal(1, result.UnmatchedRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.UnmatchedRows);
+
+        var lines = GetDownloadLines(result.Downloads.UnmatchedRows!.Token);
+        Assert.Equal("Domain,Source Row Number", lines[0]);
+        Assert.Equal("missing-site.com,2", lines[1]);
+    }
+
+    [Fact]
+    public async Task ImportAsync_RestoreAvailable_DuplicateDomains_TracksDuplicate_AndUsesLastRow()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain\n" +
+            "unavailable.com\n" +
+            "unavailable.com\n");
+
+        // Act
+        var result = await ImportAsync(stream, SiteAvailabilityImportAction.RestoreAvailable);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+        Assert.Single(result.DuplicateDomainsPreview);
+        Assert.Equal("unavailable.com", result.DuplicateDomainsPreview[0]);
+
+        var site = await GetSiteAsync("unavailable.com");
+        Assert.False(site.IsQuarantined);
+        Assert.Null(site.QuarantineReason);
+
+        var log = await GetQuarantineImportLogAsync();
+        Assert.NotNull(log);
+        Assert.Equal(1, log!.Duplicates);
+        Assert.Equal(1, log.Matched);
+    }
+
+    [Fact]
+    public async Task ImportAsync_RestoreAvailable_InvalidDomain_AddsRowError_AndSkipsRow()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain\n" +
+            "https://\n" +
+            "unavailable.com\n");
+
+        // Act
+        var result = await ImportAsync(stream, SiteAvailabilityImportAction.RestoreAvailable);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        Assert.NotNull(result.Downloads);
+        Assert.NotNull(result.Downloads!.InvalidRows);
+
+        var lines = GetDownloadLines(result.Downloads.InvalidRows!.Token);
+        Assert.Contains(lines, line => line.Contains("https://,2,Domain is required and cannot be empty after normalization.", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ImportAsync_EmptyRows_AreIgnored()
     {
         // Arrange
@@ -441,7 +592,9 @@ public sealed class QuarantineImportServiceTests : IDisposable
         Assert.Equal(0, log.Duplicates);
     }
 
-    private async Task<SitesUpdateImportResult> ImportAsync(Stream stream)
+    private async Task<SitesUpdateImportResult> ImportAsync(
+        Stream stream,
+        SiteAvailabilityImportAction action = SiteAvailabilityImportAction.MarkUnavailable)
     {
         return await _sut.ImportAsync(
             stream,
@@ -449,6 +602,7 @@ public sealed class QuarantineImportServiceTests : IDisposable
             CsvContentType,
             UserId,
             UserEmail,
+            action,
             CancellationToken.None);
     }
 
@@ -508,6 +662,19 @@ public sealed class QuarantineImportServiceTests : IDisposable
                 Location = "UK",
                 PriceUsd = 200m,
                 IsQuarantined = false,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            },
+            new Site
+            {
+                Domain = "unavailable.com",
+                DR = 40,
+                Traffic = 25000,
+                Location = "US",
+                PriceUsd = 150m,
+                IsQuarantined = true,
+                QuarantineReason = "Old reason",
+                QuarantineUpdatedAtUtc = now,
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now
             });

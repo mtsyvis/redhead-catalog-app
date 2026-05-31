@@ -107,38 +107,54 @@ public class ImportController : ControllerBase
     }
 
     /// <summary>
-    /// Import quarantine from CSV (Domain, Reason). Updates existing sites by exact normalized domain match.
+    /// Import site availability from CSV. Actions: markUnavailable (Domain, Reason) or restoreAvailable (Domain).
     /// </summary>
-    [HttpPost("quarantine")]
+    [HttpPost("/api/imports/availability")]
     [RequestSizeLimit((int)ImportConstants.MaxSitesImportFileSizeBytes)]
-    public async Task<ActionResult<SitesUpdateImportResult>> ImportQuarantine(IFormFile? file, CancellationToken cancellationToken)
+    public Task<ActionResult<SitesUpdateImportResult>> ImportAvailability(
+        IFormFile? file,
+        [FromForm] string? action,
+        CancellationToken cancellationToken)
+        => ImportAvailabilityCore(file, action, "Availability import", cancellationToken);
+
+    private async Task<ActionResult<SitesUpdateImportResult>> ImportAvailabilityCore(
+        IFormFile? file,
+        string? action,
+        string operationName,
+        CancellationToken cancellationToken)
     {
         if (file == null || file.Length == 0)
         {
-            _logger.LogWarning("Quarantine import: no file or empty file");
+            _logger.LogWarning("{Operation}: no file or empty file", operationName);
             return BadRequest(new ApiErrorResponse("No file or empty file.", StatusCodes.Status400BadRequest));
         }
 
         if (file.Length > ImportConstants.MaxSitesImportFileSizeBytes)
         {
             _logger.LogWarning(
-                "Quarantine import: file too large. FileName={FileName}, Length={Length}, MaxBytes={MaxBytes}",
+                "{Operation}: file too large. FileName={FileName}, Length={Length}, MaxBytes={MaxBytes}",
+                operationName,
                 file.FileName, file.Length, ImportConstants.MaxSitesImportFileSizeBytes);
             return StatusCode(StatusCodes.Status413PayloadTooLarge,
                 new ApiErrorResponse(ImportConstants.FileTooLargeMessage, StatusCodes.Status413PayloadTooLarge));
         }
         if (!IsCsvFile(file.FileName, file.ContentType))
         {
-            _logger.LogWarning("Quarantine import: unsupported file type. FileName={FileName}, ContentType={ContentType}", file.FileName, file.ContentType);
+            _logger.LogWarning("{Operation}: unsupported file type. FileName={FileName}, ContentType={ContentType}", operationName, file.FileName, file.ContentType);
             return BadRequest(new ApiErrorResponse("Unsupported file type. Use CSV.", StatusCodes.Status400BadRequest));
         }
 
-        if (!TryGetUserContext("Quarantine import", out var userId, out var userEmail, out var unauthorizedResult))
+        if (!TryParseAvailabilityImportAction(action, out var parsedAction, out var actionError))
+        {
+            return BadRequest(new ApiErrorResponse(actionError, StatusCodes.Status400BadRequest));
+        }
+
+        if (!TryGetUserContext(operationName, out var userId, out var userEmail, out var unauthorizedResult))
         {
             return unauthorizedResult;
         }
 
-        var (stream, fileReadError) = await ReadFileToMemoryStreamAsync("Quarantine import", file, cancellationToken);
+        var (stream, fileReadError) = await ReadFileToMemoryStreamAsync(operationName, file, cancellationToken);
         if (fileReadError != null)
         {
             stream.Dispose();
@@ -153,11 +169,12 @@ public class ImportController : ControllerBase
                 file.ContentType,
                 userId,
                 userEmail,
+                parsedAction,
                 cancellationToken);
 
             _logger.LogInformation(
-                "Quarantine import succeeded. FileName={FileName}, UpdatedCount={UpdatedCount}, UnmatchedRowsCount={UnmatchedRowsCount}, DuplicateDomainsCount={DuplicateDomainsCount}, InvalidRowsCount={InvalidRowsCount}",
-                file.FileName, result.UpdatedCount, result.UnmatchedRowsCount, result.DuplicateDomainsCount, result.InvalidRowsCount);
+                "{Operation} succeeded. FileName={FileName}, Action={Action}, UpdatedCount={UpdatedCount}, UnmatchedRowsCount={UnmatchedRowsCount}, DuplicateDomainsCount={DuplicateDomainsCount}, InvalidRowsCount={InvalidRowsCount}",
+                operationName, file.FileName, parsedAction, result.UpdatedCount, result.UnmatchedRowsCount, result.DuplicateDomainsCount, result.InvalidRowsCount);
 
             return Ok(result);
         }
@@ -325,4 +342,36 @@ public class ImportController : ControllerBase
 
     private static bool IsCsvFile(string fileName, string? contentType)
         => CsvImportHelper.IsCsvExtension(fileName) || CsvImportHelper.IsCsvContentType(contentType);
+
+    private static bool TryParseAvailabilityImportAction(
+        string? value,
+        out SiteAvailabilityImportAction action,
+        out string error)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            action = SiteAvailabilityImportAction.MarkUnavailable;
+            error = "Availability import action is required. Supported actions: markUnavailable, restoreAvailable.";
+            return false;
+        }
+
+        var normalized = value.Trim();
+        if (string.Equals(normalized, "markUnavailable", StringComparison.OrdinalIgnoreCase))
+        {
+            action = SiteAvailabilityImportAction.MarkUnavailable;
+            error = string.Empty;
+            return true;
+        }
+
+        if (string.Equals(normalized, "restoreAvailable", StringComparison.OrdinalIgnoreCase))
+        {
+            action = SiteAvailabilityImportAction.RestoreAvailable;
+            error = string.Empty;
+            return true;
+        }
+
+        action = SiteAvailabilityImportAction.MarkUnavailable;
+        error = "Unsupported availability import action. Supported actions: markUnavailable, restoreAvailable.";
+        return false;
+    }
 }

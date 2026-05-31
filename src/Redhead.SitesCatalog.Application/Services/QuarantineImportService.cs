@@ -5,13 +5,13 @@ using Redhead.SitesCatalog.Application.Services.Parsers;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
 /// <summary>
-/// Imports quarantine updates from CSV with strict header order:
-/// Domain, Reason
+/// Imports availability updates from CSV with strict action-specific header order.
 /// Matching rule: exact match by normalized domain.
 /// Processing model:
 /// 1) Parse rows and build per-domain update map (last row wins)
@@ -25,10 +25,15 @@ public sealed class QuarantineImportService : IQuarantineImportService
     private const string HeaderDomain = "Domain";
     private const string HeaderReason = "Reason";
 
-    private static readonly string[] RequiredHeaderOrder =
+    private static readonly string[] MarkUnavailableRequiredHeaderOrder =
     {
         HeaderDomain,
         HeaderReason
+    };
+
+    private static readonly string[] RestoreAvailableRequiredHeaderOrder =
+    {
+        HeaderDomain
     };
 
     private readonly ApplicationDbContext _context;
@@ -53,14 +58,17 @@ public sealed class QuarantineImportService : IQuarantineImportService
         string? contentType,
         string userId,
         string userEmail,
+        SiteAvailabilityImportAction action,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Quarantine import started. FileName={FileName}, UserId={UserId}, UserEmail={UserEmail}",
+            "Availability import started. FileName={FileName}, Action={Action}, UserId={UserId}, UserEmail={UserEmail}",
             fileName,
+            action,
             userId,
             userEmail);
 
+        var requiredHeaderOrder = GetRequiredHeaderOrder(action);
         var result = new SitesUpdateImportResult();
         var invalidRowsCount = 0;
         var duplicateRowsCount = 0;
@@ -78,8 +86,8 @@ public sealed class QuarantineImportService : IQuarantineImportService
 
         await using (var session = await CsvImportSession.OpenAsync(
                          fileStream,
-                         expectedHeaderColumnsForDelimiterDetection: RequiredHeaderOrder,
-                         requiredHeadersInStrictOrder: RequiredHeaderOrder,
+                         expectedHeaderColumnsForDelimiterDetection: requiredHeaderOrder,
+                         validateHeader: header => ValidateExactHeaderOrThrow(header, requiredHeaderOrder),
                          ct: cancellationToken))
         {
             invalidRowsPayload.Headers = session.Header.ToArray();
@@ -88,6 +96,7 @@ public sealed class QuarantineImportService : IQuarantineImportService
             await foreach (var (rowNumber, domain, rawReason, rawValues) in ReadRowsAsync(
                                session.Csv,
                                session.Header.Length,
+                               action,
                                cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -163,8 +172,17 @@ public sealed class QuarantineImportService : IQuarantineImportService
                 continue;
             }
 
-            site.IsQuarantined = true;
-            site.QuarantineReason = update.Reason;
+            if (action == SiteAvailabilityImportAction.MarkUnavailable)
+            {
+                site.IsQuarantined = true;
+                site.QuarantineReason = update.Reason;
+            }
+            else
+            {
+                site.IsQuarantined = false;
+                site.QuarantineReason = null;
+            }
+
             site.QuarantineUpdatedAtUtc = now;
             site.UpdatedAtUtc = now;
             site.UpdatedBy = auditUser;
@@ -177,7 +195,8 @@ public sealed class QuarantineImportService : IQuarantineImportService
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Quarantine import completed. Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}, UserId={UserId}",
+            "Availability import completed. Action={Action}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}, UserId={UserId}",
+            action,
             result.UpdatedCount,
             unmatchedDomainsCount,
             invalidRowsCount,
@@ -197,6 +216,7 @@ public sealed class QuarantineImportService : IQuarantineImportService
     private static async IAsyncEnumerable<(int RowNumber, string Domain, string? RawReason, List<string> RawValues)> ReadRowsAsync(
         CsvHelper.CsvReader csv,
         int headerCount,
+        SiteAvailabilityImportAction action,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // Row 1 = header
@@ -215,7 +235,9 @@ public sealed class QuarantineImportService : IQuarantineImportService
             }
 
             var domain = csv.GetField(0)?.Trim();
-            var rawReason = csv.GetField(1)?.Trim();
+            var rawReason = action == SiteAvailabilityImportAction.MarkUnavailable
+                ? csv.GetField(1)?.Trim()
+                : null;
 
             // Skip fully empty rows
             if (string.IsNullOrWhiteSpace(domain) && string.IsNullOrWhiteSpace(rawReason))
@@ -229,6 +251,30 @@ public sealed class QuarantineImportService : IQuarantineImportService
                 string.IsNullOrWhiteSpace(rawReason) ? null : rawReason,
                 rawValues);
         }
+    }
+
+    private static string[] GetRequiredHeaderOrder(SiteAvailabilityImportAction action)
+    {
+        return action switch
+        {
+            SiteAvailabilityImportAction.MarkUnavailable => MarkUnavailableRequiredHeaderOrder,
+            SiteAvailabilityImportAction.RestoreAvailable => RestoreAvailableRequiredHeaderOrder,
+            _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unsupported availability import action.")
+        };
+    }
+
+    private static void ValidateExactHeaderOrThrow(string[] actualHeader, string[] requiredHeaderOrder)
+    {
+        CsvImportHelper.ValidateHeaderStrictOrThrow(actualHeader, requiredHeaderOrder);
+
+        if (actualHeader.Length == requiredHeaderOrder.Length)
+        {
+            return;
+        }
+
+        throw new ImportHeaderValidationException(
+            $"CSV header is invalid. Expected exactly: {string.Join(", ", requiredHeaderOrder)}. " +
+            $"Found: {string.Join(", ", actualHeader.Select(CsvImportHelper.NormalizeHeader))}.");
     }
 
     private static IEnumerable<List<T>> Chunk<T>(List<T> source, int size)
