@@ -13,7 +13,7 @@ public static class EmergencySitesExportServiceCollectionExtensions
             .Bind(configuration.GetSection(EmergencySitesExportOptions.SectionName))
             .Validate(
                 EmergencySitesExportOptions.IsValid,
-                "EmergencySitesExport configuration is invalid. Enabled exports require ScheduleCron, GoogleDriveFolderId, ServiceAccountJsonPath, FilePrefix, and a positive RetentionWeeks value.")
+                "EmergencySitesExport configuration is invalid. Enabled exports require ScheduleCron, GoogleDriveFolderId, ServiceAccountJsonPath, FilePrefix, positive RetentionWeeks, and positive UploadTimeoutMinutes values.")
             .Validate(
                 options => !options.Enabled ||
                     EmergencySitesExportCronSchedule.TryParse(options.ScheduleCron, out _),

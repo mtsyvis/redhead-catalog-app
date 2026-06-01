@@ -184,7 +184,7 @@ public sealed class GoogleDriveServiceAccountExportStorage : ISystemExportStorag
         if (!EmergencySitesExportOptions.IsValid(_options))
         {
             throw new InvalidOperationException(
-                "EmergencySitesExport configuration is invalid. Enabled exports require ScheduleCron, GoogleDriveFolderId, ServiceAccountJsonPath, FilePrefix, and a positive RetentionWeeks value.");
+                "EmergencySitesExport configuration is invalid. Enabled exports require ScheduleCron, GoogleDriveFolderId, ServiceAccountJsonPath, FilePrefix, positive RetentionWeeks, and positive UploadTimeoutMinutes values.");
         }
 
         if (!File.Exists(_options.ServiceAccountJsonPath))
@@ -207,6 +207,7 @@ public sealed class GoogleDriveServiceAccountExportStorage : ISystemExportStorag
         return new DriveService(new BaseClientService.Initializer
         {
             HttpClientInitializer = credential,
+            HttpClientTimeout = TimeSpan.FromMinutes(options.UploadTimeoutMinutes),
             ApplicationName = "Redhead Catalog"
         });
     }

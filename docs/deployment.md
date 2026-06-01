@@ -127,6 +127,7 @@ EmergencySitesExport__GoogleDriveFolderId=<shared-drive-folder-id>
 EmergencySitesExport__ServiceAccountJsonPath=/run/secrets/google-service-account.json
 EmergencySitesExport__RetentionWeeks=8
 EmergencySitesExport__FilePrefix=redhead-sites-full
+EmergencySitesExport__UploadTimeoutMinutes=30
 FRONTEND_BASE_URL=https://catalog.rhda.us
 ```
 
@@ -151,6 +152,7 @@ EmergencySitesExport__GoogleDriveFolderId=${EmergencySitesExport__GoogleDriveFol
 EmergencySitesExport__ServiceAccountJsonPath=${EmergencySitesExport__ServiceAccountJsonPath}
 EmergencySitesExport__RetentionWeeks=${EmergencySitesExport__RetentionWeeks}
 EmergencySitesExport__FilePrefix=${EmergencySitesExport__FilePrefix}
+EmergencySitesExport__UploadTimeoutMinutes=${EmergencySitesExport__UploadTimeoutMinutes}
 Frontend__BaseUrl=${FRONTEND_BASE_URL}
 ```
 

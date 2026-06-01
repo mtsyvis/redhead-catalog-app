@@ -226,6 +226,7 @@ EmergencySitesExport__GoogleDriveFolderId
 EmergencySitesExport__ServiceAccountJsonPath
 EmergencySitesExport__RetentionWeeks
 EmergencySitesExport__FilePrefix
+EmergencySitesExport__UploadTimeoutMinutes
 FRONTEND_BASE_URL
 ```
 
@@ -246,6 +247,7 @@ EmergencySitesExport__GoogleDriveFolderId
 EmergencySitesExport__ServiceAccountJsonPath
 EmergencySitesExport__RetentionWeeks
 EmergencySitesExport__FilePrefix
+EmergencySitesExport__UploadTimeoutMinutes
 Frontend__BaseUrl
 ASPNETCORE_ENVIRONMENT
 ASPNETCORE_URLS

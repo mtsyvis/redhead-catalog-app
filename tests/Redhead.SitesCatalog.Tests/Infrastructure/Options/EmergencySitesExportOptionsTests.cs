@@ -15,7 +15,8 @@ public sealed class EmergencySitesExportOptionsTests
             GoogleDriveFolderId = "",
             ServiceAccountJsonPath = "",
             RetentionWeeks = 0,
-            FilePrefix = ""
+            FilePrefix = "",
+            UploadTimeoutMinutes = 0
         };
 
         // Act
@@ -36,7 +37,8 @@ public sealed class EmergencySitesExportOptionsTests
             GoogleDriveFolderId = "folder-1",
             ServiceAccountJsonPath = "/run/secrets/google-service-account.json",
             RetentionWeeks = 8,
-            FilePrefix = "redhead-sites-full"
+            FilePrefix = "redhead-sites-full",
+            UploadTimeoutMinutes = 30
         };
 
         // Act
@@ -57,7 +59,8 @@ public sealed class EmergencySitesExportOptionsTests
             GoogleDriveFolderId = "folder-1",
             ServiceAccountJsonPath = "/run/secrets/google-service-account.json",
             RetentionWeeks = 8,
-            FilePrefix = "redhead-sites-full"
+            FilePrefix = "redhead-sites-full",
+            UploadTimeoutMinutes = 30
         };
 
         // Act
@@ -65,5 +68,27 @@ public sealed class EmergencySitesExportOptionsTests
 
         // Assert
         Assert.True(isValid);
+    }
+
+    [Fact]
+    public void IsValid_WhenEnabledAndUploadTimeoutIsNotPositive_ReturnsFalse()
+    {
+        // Arrange
+        var options = new EmergencySitesExportOptions
+        {
+            Enabled = true,
+            ScheduleCron = "30 3 * * MON",
+            GoogleDriveFolderId = "folder-1",
+            ServiceAccountJsonPath = "/run/secrets/google-service-account.json",
+            RetentionWeeks = 8,
+            FilePrefix = "redhead-sites-full",
+            UploadTimeoutMinutes = 0
+        };
+
+        // Act
+        var isValid = EmergencySitesExportOptions.IsValid(options);
+
+        // Assert
+        Assert.False(isValid);
     }
 }

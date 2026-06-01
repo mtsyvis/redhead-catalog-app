@@ -89,6 +89,7 @@ EmergencySitesExport__GoogleDriveFolderId=<shared-drive-folder-id>
 EmergencySitesExport__ServiceAccountJsonPath=/run/secrets/google-service-account.json
 EmergencySitesExport__RetentionWeeks=8
 EmergencySitesExport__FilePrefix=redhead-sites-full
+EmergencySitesExport__UploadTimeoutMinutes=30
 ```
 
 Required Docker mount on the `app` service:
