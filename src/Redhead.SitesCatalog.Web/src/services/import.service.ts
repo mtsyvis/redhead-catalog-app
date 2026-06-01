@@ -31,6 +31,8 @@ export interface UpdateImportResult extends ImportResultBase, DuplicateDomainsIm
   unmatchedRowsCount?: number;
 }
 
+export type AvailabilityImportAction = 'markUnavailable' | 'restoreAvailable';
+
 /** Maximum file size for sites import (50 MB) */
 export const MAX_IMPORT_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
@@ -38,13 +40,20 @@ export const FILE_TOO_LARGE_MESSAGE = 'File is too large. Maximum size is 50 MB.
 
 export const ACCEPT_FILES = '.csv';
 
-async function runImportRequest<T>(endpoint: string, file: File): Promise<T> {
+async function runImportRequest<T>(
+  endpoint: string,
+  file: File,
+  fields?: Readonly<Record<string, string>>,
+): Promise<T> {
   if (file.size > MAX_IMPORT_FILE_SIZE_BYTES) {
     throw new Error(FILE_TOO_LARGE_MESSAGE);
   }
 
   const formData = new FormData();
   formData.append('file', file);
+  Object.entries(fields ?? {}).forEach(([key, value]) => {
+    formData.append(key, value);
+  });
 
   const baseUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
   const response = await fetch(`${baseUrl}${endpoint}`, {
@@ -76,10 +85,10 @@ export function importSitesUpdate(file: File) {
 }
 
 /**
- * Import quarantine from CSV (Domain, Reason). Updates existing sites by exact normalized domain match.
+ * Import availability from CSV. Updates existing sites by exact normalized domain match.
  */
-export function importQuarantine(file: File) {
-  return runImportRequest<UpdateImportResult>('/api/import/quarantine', file);
+export function importAvailability(file: File, action: AvailabilityImportAction) {
+  return runImportRequest<UpdateImportResult>('/api/imports/availability', file, { action });
 }
 
 /**

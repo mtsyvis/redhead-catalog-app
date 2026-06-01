@@ -56,10 +56,18 @@ export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
   starterTemplate: 'Domain,Language,PriceUsd,Term\nexample.com,EN,120,1 year',
 };
 
-export const QUARANTINE_IMPORT_INSTRUCTIONS = {
-  description: 'Upload a CSV file to update quarantine status for existing sites.',
-  requiredColumns: ['Domain', 'Reason'],
-  optionalNote: 'Reason may be empty.',
+export const AVAILABILITY_IMPORT_INSTRUCTIONS = {
+  markUnavailable: {
+    description: 'Upload a CSV file to mark existing sites as unavailable and optionally save a reason.',
+    requiredColumns: ['Domain', 'Reason'],
+    optionalNote: 'Reason may be empty.',
+  },
+  restoreAvailable: {
+    description:
+      'Upload a CSV file to restore existing sites as available. This will clear quarantine status and remove the quarantine reason.',
+    requiredColumns: ['Domain'],
+    optionalNote: 'Quarantine reason will be cleared for matched sites.',
+  },
 };
 
 export const LAST_PUBLISHED_IMPORT_INSTRUCTIONS = {

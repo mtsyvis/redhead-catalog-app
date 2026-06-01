@@ -4,7 +4,6 @@ import { PageShell } from '../components/layout/PageShell';
 import {
   importSites,
   importSitesUpdate,
-  importQuarantine,
   importLastPublished,
   type SitesImportResult,
   MAX_IMPORT_FILE_SIZE_BYTES,
@@ -14,7 +13,6 @@ import {
 import { ImportInstructionsCard } from '../components/imports/ImportInstructionsCard';
 import {
   LAST_PUBLISHED_IMPORT_INSTRUCTIONS,
-  QUARANTINE_IMPORT_INSTRUCTIONS,
   SITES_IMPORT_INSTRUCTIONS,
 } from '../constants/imports.constants';
 import { useImportTab } from '../hooks/useImportTab';
@@ -22,6 +20,7 @@ import { ImportUploadSection } from '../components/imports/ImportUploadSection';
 import { ImportTabContent } from '../components/imports/ImportTabContent';
 import { SitesImportResultCard } from '../components/imports/SitesImportResultCard';
 import { UpdateImportTab } from '../components/imports/UpdateImportTab';
+import { AvailabilityImportTab } from '../components/imports/AvailabilityImportTab';
 import {
   SitesUpdateImportInstructions,
   SitesUpdateImportUploadNotes,
@@ -44,7 +43,7 @@ const IMPORT_ROUTES = [
   {
     key: 'quarantine-import',
     path: '/imports/quarantine-import',
-    label: 'Quarantine Import',
+    label: 'Availability Import',
   },
   {
     key: 'last-published-import',
@@ -142,18 +141,7 @@ function ImportRouteContent({
   }
 
   if (activeImport.key === 'quarantine-import') {
-    return (
-      <UpdateImportTab
-        resultTitle="Quarantine import result"
-        runImport={importQuarantine}
-        persistedStateKey={persistedStateKey}
-        instructions={{
-          description: QUARANTINE_IMPORT_INSTRUCTIONS.description,
-          requiredColumns: QUARANTINE_IMPORT_INSTRUCTIONS.requiredColumns,
-          optionalNote: QUARANTINE_IMPORT_INSTRUCTIONS.optionalNote,
-        }}
-      />
-    );
+    return <AvailabilityImportTab persistedStateKey={persistedStateKey} />;
   }
 
   return (
