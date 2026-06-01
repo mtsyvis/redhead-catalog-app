@@ -3,7 +3,7 @@ using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Entities;
 
-namespace Redhead.SitesCatalog.Api.Services;
+namespace Redhead.SitesCatalog.Api.AccountSetup;
 
 public sealed class AccountSetupService : IAccountSetupService
 {
@@ -22,7 +22,7 @@ public sealed class AccountSetupService : IAccountSetupService
         ApplicationUser user,
         CompleteAccountSetupRequest request)
     {
-        var requiredParts = AccountSetupParts.From(user, request);
+        var requiredParts = AccountSetupParts.From(user);
         var validationErrors = ValidateRequest(request, requiredParts);
         if (validationErrors.Count > 0)
         {
@@ -147,9 +147,7 @@ public sealed class AccountSetupService : IAccountSetupService
 
     private sealed record AccountSetupParts(bool ShouldChangePassword, bool ShouldUpdateProfile)
     {
-        public static AccountSetupParts From(
-            ApplicationUser user,
-            CompleteAccountSetupRequest request)
+        public static AccountSetupParts From(ApplicationUser user)
         {
             return new AccountSetupParts(
                 user.MustChangePassword,

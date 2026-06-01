@@ -79,6 +79,7 @@ Important behavior:
 * Uses `ASPNETCORE_URLS=http://+:8080`.
 * Connects to PostgreSQL through Docker DNS host `postgres`.
 * Persists ASP.NET Core Data Protection keys in Docker volume `dataprotection_keys`.
+* Mounts `/etc/redhead/secrets/google-service-account.json` read-only at `/run/secrets/google-service-account.json` for the optional emergency Sites export.
 * Healthcheck calls `http://localhost:8080/api/health`.
 * Restart policy: `unless-stopped`.
 
@@ -121,12 +122,15 @@ GOOGLE_DRIVE_REDIRECT_URI=https://catalog.rhda.us/api/integrations/google-drive/
 GOOGLE_DRIVE_APP_NAME=Redhead Catalog
 GOOGLE_DRIVE_EXPORT_FOLDER_NAME=Redhead Catalog Exports
 EmergencySitesExport__Enabled=false
+EmergencySitesExport__ScheduleCron=30 3 * * MON
 EmergencySitesExport__GoogleDriveFolderId=<shared-drive-folder-id>
 EmergencySitesExport__ServiceAccountJsonPath=/run/secrets/google-service-account.json
 EmergencySitesExport__RetentionWeeks=8
 EmergencySitesExport__FilePrefix=redhead-sites-full
 FRONTEND_BASE_URL=https://catalog.rhda.us
 ```
+
+`EmergencySitesExport__ScheduleCron` uses standard five-field cron in UTC: `minute hour day-of-month month day-of-week`.
 
 The app receives these values through Docker Compose:
 
@@ -142,6 +146,7 @@ GoogleDrive__RedirectUri=${GOOGLE_DRIVE_REDIRECT_URI}
 GoogleDrive__AppName=${GOOGLE_DRIVE_APP_NAME}
 GoogleDrive__ExportFolderName=${GOOGLE_DRIVE_EXPORT_FOLDER_NAME}
 EmergencySitesExport__Enabled=${EmergencySitesExport__Enabled}
+EmergencySitesExport__ScheduleCron=${EmergencySitesExport__ScheduleCron}
 EmergencySitesExport__GoogleDriveFolderId=${EmergencySitesExport__GoogleDriveFolderId}
 EmergencySitesExport__ServiceAccountJsonPath=${EmergencySitesExport__ServiceAccountJsonPath}
 EmergencySitesExport__RetentionWeeks=${EmergencySitesExport__RetentionWeeks}
@@ -285,7 +290,7 @@ Be careful with destructive SQL commands. Always create a backup before manual d
 
 Provider-level VPS backups are useful, but they should not be the only database backup strategy.
 
-The current production PostgreSQL backup setup, Google Drive storage details, manual backup checks, and restore guidance are documented in [`backup-restore.md`](backup-restore.md).
+The current production PostgreSQL backup setup, weekly emergency Sites Excel export, Google Drive storage details, manual checks, and restore guidance are documented in [`backup-restore.md`](backup-restore.md).
 
 Use both:
 

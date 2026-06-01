@@ -39,6 +39,7 @@ services:
       GoogleDrive__AppName: ${GOOGLE_DRIVE_APP_NAME}
       GoogleDrive__ExportFolderName: ${GOOGLE_DRIVE_EXPORT_FOLDER_NAME}
       EmergencySitesExport__Enabled: ${EmergencySitesExport__Enabled:-false}
+      EmergencySitesExport__ScheduleCron: ${EmergencySitesExport__ScheduleCron:-30 3 * * MON}
       EmergencySitesExport__GoogleDriveFolderId: ${EmergencySitesExport__GoogleDriveFolderId:-}
       EmergencySitesExport__ServiceAccountJsonPath: ${EmergencySitesExport__ServiceAccountJsonPath:-/run/secrets/google-service-account.json}
       EmergencySitesExport__RetentionWeeks: ${EmergencySitesExport__RetentionWeeks:-8}
@@ -46,6 +47,7 @@ services:
       Frontend__BaseUrl: ${FRONTEND_BASE_URL}
     volumes:
       - dataprotection_keys:/root/.aspnet/DataProtection-Keys
+      - /etc/redhead/secrets/google-service-account.json:/run/secrets/google-service-account.json:ro
     depends_on:
       postgres:
         condition: service_healthy

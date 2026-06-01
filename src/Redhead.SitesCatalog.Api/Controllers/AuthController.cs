@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Redhead.SitesCatalog.Api.AccountSetup;
 using Redhead.SitesCatalog.Api.Models;
-using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;

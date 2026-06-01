@@ -37,13 +37,14 @@ Retention:
 
 The database backup is created with `pg_dump` in PostgreSQL custom format (`.dump`).
 
-### Emergency Excel catalog export
+### Weekly emergency Sites Excel export
 
-The business emergency Excel export is separate from the PostgreSQL backup.
+The weekly emergency Sites Excel export is separate from the PostgreSQL backup. PostgreSQL backups are handled by the VPS script, rclone, and cron. The emergency Excel export is handled by the application `BackgroundService`.
 
 Target location:
 
 - Google Workspace Shared Drive: `Redhead Emergency Catalog`
+- Target folder inside that Shared Drive: use a dedicated folder for application-generated emergency exports.
 
 Purpose:
 
@@ -51,6 +52,77 @@ Purpose:
 - This is a business snapshot, not a full system backup.
 
 The Excel export should not contain technical/internal database data unless explicitly intended.
+
+Behavior:
+
+- Runs once per week when `EmergencySitesExport__Enabled=true`.
+- Exports all Sites through the application-level emergency export use case.
+- Does not use the current HTTP user, user export limits, or personal Google Drive OAuth.
+- Uploads with a Google service account to the configured Shared Drive folder.
+- Records execution in the `SystemJobRuns` table.
+- Skips a weekly period when that period already has a successful `WeeklySitesEmergencyExport` run.
+- Keeps the last configured number of weeks and deletes only Drive files matching the configured file prefix.
+
+The schedule uses standard five-field cron in UTC: `minute hour day-of-month month day-of-week`. The default is:
+
+```text
+30 3 * * MON
+```
+
+This means Monday at 03:30 UTC. The scheduler checks once on app startup for missed work, then sleeps until the next cron occurrence. If a due export fails, it retries after one hour.
+
+Required Google setup:
+
+1. Create or use the Google Workspace Shared Drive named `Redhead Emergency Catalog`.
+2. Create a target folder inside it for the weekly Excel files.
+3. Add the service account as `Content manager` on the Shared Drive or target folder.
+4. Store the service account JSON on the VPS at `/etc/redhead/secrets/google-service-account.json`.
+
+Find the Google Drive folder ID by opening the target folder in Drive and copying the final URL segment after `/folders/`. Use that value for `EmergencySitesExport__GoogleDriveFolderId`.
+
+Required app environment variables:
+
+```env
+EmergencySitesExport__Enabled=false
+EmergencySitesExport__ScheduleCron=30 3 * * MON
+EmergencySitesExport__GoogleDriveFolderId=<shared-drive-folder-id>
+EmergencySitesExport__ServiceAccountJsonPath=/run/secrets/google-service-account.json
+EmergencySitesExport__RetentionWeeks=8
+EmergencySitesExport__FilePrefix=redhead-sites-full
+```
+
+Required Docker mount on the `app` service:
+
+```yaml
+volumes:
+  - /etc/redhead/secrets/google-service-account.json:/run/secrets/google-service-account.json:ro
+```
+
+To enable in production:
+
+```bash
+cd /opt/readhead-catalog/app
+nano .env
+# set EmergencySitesExport__Enabled=true and EmergencySitesExport__GoogleDriveFolderId=<folder-id>
+docker compose up -d
+```
+
+To verify after deployment:
+
+```bash
+docker compose logs --tail=200 app | grep -i "emergency Sites export"
+docker compose exec postgres psql -U postgres -d redhead_sites_catalog -c '
+SELECT "JobName", "PeriodKey", "Status", "StartedAtUtc", "FinishedAtUtc", "ErrorMessage"
+FROM "SystemJobRuns"
+WHERE "JobName" = '\''WeeklySitesEmergencyExport'\''
+ORDER BY "StartedAtUtc" DESC
+LIMIT 10;
+'
+```
+
+Then check that a file with the configured prefix appears in the configured Google Drive folder.
+
+For a temporary verification run, set `EmergencySitesExport__ScheduleCron` to a UTC time later in the current week, deploy with `EmergencySitesExport__Enabled=true`, watch app logs, confirm `SystemJobRuns`, and then set `EmergencySitesExport__Enabled=false` again if the job should remain disabled.
 
 ## Important access rules
 

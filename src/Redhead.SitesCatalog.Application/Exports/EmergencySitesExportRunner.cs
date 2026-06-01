@@ -37,7 +37,7 @@ public sealed class EmergencySitesExportRunner : IEmergencySitesExportRunner
         if (!EmergencySitesExportOptions.IsValid(_options))
         {
             throw new InvalidOperationException(
-                "EmergencySitesExport configuration is invalid. Enabled exports require GoogleDriveFolderId, ServiceAccountJsonPath, FilePrefix, and a positive RetentionWeeks value.");
+                "EmergencySitesExport configuration is invalid. Enabled exports require ScheduleCron, GoogleDriveFolderId, ServiceAccountJsonPath, FilePrefix, and a positive RetentionWeeks value.");
         }
 
         var now = utcNow ?? DateTime.UtcNow;

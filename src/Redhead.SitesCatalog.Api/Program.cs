@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Redhead.SitesCatalog.Api.AccountSetup;
+using Redhead.SitesCatalog.Api.DependencyInjection;
 using Redhead.SitesCatalog.Api.Middleware;
 using Redhead.SitesCatalog.Api.Options;
-using Redhead.SitesCatalog.Api.Services;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Services;
@@ -27,12 +28,7 @@ builder.Services.AddHttpClient();
 
 builder.Services.Configure<GoogleDriveOptions>(
     builder.Configuration.GetSection(GoogleDriveOptions.SectionName));
-builder.Services.AddOptions<EmergencySitesExportOptions>()
-    .Bind(builder.Configuration.GetSection(EmergencySitesExportOptions.SectionName))
-    .Validate(
-        EmergencySitesExportOptions.IsValid,
-        "EmergencySitesExport configuration is invalid. Enabled exports require GoogleDriveFolderId, ServiceAccountJsonPath, FilePrefix, and a positive RetentionWeeks value.")
-    .ValidateOnStart();
+builder.Services.AddEmergencySitesExportOptions(builder.Configuration);
 builder.Services.Configure<FrontendOptions>(
     builder.Configuration.GetSection(FrontendOptions.SectionName));
 
@@ -64,6 +60,7 @@ builder.Services.AddScoped<IGoogleDriveIntegrationService, GoogleDriveIntegratio
 builder.Services.AddScoped<IGoogleDriveExportService, GoogleDriveExportService>();
 builder.Services.AddSingleton<IGoogleDriveOAuthStateService, GoogleDriveOAuthStateService>();
 builder.Services.AddSingleton<IGoogleDriveTokenProtector, GoogleDriveTokenProtector>();
+builder.Services.AddEmergencySitesExportHostedServiceIfEnabled(builder.Configuration);
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));

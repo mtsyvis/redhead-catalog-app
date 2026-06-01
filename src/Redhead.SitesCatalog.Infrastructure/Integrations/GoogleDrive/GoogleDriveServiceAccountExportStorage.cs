@@ -184,7 +184,7 @@ public sealed class GoogleDriveServiceAccountExportStorage : ISystemExportStorag
         if (!EmergencySitesExportOptions.IsValid(_options))
         {
             throw new InvalidOperationException(
-                "EmergencySitesExport configuration is invalid. Enabled exports require GoogleDriveFolderId, ServiceAccountJsonPath, FilePrefix, and a positive RetentionWeeks value.");
+                "EmergencySitesExport configuration is invalid. Enabled exports require ScheduleCron, GoogleDriveFolderId, ServiceAccountJsonPath, FilePrefix, and a positive RetentionWeeks value.");
         }
 
         if (!File.Exists(_options.ServiceAccountJsonPath))

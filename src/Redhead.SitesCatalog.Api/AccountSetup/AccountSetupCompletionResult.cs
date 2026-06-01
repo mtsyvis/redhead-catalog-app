@@ -1,6 +1,6 @@
 using Redhead.SitesCatalog.Api.Models;
 
-namespace Redhead.SitesCatalog.Api.Services;
+namespace Redhead.SitesCatalog.Api.AccountSetup;
 
 public sealed class AccountSetupCompletionResult
 {
