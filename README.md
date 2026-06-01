@@ -220,6 +220,11 @@ GOOGLE_DRIVE_CLIENT_SECRET
 GOOGLE_DRIVE_REDIRECT_URI
 GOOGLE_DRIVE_APP_NAME
 GOOGLE_DRIVE_EXPORT_FOLDER_NAME
+EmergencySitesExport__Enabled
+EmergencySitesExport__GoogleDriveFolderId
+EmergencySitesExport__ServiceAccountJsonPath
+EmergencySitesExport__RetentionWeeks
+EmergencySitesExport__FilePrefix
 FRONTEND_BASE_URL
 ```
 
@@ -234,12 +239,19 @@ GoogleDrive__ClientSecret
 GoogleDrive__RedirectUri
 GoogleDrive__AppName
 GoogleDrive__ExportFolderName
+EmergencySitesExport__Enabled
+EmergencySitesExport__GoogleDriveFolderId
+EmergencySitesExport__ServiceAccountJsonPath
+EmergencySitesExport__RetentionWeeks
+EmergencySitesExport__FilePrefix
 Frontend__BaseUrl
 ASPNETCORE_ENVIRONMENT
 ASPNETCORE_URLS
 ```
 
 Google Drive integration is an optional connection for authenticated users, not Google login. Use the minimal Drive scope `https://www.googleapis.com/auth/drive.file`; do not configure the broad Drive scope.
+
+The emergency Sites export is disabled by default. When enabled, it uses a Google service account JSON file mounted into the app container and uploads to the configured Google Shared Drive folder; it does not use user OAuth tokens.
 
 ## Quality gates
 

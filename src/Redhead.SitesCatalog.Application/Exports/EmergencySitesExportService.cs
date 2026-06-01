@@ -9,6 +9,7 @@ public sealed class EmergencySitesExportService : IEmergencySitesExportService
 {
     private const string GeneratedBy = "system";
     private const string RoleLabel = "System";
+    private const string DefaultFilePrefix = "redhead-sites-full";
 
     private readonly ApplicationDbContext _context;
     private readonly ISitesExcelExportGenerator _excelExportGenerator;
@@ -21,8 +22,15 @@ public sealed class EmergencySitesExportService : IEmergencySitesExportService
         _excelExportGenerator = excelExportGenerator;
     }
 
-    public async Task<EmergencySitesExportResult> GenerateAsync(CancellationToken cancellationToken = default)
+    public Task<EmergencySitesExportResult> GenerateAsync(CancellationToken cancellationToken = default)
+        => GenerateAsync(DefaultFilePrefix, cancellationToken);
+
+    public async Task<EmergencySitesExportResult> GenerateAsync(
+        string filePrefix,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePrefix);
+
         var sites = await _context.Sites
             .AsNoTracking()
             .Include(site => site.CanonicalLocation)
@@ -43,7 +51,7 @@ public sealed class EmergencySitesExportService : IEmergencySitesExportService
             NotFoundIncluded: false));
 
         return new EmergencySitesExportResult(
-            CreateFileName(DateTime.UtcNow),
+            CreateFileName(filePrefix, DateTime.UtcNow),
             ExportConstants.ExcelContentType,
             stream,
             sites.Count,
@@ -51,5 +59,8 @@ public sealed class EmergencySitesExportService : IEmergencySitesExportService
     }
 
     internal static string CreateFileName(DateTime utcNow)
-        => $"redhead-sites-full-{utcNow:yyyy-MM-dd}.xlsx";
+        => CreateFileName(DefaultFilePrefix, utcNow);
+
+    internal static string CreateFileName(string filePrefix, DateTime utcNow)
+        => $"{filePrefix.Trim()}-{utcNow:yyyy-MM-dd}.xlsx";
 }

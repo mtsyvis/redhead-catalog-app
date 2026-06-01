@@ -38,6 +38,11 @@ services:
       GoogleDrive__RedirectUri: ${GOOGLE_DRIVE_REDIRECT_URI}
       GoogleDrive__AppName: ${GOOGLE_DRIVE_APP_NAME}
       GoogleDrive__ExportFolderName: ${GOOGLE_DRIVE_EXPORT_FOLDER_NAME}
+      EmergencySitesExport__Enabled: ${EmergencySitesExport__Enabled:-false}
+      EmergencySitesExport__GoogleDriveFolderId: ${EmergencySitesExport__GoogleDriveFolderId:-}
+      EmergencySitesExport__ServiceAccountJsonPath: ${EmergencySitesExport__ServiceAccountJsonPath:-/run/secrets/google-service-account.json}
+      EmergencySitesExport__RetentionWeeks: ${EmergencySitesExport__RetentionWeeks:-8}
+      EmergencySitesExport__FilePrefix: ${EmergencySitesExport__FilePrefix:-redhead-sites-full}
       Frontend__BaseUrl: ${FRONTEND_BASE_URL}
     volumes:
       - dataprotection_keys:/root/.aspnet/DataProtection-Keys

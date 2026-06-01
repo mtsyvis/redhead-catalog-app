@@ -10,6 +10,7 @@ using Redhead.SitesCatalog.Application.SystemJobs;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Repositories;
+using Redhead.SitesCatalog.Domain.SystemExports;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Infrastructure.Locations;
@@ -26,6 +27,12 @@ builder.Services.AddHttpClient();
 
 builder.Services.Configure<GoogleDriveOptions>(
     builder.Configuration.GetSection(GoogleDriveOptions.SectionName));
+builder.Services.AddOptions<EmergencySitesExportOptions>()
+    .Bind(builder.Configuration.GetSection(EmergencySitesExportOptions.SectionName))
+    .Validate(
+        EmergencySitesExportOptions.IsValid,
+        "EmergencySitesExport configuration is invalid. Enabled exports require GoogleDriveFolderId, ServiceAccountJsonPath, FilePrefix, and a positive RetentionWeeks value.")
+    .ValidateOnStart();
 builder.Services.Configure<FrontendOptions>(
     builder.Configuration.GetSection(FrontendOptions.SectionName));
 
@@ -42,6 +49,8 @@ builder.Services.AddScoped<IUserTableViewsService, UserTableViewsService>();
 builder.Services.AddScoped<ISitesExcelExportGenerator, SitesExcelExportGenerator>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<IEmergencySitesExportService, EmergencySitesExportService>();
+builder.Services.AddScoped<IEmergencySitesExportRunner, EmergencySitesExportRunner>();
+builder.Services.AddScoped<ISystemExportStorage, GoogleDriveServiceAccountExportStorage>();
 builder.Services.AddScoped<ISystemJobRunRepository, SystemJobRunRepository>();
 builder.Services.AddScoped<ISystemJobRunService, SystemJobRunService>();
 builder.Services.AddScoped<ISitesImportService, SitesImportService>();

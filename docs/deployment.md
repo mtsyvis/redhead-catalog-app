@@ -120,6 +120,11 @@ GOOGLE_DRIVE_CLIENT_SECRET=<Google OAuth client secret>
 GOOGLE_DRIVE_REDIRECT_URI=https://catalog.rhda.us/api/integrations/google-drive/callback
 GOOGLE_DRIVE_APP_NAME=Redhead Catalog
 GOOGLE_DRIVE_EXPORT_FOLDER_NAME=Redhead Catalog Exports
+EmergencySitesExport__Enabled=false
+EmergencySitesExport__GoogleDriveFolderId=<shared-drive-folder-id>
+EmergencySitesExport__ServiceAccountJsonPath=/run/secrets/google-service-account.json
+EmergencySitesExport__RetentionWeeks=8
+EmergencySitesExport__FilePrefix=redhead-sites-full
 FRONTEND_BASE_URL=https://catalog.rhda.us
 ```
 
@@ -136,6 +141,11 @@ GoogleDrive__ClientSecret=${GOOGLE_DRIVE_CLIENT_SECRET}
 GoogleDrive__RedirectUri=${GOOGLE_DRIVE_REDIRECT_URI}
 GoogleDrive__AppName=${GOOGLE_DRIVE_APP_NAME}
 GoogleDrive__ExportFolderName=${GOOGLE_DRIVE_EXPORT_FOLDER_NAME}
+EmergencySitesExport__Enabled=${EmergencySitesExport__Enabled}
+EmergencySitesExport__GoogleDriveFolderId=${EmergencySitesExport__GoogleDriveFolderId}
+EmergencySitesExport__ServiceAccountJsonPath=${EmergencySitesExport__ServiceAccountJsonPath}
+EmergencySitesExport__RetentionWeeks=${EmergencySitesExport__RetentionWeeks}
+EmergencySitesExport__FilePrefix=${EmergencySitesExport__FilePrefix}
 Frontend__BaseUrl=${FRONTEND_BASE_URL}
 ```
 
@@ -145,6 +155,7 @@ Security rules:
 * Never commit production passwords or database dumps.
 * Do not reuse weak seed passwords.
 * Google Drive OAuth uses `https://www.googleapis.com/auth/drive.file`; do not configure broad Drive access.
+* The emergency Sites export uses a Google service account JSON file for the configured Shared Drive folder. Mount `/etc/redhead/secrets/google-service-account.json` into the app container as `/run/secrets/google-service-account.json:ro` before setting `EmergencySitesExport__Enabled=true`.
 * After first successful production setup, rotate or remove temporary bootstrap credentials if the application flow allows it.
 
 ## First deployment checklist
