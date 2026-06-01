@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Moq;
 using Redhead.SitesCatalog.Application.Exceptions;
+using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Infrastructure.Options;
 using Redhead.SitesCatalog.Application.Models;
@@ -247,7 +248,8 @@ public sealed class GoogleDriveExportServiceTests
         var exportService = new ExportService(
             db,
             new SitesQueryBuilder(db),
-            new EffectiveExportPolicyService(db));
+            new EffectiveExportPolicyService(db),
+            new SitesExcelExportGenerator());
 
         return new GoogleDriveExportService(
             db,

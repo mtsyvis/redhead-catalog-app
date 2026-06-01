@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -18,15 +19,18 @@ public class ExportService : IExportService
     private readonly ApplicationDbContext _context;
     private readonly ISitesQueryBuilder _queryBuilder;
     private readonly IEffectiveExportPolicyService _effectiveExportPolicyService;
+    private readonly ISitesExcelExportGenerator _excelExportGenerator;
 
     public ExportService(
         ApplicationDbContext context,
         ISitesQueryBuilder queryBuilder,
-        IEffectiveExportPolicyService effectiveExportPolicyService)
+        IEffectiveExportPolicyService effectiveExportPolicyService,
+        ISitesExcelExportGenerator excelExportGenerator)
     {
         _context = context;
         _queryBuilder = queryBuilder;
         _effectiveExportPolicyService = effectiveExportPolicyService;
+        _excelExportGenerator = excelExportGenerator;
     }
 
     public async Task<ExportResult> ExportSitesAsExcelAsync(
@@ -37,7 +41,7 @@ public class ExportService : IExportService
         IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken = default)
     {
-        var exportColumns = SitesExportColumnRegistry.ValidateRequestedColumns(visibleColumnKeys, userRole);
+        SitesExportColumnRegistry.ValidateRequestedColumns(visibleColumnKeys, userRole);
         var policy = await _effectiveExportPolicyService.GetEffectivePolicyAsync(
             userId,
             userRole,
@@ -48,7 +52,9 @@ public class ExportService : IExportService
             throw new ExportDisabledException(userRole, ExportConstants.ExportDisabledMessage);
         }
 
-        var sitesQuery = _queryBuilder.BuildQuery(_context.Sites.Include(site => site.CanonicalLocation), query);
+        var sitesQuery = _queryBuilder.BuildQuery(
+            _context.Sites.AsNoTracking().Include(site => site.CanonicalLocation),
+            query);
 
         var requestedRows = await sitesQuery.CountAsync(cancellationToken);
 
@@ -61,18 +67,18 @@ public class ExportService : IExportService
 
         var exportedRows = sites.Count;
         var truncated = policy.Mode == ExportLimitMode.Limited && requestedRows > exportedRows;
-        var stream = CreateWorkbook(
+        var stream = _excelExportGenerator.Generate(new SitesExcelExportRequest(
             sites,
-            notFoundDomains: [],
-            exportColumns,
+            [],
+            visibleColumnKeys,
+            userRole,
             userEmail,
             userRole,
-            query,
             requestedRows,
             exportedRows,
             truncated,
             policy.Mode == ExportLimitMode.Limited ? policy.Rows : null,
-            notFoundIncluded: false);
+            false));
 
         await LogExportAsync(userId, userEmail, userRole, sites.Count, query, searchContext: null, cancellationToken);
 
@@ -107,7 +113,7 @@ public class ExportService : IExportService
         IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken = default)
     {
-        var exportColumns = SitesExportColumnRegistry.ValidateRequestedColumns(visibleColumnKeys, userRole);
+        SitesExportColumnRegistry.ValidateRequestedColumns(visibleColumnKeys, userRole);
         if (StopListParser.HasAnyInput(query.StopListDomains))
         {
             throw new RequestValidationException(StopListConstants.MultiSearchNotSupportedMessage);
@@ -128,6 +134,7 @@ public class ExportService : IExportService
         var isClientRole = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
 
         IQueryable<Site> baseQuery = _context.Sites
+            .AsNoTracking()
             .Include(site => site.CanonicalLocation)
             .Where(s => parseResult.UniqueDomains.Contains(s.Domain));
 
@@ -165,18 +172,18 @@ public class ExportService : IExportService
         var rowsReturned = sites.Count + (includeNotFound ? notFound.Count : 0);
         var exportedRows = sites.Count;
         var truncated = policy.Mode == ExportLimitMode.Limited && requestedRows > exportedRows;
-        var stream = CreateWorkbook(
+        var stream = _excelExportGenerator.Generate(new SitesExcelExportRequest(
             sites,
             includeNotFound ? notFound : [],
-            exportColumns,
+            visibleColumnKeys,
+            userRole,
             userEmail,
             userRole,
-            query,
             requestedRows,
             exportedRows,
             truncated,
             policy.Mode == ExportLimitMode.Limited ? policy.Rows : null,
-            notFoundIncluded: includeNotFound);
+            includeNotFound));
 
         var searchContext = isClientRole
             ? ExportAnalyticsSnapshotBuilder.CreateMultiSearchContext(
@@ -272,97 +279,6 @@ public class ExportService : IExportService
 
     private static bool IsAvailabilityFilterActive(IReadOnlyCollection<ServiceAvailabilityStatus>? availability)
         => availability is { Count: > 0 };
-
-    private static MemoryStream CreateWorkbook(
-        IReadOnlyList<Site> sites,
-        IReadOnlyList<string> notFoundDomains,
-        IReadOnlyList<SitesExportColumnDefinition> siteColumns,
-        string userEmail,
-        string userRole,
-        SitesQuery query,
-        int requestedRows,
-        int exportedRows,
-        bool truncated,
-        int? limitRows,
-        bool notFoundIncluded)
-    {
-        var sheets = new List<XlsxSheet>
-        {
-            new(
-                "Sites",
-                siteColumns.Select(column => column.Header).ToArray(),
-                sites.Select(site => CreateSiteRow(site, siteColumns)).ToList(),
-                siteColumns.Select(column => column.Width).ToArray())
-        };
-
-        if (notFoundDomains.Count > 0)
-        {
-            sheets.Add(new XlsxSheet(
-                "Not found",
-                ["Domain"],
-                notFoundDomains.Select(domain => (IReadOnlyList<XlsxCell>)[XlsxCell.Text(domain)]).ToList(),
-                [32d]));
-        }
-
-        sheets.Add(
-            new(
-                "Export info",
-                ["Property", "Value"],
-                CreateExportInfoRows(
-                    userEmail,
-                    userRole,
-                    requestedRows,
-                    exportedRows,
-                    truncated,
-                    limitRows,
-                    notFoundDomains.Count,
-                    notFoundIncluded),
-                [28d, 80d],
-                FreezeHeader: false,
-                AutoFilter: false));
-
-        return XlsxWorkbookWriter.CreateWorkbook(sheets);
-    }
-
-    private static IReadOnlyList<XlsxCell> CreateSiteRow(
-        Site site,
-        IReadOnlyList<SitesExportColumnDefinition> siteColumns)
-        => siteColumns.Select(column => column.CreateCell(site)).ToList();
-
-    private static IReadOnlyList<IReadOnlyList<XlsxCell>> CreateExportInfoRows(
-        string userEmail,
-        string userRole,
-        int requestedRows,
-        int exportedRows,
-        bool truncated,
-        int? limitRows,
-        int notFoundRows,
-        bool notFoundIncluded)
-    {
-        var rows = new List<IReadOnlyList<XlsxCell>>
-        {
-            InfoRow("GeneratedAtUtc", XlsxCell.DateTime(DateTime.UtcNow)),
-            InfoRow("GeneratedBy", XlsxCell.Text(userEmail)),
-            InfoRow("Role", XlsxCell.Text(userRole)),
-            InfoRow("Rows matching export request", XlsxCell.Number(requestedRows, XlsxCellStyle.Integer)),
-            InfoRow("Rows in Sites sheet", XlsxCell.Number(exportedRows, XlsxCellStyle.Integer)),
-            InfoRow("Export truncated by limit", XlsxCell.Boolean(truncated)),
-            InfoRow("Export limit rows", limitRows.HasValue
-                ? XlsxCell.Number(limitRows.Value, XlsxCellStyle.Integer)
-                : XlsxCell.Text("Unlimited"))
-        };
-
-        if (notFoundRows > 0)
-        {
-            rows.Add(InfoRow("Not found sheet rows", XlsxCell.Number(notFoundRows, XlsxCellStyle.Integer)));
-            rows.Add(InfoRow("Not found included", XlsxCell.Text(notFoundIncluded ? "Yes" : "No")));
-        }
-
-        return rows;
-    }
-
-    private static IReadOnlyList<XlsxCell> InfoRow(string label, XlsxCell value)
-        => [XlsxCell.InfoLabel(label), value];
 
     private static object CreateFilterSummary(SitesQuery query)
         => new

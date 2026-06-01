@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain;
@@ -30,7 +31,8 @@ public class ExportServiceTests : IDisposable
         _service = new ExportService(
             _context,
             queryBuilder,
-            new EffectiveExportPolicyService(_context));
+            new EffectiveExportPolicyService(_context),
+            new SitesExcelExportGenerator());
 
         SeedTestData();
     }
