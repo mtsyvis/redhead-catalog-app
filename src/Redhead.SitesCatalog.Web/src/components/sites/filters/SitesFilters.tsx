@@ -1,12 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import type { MouseEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import {
   Box,
   TextField,
   MenuItem,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  Menu,
   Typography,
   Stack,
   Autocomplete,
@@ -16,10 +13,24 @@ import {
   IconButton,
   ToggleButton,
   ToggleButtonGroup,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControlLabel,
+  Collapse,
+  ListItemIcon,
+  ListItemText,
+  ListSubheader,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
+import TuneIcon from '@mui/icons-material/Tune';
+import CheckIcon from '@mui/icons-material/Check';
 import type {
   FilterOption,
   LocationFilterOptions,
@@ -27,6 +38,7 @@ import type {
   SitesFilters,
   TopicFitMode,
 } from '../../../types/sites.types';
+import type { SavedFilterSet, SavedFilterSettings } from '../../../types/savedFilters.types';
 import { sitesService } from '../../../services/sites.service';
 import { BrandButton } from '../../common/BrandButton';
 import {
@@ -46,6 +58,7 @@ import {
   ActiveFiltersSummary,
 } from './ActiveFiltersSummary';
 import { buildAdvancedActiveFilterSummaries } from './ActiveFiltersSummary.helpers';
+import { buildSavedFilterSettings } from '../saved-filters/savedFilters.helpers';
 
 interface SitesFiltersProps {
   filters: SitesFilters;
@@ -55,6 +68,16 @@ interface SitesFiltersProps {
   onMultiSearchModeChange?: (enabled: boolean) => void;
   canFilterQuarantine?: boolean;
   filterOptionsRefreshKey?: number;
+  savedFilterSets?: SavedFilterSet[];
+  activeSavedFilterSetId?: string | null;
+  savedFiltersLoading?: boolean;
+  savedFilterSetChanged?: boolean;
+  onClearSavedFilterSetSelection?: () => void;
+  onApplySavedFilterSet?: (filterSet: SavedFilterSet) => void;
+  onCreateSavedFilterSet?: (name: string, settings: SavedFilterSettings) => Promise<void>;
+  onUpdateSavedFilterSet?: (id: string, settings: SavedFilterSettings) => Promise<void>;
+  onRenameSavedFilterSet?: (id: string, name: string) => Promise<void>;
+  onDeleteSavedFilterSet?: (id: string) => Promise<void>;
 }
 
 const INITIAL_FILTERS: SitesFilters = {
@@ -85,6 +108,15 @@ const INITIAL_FILTERS: SitesFilters = {
 };
 
 const FILTER_GROUP_GAP = 2.5;
+
+type SavedFilterDialogMode = 'create' | 'update' | 'rename';
+
+interface SavedFilterDialogState {
+  mode: SavedFilterDialogMode;
+  name: string;
+  includeStopListDomains: boolean;
+  error: string | null;
+}
 
 function areStringArraysEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
@@ -164,6 +196,16 @@ export function SitesFilters({
   multiSearchMode = false,
   onMultiSearchModeChange,
   filterOptionsRefreshKey = 0,
+  savedFilterSets = [],
+  activeSavedFilterSetId = null,
+  savedFiltersLoading = false,
+  savedFilterSetChanged = false,
+  onClearSavedFilterSetSelection,
+  onApplySavedFilterSet,
+  onCreateSavedFilterSet,
+  onUpdateSavedFilterSet,
+  onRenameSavedFilterSet,
+  onDeleteSavedFilterSet,
 }: SitesFiltersProps) {
   const [locationOptions, setLocationOptions] = useState<LocationFilterOptions | null>(null);
   const [locationOptionsLoading, setLocationOptionsLoading] = useState(false);
@@ -171,6 +213,11 @@ export function SitesFilters({
   const [nicheOptions, setNicheOptions] = useState<FilterOption[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [stopListDialogOpen, setStopListDialogOpen] = useState(false);
+  const [savedFiltersAnchor, setSavedFiltersAnchor] = useState<HTMLElement | null>(null);
+  const [savedFilterDialog, setSavedFilterDialog] = useState<SavedFilterDialogState | null>(null);
+  const [savedFilterDeleteOpen, setSavedFilterDeleteOpen] = useState(false);
+  const [savedFilterDeleteError, setSavedFilterDeleteError] = useState<string | null>(null);
+  const [savedFilterActionLoading, setSavedFilterActionLoading] = useState(false);
   const categoriesSearchFilterRef = useRef<CategoriesSearchFilterHandle>(null);
   const excludedCategoriesSearchFilterRef = useRef<CategoriesSearchFilterHandle>(null);
 
@@ -201,11 +248,6 @@ export function SitesFilters({
     onFiltersChange({ ...filters, [field]: value });
   };
 
-  const handleClear = () => {
-    onFiltersChange(INITIAL_FILTERS);
-    onApply(INITIAL_FILTERS);
-  };
-
   const handleClearAdvancedFilters = () => {
     onFiltersChange({
       ...filters,
@@ -233,11 +275,7 @@ export function SitesFilters({
       lastPublishedFromMonth: INITIAL_FILTERS.lastPublishedFromMonth,
       lastPublishedToMonth: INITIAL_FILTERS.lastPublishedToMonth,
     });
-  };
-
-  const handleClearAdvancedFiltersClick = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    handleClearAdvancedFilters();
+    onClearSavedFilterSetSelection?.();
   };
 
   const handleApply = () => {
@@ -285,34 +323,6 @@ export function SitesFilters({
     return count;
   };
 
-  const hasSearchOrAdvancedFilters = () => {
-    return (
-      filters.search !== '' ||
-      filters.drMin !== '' ||
-      filters.drMax !== '' ||
-      filters.trafficMin !== '' ||
-      filters.trafficMax !== '' ||
-      filters.priceMin !== '' ||
-      filters.priceMax !== '' ||
-      (!multiSearchMode && filters.stopListDomains.length > 0) ||
-      filters.locationSelections.length > 0 ||
-      filters.excludedLocationKeys.length > 0 ||
-      filters.niches.length > 0 ||
-      filters.categorySearchTerms.length > 0 ||
-      filters.excludedNiches.length > 0 ||
-      filters.excludedCategorySearchTerms.length > 0 ||
-      filters.languages.length > 0 ||
-      hasAvailabilityFilter(filters.casinoAvailability) ||
-      hasAvailabilityFilter(filters.cryptoAvailability) ||
-      hasAvailabilityFilter(filters.linkInsertAvailability) ||
-      hasAvailabilityFilter(filters.linkInsertCasinoAvailability) ||
-      hasAvailabilityFilter(filters.datingAvailability) ||
-      filters.quarantine !== INITIAL_FILTERS.quarantine ||
-      filters.lastPublishedFromMonth !== null ||
-      filters.lastPublishedToMonth !== null
-    );
-  };
-
   const lastPublishedRangeError =
     filters.lastPublishedFromMonth &&
     filters.lastPublishedToMonth &&
@@ -332,13 +342,28 @@ export function SitesFilters({
 
   const stopListCount = filters.stopListDomains.length;
   const stopListPaused = multiSearchMode && stopListCount > 0;
-  const stopListApplied = !multiSearchMode && stopListCount > 0;
   const advancedActiveFilterCount = getAdvancedActiveFilterCount();
   const advancedFiltersActive = advancedActiveFilterCount > 0;
   const activeFilterSummaryItems = useMemo(
     () => buildAdvancedActiveFilterSummaries(filters, multiSearchMode),
     [filters, multiSearchMode]
   );
+  const activeSavedFilterSet =
+    savedFilterSets.find((filterSet) => filterSet.id === activeSavedFilterSetId) ?? null;
+  const canIncludeStopListDomains = !multiSearchMode && filters.stopListDomains.length > 0;
+  const hasSavableCurrentFilterState = advancedFiltersActive || canIncludeStopListDomains;
+  const savedFilterControlsEnabled = Boolean(
+    onCreateSavedFilterSet ||
+      onApplySavedFilterSet ||
+      onUpdateSavedFilterSet ||
+      onRenameSavedFilterSet ||
+      onDeleteSavedFilterSet
+  );
+  const savedFilterSelectorText = activeSavedFilterSet
+    ? activeSavedFilterSet.name
+    : hasSavableCurrentFilterState
+      ? 'Unsaved filters'
+      : 'Saved sets';
   const stopListStatusText =
     stopListCount === 0
       ? 'No domains excluded'
@@ -374,6 +399,151 @@ export function SitesFilters({
       onApply(nextFilters);
     }
   };
+
+  const toggleFiltersPanel = () => {
+    setExpanded((current) => !current);
+  };
+
+  const handleFiltersSummaryKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+
+    event.preventDefault();
+    toggleFiltersPanel();
+  };
+
+  const getSavedFilterErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
+
+  const openSavedFilterDialog = (mode: SavedFilterDialogMode) => {
+    if (mode !== 'create' && !activeSavedFilterSet) return;
+
+    setSavedFiltersAnchor(null);
+    setSavedFilterDialog({
+      mode,
+      name:
+        mode === 'create'
+          ? activeSavedFilterSet
+            ? `${activeSavedFilterSet.name} copy`
+            : ''
+          : activeSavedFilterSet?.name ?? '',
+      includeStopListDomains:
+        mode === 'update' && canIncludeStopListDomains
+          ? Array.isArray(activeSavedFilterSet?.settings.stopListDomains)
+          : false,
+      error: null,
+    });
+  };
+
+  const buildCurrentSavedFilterSettings = (dialog: SavedFilterDialogState) =>
+    buildSavedFilterSettings(filters, {
+      includeStopListDomains: canIncludeStopListDomains && dialog.includeStopListDomains,
+    });
+
+  const handleSubmitSavedFilterDialog = async () => {
+    if (!savedFilterDialog) return;
+    const trimmedName = savedFilterDialog.name.trim();
+
+    if (savedFilterDialog.mode !== 'update' && !trimmedName) {
+      setSavedFilterDialog((current) =>
+        current ? { ...current, error: 'Enter a filter set name.' } : current
+      );
+      return;
+    }
+
+    setSavedFilterActionLoading(true);
+    setSavedFilterDialog((current) => (current ? { ...current, error: null } : current));
+
+    try {
+      if (savedFilterDialog.mode === 'create') {
+        if (!onCreateSavedFilterSet) return;
+        await onCreateSavedFilterSet(trimmedName, buildCurrentSavedFilterSettings(savedFilterDialog));
+      } else if (savedFilterDialog.mode === 'rename') {
+        if (!activeSavedFilterSet || !onRenameSavedFilterSet) return;
+        await onRenameSavedFilterSet(activeSavedFilterSet.id, trimmedName);
+      } else {
+        if (!activeSavedFilterSet || !onUpdateSavedFilterSet) return;
+        await onUpdateSavedFilterSet(
+          activeSavedFilterSet.id,
+          buildCurrentSavedFilterSettings(savedFilterDialog)
+        );
+      }
+
+      setSavedFilterDialog(null);
+    } catch (error) {
+      setSavedFilterDialog((current) =>
+        current
+          ? {
+              ...current,
+              error: getSavedFilterErrorMessage(error, 'Saved filter set action failed.'),
+            }
+          : current
+      );
+    } finally {
+      setSavedFilterActionLoading(false);
+    }
+  };
+
+  const handleDeleteSavedFilterSet = async () => {
+    if (!activeSavedFilterSet || !onDeleteSavedFilterSet) return;
+
+    setSavedFilterActionLoading(true);
+    setSavedFilterDeleteError(null);
+    try {
+      await onDeleteSavedFilterSet(activeSavedFilterSet.id);
+      setSavedFilterDeleteOpen(false);
+    } catch (error) {
+      setSavedFilterDeleteError(getSavedFilterErrorMessage(error, 'Failed to delete saved filter set.'));
+    } finally {
+      setSavedFilterActionLoading(false);
+    }
+  };
+
+  const savedFilterSelector = savedFilterControlsEnabled ? (
+    <Button
+      size="small"
+      variant="outlined"
+      endIcon={
+        savedFiltersLoading ? (
+          <CircularProgress size={14} color="inherit" />
+        ) : (
+          <KeyboardArrowDownIcon fontSize="small" />
+        )
+      }
+      disabled={savedFiltersLoading || savedFilterActionLoading}
+      onClick={(event) => setSavedFiltersAnchor(event.currentTarget)}
+      sx={{
+        minWidth: 0,
+        height: 28,
+        borderRadius: 999,
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
+        color: 'text.primary',
+        textTransform: 'none',
+        fontSize: 12,
+        fontWeight: 600,
+        px: 1.25,
+      }}
+    >
+      <Box component="span" sx={{ display: 'inline-flex', minWidth: 0, maxWidth: 220 }}>
+        {activeSavedFilterSet && (
+          <Box component="span" sx={{ flexShrink: 0 }}>
+            Filter set:&nbsp;
+          </Box>
+        )}
+        <Box
+          component="span"
+          sx={{
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {savedFilterSelectorText}
+        </Box>
+      </Box>
+    </Button>
+  ) : null;
 
   const searchModeControl = onMultiSearchModeChange ? (
     <ToggleButtonGroup
@@ -496,30 +666,53 @@ export function SitesFilters({
         )}
       </Box>
 
-      {/* Advanced Filters */}
-      <Accordion expanded={expanded} onChange={() => setExpanded(!expanded)}>
-        <AccordionSummary
-          expandIcon={<ExpandMoreIcon />}
+      {/* Filters */}
+      <Box
+        sx={{
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: (theme) => `${theme.custom.radius}px`,
+          bgcolor: 'background.paper',
+          boxShadow: '0 1px 2px rgba(15, 23, 42, 0.08)',
+          overflow: 'hidden',
+        }}
+      >
+        <Box
           sx={{
-            minHeight: 44,
-            '&.Mui-expanded': { minHeight: 44 },
-            '& .MuiAccordionSummary-content': {
-              minWidth: 0,
-              my: 0.75,
-              alignItems: 'center',
-            },
-            '& .MuiAccordionSummary-content.Mui-expanded': {
-              my: 0.75,
-            },
+            minHeight: 52,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            flexWrap: 'wrap',
+            px: 1.5,
+            py: 1,
           }}
         >
-          <Stack
-            direction="row"
-            spacing={1}
-            alignItems="center"
-            sx={{ minWidth: 0, width: '100%' }}
+          <Box
+            role="button"
+            tabIndex={0}
+            aria-expanded={expanded}
+            aria-controls="sites-filters-panel"
+            onClick={toggleFiltersPanel}
+            onKeyDown={handleFiltersSummaryKeyDown}
+            sx={{
+              flex: '1 1 280px',
+              minWidth: 0,
+              minHeight: 32,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              cursor: 'pointer',
+              borderRadius: 999,
+              pr: 0.5,
+              '&:focus-visible': {
+                outline: '2px solid',
+                outlineColor: 'primary.main',
+                outlineOffset: 2,
+              },
+            }}
           >
-            <Typography sx={{ flexShrink: 0, fontWeight: 500 }}>Advanced Filters</Typography>
+            <Typography sx={{ flexShrink: 0, fontWeight: 600 }}>Filters</Typography>
             {advancedFiltersActive && (
               <Chip
                 label={`${advancedActiveFilterCount} active`}
@@ -530,34 +723,77 @@ export function SitesFilters({
                   borderColor: 'divider',
                   bgcolor: 'background.paper',
                   color: 'text.secondary',
-                  fontWeight: 600,
+                  fontWeight: 500,
                   flexShrink: 0,
                 }}
               />
             )}
-            {!expanded && activeFilterSummaryItems.length > 0 && (
+            {expanded ? (
+              <Box sx={{ flex: '1 1 auto', minWidth: 0 }} />
+            ) : activeFilterSummaryItems.length > 0 ? (
               <ActiveFiltersSummary items={activeFilterSummaryItems} />
+            ) : (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ flex: '1 1 auto', minWidth: 140 }}
+              >
+                No filters applied
+              </Typography>
             )}
-            {!expanded && advancedFiltersActive && (
+          </Box>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.75,
+              flexShrink: 0,
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+            }}
+          >
+            {savedFilterSelector}
+            {activeSavedFilterSet && savedFilterSetChanged && onUpdateSavedFilterSet && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<SaveOutlinedIcon fontSize="small" />}
+                disabled={savedFiltersLoading || savedFilterActionLoading}
+                onClick={() => openSavedFilterDialog('update')}
+                sx={{
+                  height: 30,
+                  borderRadius: 999,
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  color: 'text.primary',
+                  textTransform: 'none',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  px: 1.25,
+                  flexShrink: 0,
+                }}
+              >
+                Save changes
+              </Button>
+            )}
+            {advancedFiltersActive && (
               <Button
                 size="small"
                 variant="outlined"
                 color="inherit"
-                onMouseDown={(event) => event.stopPropagation()}
-                onClick={handleClearAdvancedFiltersClick}
+                startIcon={<ClearIcon fontSize="small" />}
+                onClick={handleClearAdvancedFilters}
                 sx={{
                   flexShrink: 0,
                   minWidth: 'auto',
-                  height: 24,
+                  height: 30,
                   px: 1.25,
-                  py: 0,
                   borderRadius: 999,
                   borderColor: 'divider',
                   bgcolor: 'background.paper',
                   color: 'text.secondary',
                   fontSize: 12,
                   fontWeight: 600,
-                  lineHeight: 1,
                   textTransform: 'none',
                   whiteSpace: 'nowrap',
                   '&:hover': {
@@ -569,29 +805,34 @@ export function SitesFilters({
                 Clear filters
               </Button>
             )}
-          </Stack>
-        </AccordionSummary>
-        <AccordionDetails sx={{ pt: 1.5 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<TuneIcon fontSize="small" />}
+              onClick={toggleFiltersPanel}
+              sx={{
+                flexShrink: 0,
+                height: 30,
+                px: 1.25,
+                borderRadius: 999,
+                borderColor: expanded ? 'rgba(255, 69, 91, 0.35)' : 'divider',
+                bgcolor: expanded ? 'rgba(255, 69, 91, 0.06)' : 'background.paper',
+                color: 'primary.main',
+                textTransform: 'none',
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              {expanded ? 'Hide filters' : 'Show filters'}
+            </Button>
+          </Box>
+        </Box>
+        <Collapse in={expanded}>
+          <Box
+            id="sites-filters-panel"
+            sx={{ borderTop: '1px solid', borderColor: 'divider', px: 1.5, py: 1.5 }}
+          >
           <Stack spacing={2}>
-            {stopListApplied && !expanded && (
-              <Box sx={{ display: 'inline-flex' }}>
-                <Chip
-                  label={`Stop list: ${stopListCount} ${pluralize(stopListCount, 'domain')}`}
-                  onDelete={handleClearStopList}
-                  variant="outlined"
-                  sx={{
-                    borderColor: 'divider',
-                    color: 'text.primary',
-                    bgcolor: 'background.paper',
-                    '& .MuiChip-deleteIcon': {
-                      color: 'text.secondary',
-                      '&:hover': { color: 'text.primary' },
-                    },
-                  }}
-                />
-              </Box>
-            )}
-
             {/* Range Filters Row */}
             <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 2, flexWrap: 'wrap' }}>
               {/* DR Range */}
@@ -978,19 +1219,226 @@ export function SitesFilters({
               )}
             </Box>
 
-            {/* Action Buttons */}
-            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-              <BrandButton
-                startIcon={<ClearIcon />}
-                onClick={handleClear}
-                disabled={!hasSearchOrAdvancedFilters()}
-              >
-                Clear All
-              </BrandButton>
-            </Box>
           </Stack>
-        </AccordionDetails>
-      </Accordion>
+          </Box>
+        </Collapse>
+      </Box>
+
+      <Menu
+        anchorEl={savedFiltersAnchor}
+        open={Boolean(savedFiltersAnchor)}
+        onClose={() => setSavedFiltersAnchor(null)}
+        MenuListProps={{ dense: true }}
+      >
+        <MenuItem
+          selected={!activeSavedFilterSetId}
+          onClick={() => {
+            setSavedFiltersAnchor(null);
+            onClearSavedFilterSetSelection?.();
+          }}
+          sx={{ minWidth: 240 }}
+        >
+          <ListItemIcon>
+            {!activeSavedFilterSetId ? <CheckIcon fontSize="small" /> : null}
+          </ListItemIcon>
+          <ListItemText>Current filters</ListItemText>
+        </MenuItem>
+        <Divider />
+        <ListSubheader>Saved filter sets</ListSubheader>
+        {savedFilterSets.length === 0 ? (
+          <MenuItem disabled>
+            <ListItemText secondary="No saved filter sets yet" />
+          </MenuItem>
+        ) : (
+          savedFilterSets.map((filterSet) => (
+            <MenuItem
+              key={filterSet.id}
+              selected={filterSet.id === activeSavedFilterSetId}
+              onClick={() => {
+                setSavedFiltersAnchor(null);
+                onApplySavedFilterSet?.(filterSet);
+              }}
+              sx={{ minWidth: 220 }}
+            >
+              <ListItemIcon>
+                {filterSet.id === activeSavedFilterSetId ? (
+                  <CheckIcon fontSize="small" />
+                ) : null}
+              </ListItemIcon>
+              <Box
+                component="span"
+                sx={{
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontWeight: filterSet.id === activeSavedFilterSetId ? 600 : 400,
+                }}
+              >
+                {filterSet.name}
+              </Box>
+            </MenuItem>
+          ))
+        )}
+        {(hasSavableCurrentFilterState ||
+          (activeSavedFilterSet && (onRenameSavedFilterSet || onDeleteSavedFilterSet))) && (
+          <Divider />
+        )}
+        {hasSavableCurrentFilterState && onCreateSavedFilterSet && (
+          <MenuItem onClick={() => openSavedFilterDialog('create')}>
+            {activeSavedFilterSet && !savedFilterSetChanged
+              ? 'Duplicate filter set'
+              : 'Save as new filter set'}
+          </MenuItem>
+        )}
+        {activeSavedFilterSet && onRenameSavedFilterSet && (
+          <MenuItem onClick={() => openSavedFilterDialog('rename')}>
+            Rename filter set
+          </MenuItem>
+        )}
+        {activeSavedFilterSet && onDeleteSavedFilterSet && (
+          <MenuItem
+            onClick={() => {
+              setSavedFiltersAnchor(null);
+              setSavedFilterDeleteError(null);
+              setSavedFilterDeleteOpen(true);
+            }}
+            sx={{ color: 'error.main' }}
+          >
+            Delete filter set
+          </MenuItem>
+        )}
+      </Menu>
+
+      <Dialog
+        open={Boolean(savedFilterDialog)}
+        onClose={() => {
+          if (!savedFilterActionLoading) setSavedFilterDialog(null);
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>
+          {savedFilterDialog?.mode === 'update'
+            ? 'Update filter set'
+            : savedFilterDialog?.mode === 'rename'
+              ? 'Rename filter set'
+              : 'Save filter set'}
+        </DialogTitle>
+        <DialogContent sx={{ overflow: 'visible' }}>
+          {savedFilterDialog && (
+            <Stack spacing={1.5} sx={{ pt: 1 }}>
+              {savedFilterDialog.mode === 'update' ? (
+                <Typography variant="body2" color="text.secondary">
+                  {activeSavedFilterSet?.name}
+                </Typography>
+              ) : (
+                <TextField
+                  label="Name"
+                  value={savedFilterDialog.name}
+                  onChange={(event) =>
+                    setSavedFilterDialog((current) =>
+                      current
+                        ? { ...current, name: event.target.value, error: null }
+                        : current
+                    )
+                  }
+                  autoFocus
+                  fullWidth
+                />
+              )}
+
+              {savedFilterDialog.mode !== 'rename' && (
+                <Stack spacing={0.25}>
+                  {canIncludeStopListDomains && (
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={savedFilterDialog.includeStopListDomains}
+                          onChange={(event) =>
+                            setSavedFilterDialog((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    includeStopListDomains: event.target.checked,
+                                  }
+                                : current
+                            )
+                          }
+                        />
+                      }
+                      label="Include stop list domains"
+                    />
+                  )}
+                </Stack>
+              )}
+
+              {savedFilterDialog.error && (
+                <Typography variant="body2" color="error.main">
+                  {savedFilterDialog.error}
+                </Typography>
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <BrandButton
+            onClick={() => setSavedFilterDialog(null)}
+            disabled={savedFilterActionLoading}
+          >
+            Cancel
+          </BrandButton>
+          <BrandButton
+            kind="primary"
+            onClick={handleSubmitSavedFilterDialog}
+            disabled={savedFilterActionLoading}
+          >
+            {savedFilterDialog?.mode === 'update'
+              ? 'Update'
+              : savedFilterDialog?.mode === 'rename'
+                ? 'Rename'
+                : 'Save'}
+          </BrandButton>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={savedFilterDeleteOpen}
+        onClose={() => {
+          if (!savedFilterActionLoading) setSavedFilterDeleteOpen(false);
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Delete filter set?</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5}>
+            <Typography variant="body2" color="text.secondary">
+              {activeSavedFilterSet?.name}
+            </Typography>
+            {savedFilterDeleteError && (
+              <Typography variant="body2" color="error.main">
+                {savedFilterDeleteError}
+              </Typography>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <BrandButton
+            onClick={() => setSavedFilterDeleteOpen(false)}
+            disabled={savedFilterActionLoading}
+          >
+            Cancel
+          </BrandButton>
+          <BrandButton
+            kind="primary"
+            onClick={handleDeleteSavedFilterSet}
+            disabled={savedFilterActionLoading}
+          >
+            Delete
+          </BrandButton>
+        </DialogActions>
+      </Dialog>
 
       {stopListDialogOpen && (
         <StopListDialog

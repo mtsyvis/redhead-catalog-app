@@ -42,6 +42,7 @@ builder.Services.AddScoped<IAdminUsersListService, AdminUsersListService>();
 builder.Services.AddScoped<IAccountSetupService, AccountSetupService>();
 builder.Services.AddScoped<IEffectiveExportPolicyService, EffectiveExportPolicyService>();
 builder.Services.AddScoped<IUserTableViewsService, UserTableViewsService>();
+builder.Services.AddScoped<IUserSavedFilterSetsService, UserSavedFilterSetsService>();
 builder.Services.AddScoped<ISitesExcelExportGenerator, SitesExcelExportGenerator>();
 builder.Services.AddScoped<IExportService, ExportService>();
 builder.Services.AddScoped<IEmergencySitesExportService, EmergencySitesExportService>();

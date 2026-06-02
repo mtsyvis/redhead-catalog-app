@@ -29,7 +29,7 @@ function ActiveFilterSummaryItem({ item, showSeparator }: SummaryItemProps) {
           sx={{
             mx: 1,
             color: 'divider',
-            fontWeight: 700,
+            fontWeight: 500,
             flexShrink: 0,
           }}
         >
@@ -49,7 +49,7 @@ function ActiveFilterSummaryItem({ item, showSeparator }: SummaryItemProps) {
         {item.label && (
           <Box
             component="span"
-            sx={{ color: 'text.primary', fontWeight: 500, flexShrink: 0 }}
+            sx={{ color: 'text.secondary', fontWeight: 500, flexShrink: 0 }}
           >
             {item.label}:&nbsp;
           </Box>
@@ -60,6 +60,7 @@ function ActiveFilterSummaryItem({ item, showSeparator }: SummaryItemProps) {
             minWidth: 0,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
+            color: 'text.secondary',
           }}
         >
           {item.value}

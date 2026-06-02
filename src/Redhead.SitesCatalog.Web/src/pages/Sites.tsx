@@ -26,10 +26,17 @@ import { insertSitesColumnsByDefaultOrder } from '../components/sites/table-view
 import { useSitesColumns } from '../components/sites/hooks/useSitesColumns';
 import { isNotFoundRow, useSitesGridRows } from '../components/sites/hooks/useSitesGridRows';
 import { useSitesTableViews } from '../components/sites/table-views/useSitesTableViews';
+import { useSitesSavedFilters } from '../components/sites/saved-filters/useSitesSavedFilters';
+import {
+  applySavedFilterSettings,
+  areSavedFilterSettingsEqual,
+  buildSavedFilterSettings,
+} from '../components/sites/saved-filters/savedFilters.helpers';
 import { useUserRoles } from '../hooks/useUserRoles';
 import { useAuth } from '../contexts/AuthContext';
 import { useSitesExport } from '../hooks/useSitesExport';
 import { dataGridLocaleText } from '../utils/numberFormat';
+import type { SavedFilterSet, SavedFilterSettings } from '../types/savedFilters.types';
 import type {
   LocationFilterSelection,
   Site,
@@ -151,6 +158,7 @@ export function Sites() {
   const { user } = useAuth();
   const canExport = !user?.isExportDisabled;
   const tableViews = useSitesTableViews({ isClient });
+  const savedFilters = useSitesSavedFilters();
   const { updateDraftColumnWidth } = tableViews;
 
   useEffect(() => {
@@ -166,6 +174,16 @@ export function Sites() {
       severity: 'error',
     });
   }, [tableViews.loadError]);
+
+  useEffect(() => {
+    if (!savedFilters.loadError) return;
+    setSnackbar({
+      open: true,
+      message: 'Saved filter sets could not be loaded',
+      detail: savedFilters.loadError,
+      severity: 'error',
+    });
+  }, [savedFilters.loadError]);
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -358,6 +376,68 @@ export function Sites() {
     }
   };
 
+  const handleApplySavedFilterSet = (filterSet: SavedFilterSet) => {
+    const nextFilters = applySavedFilterSettings(filters, filterSet.settings, {
+      multiSearchMode,
+    });
+    savedFilters.setActiveFilterSetId(filterSet.id);
+    setFilters(nextFilters);
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
+    handleFiltersApply(nextFilters);
+  };
+
+  const handleCreateSavedFilterSet = async (
+    name: string,
+    settings: SavedFilterSettings
+  ) => {
+    const created = await savedFilters.createFilterSet(name, settings);
+    const currentSettings = buildSavedFilterSettings(filters, {
+      includeStopListDomains: !multiSearchMode && filters.stopListDomains.length > 0,
+    });
+
+    if (areSavedFilterSettingsEqual(currentSettings, created.settings)) {
+      savedFilters.setActiveFilterSetId(created.id);
+    } else {
+      savedFilters.setActiveFilterSetId(null);
+    }
+
+    setSnackbar({
+      open: true,
+      message: `Saved filter set: ${created.name}`,
+      severity: 'success',
+    });
+  };
+
+  const handleUpdateSavedFilterSet = async (
+    id: string,
+    settings: SavedFilterSettings
+  ) => {
+    const updated = await savedFilters.updateFilterSet(id, undefined, settings);
+    setSnackbar({
+      open: true,
+      message: `Updated filter set: ${updated.name}`,
+      severity: 'success',
+    });
+  };
+
+  const handleRenameSavedFilterSet = async (id: string, name: string) => {
+    const updated = await savedFilters.updateFilterSet(id, name);
+    setSnackbar({
+      open: true,
+      message: `Renamed filter set: ${updated.name}`,
+      severity: 'success',
+    });
+  };
+
+  const handleDeleteSavedFilterSet = async (id: string) => {
+    await savedFilters.deleteFilterSet(id);
+    setSnackbar({
+      open: true,
+      message: 'Saved filter set deleted',
+      severity: 'success',
+    });
+  };
+
   const handleMultiSearchModeChange = (enabled: boolean) => {
     setMultiSearchMode(enabled);
     if (!enabled) {
@@ -371,6 +451,7 @@ export function Sites() {
     setMultiSearchResult(null);
     setFilters(INITIAL_FILTERS);
     setDebouncedSearch(INITIAL_FILTERS.search);
+    savedFilters.setActiveFilterSetId(null);
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
   };
 
@@ -492,6 +573,26 @@ export function Sites() {
     [hiddenFilteredColumnIds, tableViews.allowedViewColumns]
   );
 
+  const savedFilterSetChanged = useMemo(() => {
+    const activeFilterSet = savedFilters.activeFilterSet;
+    if (!activeFilterSet) return false;
+
+    const currentSettings = buildSavedFilterSettings(filters, {
+      includeStopListDomains:
+        !multiSearchMode &&
+        (Array.isArray(activeFilterSet.settings.stopListDomains) ||
+          filters.stopListDomains.length > 0),
+    });
+    const activeSettings = {
+      ...activeFilterSet.settings,
+      stopListDomains: !multiSearchMode
+        ? (activeFilterSet.settings.stopListDomains ?? null)
+        : null,
+    };
+
+    return !areSavedFilterSettingsEqual(currentSettings, activeSettings);
+  }, [filters, multiSearchMode, savedFilters.activeFilterSet]);
+
   const handleShowFilteredColumns = () => {
     tableViews.updateDraftVisibleColumns(
       insertSitesColumnsByDefaultOrder(
@@ -571,6 +672,16 @@ export function Sites() {
           multiSearchMode={multiSearchMode}
           onMultiSearchModeChange={handleMultiSearchModeChange}
           filterOptionsRefreshKey={filterOptionsRefreshKey}
+          savedFilterSets={savedFilters.filterSets}
+          activeSavedFilterSetId={savedFilters.activeFilterSetId}
+          savedFiltersLoading={savedFilters.loading}
+          savedFilterSetChanged={savedFilterSetChanged}
+          onClearSavedFilterSetSelection={() => savedFilters.setActiveFilterSetId(null)}
+          onApplySavedFilterSet={handleApplySavedFilterSet}
+          onCreateSavedFilterSet={handleCreateSavedFilterSet}
+          onUpdateSavedFilterSet={handleUpdateSavedFilterSet}
+          onRenameSavedFilterSet={handleRenameSavedFilterSet}
+          onDeleteSavedFilterSet={handleDeleteSavedFilterSet}
         />
 
         {multiSearchResult && multiSearchResult.duplicates.length > 0 && (

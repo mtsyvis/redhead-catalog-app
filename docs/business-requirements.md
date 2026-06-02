@@ -405,8 +405,31 @@ Sites search and filter UX rules:
 * Multi-search does not auto-run while the user is typing or pasting input; users must explicitly press Search.
 * The search area uses a two-option mode selector for Single search and Multi-search.
 * The Sites table toolbar shows the current total result count for the active search/filter/multi-search context.
-* Collapsed Advanced Filters shows a compact, single-line summary of active advanced filters alongside the active filter count.
-* When advanced filters are active, collapsed Advanced Filters provides a secondary `Clear filters` action that clears advanced filters only and preserves single-search text, multi-search mode, and multi-search results.
+* The filters area uses a command bar with a collapsible full filter panel.
+* The filters command bar shows the active advanced-filter count, the current saved filter set state, and primary filter actions.
+* The filters command bar shows a compact summary of active advanced filters only when the full filter panel is collapsed.
+* Clicking the filter summary area or using the `Show filters` / `Hide filters` action expands or collapses the full filter panel.
+* When advanced filters are active, the filters command bar provides a secondary `Clear filters` action. It clears advanced filters only and preserves single-search text, multi-search mode, and multi-search input/results.
+
+Saved filter set rules:
+
+* Saved filter sets are stored per user and per table.
+* Saved filter sets store the current advanced filter criteria.
+* Users can save at most 40 filter sets per table.
+* Saved filter set names must be unique per user/table ignoring case.
+* Users can create, apply, update, rename, and delete saved filter sets.
+* When no saved filter set is selected, the command bar labels the selector as `Saved sets` if there are no savable current filter criteria and as `Unsaved filters` when the current criteria are not tied to a saved filter set.
+* The filter set selector is used for switching between current filters and saved filter sets. It also contains secondary saved-filter-set actions such as save as new, duplicate, rename, and delete.
+* Saving a new filter set from an active saved filter set pre-fills the name as `{old name} copy`.
+* When an active saved filter set has no unsaved saved-filter criteria changes, the save-as action is labeled `Duplicate filter set`; otherwise it is labeled `Save as new filter set`.
+* Applying a saved filter set updates the current filters and resets pagination.
+* Domain search is not saved in saved filter sets. Domain search is a separate search UI state and can additionally narrow the current result set.
+* Stop list domains are not saved by default. They can be included only when the stop list is currently applied.
+* Multi-search mode and pasted Multi-search input are never saved in saved filter sets.
+* Creating a saved filter set does not make it active when the current advanced-filter state contains applied stop-list domains that were not included in the saved settings.
+* Applying a saved filter set in Single search mode applies the saved stop-list state. If the saved set has no stop-list domains, the current stop list is cleared.
+* Applying a saved filter set in Multi-search mode preserves Multi-search mode and the pasted Multi-search input; saved stop-list domains are not applied in that mode.
+* Stop-list domains inside one saved filter set support at most 50,000 unique normalized domains, and the saved filter payload must fit the backend payload-size limit.
 
 Stop list rules:
 
