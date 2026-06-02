@@ -50,6 +50,7 @@ public class SitesQueryRequest
 
     public List<string>? LocationKeys { get; set; }
     public List<string>? LocationGroupKeys { get; set; }
+    public List<string>? ExcludedLocationKeys { get; set; }
     public bool IncludeUnknownLocation { get; set; }
     public bool IncludeOtherLocation { get; set; }
 

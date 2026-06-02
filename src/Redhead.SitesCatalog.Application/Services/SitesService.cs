@@ -112,19 +112,40 @@ public class SitesService : ISitesService
 
     public async Task<LocationFilterOptionsDto> GetLocationFilterOptionsAsync(CancellationToken cancellationToken = default)
     {
-        var groups = await _context.LocationGroups
+        var groupEntities = await _context.LocationGroups
             .AsNoTracking()
+            .Include(group => group.Items)
+            .ThenInclude(item => item.Location)
             .OrderBy(group => group.Kind)
             .ThenBy(group => group.SortOrder)
             .ThenBy(group => group.DisplayName)
-            .Select(group => new LocationGroupFilterOptionDto
-            {
-                Key = group.Key,
-                DisplayName = group.DisplayName,
-                GroupType = group.Kind,
-                LocationCount = group.Items.Count
-            })
             .ToListAsync(cancellationToken);
+
+        var groups = groupEntities
+            .Select(group =>
+            {
+                var groupLocations = group.Items
+                    .Select(item => item.Location)
+                    .Where(location => location is { IsActive: true })
+                    .OrderBy(location => location!.SortOrder)
+                    .ThenBy(location => location!.DisplayName)
+                    .Select(location => new LocationFilterOptionDto
+                    {
+                        Key = location!.Key,
+                        DisplayName = location.DisplayName
+                    })
+                    .ToList();
+
+                return new LocationGroupFilterOptionDto
+                {
+                    Key = group.Key,
+                    DisplayName = group.DisplayName,
+                    GroupType = group.Kind,
+                    LocationCount = groupLocations.Count,
+                    Locations = groupLocations
+                };
+            })
+            .ToList();
 
         var locations = await _context.CanonicalLocations
             .AsNoTracking()

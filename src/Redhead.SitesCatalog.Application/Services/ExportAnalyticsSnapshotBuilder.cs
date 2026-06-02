@@ -59,6 +59,7 @@ public static class ExportAnalyticsSnapshotBuilder
         AddMultiSelect(filters, "location", query.Locations);
         AddMultiSelect(filters, "locationKey", query.LocationKeys);
         AddMultiSelect(filters, "locationGroup", query.LocationGroupKeys);
+        AddMultiSelect(filters, "excludedLocationKey", query.ExcludedLocationKeys);
         if (query.IncludeUnknownLocation)
         {
             filters.Add(new FilterSnapshotItemDto("locationUnknown", "boolean", "eq", true));

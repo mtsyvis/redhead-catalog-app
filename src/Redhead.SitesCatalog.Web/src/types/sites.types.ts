@@ -65,6 +65,7 @@ export interface SitesQueryParams {
   location?: string[];
   locationKeys?: string[];
   locationGroupKeys?: string[];
+  excludedLocationKeys?: string[];
   includeUnknownLocation?: boolean;
   includeOtherLocation?: boolean;
   niches?: string[];
@@ -99,6 +100,7 @@ export interface LocationGroupFilterOption {
   displayName: string;
   groupType: string;
   locationCount: number;
+  locations: LocationFilterOption[];
 }
 
 export interface LocationFilterOption {
@@ -129,6 +131,7 @@ export type LocationFilterSelection =
       displayName: string;
       groupType: string;
       locationCount?: number;
+      locations?: LocationFilterOption[];
     }
   | {
       kind: 'location';
@@ -145,6 +148,7 @@ export type LocationFilterSelection =
 export interface SitesLocationFilterRequestFields {
   locationKeys?: string[];
   locationGroupKeys?: string[];
+  excludedLocationKeys?: string[];
   includeUnknownLocation?: boolean;
   includeOtherLocation?: boolean;
 }
@@ -162,6 +166,7 @@ export interface SitesFilters {
   priceMax: string;
   stopListDomains: string[];
   locationSelections: LocationFilterSelection[];
+  excludedLocationKeys: string[];
   niches: string[];
   categorySearchTerms: string[];
   languages: string[];

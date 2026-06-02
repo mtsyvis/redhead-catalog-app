@@ -581,6 +581,62 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetSitesAsync_WithOverlappingLocationGroupsAndExcludedLocation_ReturnsUnionMinusExcluded()
+    {
+        // Arrange
+        _context.LocationGroups.Add(new LocationGroup
+        {
+            Key = "europe",
+            DisplayName = "Europe",
+            Kind = "Region",
+            SortOrder = 4
+        });
+        _context.LocationGroupItems.Add(new LocationGroupItem { GroupKey = "europe", LocationKey = "GB" });
+        await _context.SaveChangesAsync();
+
+        var query = new SitesQuery
+        {
+            LocationGroupKeys = ["first-world", "europe"],
+            ExcludedLocationKeys = ["GB"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["example.com", "gambling.com", "lowdr.com"], result.Items.Select(site => site.Domain).ToArray());
+        Assert.DoesNotContain(result.Items, site => site.Domain == "test.com");
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithLocationKeysAndExcludedLocation_ReturnsSelectedLocationsMinusExcluded()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            LocationKeys = ["US", "GB"],
+            ExcludedLocationKeys = ["GB"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["example.com", "gambling.com", "lowdr.com"], result.Items.Select(site => site.Domain).ToArray());
+        Assert.DoesNotContain(result.Items, site => site.Domain == "test.com");
+    }
+
+    [Fact]
     public async Task GetSitesAsync_WithUnknownLocationFilter_ReturnsUnknownLocationRows()
     {
         // Arrange
@@ -2004,7 +2060,8 @@ public class SitesServiceTests : IDisposable
             group.Key == "north-america"
             && group.DisplayName == "North America"
             && group.GroupType == "Region"
-            && group.LocationCount == 2);
+            && group.LocationCount == 2
+            && group.Locations.Select(location => location.Key).SequenceEqual(new[] { "US", "CA" }));
         Assert.Contains(result.Locations, location =>
             location.Key == "US" && location.DisplayName == "United States");
         Assert.Equal(LocationConstants.UnknownLocationKey, result.Special.Unknown.Key);

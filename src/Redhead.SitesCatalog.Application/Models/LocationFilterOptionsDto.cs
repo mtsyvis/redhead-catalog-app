@@ -13,6 +13,7 @@ public sealed class LocationGroupFilterOptionDto
     public string DisplayName { get; set; } = string.Empty;
     public string GroupType { get; set; } = string.Empty;
     public int LocationCount { get; set; }
+    public List<LocationFilterOptionDto> Locations { get; set; } = [];
 }
 
 public sealed class LocationFilterOptionDto

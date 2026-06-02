@@ -66,6 +66,7 @@ const INITIAL_FILTERS: SitesFilters = {
   priceMax: '',
   stopListDomains: [],
   locationSelections: [],
+  excludedLocationKeys: [],
   niches: [],
   categorySearchTerms: [],
   languages: [],
@@ -211,6 +212,7 @@ export function SitesFilters({
       priceMax: INITIAL_FILTERS.priceMax,
       stopListDomains: multiSearchMode ? filters.stopListDomains : INITIAL_FILTERS.stopListDomains,
       locationSelections: INITIAL_FILTERS.locationSelections,
+      excludedLocationKeys: INITIAL_FILTERS.excludedLocationKeys,
       niches: INITIAL_FILTERS.niches,
       categorySearchTerms: INITIAL_FILTERS.categorySearchTerms,
       languages: INITIAL_FILTERS.languages,
@@ -250,7 +252,7 @@ export function SitesFilters({
     if (filters.trafficMin !== '' || filters.trafficMax !== '') count += 1;
     if (filters.priceMin !== '' || filters.priceMax !== '') count += 1;
     if (!multiSearchMode && filters.stopListDomains.length > 0) count += 1;
-    if (filters.locationSelections.length > 0) count += 1;
+    if (filters.locationSelections.length > 0 || filters.excludedLocationKeys.length > 0) count += 1;
     if (filters.niches.length > 0) count += 1;
     if (filters.categorySearchTerms.length > 0) count += 1;
     if (filters.languages.length > 0) count += 1;
@@ -278,6 +280,7 @@ export function SitesFilters({
       filters.priceMax !== '' ||
       (!multiSearchMode && filters.stopListDomains.length > 0) ||
       filters.locationSelections.length > 0 ||
+      filters.excludedLocationKeys.length > 0 ||
       filters.niches.length > 0 ||
       filters.categorySearchTerms.length > 0 ||
       filters.languages.length > 0 ||
@@ -656,10 +659,12 @@ export function SitesFilters({
 
               <LocationFilter
                 value={filters.locationSelections}
+                excludedLocationKeys={filters.excludedLocationKeys}
                 options={locationOptions}
                 loading={locationOptionsLoading}
                 error={locationOptionsError}
                 onChange={(value) => handleChange('locationSelections', value)}
+                onExcludedLocationKeysChange={(value) => handleChange('excludedLocationKeys', value)}
               />
             </Box>
 

@@ -52,6 +52,7 @@ const INITIAL_FILTERS: FiltersType = {
   priceMax: '',
   stopListDomains: [],
   locationSelections: [],
+  excludedLocationKeys: [],
   niches: [],
   categorySearchTerms: [],
   languages: [],
@@ -73,7 +74,7 @@ function createInitialFilters(): FiltersType {
 }
 
 function hasLocationFilters(filters: FiltersType): boolean {
-  return filters.locationSelections.length > 0;
+  return filters.locationSelections.length > 0 || filters.excludedLocationKeys.length > 0;
 }
 
 function hasAvailabilityFilter(filter: FiltersType['casinoAvailability']): boolean {
@@ -86,10 +87,15 @@ function buildAvailabilityRequestField(filter: FiltersType['casinoAvailability']
 }
 
 function buildLocationFilterRequestFields(
-  selections: LocationFilterSelection[]
+  selections: LocationFilterSelection[],
+  excludedLocationKeys: string[]
 ): Pick<
   SitesQueryParams,
-  'locationKeys' | 'locationGroupKeys' | 'includeUnknownLocation' | 'includeOtherLocation'
+  | 'locationKeys'
+  | 'locationGroupKeys'
+  | 'excludedLocationKeys'
+  | 'includeUnknownLocation'
+  | 'includeOtherLocation'
 > {
   const locationKeys = selections
     .filter((selection): selection is Extract<LocationFilterSelection, { kind: 'location' }> =>
@@ -105,6 +111,8 @@ function buildLocationFilterRequestFields(
   return {
     locationKeys: locationKeys.length > 0 ? locationKeys : undefined,
     locationGroupKeys: locationGroupKeys.length > 0 ? locationGroupKeys : undefined,
+    excludedLocationKeys:
+      selections.length > 0 && excludedLocationKeys.length > 0 ? excludedLocationKeys : undefined,
     includeUnknownLocation: selections.some(
       (selection) => selection.kind === 'special' && selection.key === 'unknown'
     )
@@ -224,7 +232,10 @@ export function Sites() {
         !multiSearchMode && filters.stopListDomains.length > 0
           ? filters.stopListDomains
           : undefined,
-      ...buildLocationFilterRequestFields(filters.locationSelections),
+      ...buildLocationFilterRequestFields(
+        filters.locationSelections,
+        filters.excludedLocationKeys
+      ),
       niches: filters.niches.length > 0 ? filters.niches : undefined,
       categorySearchTerms:
         filters.categorySearchTerms.length > 0 ? filters.categorySearchTerms : undefined,
@@ -251,6 +262,7 @@ export function Sites() {
       filters.priceMax,
       filters.stopListDomains,
       filters.locationSelections,
+      filters.excludedLocationKeys,
       filters.niches,
       filters.categorySearchTerms,
       filters.languages,
@@ -406,7 +418,9 @@ export function Sites() {
     if (filters.drMin || filters.drMax) activeColumnIds.add('dr');
     if (filters.trafficMin || filters.trafficMax) activeColumnIds.add('traffic');
     if (filters.priceMin || filters.priceMax) activeColumnIds.add('priceUsd');
-    if (filters.locationSelections.length > 0) activeColumnIds.add('location');
+    if (filters.locationSelections.length > 0 || filters.excludedLocationKeys.length > 0) {
+      activeColumnIds.add('location');
+    }
     if (filters.niches.length > 0) activeColumnIds.add('niche');
     if (filters.categorySearchTerms.length > 0) activeColumnIds.add('categories');
     if (filters.languages.length > 0) activeColumnIds.add('language');
@@ -440,6 +454,7 @@ export function Sites() {
     filters.priceMin,
     filters.priceMax,
     filters.locationSelections,
+    filters.excludedLocationKeys,
     filters.niches,
     filters.categorySearchTerms,
     filters.languages,
@@ -486,6 +501,9 @@ export function Sites() {
       locationSelections: hidden.has('location')
         ? INITIAL_FILTERS.locationSelections
         : current.locationSelections,
+      excludedLocationKeys: hidden.has('location')
+        ? INITIAL_FILTERS.excludedLocationKeys
+        : current.excludedLocationKeys,
       niches: hidden.has('niche') ? INITIAL_FILTERS.niches : current.niches,
       categorySearchTerms: hidden.has('categories')
         ? INITIAL_FILTERS.categorySearchTerms

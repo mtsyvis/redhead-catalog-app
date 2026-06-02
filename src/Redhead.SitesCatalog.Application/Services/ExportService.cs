@@ -259,6 +259,7 @@ public class ExportService : IExportService
         if (query.Locations is { Count: > 0 }) { return true; }
         if (query.LocationKeys is { Count: > 0 }) { return true; }
         if (query.LocationGroupKeys is { Count: > 0 }) { return true; }
+        if (query.ExcludedLocationKeys is { Count: > 0 }) { return true; }
         if (query.IncludeUnknownLocation || query.IncludeOtherLocation) { return true; }
         if (query.Languages is { Count: > 0 }) { return true; }
         if (NicheNormalizer.NormalizeTokens(query.Niches ?? []).Length > 0) { return true; }
@@ -294,6 +295,7 @@ public class ExportService : IExportService
             query.Locations,
             query.LocationKeys,
             query.LocationGroupKeys,
+            query.ExcludedLocationKeys,
             query.IncludeUnknownLocation,
             query.IncludeOtherLocation,
             query.Languages,

@@ -107,6 +107,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
     {
         var explicitLocationKeys = NormalizeLocationKeys(filters.LocationKeys ?? filters.Locations);
         var groupKeys = NormalizeLocationKeys(filters.LocationGroupKeys);
+        var excludedLocationKeys = NormalizeLocationKeys(filters.ExcludedLocationKeys);
         var hasLocationFilter = explicitLocationKeys.Length > 0
                                 || groupKeys.Length > 0
                                 || filters.IncludeUnknownLocation
@@ -128,11 +129,17 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         }
 
         return query.Where(site =>
-            (site.LocationKey != null && explicitLocationKeys.Contains(site.LocationKey))
-            || (site.LocationKey != null && groupLocationKeys.Contains(site.LocationKey))
+            (site.LocationKey != null
+                && !excludedLocationKeys.Contains(site.LocationKey)
+                && explicitLocationKeys.Contains(site.LocationKey))
+            || (site.LocationKey != null
+                && !excludedLocationKeys.Contains(site.LocationKey)
+                && groupLocationKeys.Contains(site.LocationKey))
             || (filters.IncludeUnknownLocation && site.LocationKey == LocationConstants.UnknownLocationKey)
             || (filters.IncludeOtherLocation && site.LocationKey == null)
-            || (site.Location != null && explicitLocationKeys.Contains(site.Location)));
+            || (site.Location != null
+                && (site.LocationKey == null || !excludedLocationKeys.Contains(site.LocationKey))
+                && explicitLocationKeys.Contains(site.Location)));
     }
 
     private static string[] NormalizeLocationKeys(IReadOnlyCollection<string>? values)

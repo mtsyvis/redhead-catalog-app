@@ -183,6 +183,10 @@ Canonical location rules:
 * Static aliases map common names and codes such as `USA`, `UK`, `UAE`, and `Korea` to canonical location keys.
 * Placeholder imported Location values such as `#N/A` and `N/A` map to canonical `UNKNOWN`.
 * Location groups can represent regions or business groups. Group kind is not a location type.
+* Location group filters use union semantics. Selecting multiple groups includes sites from any selected group location.
+* Location group member locations can overlap across groups. If a user excludes a location from a selected group, that exclusion applies globally to the final location filter result, even if another selected group also contains that location.
+* Location filter UI supports searching location groups and canonical locations. Search results show canonical locations once, even when a location belongs to multiple groups.
+* `Unknown` and `Other` remain special location filter states and are not controlled by group member exclusions.
 * Sites list and export display use canonical names: mapped locations use the canonical display name, `UNKNOWN` displays as `Unknown`, and null `LocationKey` displays as `Other`.
 * In the Sites table, rows displayed as `Other` should append the preserved non-empty imported Location value when available, for example `Other - Atlantis`.
 * In manual site edit, rows currently displayed as `Other` should show the preserved imported Location value so users know what unmapped value they are replacing.

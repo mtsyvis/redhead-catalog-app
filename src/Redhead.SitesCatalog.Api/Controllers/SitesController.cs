@@ -123,7 +123,12 @@ public class SitesController : ControllerBase
                     Key = group.Key,
                     DisplayName = group.DisplayName,
                     GroupType = group.GroupType,
-                    LocationCount = group.LocationCount
+                    LocationCount = group.LocationCount,
+                    Locations = group.Locations.Select(location => new LocationFilterOptionResponse
+                    {
+                        Key = location.Key,
+                        DisplayName = location.DisplayName
+                    }).ToList()
                 }).ToList(),
                 Locations = locations.Locations.Select(location => new LocationFilterOptionResponse
                 {

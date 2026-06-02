@@ -39,6 +39,7 @@ public static class SitesMapper
             Locations = request.Locations,
             LocationKeys = request.LocationKeys ?? request.Locations,
             LocationGroupKeys = request.LocationGroupKeys,
+            ExcludedLocationKeys = request.ExcludedLocationKeys,
             IncludeUnknownLocation = request.IncludeUnknownLocation,
             IncludeOtherLocation = request.IncludeOtherLocation,
             Languages = ParseLanguageFilter(request.Languages),

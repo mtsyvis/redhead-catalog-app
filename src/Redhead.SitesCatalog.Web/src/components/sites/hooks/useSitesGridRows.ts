@@ -32,6 +32,31 @@ export function isNotFoundRow(row: GridRow): row is NotFoundRow {
 
 /** Client-side filter for multi-search found rows (same logic as server filters, excluding search). */
 function filterSites(sites: Site[], f: FiltersType): Site[] {
+  const excludedLocationKeys = new Set(f.excludedLocationKeys);
+  const selectedGroupLocations = f.locationSelections
+    .filter((selection) => selection.kind === 'group')
+    .flatMap((selection) => selection.locations ?? []);
+  const hasSelectedGroupWithoutMembers = f.locationSelections.some(
+    (selection) => selection.kind === 'group' && (selection.locations?.length ?? 0) === 0
+  );
+  const selectedLocationNames = new Set<string>();
+
+  for (const selection of f.locationSelections) {
+    if (selection.kind === 'location' && !excludedLocationKeys.has(selection.key)) {
+      selectedLocationNames.add(selection.displayName);
+    }
+
+    if (selection.kind === 'special') {
+      selectedLocationNames.add(selection.displayName);
+    }
+  }
+
+  for (const location of selectedGroupLocations) {
+    if (!excludedLocationKeys.has(location.key)) {
+      selectedLocationNames.add(location.displayName);
+    }
+  }
+
   return sites.filter((s) => {
     if (f.drMin !== '' && s.dr < Number(f.drMin)) return false;
     if (f.drMax !== '' && s.dr > Number(f.drMax)) return false;
@@ -39,11 +64,12 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
     if (f.trafficMax !== '' && s.traffic > Number(f.trafficMax)) return false;
     if (f.priceMin !== '' && (s.priceUsd ?? 0) < Number(f.priceMin)) return false;
     if (f.priceMax !== '' && (s.priceUsd ?? 0) > Number(f.priceMax)) return false;
-    const hasLocationGroups = f.locationSelections.some((selection) => selection.kind === 'group');
-    const selectedLocationNames = f.locationSelections
-      .filter((selection) => selection.kind !== 'group')
-      .map((selection) => selection.displayName);
-    if (!hasLocationGroups && selectedLocationNames.length > 0 && !selectedLocationNames.includes(s.location)) {
+    if (
+      selectedLocationNames.size > 0 &&
+      !hasSelectedGroupWithoutMembers &&
+      !selectedLocationNames.has(s.location) &&
+      !(selectedLocationNames.has('Other') && s.location.startsWith('Other - '))
+    ) {
       return false;
     }
     if (f.niches.length > 0 && !f.niches.some((niche) => (s.nicheTokens ?? []).includes(niche))) return false;

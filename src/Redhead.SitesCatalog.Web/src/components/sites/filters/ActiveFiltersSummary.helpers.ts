@@ -14,6 +14,21 @@ const QUARANTINE_FILTER_LABELS: Record<SitesFilters['quarantine'], string> = {
   only: 'Unavailable Only',
 };
 
+function formatLocationFilterValues(filters: SitesFilters): string[] {
+  const excludedKeys = new Set(filters.excludedLocationKeys);
+
+  return filters.locationSelections.map((selection) => {
+    if (selection.kind !== 'group') return selection.displayName;
+
+    const excludedCount = selection.locations?.filter((location) => excludedKeys.has(location.key))
+      .length ?? 0;
+
+    return excludedCount > 0
+      ? `${selection.displayName} - ${excludedCount} excluded`
+      : selection.displayName;
+  });
+}
+
 export interface ActiveFilterSummary {
   label: string | null;
   value: string;
@@ -78,7 +93,7 @@ export function buildAdvancedActiveFilterSummaries(
 
   const locationSummary = formatSelectionSummary(
     'Location',
-    filters.locationSelections.map((selection) => selection.displayName)
+    formatLocationFilterValues(filters)
   );
   if (locationSummary) summaries.push(locationSummary);
 
