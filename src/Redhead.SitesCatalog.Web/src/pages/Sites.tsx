@@ -46,7 +46,6 @@ import type {
 } from '../types/sites.types';
 import { sitesService } from '../services/sites.service';
 import { BrandButton } from '../components/common/BrandButton';
-import { loadStoredStopListDomains, persistStopListDomains } from '../utils/stopList';
 import { normalizeServiceAvailabilityFilter } from '../utils/serviceAvailability';
 
 const INITIAL_FILTERS: FiltersType = {
@@ -76,12 +75,7 @@ const INITIAL_FILTERS: FiltersType = {
   lastPublishedToMonth: null,
 };
 
-function createInitialFilters(): FiltersType {
-  return {
-    ...INITIAL_FILTERS,
-    stopListDomains: loadStoredStopListDomains(),
-  };
-}
+const LEGACY_STOP_LIST_STORAGE_KEY = 'redhead.sitesCatalog.stopListDomains';
 
 function hasLocationFilters(filters: FiltersType): boolean {
   return filters.locationSelections.length > 0 || filters.excludedLocationKeys.length > 0;
@@ -140,7 +134,7 @@ export function Sites() {
   const [sites, setSites] = useState<Site[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState<FiltersType>(() => createInitialFilters());
+  const [filters, setFilters] = useState<FiltersType>(INITIAL_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState(INITIAL_FILTERS.search);
   const [multiSearchMode, setMultiSearchMode] = useState(false);
   const [multiSearchResult, setMultiSearchResult] = useState<MultiSearchResponse | null>(null);
@@ -162,8 +156,12 @@ export function Sites() {
   const { updateDraftColumnWidth } = tableViews;
 
   useEffect(() => {
-    persistStopListDomains(filters.stopListDomains);
-  }, [filters.stopListDomains]);
+    try {
+      globalThis.localStorage?.removeItem(LEGACY_STOP_LIST_STORAGE_KEY);
+    } catch {
+      // Ignore unavailable browser storage; stop-list state is no longer persisted.
+    }
+  }, []);
 
   useEffect(() => {
     if (!tableViews.loadError) return;

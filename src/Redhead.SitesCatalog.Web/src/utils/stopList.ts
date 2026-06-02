@@ -1,5 +1,4 @@
 export const STOP_LIST_MAX_DOMAINS = 50000;
-export const STOP_LIST_STORAGE_KEY = 'redhead.sitesCatalog.stopListDomains';
 
 const TOKEN_SEPARATOR = /[\s,;]+/;
 
@@ -76,41 +75,6 @@ export function parseStopListInput(input: string): StopListParseResult {
 
 export function formatStopListInput(domains: string[]): string {
   return domains.join('\n');
-}
-
-export function loadStoredStopListDomains(): string[] {
-  try {
-    const raw = globalThis.localStorage?.getItem(STOP_LIST_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === 'string')) {
-      globalThis.localStorage?.removeItem(STOP_LIST_STORAGE_KEY);
-      return [];
-    }
-
-    const result = parseStopListInput(parsed.join('\n'));
-    if (result.invalidValues.length > 0 || result.domains.length > STOP_LIST_MAX_DOMAINS) {
-      globalThis.localStorage?.removeItem(STOP_LIST_STORAGE_KEY);
-      return [];
-    }
-
-    return result.domains;
-  } catch {
-    globalThis.localStorage?.removeItem(STOP_LIST_STORAGE_KEY);
-    return [];
-  }
-}
-
-export function persistStopListDomains(domains: string[]): void {
-  if (domains.length === 0) {
-    globalThis.localStorage?.removeItem(STOP_LIST_STORAGE_KEY);
-    return;
-  }
-
-  globalThis.localStorage?.setItem(STOP_LIST_STORAGE_KEY, JSON.stringify(domains));
 }
 
 function isValidNormalizedDomain(normalizedDomain: string): boolean {
