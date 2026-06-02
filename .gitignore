@@ -274,3 +274,10 @@ crash.*.log
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+docs/archive
+data-parser/archive
+test-data
+data-parser
+secrets
+src/Redhead.SitesCatalog.Api/appsettings.Development.json
