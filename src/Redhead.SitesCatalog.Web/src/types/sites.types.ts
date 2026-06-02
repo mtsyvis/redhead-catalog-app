@@ -70,6 +70,9 @@ export interface SitesQueryParams {
   includeOtherLocation?: boolean;
   niches?: string[];
   categorySearchTerms?: string[];
+  topicFitMode?: TopicFitMode;
+  excludedNiches?: string[];
+  excludedCategorySearchTerms?: string[];
   languages?: string[];
   casinoAvailability?: ServiceAvailabilityFilter;
   cryptoAvailability?: ServiceAvailabilityFilter;
@@ -153,6 +156,8 @@ export interface SitesLocationFilterRequestFields {
   includeOtherLocation?: boolean;
 }
 
+export type TopicFitMode = 'expand' | 'narrow';
+
 /**
  * Filter values state
  */
@@ -169,6 +174,9 @@ export interface SitesFilters {
   excludedLocationKeys: string[];
   niches: string[];
   categorySearchTerms: string[];
+  topicFitMode: TopicFitMode;
+  excludedNiches: string[];
+  excludedCategorySearchTerms: string[];
   languages: string[];
   casinoAvailability: ServiceAvailabilityFilter;
   cryptoAvailability: ServiceAvailabilityFilter;

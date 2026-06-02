@@ -71,13 +71,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
 
         sitesQuery = ApplyLanguageFilter(sitesQuery, query.Languages);
 
-        var nicheTokens = NormalizeNicheFilter(query.Niches);
-        if (nicheTokens.Length > 0)
-        {
-            sitesQuery = sitesQuery.Where(BuildNichePredicate(nicheTokens));
-        }
-
-        sitesQuery = ApplyCategorySearchFilter(sitesQuery, query.CategorySearchTerms);
+        sitesQuery = ApplyTopicFitFilter(sitesQuery, query);
 
         sitesQuery = ApplyAvailabilityFilters(sitesQuery, query);
 
@@ -102,6 +96,48 @@ public class SitesQueryBuilder : ISitesQueryBuilder
 
         return NicheNormalizer.NormalizeTokens(niches);
     }
+
+    private IQueryable<Site> ApplyTopicFitFilter(IQueryable<Site> query, SitesQuery filters)
+    {
+        var includedNicheTokens = NormalizeNicheFilter(filters.Niches);
+        var includedCategoryTerms = CategorySearchTermParser.NormalizeAndValidate(filters.CategorySearchTerms) ?? [];
+        var excludedNicheTokens = NormalizeNicheFilter(filters.ExcludedNiches);
+        var excludedCategoryTerms = CategorySearchTermParser.NormalizeAndValidate(filters.ExcludedCategorySearchTerms) ?? [];
+        var hasIncludedNiches = includedNicheTokens.Length > 0;
+        var hasIncludedCategories = includedCategoryTerms.Count > 0;
+
+        if (hasIncludedNiches && hasIncludedCategories && IsExpandTopicFitMode(filters.TopicFitMode))
+        {
+            query = query.Where(BuildTopicFitIncludeAnyPredicate(includedNicheTokens, includedCategoryTerms));
+        }
+        else
+        {
+            if (hasIncludedNiches)
+            {
+                query = query.Where(BuildNichePredicate(includedNicheTokens));
+            }
+
+            if (hasIncludedCategories)
+            {
+                query = ApplyCategorySearchFilter(query, includedCategoryTerms);
+            }
+        }
+
+        if (excludedNicheTokens.Length > 0)
+        {
+            query = query.Where(BuildExcludedNichePredicate(excludedNicheTokens));
+        }
+
+        if (excludedCategoryTerms.Count > 0)
+        {
+            query = ApplyExcludedCategorySearchFilter(query, excludedCategoryTerms);
+        }
+
+        return query;
+    }
+
+    private static bool IsExpandTopicFitMode(string? mode)
+        => string.Equals(mode, TopicFitModeValues.Expand, StringComparison.OrdinalIgnoreCase);
 
     private IQueryable<Site> ApplyLocationFilter(IQueryable<Site> query, SitesQuery filters)
     {
@@ -166,9 +202,56 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             : query.Where(BuildPostgresCategorySearchPredicate(terms));
     }
 
+    private IQueryable<Site> ApplyExcludedCategorySearchFilter(
+        IQueryable<Site> query,
+        IReadOnlyCollection<string?>? categorySearchTerms)
+    {
+        var terms = CategorySearchTermParser.NormalizeAndValidate(categorySearchTerms);
+        if (terms is null || terms.Count == 0)
+        {
+            return query;
+        }
+
+        return IsInMemoryProvider()
+            ? query.Where(BuildInMemoryExcludedCategorySearchPredicate(terms))
+            : query.Where(BuildPostgresExcludedCategorySearchPredicate(terms));
+    }
+
+    private Expression<Func<Site, bool>> BuildTopicFitIncludeAnyPredicate(
+        IReadOnlyCollection<string> nicheTokens,
+        IReadOnlyList<string> categoryTerms)
+    {
+        var site = Expression.Parameter(typeof(Site), "site");
+        Expression body = BuildNichePredicateBody(site, nicheTokens);
+        body = Expression.OrElse(
+            body,
+            IsInMemoryProvider()
+                ? BuildInMemoryCategorySearchPredicateBody(site, categoryTerms)
+                : BuildPostgresCategorySearchPredicateBody(site, categoryTerms));
+
+        return Expression.Lambda<Func<Site, bool>>(body, site);
+    }
+
     private static Expression<Func<Site, bool>> BuildPostgresCategorySearchPredicate(IReadOnlyList<string> terms)
     {
         var site = Expression.Parameter(typeof(Site), "site");
+        var body = BuildPostgresCategorySearchPredicateBody(site, terms);
+
+        return Expression.Lambda<Func<Site, bool>>(body, site);
+    }
+
+    private static Expression<Func<Site, bool>> BuildPostgresExcludedCategorySearchPredicate(IReadOnlyList<string> terms)
+    {
+        var site = Expression.Parameter(typeof(Site), "site");
+        var body = Expression.Not(BuildPostgresCategorySearchPredicateBody(site, terms));
+
+        return Expression.Lambda<Func<Site, bool>>(body, site);
+    }
+
+    private static Expression BuildPostgresCategorySearchPredicateBody(
+        ParameterExpression site,
+        IReadOnlyList<string> terms)
+    {
         var categories = Expression.Property(site, nameof(Site.Categories));
         Expression body = Expression.Constant(false);
 
@@ -188,13 +271,30 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             Expression.NotEqual(categories, Expression.Constant(null, typeof(string))),
             body);
 
-        return Expression.Lambda<Func<Site, bool>>(body, site);
+        return body;
     }
 
     // Unit tests only. The in-memory provider does not support translating the ILike method, so we build a predicate using string.IndexOf for case-insensitive search.
     private static Expression<Func<Site, bool>> BuildInMemoryCategorySearchPredicate(IReadOnlyList<string> terms)
     {
         var site = Expression.Parameter(typeof(Site), "site");
+        var body = BuildInMemoryCategorySearchPredicateBody(site, terms);
+
+        return Expression.Lambda<Func<Site, bool>>(body, site);
+    }
+
+    private static Expression<Func<Site, bool>> BuildInMemoryExcludedCategorySearchPredicate(IReadOnlyList<string> terms)
+    {
+        var site = Expression.Parameter(typeof(Site), "site");
+        var body = Expression.Not(BuildInMemoryCategorySearchPredicateBody(site, terms));
+
+        return Expression.Lambda<Func<Site, bool>>(body, site);
+    }
+
+    private static Expression BuildInMemoryCategorySearchPredicateBody(
+        ParameterExpression site,
+        IReadOnlyList<string> terms)
+    {
         var categories = Expression.Property(site, nameof(Site.Categories));
         Expression body = Expression.Constant(false);
 
@@ -214,7 +314,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             Expression.NotEqual(categories, Expression.Constant(null, typeof(string))),
             body);
 
-        return Expression.Lambda<Func<Site, bool>>(body, site);
+        return body;
     }
 
     private bool IsInMemoryProvider()
@@ -254,6 +354,23 @@ public class SitesQueryBuilder : ISitesQueryBuilder
     private static Expression<Func<Site, bool>> BuildNichePredicate(IReadOnlyCollection<string> nicheTokens)
     {
         var site = Expression.Parameter(typeof(Site), "site");
+        var body = BuildNichePredicateBody(site, nicheTokens);
+
+        return Expression.Lambda<Func<Site, bool>>(body, site);
+    }
+
+    private static Expression<Func<Site, bool>> BuildExcludedNichePredicate(IReadOnlyCollection<string> nicheTokens)
+    {
+        var site = Expression.Parameter(typeof(Site), "site");
+        var body = Expression.Not(BuildNichePredicateBody(site, nicheTokens));
+
+        return Expression.Lambda<Func<Site, bool>>(body, site);
+    }
+
+    private static Expression BuildNichePredicateBody(
+        ParameterExpression site,
+        IReadOnlyCollection<string> nicheTokens)
+    {
         var nicheTokensProperty = Expression.Property(site, nameof(Site.NicheTokens));
         Expression body = Expression.Constant(false);
 
@@ -268,7 +385,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             body = Expression.OrElse(body, contains);
         }
 
-        return Expression.Lambda<Func<Site, bool>>(body, site);
+        return body;
     }
 
     private static IQueryable<Site> ApplyRangeFilters(IQueryable<Site> query, SitesQuery filters)

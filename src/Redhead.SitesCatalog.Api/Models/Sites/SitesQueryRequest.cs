@@ -67,6 +67,20 @@ public class SitesQueryRequest
     public List<string?>? CategorySearchTerms { get; set; }
 
     /// <summary>
+    /// Controls how Niche and Categories include filters combine when both are active.
+    /// Allowed values: expand (Niche OR Categories), narrow (Niche AND Categories).
+    /// </summary>
+    public string? TopicFitMode { get; set; } = TopicFitModeValues.Narrow;
+
+    // Niche multi-select exclusion
+    public List<string>? ExcludedNiches { get; set; }
+
+    /// <summary>
+    /// Category keywords or phrases to exclude. Each term is matched as a literal case-insensitive substring in Categories.
+    /// </summary>
+    public List<string?>? ExcludedCategorySearchTerms { get; set; }
+
+    /// <summary>
     /// Optional availability filters for PriceCasino status.
     /// Allowed values: unknown, available, notAvailable, availableWithUnknownPrice.
     /// </summary>

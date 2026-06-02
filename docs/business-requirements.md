@@ -289,6 +289,8 @@ Rules:
 * Empty category search terms are ignored.
 * In the frontend, category search input accepts comma, Enter, and newline-separated terms.
 * Spaces inside category search phrases are preserved.
+* Category exclude terms remove sites where `Categories` contains any excluded phrase.
+* Category include and exclude terms use the same parsing, trimming, deduplication, and validation rules.
 
 `NumberDFLinks` is nullable. When present, it must be a positive whole number.
 
@@ -373,8 +375,13 @@ Main filters:
 * Include Unknown location
 * Include Other location
 * Language multi-select
-* Niche multi-select
-* Categories substring search
+* Topic fit:
+  * Niche include multi-select
+  * Niche exclude multi-select
+  * Categories include substring search
+  * Categories exclude substring search
+  * Expand mode: Niche include OR Categories include
+  * Narrow mode: Niche include AND Categories include
 * Casino availability
 * Crypto availability
 * Link Insert availability
@@ -414,8 +421,18 @@ Stop list rules:
 Niche filter rules:
 
 * Niche values are split by comma into normalized multi-word tokens.
-* Niche filtering uses multi-select ANY semantics.
+* Niche include filtering uses multi-select ANY semantics.
+* Niche exclude filtering removes sites with any excluded normalized niche token.
 * Empty or placeholder niche values such as `N/A`, `NA`, `-`, `None`, and `null` are not filterable values.
+
+Topic fit rules:
+
+* Topic fit includes Niche and Categories filters.
+* In Expand mode, when both Niche include and Categories include are active, a site matches if either group matches.
+* In Narrow mode, when both Niche include and Categories include are active, a site matches only if both groups match.
+* If only one include group is active, Expand and Narrow produce the same include result.
+* Niche exclude and Categories exclude always apply as exclusions after the include match.
+* Topic fit filters are active filters for the sites table, multi-search found-row filtering, not-found row visibility, export, and export analytics snapshots.
 
 ## Multi-search
 

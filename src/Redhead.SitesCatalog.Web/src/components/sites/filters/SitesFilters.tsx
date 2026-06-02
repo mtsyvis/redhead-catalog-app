@@ -25,6 +25,7 @@ import type {
   LocationFilterOptions,
   ServiceAvailabilityFilter,
   SitesFilters,
+  TopicFitMode,
 } from '../../../types/sites.types';
 import { sitesService } from '../../../services/sites.service';
 import { BrandButton } from '../../common/BrandButton';
@@ -69,6 +70,9 @@ const INITIAL_FILTERS: SitesFilters = {
   excludedLocationKeys: [],
   niches: [],
   categorySearchTerms: [],
+  topicFitMode: 'expand',
+  excludedNiches: [],
+  excludedCategorySearchTerms: [],
   languages: [],
   casinoAvailability: [],
   cryptoAvailability: [],
@@ -168,6 +172,7 @@ export function SitesFilters({
   const [expanded, setExpanded] = useState(false);
   const [stopListDialogOpen, setStopListDialogOpen] = useState(false);
   const categoriesSearchFilterRef = useRef<CategoriesSearchFilterHandle>(null);
+  const excludedCategoriesSearchFilterRef = useRef<CategoriesSearchFilterHandle>(null);
 
   useEffect(() => {
     const loadFilterOptions = async () => {
@@ -215,6 +220,9 @@ export function SitesFilters({
       excludedLocationKeys: INITIAL_FILTERS.excludedLocationKeys,
       niches: INITIAL_FILTERS.niches,
       categorySearchTerms: INITIAL_FILTERS.categorySearchTerms,
+      topicFitMode: INITIAL_FILTERS.topicFitMode,
+      excludedNiches: INITIAL_FILTERS.excludedNiches,
+      excludedCategorySearchTerms: INITIAL_FILTERS.excludedCategorySearchTerms,
       languages: INITIAL_FILTERS.languages,
       casinoAvailability: INITIAL_FILTERS.casinoAvailability,
       cryptoAvailability: INITIAL_FILTERS.cryptoAvailability,
@@ -235,9 +243,14 @@ export function SitesFilters({
   const handleApply = () => {
     const categorySearchTerms =
       categoriesSearchFilterRef.current?.commitPendingInput() ?? filters.categorySearchTerms;
-    const nextFilters = areStringArraysEqual(categorySearchTerms, filters.categorySearchTerms)
-      ? filters
-      : { ...filters, categorySearchTerms };
+    const excludedCategorySearchTerms =
+      excludedCategoriesSearchFilterRef.current?.commitPendingInput() ??
+      filters.excludedCategorySearchTerms;
+    const nextFilters =
+      areStringArraysEqual(categorySearchTerms, filters.categorySearchTerms) &&
+      areStringArraysEqual(excludedCategorySearchTerms, filters.excludedCategorySearchTerms)
+        ? filters
+        : { ...filters, categorySearchTerms, excludedCategorySearchTerms };
 
     if (nextFilters !== filters) {
       onFiltersChange(nextFilters);
@@ -255,6 +268,9 @@ export function SitesFilters({
     if (filters.locationSelections.length > 0 || filters.excludedLocationKeys.length > 0) count += 1;
     if (filters.niches.length > 0) count += 1;
     if (filters.categorySearchTerms.length > 0) count += 1;
+    if (filters.niches.length > 0 && filters.categorySearchTerms.length > 0) count += 1;
+    if (filters.excludedNiches.length > 0) count += 1;
+    if (filters.excludedCategorySearchTerms.length > 0) count += 1;
     if (filters.languages.length > 0) count += 1;
     if (hasAvailabilityFilter(filters.casinoAvailability)) count += 1;
     if (hasAvailabilityFilter(filters.cryptoAvailability)) count += 1;
@@ -283,6 +299,8 @@ export function SitesFilters({
       filters.excludedLocationKeys.length > 0 ||
       filters.niches.length > 0 ||
       filters.categorySearchTerms.length > 0 ||
+      filters.excludedNiches.length > 0 ||
+      filters.excludedCategorySearchTerms.length > 0 ||
       filters.languages.length > 0 ||
       hasAvailabilityFilter(filters.casinoAvailability) ||
       hasAvailabilityFilter(filters.cryptoAvailability) ||
@@ -303,6 +321,9 @@ export function SitesFilters({
       : undefined;
 
   const selectedNicheOptions = filters.niches.map(
+    (value) => nicheOptions.find((option) => option.value === value) ?? { value, label: value }
+  );
+  const selectedExcludedNicheOptions = filters.excludedNiches.map(
     (value) => nicheOptions.find((option) => option.value === value) ?? { value, label: value }
   );
   const selectedLanguageOptions = filters.languages.map(
@@ -697,32 +718,6 @@ export function SitesFilters({
                   <MenuItem value="only">Unavailable Only</MenuItem>
                 </TextField>
               </Box>
-              {/* Niche Multi-Select */}
-              <Box sx={{ flex: 1, minWidth: '200px', maxWidth: '350px' }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Niche
-                </Typography>
-                <Autocomplete
-                  multiple
-                  size="small"
-                  options={nicheOptions}
-                  value={selectedNicheOptions}
-                  getOptionLabel={(option) => option.label}
-                  isOptionEqualToValue={(option, value) => option.value === value.value}
-                  onChange={(_, newValue) =>
-                    handleChange('niches', newValue.map((option) => option.value))
-                  }
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      placeholder={filters.niches.length === 0 ? 'Select niches' : ''}
-                    />
-                  )}
-                  disableCloseOnSelect
-                  limitTags={2}
-                />
-              </Box>
-
               {/* Language Multi-Select */}
               <Box sx={{ flex: 1, minWidth: '200px', maxWidth: '350px' }}>
                 <Typography variant="subtitle2" gutterBottom>
@@ -751,14 +746,134 @@ export function SitesFilters({
 
             </Box>
 
-            {/* Row 3: Categories */}
-            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              <Box sx={{ flex: 1, minWidth: '280px' }}>
-                <CategoriesSearchFilter
-                  ref={categoriesSearchFilterRef}
-                  value={filters.categorySearchTerms}
-                  onChange={(terms) => handleChange('categorySearchTerms', terms)}
-                />
+            {/* Row 3: Topic fit */}
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.5,
+                borderTop: '1px solid',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                pt: 2,
+                pb: 2,
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  columnGap: 2,
+                  rowGap: 1,
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                }}
+              >
+                <Typography variant="subtitle2">Topic fit</Typography>
+                <ToggleButtonGroup
+                  exclusive
+                  size="small"
+                  value={filters.topicFitMode}
+                  sx={{
+                    '& .MuiToggleButton-root': {
+                      minHeight: 32,
+                      px: 1.25,
+                      py: 0.5,
+                      textTransform: 'none',
+                    },
+                  }}
+                  onChange={(_, value) => {
+                    if (value) {
+                      handleChange('topicFitMode', value as TopicFitMode);
+                    }
+                  }}
+                >
+                  <ToggleButton value="expand">Expand: OR</ToggleButton>
+                  <ToggleButton value="narrow">Narrow: AND</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(300px, 1fr))' },
+                  columnGap: FILTER_GROUP_GAP,
+                  rowGap: 1,
+                  alignItems: 'flex-start',
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ order: { xs: 1, md: 1 } }}>
+                  Niche
+                </Typography>
+                <Typography variant="subtitle2" sx={{ order: { xs: 4, md: 2 } }}>
+                  Categories
+                </Typography>
+                <Box sx={{ minWidth: 0, order: { xs: 2, md: 3 } }}>
+                  <Autocomplete
+                    multiple
+                    size="small"
+                    options={nicheOptions}
+                    value={selectedNicheOptions}
+                    getOptionLabel={(option) => option.label}
+                    isOptionEqualToValue={(option, value) => option.value === value.value}
+                    onChange={(_, newValue) =>
+                      handleChange('niches', newValue.map((option) => option.value))
+                    }
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Include niches"
+                        placeholder={filters.niches.length === 0 ? 'Select niches' : ''}
+                      />
+                    )}
+                    disableCloseOnSelect
+                  />
+                </Box>
+                <Box sx={{ minWidth: 0, order: { xs: 5, md: 4 } }}>
+                  <CategoriesSearchFilter
+                    ref={categoriesSearchFilterRef}
+                    title={null}
+                    inputLabel="Include categories"
+                    placeholder="Search categories: travel blog, sports betting, crypto"
+                    helperText={null}
+                    value={filters.categorySearchTerms}
+                    onChange={(terms) => handleChange('categorySearchTerms', terms)}
+                  />
+                </Box>
+                <Box sx={{ minWidth: 0, mt: 0.75, order: { xs: 3, md: 5 } }}>
+                  <Autocomplete
+                    multiple
+                    size="small"
+                    options={nicheOptions}
+                    value={selectedExcludedNicheOptions}
+                    getOptionLabel={(option) => option.label}
+                    isOptionEqualToValue={(option, value) => option.value === value.value}
+                    onChange={(_, newValue) =>
+                      handleChange('excludedNiches', newValue.map((option) => option.value))
+                    }
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Exclude niches"
+                        placeholder={
+                          filters.excludedNiches.length === 0 ? 'Select niches to exclude' : ''
+                        }
+                      />
+                    )}
+                    disableCloseOnSelect
+                  />
+                </Box>
+                <Box sx={{ minWidth: 0, mt: 0.75, order: { xs: 6, md: 6 } }}>
+                  <CategoriesSearchFilter
+                    ref={excludedCategoriesSearchFilterRef}
+                    title={null}
+                    inputLabel="Exclude categories"
+                    placeholder="Exclude categories: gambling, adult, betting"
+                    helperText={null}
+                    value={filters.excludedCategorySearchTerms}
+                    onChange={(terms) => handleChange('excludedCategorySearchTerms', terms)}
+                  />
+                </Box>
               </Box>
             </Box>
 

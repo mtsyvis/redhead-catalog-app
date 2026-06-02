@@ -55,6 +55,9 @@ const INITIAL_FILTERS: FiltersType = {
   excludedLocationKeys: [],
   niches: [],
   categorySearchTerms: [],
+  topicFitMode: 'expand',
+  excludedNiches: [],
+  excludedCategorySearchTerms: [],
   languages: [],
   casinoAvailability: [],
   cryptoAvailability: [],
@@ -203,6 +206,8 @@ export function Sites() {
       hasLocationFilters(filters) ||
       filters.niches.length !== 0 ||
       filters.categorySearchTerms.length !== 0 ||
+      filters.excludedNiches.length !== 0 ||
+      filters.excludedCategorySearchTerms.length !== 0 ||
       filters.languages.length !== 0 ||
       hasAvailabilityFilter(filters.casinoAvailability) ||
       hasAvailabilityFilter(filters.cryptoAvailability) ||
@@ -239,6 +244,12 @@ export function Sites() {
       niches: filters.niches.length > 0 ? filters.niches : undefined,
       categorySearchTerms:
         filters.categorySearchTerms.length > 0 ? filters.categorySearchTerms : undefined,
+      topicFitMode: filters.topicFitMode,
+      excludedNiches: filters.excludedNiches.length > 0 ? filters.excludedNiches : undefined,
+      excludedCategorySearchTerms:
+        filters.excludedCategorySearchTerms.length > 0
+          ? filters.excludedCategorySearchTerms
+          : undefined,
       languages: filters.languages.length > 0 ? filters.languages : undefined,
       casinoAvailability: buildAvailabilityRequestField(filters.casinoAvailability),
       cryptoAvailability: buildAvailabilityRequestField(filters.cryptoAvailability),
@@ -265,6 +276,9 @@ export function Sites() {
       filters.excludedLocationKeys,
       filters.niches,
       filters.categorySearchTerms,
+      filters.topicFitMode,
+      filters.excludedNiches,
+      filters.excludedCategorySearchTerms,
       filters.languages,
       filters.casinoAvailability,
       filters.cryptoAvailability,
@@ -421,8 +435,8 @@ export function Sites() {
     if (filters.locationSelections.length > 0 || filters.excludedLocationKeys.length > 0) {
       activeColumnIds.add('location');
     }
-    if (filters.niches.length > 0) activeColumnIds.add('niche');
-    if (filters.categorySearchTerms.length > 0) activeColumnIds.add('categories');
+    if (filters.niches.length > 0 || filters.excludedNiches.length > 0) activeColumnIds.add('niche');
+    if (filters.categorySearchTerms.length > 0 || filters.excludedCategorySearchTerms.length > 0) activeColumnIds.add('categories');
     if (filters.languages.length > 0) activeColumnIds.add('language');
     if (hasAvailabilityFilter(filters.casinoAvailability))
       activeColumnIds.add('priceCasino');
@@ -457,6 +471,8 @@ export function Sites() {
     filters.excludedLocationKeys,
     filters.niches,
     filters.categorySearchTerms,
+    filters.excludedNiches,
+    filters.excludedCategorySearchTerms,
     filters.languages,
     filters.casinoAvailability,
     filters.cryptoAvailability,
@@ -505,9 +521,15 @@ export function Sites() {
         ? INITIAL_FILTERS.excludedLocationKeys
         : current.excludedLocationKeys,
       niches: hidden.has('niche') ? INITIAL_FILTERS.niches : current.niches,
+      excludedNiches: hidden.has('niche')
+        ? INITIAL_FILTERS.excludedNiches
+        : current.excludedNiches,
       categorySearchTerms: hidden.has('categories')
         ? INITIAL_FILTERS.categorySearchTerms
         : current.categorySearchTerms,
+      excludedCategorySearchTerms: hidden.has('categories')
+        ? INITIAL_FILTERS.excludedCategorySearchTerms
+        : current.excludedCategorySearchTerms,
       languages: hidden.has('language') ? INITIAL_FILTERS.languages : current.languages,
       casinoAvailability: hidden.has('priceCasino')
         ? INITIAL_FILTERS.casinoAvailability

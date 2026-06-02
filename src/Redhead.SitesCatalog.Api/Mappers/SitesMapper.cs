@@ -3,6 +3,7 @@ using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 
@@ -21,6 +22,7 @@ public static class SitesMapper
         var (lastPublishedFrom, lastPublishedToExclusive) = ParseLastPublishedMonthRange(
             request.LastPublishedFromMonth,
             request.LastPublishedToMonth);
+        var excludedNiches = NicheNormalizer.NormalizeTokens(request.ExcludedNiches ?? []);
 
         return new SitesQuery
         {
@@ -45,6 +47,9 @@ public static class SitesMapper
             Languages = ParseLanguageFilter(request.Languages),
             Niches = request.Niches,
             CategorySearchTerms = CategorySearchTermParser.NormalizeAndValidate(request.CategorySearchTerms),
+            TopicFitMode = ParseTopicFitMode(request.TopicFitMode),
+            ExcludedNiches = excludedNiches.Length == 0 ? null : excludedNiches.ToList(),
+            ExcludedCategorySearchTerms = CategorySearchTermParser.NormalizeAndValidate(request.ExcludedCategorySearchTerms),
             CasinoAvailability = ParseAvailabilityFilters(request.CasinoAvailability),
             CryptoAvailability = ParseAvailabilityFilters(request.CryptoAvailability),
             LinkInsertAvailability = ParseAvailabilityFilters(request.LinkInsertAvailability),
@@ -85,6 +90,23 @@ public static class SitesMapper
         }
 
         return normalizedValues.Count == 0 ? null : normalizedValues;
+    }
+
+    private static string ParseTopicFitMode(string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return TopicFitModeValues.Narrow;
+        }
+
+        var normalized = rawValue.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            TopicFitModeValues.Expand => TopicFitModeValues.Expand,
+            TopicFitModeValues.Narrow => TopicFitModeValues.Narrow,
+            _ => throw new RequestValidationException(
+                $"Invalid topic fit mode '{rawValue}'. Allowed values: expand, narrow.")
+        };
     }
 
     /// <summary>

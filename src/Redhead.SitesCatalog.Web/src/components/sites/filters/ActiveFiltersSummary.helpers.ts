@@ -14,6 +14,11 @@ const QUARANTINE_FILTER_LABELS: Record<SitesFilters['quarantine'], string> = {
   only: 'Unavailable Only',
 };
 
+const TOPIC_FIT_MODE_LABELS: Record<SitesFilters['topicFitMode'], string> = {
+  expand: 'Niche OR Categories',
+  narrow: 'Niche AND Categories',
+};
+
 function formatLocationFilterValues(filters: SitesFilters): string[] {
   const excludedKeys = new Set(filters.excludedLocationKeys);
 
@@ -102,6 +107,22 @@ export function buildAdvancedActiveFilterSummaries(
 
   const categoriesSummary = formatSelectionSummary('Categories', filters.categorySearchTerms);
   if (categoriesSummary) summaries.push(categoriesSummary);
+
+  if (filters.niches.length > 0 && filters.categorySearchTerms.length > 0) {
+    summaries.push({
+      label: 'Topic fit',
+      value: TOPIC_FIT_MODE_LABELS[filters.topicFitMode],
+    });
+  }
+
+  const excludedNicheSummary = formatSelectionSummary('Exclude niche', filters.excludedNiches);
+  if (excludedNicheSummary) summaries.push(excludedNicheSummary);
+
+  const excludedCategoriesSummary = formatSelectionSummary(
+    'Exclude categories',
+    filters.excludedCategorySearchTerms
+  );
+  if (excludedCategoriesSummary) summaries.push(excludedCategoriesSummary);
 
   const languageSummary = formatSelectionSummary('Language', filters.languages);
   if (languageSummary) summaries.push(languageSummary);

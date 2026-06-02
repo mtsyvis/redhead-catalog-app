@@ -58,6 +58,16 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
   }
 
   return sites.filter((s) => {
+    const nicheTokens = s.nicheTokens ?? [];
+    const categories = (s.categories ?? '').toLowerCase();
+    const matchesIncludedNiche =
+      f.niches.length === 0 || f.niches.some((niche) => nicheTokens.includes(niche));
+    const matchesIncludedCategory =
+      f.categorySearchTerms.length === 0 ||
+      f.categorySearchTerms.some((term) => categories.includes(term.toLowerCase()));
+    const hasIncludedNicheFilter = f.niches.length > 0;
+    const hasIncludedCategoryFilter = f.categorySearchTerms.length > 0;
+
     if (f.drMin !== '' && s.dr < Number(f.drMin)) return false;
     if (f.drMax !== '' && s.dr > Number(f.drMax)) return false;
     if (f.trafficMin !== '' && s.traffic < Number(f.trafficMin)) return false;
@@ -72,13 +82,27 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
     ) {
       return false;
     }
-    if (f.niches.length > 0 && !f.niches.some((niche) => (s.nicheTokens ?? []).includes(niche))) return false;
     if (
-      f.categorySearchTerms.length > 0 &&
-      !f.categorySearchTerms.some((term) =>
-        (s.categories ?? '').toLowerCase().includes(term.toLowerCase())
-      )
+      hasIncludedNicheFilter &&
+      hasIncludedCategoryFilter &&
+      f.topicFitMode === 'expand' &&
+      !matchesIncludedNiche &&
+      !matchesIncludedCategory
     ) {
+      return false;
+    }
+    if (
+      (!hasIncludedCategoryFilter || f.topicFitMode === 'narrow') &&
+      hasIncludedNicheFilter &&
+      !matchesIncludedNiche
+    ) return false;
+    if (
+      (!hasIncludedNicheFilter || f.topicFitMode === 'narrow') &&
+      hasIncludedCategoryFilter &&
+      !matchesIncludedCategory
+    ) return false;
+    if (f.excludedNiches.some((niche) => nicheTokens.includes(niche))) return false;
+    if (f.excludedCategorySearchTerms.some((term) => categories.includes(term.toLowerCase()))) {
       return false;
     }
     if (f.languages.length > 0 && !f.languages.includes(formatLanguageCode(s.language))) return false;

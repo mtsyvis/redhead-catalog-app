@@ -461,6 +461,89 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportSitesAsExcelAsync_WithTopicFitExpandMode_ExportsNicheOrCategoryMatches()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            Niches = ["tech"],
+            CategorySearchTerms = ["news"],
+            TopicFitMode = TopicFitModeValues.Expand,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
+        Assert.Equal(["example.com", "test.com"], sites.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithExcludedNicheFilter_ExportsOnlyNonMatchingSites()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            ExcludedNiches = ["casino"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
+        Assert.Equal(["example.com", "test.com"], sites.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithExcludedCategorySearchFilter_ExportsOnlyNonMatchingSites()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            ExcludedCategorySearchTerms = ["news"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var sites = await ReadSitesSheetFromStream(result.FileStream);
+        Assert.Equal(["example.com", "gambling.com"], sites.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
     public async Task ExportMultiSearchAsExcelAsync_WithCategorySearchFilter_ExportsOnlyFilteredFoundSites()
     {
         var query = DefaultQuery();
@@ -478,6 +561,30 @@ public class ExportServiceTests : IDisposable
         var sheetNames = XlsxTestWorkbook.GetSheetNames(result.FileStream);
 
         Assert.Equal(["test.com"], siteRows.Select(row => row["Domain"]).ToArray());
+        Assert.DoesNotContain("Not found", sheetNames);
+    }
+
+    [Fact]
+    public async Task ExportMultiSearchAsExcelAsync_WithExcludedNicheFilter_ExportsOnlyFilteredFoundSites()
+    {
+        // Arrange
+        var query = DefaultQuery();
+        query.ExcludedNiches = ["casino"];
+
+        // Act
+        var result = await _service.ExportMultiSearchAsExcelAsync(
+            "example.com gambling.com missing.com",
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var siteRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
+        var sheetNames = XlsxTestWorkbook.GetSheetNames(result.FileStream);
+
+        Assert.Equal(["example.com"], siteRows.Select(row => row["Domain"]).ToArray());
         Assert.DoesNotContain("Not found", sheetNames);
     }
 
@@ -1574,6 +1681,9 @@ public class ExportServiceTests : IDisposable
             Languages = ["EN", "UNKNOWN"],
             Niches = ["Casino", " crypto ", "casino"],
             CategorySearchTerms = [" Sports Betting ", "crypto", "SPORTS BETTING"],
+            TopicFitMode = TopicFitModeValues.Expand,
+            ExcludedNiches = ["News"],
+            ExcludedCategorySearchTerms = ["adult"],
             CasinoAvailability = [ServiceAvailabilityStatus.Available],
             LinkInsertAvailability = [ServiceAvailabilityStatus.Available],
             StopListDomains = ["test.com"],
@@ -1620,6 +1730,19 @@ public class ExportServiceTests : IDisposable
             filter.GetProperty("kind").GetString() == "textSearch" &&
             filter.GetProperty("operator").GetString() == "containsAny" &&
             filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["Sports Betting", "crypto"]));
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "topicFitMode" &&
+            filter.GetProperty("kind").GetString() == "enum" &&
+            filter.GetProperty("operator").GetString() == "eq" &&
+            filter.GetProperty("value").GetString() == TopicFitModeValues.Expand);
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "excludedNiche" &&
+            filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["news"]));
+        Assert.Contains(filters, filter =>
+            filter.GetProperty("field").GetString() == "excludedCategories" &&
+            filter.GetProperty("kind").GetString() == "textSearch" &&
+            filter.GetProperty("operator").GetString() == "notContainsAny" &&
+            filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["adult"]));
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "language" &&
             filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["EN", "UNKNOWN"]));

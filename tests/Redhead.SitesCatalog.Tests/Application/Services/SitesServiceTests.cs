@@ -1105,6 +1105,139 @@ public class SitesServiceTests : IDisposable
         Assert.Equal("example.com", result.Items[0].Domain);
     }
 
+    [Fact]
+    public async Task GetSitesAsync_WithTopicFitExpandMode_UsesNicheOrCategorySemantics()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            Niches = ["crypto"],
+            CategorySearchTerms = ["sports betting"],
+            TopicFitMode = TopicFitModeValues.Expand,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com", "lowdr.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithTopicFitNarrowMode_UsesNicheAndCategorySemantics()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            Niches = ["crypto"],
+            CategorySearchTerms = ["sports betting"],
+            TopicFitMode = TopicFitModeValues.Narrow,
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithExcludedNicheFilter_ExcludesMatchingSites()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            ExcludedNiches = ["casino", "crypto"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["example.com", "lowdr.com", "test.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithExcludedCategorySearchTerms_ExcludesMatchingSites()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            ExcludedCategorySearchTerms = ["news", "gambling"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com", "example.com", "lowdr.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithTopicFitExpandMode_StillAppliesExclusions()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            Niches = ["crypto"],
+            CategorySearchTerms = ["sports betting"],
+            TopicFitMode = TopicFitModeValues.Expand,
+            ExcludedCategorySearchTerms = ["sports betting"],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(["crypto.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithOnlyInvalidExcludedNiches_DoesNotApplyExclusion()
+    {
+        // Arrange
+        var query = new SitesQuery
+        {
+            ExcludedNiches = ["N/A", " "],
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(5, result.Total);
+    }
+
     #endregion
 
     #region Availability Filter Tests

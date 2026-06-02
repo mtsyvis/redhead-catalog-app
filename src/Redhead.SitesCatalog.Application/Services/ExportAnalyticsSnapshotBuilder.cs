@@ -73,8 +73,16 @@ public static class ExportAnalyticsSnapshotBuilder
         AddMultiSelect(filters, "language", query.Languages);
 
         var niches = NicheNormalizer.NormalizeTokens(query.Niches ?? []);
+        var categorySearchTerms = CategorySearchTermParser.NormalizeAndValidate(query.CategorySearchTerms);
+        AddTopicFitMode(filters, query.TopicFitMode, niches.Length > 0, categorySearchTerms is { Count: > 0 });
         AddMultiSelect(filters, "niche", niches);
-        AddCategorySearch(filters, query.CategorySearchTerms);
+        AddCategorySearch(filters, "categories", "containsAny", categorySearchTerms);
+        AddMultiSelect(filters, "excludedNiche", NicheNormalizer.NormalizeTokens(query.ExcludedNiches ?? []));
+        AddCategorySearch(
+            filters,
+            "excludedCategories",
+            "notContainsAny",
+            query.ExcludedCategorySearchTerms);
 
         AddAvailability(filters, "priceCasinoAvailability", query.CasinoAvailability);
         AddAvailability(filters, "priceCryptoAvailability", query.CryptoAvailability);
@@ -221,8 +229,32 @@ public static class ExportAnalyticsSnapshotBuilder
             Value: activeValues));
     }
 
+    private static void AddTopicFitMode(
+        List<FilterSnapshotItemDto> filters,
+        string? mode,
+        bool hasNicheFilter,
+        bool hasCategoryFilter)
+    {
+        if (!hasNicheFilter || !hasCategoryFilter)
+        {
+            return;
+        }
+
+        var normalizedMode = string.Equals(mode, TopicFitModeValues.Expand, StringComparison.OrdinalIgnoreCase)
+            ? TopicFitModeValues.Expand
+            : TopicFitModeValues.Narrow;
+
+        filters.Add(new FilterSnapshotItemDto(
+            Field: "topicFitMode",
+            Kind: "enum",
+            Operator: "eq",
+            Value: normalizedMode));
+    }
+
     private static void AddCategorySearch(
         List<FilterSnapshotItemDto> filters,
+        string field,
+        string filterOperator,
         IReadOnlyCollection<string?>? terms)
     {
         var activeTerms = CategorySearchTermParser.NormalizeAndValidate(terms);
@@ -232,9 +264,9 @@ public static class ExportAnalyticsSnapshotBuilder
         }
 
         filters.Add(new FilterSnapshotItemDto(
-            Field: "categories",
+            Field: field,
             Kind: "textSearch",
-            Operator: "containsAny",
+            Operator: filterOperator,
             Value: activeTerms));
     }
 

@@ -32,6 +32,9 @@ public class SitesMapperTests
             Languages = new List<string> { "english", "de", "en-US", "UNKNOWN" },
             Niches = new List<string> { "crypto", "finance" },
             CategorySearchTerms = new List<string?> { " sports betting ", "Crypto" },
+            TopicFitMode = TopicFitModeValues.Expand,
+            ExcludedNiches = new List<string> { " casino ", "N/A", "CASINO" },
+            ExcludedCategorySearchTerms = new List<string?> { " gambling ", "GAMBLING", "adult" },
             CasinoAvailability = ["notAvailable"],
             CryptoAvailability = ["unknown"],
             LinkInsertAvailability = ["available"],
@@ -62,6 +65,9 @@ public class SitesMapperTests
         Assert.Equal(["EN", "DE", "UNKNOWN"], query.Languages);
         Assert.Equal(["crypto", "finance"], query.Niches);
         Assert.Equal(["sports betting", "Crypto"], query.CategorySearchTerms);
+        Assert.Equal(TopicFitModeValues.Expand, query.TopicFitMode);
+        Assert.Equal(["casino"], query.ExcludedNiches);
+        Assert.Equal(["gambling", "adult"], query.ExcludedCategorySearchTerms);
         Assert.Equal([ServiceAvailabilityStatus.NotAvailable], query.CasinoAvailability);
         Assert.Equal([ServiceAvailabilityStatus.Unknown], query.CryptoAvailability);
         Assert.Equal([ServiceAvailabilityStatus.Available], query.LinkInsertAvailability);
@@ -96,6 +102,9 @@ public class SitesMapperTests
         Assert.Null(query.StopListDomains);
         Assert.Null(query.Locations);
         Assert.Null(query.CategorySearchTerms);
+        Assert.Equal(TopicFitModeValues.Narrow, query.TopicFitMode);
+        Assert.Null(query.ExcludedNiches);
+        Assert.Null(query.ExcludedCategorySearchTerms);
     }
 
     [Fact]
@@ -529,6 +538,38 @@ public class SitesMapperTests
         var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
 
         Assert.Contains("at most 80 characters", ex.Message);
+    }
+
+    [Fact]
+    public void ToQuery_WithExcludedCategorySearchTerms_TrimsIgnoresEmptyAndDeduplicatesCaseInsensitively()
+    {
+        // Arrange
+        var request = new SitesQueryRequest
+        {
+            ExcludedCategorySearchTerms = new List<string?> { " gambling ", "", "GAMBLING", null, "adult" }
+        };
+
+        // Act
+        var query = SitesMapper.ToQuery(request);
+
+        // Assert
+        Assert.Equal(["gambling", "adult"], query.ExcludedCategorySearchTerms);
+    }
+
+    [Fact]
+    public void ToQuery_WithInvalidTopicFitMode_ThrowsRequestValidationException()
+    {
+        // Arrange
+        var request = new SitesQueryRequest
+        {
+            TopicFitMode = "strict"
+        };
+
+        // Act
+        var ex = Assert.Throws<RequestValidationException>(() => SitesMapper.ToQuery(request));
+
+        // Assert
+        Assert.Contains("Invalid topic fit mode", ex.Message);
     }
 
     #region LastPublishedMonth mapping and validation

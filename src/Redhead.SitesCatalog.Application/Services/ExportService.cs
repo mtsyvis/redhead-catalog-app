@@ -264,6 +264,8 @@ public class ExportService : IExportService
         if (query.Languages is { Count: > 0 }) { return true; }
         if (NicheNormalizer.NormalizeTokens(query.Niches ?? []).Length > 0) { return true; }
         if (CategorySearchTermParser.NormalizeAndValidate(query.CategorySearchTerms) is { Count: > 0 }) { return true; }
+        if (NicheNormalizer.NormalizeTokens(query.ExcludedNiches ?? []).Length > 0) { return true; }
+        if (CategorySearchTermParser.NormalizeAndValidate(query.ExcludedCategorySearchTerms) is { Count: > 0 }) { return true; }
         if (IsAvailabilityFilterActive(query.CasinoAvailability)) { return true; }
         if (IsAvailabilityFilterActive(query.CryptoAvailability)) { return true; }
         if (IsAvailabilityFilterActive(query.LinkInsertAvailability)) { return true; }
@@ -301,6 +303,9 @@ public class ExportService : IExportService
             query.Languages,
             query.Niches,
             query.CategorySearchTerms,
+            query.TopicFitMode,
+            query.ExcludedNiches,
+            query.ExcludedCategorySearchTerms,
             query.CasinoAvailability,
             query.CryptoAvailability,
             query.LinkInsertAvailability,

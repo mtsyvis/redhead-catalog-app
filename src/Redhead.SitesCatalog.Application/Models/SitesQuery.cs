@@ -1,4 +1,5 @@
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Application.Models;
 
@@ -47,6 +48,15 @@ public class SitesQuery
 
     // Categories substring search terms
     public List<string>? CategorySearchTerms { get; set; }
+
+    // Controls how Niche and Categories include filters combine when both are active.
+    public string TopicFitMode { get; set; } = TopicFitModeValues.Narrow;
+
+    // Niche exclusion multi-select
+    public List<string>? ExcludedNiches { get; set; }
+
+    // Categories exclusion substring search terms
+    public List<string>? ExcludedCategorySearchTerms { get; set; }
 
     public List<ServiceAvailabilityStatus>? CasinoAvailability { get; set; }
     public List<ServiceAvailabilityStatus>? CryptoAvailability { get; set; }

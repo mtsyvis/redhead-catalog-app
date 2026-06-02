@@ -8,6 +8,10 @@ export interface CategoriesSearchFilterHandle {
 interface CategoriesSearchFilterProps {
   value: string[];
   onChange: (terms: string[]) => void;
+  title?: string | null;
+  inputLabel?: string;
+  placeholder?: string;
+  helperText?: string | null;
 }
 
 const CATEGORY_TERM_SEPARATOR = /[,\r\n]+/;
@@ -43,7 +47,17 @@ function mergeCategorySearchTerms(existingTerms: string[], input: string): strin
 export const CategoriesSearchFilter = forwardRef<
   CategoriesSearchFilterHandle,
   CategoriesSearchFilterProps
->(function CategoriesSearchFilter({ value, onChange }, ref) {
+>(function CategoriesSearchFilter(
+  {
+    value,
+    onChange,
+    title = 'Categories',
+    inputLabel,
+    placeholder = 'Search categories: travel blog, sports betting, crypto',
+    helperText = 'Matches any category phrase. Separate terms with comma or Enter.',
+  },
+  ref
+) {
   const [inputValue, setInputValue] = useState('');
 
   const commitInput = (input: string, notify: boolean): string[] => {
@@ -75,9 +89,11 @@ export const CategoriesSearchFilter = forwardRef<
 
   return (
     <>
-      <Typography variant="subtitle2" gutterBottom>
-        Categories
-      </Typography>
+      {title && (
+        <Typography variant="subtitle2" gutterBottom>
+          {title}
+        </Typography>
+      )}
       <Autocomplete
         multiple
         freeSolo
@@ -90,12 +106,9 @@ export const CategoriesSearchFilter = forwardRef<
         renderInput={(params) => (
           <TextField
             {...params}
-            placeholder={
-              value.length === 0
-                ? 'Search categories: travel blog, sports betting, crypto'
-                : ''
-            }
-            helperText="Matches any category phrase. Separate terms with comma or Enter."
+            label={inputLabel}
+            placeholder={value.length === 0 ? placeholder : ''}
+            helperText={helperText ?? undefined}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ',') {
                 event.preventDefault();
