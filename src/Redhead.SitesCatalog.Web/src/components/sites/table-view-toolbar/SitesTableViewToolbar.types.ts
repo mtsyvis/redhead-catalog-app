@@ -20,6 +20,9 @@ export interface SitesTableViewToolbarProps {
   exporting: boolean;
   loading: boolean;
   resultCount: number;
+  resultSearchedCount?: number;
+  resultNotFoundCount?: number;
+  resultHiddenNotFoundCount?: number;
   resultLoading: boolean;
   onShowFilteredColumns: () => void;
   onClearHiddenFilters: () => void;

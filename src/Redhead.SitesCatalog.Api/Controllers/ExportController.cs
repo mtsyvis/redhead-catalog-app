@@ -88,7 +88,7 @@ public class ExportController : ControllerBase
     }
 
     /// <summary>
-    /// Export multi-search result as Excel: filtered Found rows (effective policy limit) + matching Not found domains.
+    /// Export multi-search result as Excel: filtered Found rows (effective policy limit) plus Not found domains.
     /// </summary>
     [HttpPost("sites-multi-search.xlsx")]
     public async Task<IActionResult> ExportSitesMultiSearch(

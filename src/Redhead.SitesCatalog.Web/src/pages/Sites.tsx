@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Alert,
   Box,
+  Button,
   List,
   ListItem,
   ListItemText,
@@ -45,7 +46,6 @@ import type {
   MultiSearchResponse,
 } from '../types/sites.types';
 import { sitesService } from '../services/sites.service';
-import { BrandButton } from '../components/common/BrandButton';
 import { normalizeServiceAvailabilityFilter } from '../utils/serviceAvailability';
 
 const INITIAL_FILTERS: FiltersType = {
@@ -77,12 +77,34 @@ const INITIAL_FILTERS: FiltersType = {
 
 const LEGACY_STOP_LIST_STORAGE_KEY = 'redhead.sitesCatalog.stopListDomains';
 
-function hasLocationFilters(filters: FiltersType): boolean {
-  return filters.locationSelections.length > 0 || filters.excludedLocationKeys.length > 0;
-}
-
 function hasAvailabilityFilter(filter: FiltersType['casinoAvailability']): boolean {
   return normalizeServiceAvailabilityFilter(filter).length > 0;
+}
+
+function hasGridFiltersActive(filters: FiltersType): boolean {
+  return (
+    filters.drMin !== INITIAL_FILTERS.drMin ||
+    filters.drMax !== INITIAL_FILTERS.drMax ||
+    filters.trafficMin !== INITIAL_FILTERS.trafficMin ||
+    filters.trafficMax !== INITIAL_FILTERS.trafficMax ||
+    filters.priceMin !== INITIAL_FILTERS.priceMin ||
+    filters.priceMax !== INITIAL_FILTERS.priceMax ||
+    filters.locationSelections.length > 0 ||
+    filters.excludedLocationKeys.length > 0 ||
+    filters.niches.length !== 0 ||
+    filters.categorySearchTerms.length !== 0 ||
+    filters.excludedNiches.length !== 0 ||
+    filters.excludedCategorySearchTerms.length !== 0 ||
+    filters.languages.length !== 0 ||
+    hasAvailabilityFilter(filters.casinoAvailability) ||
+    hasAvailabilityFilter(filters.cryptoAvailability) ||
+    hasAvailabilityFilter(filters.linkInsertAvailability) ||
+    hasAvailabilityFilter(filters.linkInsertCasinoAvailability) ||
+    hasAvailabilityFilter(filters.datingAvailability) ||
+    filters.quarantine !== INITIAL_FILTERS.quarantine ||
+    filters.lastPublishedFromMonth !== null ||
+    filters.lastPublishedToMonth !== null
+  );
 }
 
 function buildAvailabilityRequestField(filter: FiltersType['casinoAvailability']) {
@@ -209,32 +231,7 @@ export function Sites() {
   }, [filters.search, multiSearchMode]);
 
   const effectiveSearch = multiSearchMode ? filters.search : debouncedSearch;
-
-  /** Grid filters active = any filter differs from default (excluding search text). */
-  const gridFiltersActive = useMemo(
-    () =>
-      filters.drMin !== INITIAL_FILTERS.drMin ||
-      filters.drMax !== INITIAL_FILTERS.drMax ||
-      filters.trafficMin !== INITIAL_FILTERS.trafficMin ||
-      filters.trafficMax !== INITIAL_FILTERS.trafficMax ||
-      filters.priceMin !== INITIAL_FILTERS.priceMin ||
-      filters.priceMax !== INITIAL_FILTERS.priceMax ||
-      hasLocationFilters(filters) ||
-      filters.niches.length !== 0 ||
-      filters.categorySearchTerms.length !== 0 ||
-      filters.excludedNiches.length !== 0 ||
-      filters.excludedCategorySearchTerms.length !== 0 ||
-      filters.languages.length !== 0 ||
-      hasAvailabilityFilter(filters.casinoAvailability) ||
-      hasAvailabilityFilter(filters.cryptoAvailability) ||
-      hasAvailabilityFilter(filters.linkInsertAvailability) ||
-      hasAvailabilityFilter(filters.linkInsertCasinoAvailability) ||
-      hasAvailabilityFilter(filters.datingAvailability) ||
-      filters.quarantine !== INITIAL_FILTERS.quarantine ||
-      filters.lastPublishedFromMonth !== null ||
-      filters.lastPublishedToMonth !== null,
-    [filters]
-  );
+  const gridFiltersActive = useMemo(() => hasGridFiltersActive(filters), [filters]);
 
   const buildSitesQueryParams = useCallback(
     (page: number, pageSize: number): SitesQueryParams => ({
@@ -444,15 +441,6 @@ export function Sites() {
     }
   };
 
-  const handleClearFilters = () => {
-    setMultiSearchMode(false);
-    setMultiSearchResult(null);
-    setFilters(INITIAL_FILTERS);
-    setDebouncedSearch(INITIAL_FILTERS.search);
-    savedFilters.setActiveFilterSetId(null);
-    setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  };
-
   const handleCloseSnackbar = () => {
     setSnackbar((s) => ({ ...s, open: false }));
   };
@@ -473,7 +461,12 @@ export function Sites() {
       const newFound = multiSearchResult.found.map((s) =>
         s.domain === updated.domain ? updated : s
       );
-      setMultiSearchResult({ ...multiSearchResult, found: newFound });
+      const newResults = multiSearchResult.results.map((result) =>
+        result.found && result.site.domain === updated.domain
+          ? { ...result, site: updated }
+          : result
+      );
+      setMultiSearchResult({ ...multiSearchResult, results: newResults, found: newFound });
     } else {
       loadSites();
     }
@@ -489,6 +482,13 @@ export function Sites() {
     sortModel,
     gridFiltersActive,
   });
+  const gridNotFoundRowCount = useMemo(
+    () => (isMultiSearchView ? gridRows.filter(isNotFoundRow).length : 0),
+    [gridRows, isMultiSearchView]
+  );
+  const hiddenNotFoundRowCount =
+    multiSearchResult !== null && gridFiltersActive ? multiSearchResult.notFound.length : 0;
+  const gridSearchedRowCount = multiSearchResult?.results.length ?? 0;
 
   const columns = useSitesColumns({
     isAdmin,
@@ -687,26 +687,22 @@ export function Sites() {
             severity="warning"
             sx={{ mb: 1.5 }}
             action={
-              <BrandButton size="small" onClick={(e) => setDuplicatesAnchor(e.currentTarget)}>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={(e) => setDuplicatesAnchor(e.currentTarget)}
+                sx={{
+                  borderColor: 'divider',
+                  color: 'text.primary',
+                  bgcolor: 'background.paper',
+                  flexShrink: 0,
+                }}
+              >
                 View list
-              </BrandButton>
+              </Button>
             }
           >
             Duplicates removed: {multiSearchResult.duplicates.length}
-          </Alert>
-        )}
-
-        {multiSearchResult && multiSearchResult.notFound.length > 0 && gridFiltersActive && (
-          <Alert
-            severity="info"
-            sx={{ mb: 1.5 }}
-            action={
-              <BrandButton size="small" onClick={handleClearFilters}>
-                Clear filters
-              </BrandButton>
-            }
-          >
-            Not found ({multiSearchResult.notFound.length}) hidden while filters are active
           </Alert>
         )}
 
@@ -726,6 +722,9 @@ export function Sites() {
             exporting={exporting}
             loading={loading || tableViews.loading}
             resultCount={gridRowCount}
+            resultSearchedCount={gridSearchedRowCount}
+            resultNotFoundCount={gridNotFoundRowCount}
+            resultHiddenNotFoundCount={hiddenNotFoundRowCount}
             resultLoading={gridLoading}
             onShowFilteredColumns={handleShowFilteredColumns}
             onClearHiddenFilters={handleClearHiddenFilters}
@@ -745,6 +744,9 @@ export function Sites() {
               rows={gridRows}
               columns={columns}
               getRowId={(row) => (isNotFoundRow(row) ? `notfound:${row.domain}` : row.domain)}
+              getRowClassName={(params) =>
+                isNotFoundRow(params.row) ? 'SitesGrid-notFoundRow' : ''
+              }
               rowCount={gridRowCount}
               loading={gridLoading}
               pageSizeOptions={[10, 25, 50, 100]}
@@ -801,14 +803,14 @@ export function Sites() {
                   borderRight: '1px solid',
                   borderRightColor: 'divider',
                   boxShadow: '6px 0 10px -12px rgba(0, 0, 0, 0.5)',
-                  backgroundClip: 'padding-box',
+                  backgroundClip: 'border-box',
                 },
                 '& .SitesGrid-domainCell': {
-                  zIndex: 30,
+                  zIndex: 50,
                   backgroundColor: 'background.paper',
                 },
                 '& .SitesGrid-domainHeader': {
-                  zIndex: 45,
+                  zIndex: 60,
                   backgroundColor: 'grey.100',
                 },
                 '& .MuiDataGrid-row:hover .SitesGrid-domainCell': {
@@ -819,6 +821,18 @@ export function Sites() {
                 },
                 '& .MuiDataGrid-row.Mui-selected:hover .SitesGrid-domainCell': {
                   backgroundColor: 'grey.100',
+                },
+                '& .SitesGrid-notFoundRow .MuiDataGrid-cell': {
+                  bgcolor: '#fff4e5',
+                },
+                '& .SitesGrid-notFoundRow .SitesGrid-domainCell': {
+                  bgcolor: '#fff4e5',
+                },
+                '& .SitesGrid-notFoundRow:hover .MuiDataGrid-cell': {
+                  bgcolor: '#ffedda',
+                },
+                '& .SitesGrid-notFoundRow:hover .SitesGrid-domainCell': {
+                  bgcolor: '#ffedda',
                 },
               }}
             />

@@ -257,6 +257,13 @@ public class SitesService : ISitesService
             })
             .ToListAsync(cancellationToken);
 
+        var inputOrder = normalizedDomains
+            .Select((domain, index) => new { domain, index })
+            .ToDictionary(item => item.domain, item => item.index, StringComparer.Ordinal);
+        found = found
+            .OrderBy(site => inputOrder.GetValueOrDefault(site.Domain, int.MaxValue))
+            .ToList();
+
         var foundDomains = new HashSet<string>(found.Select(s => s.Domain), StringComparer.Ordinal);
         var notFound = normalizedDomains.Where(d => !foundDomains.Contains(d)).ToList();
 

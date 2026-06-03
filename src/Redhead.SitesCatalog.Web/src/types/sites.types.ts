@@ -193,7 +193,12 @@ export interface SitesFilters {
 /**
  * Response from POST /api/sites/multi-search
  */
+export type MultiSearchResultItem =
+  | { domain: string; found: true; site: Site }
+  | { domain: string; found: false; site: null };
+
 export interface MultiSearchResponse {
+  results: MultiSearchResultItem[];
   found: Site[];
   notFound: string[];
   duplicates: string[];

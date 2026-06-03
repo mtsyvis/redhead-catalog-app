@@ -138,43 +138,34 @@ public class ExportService : IExportService
             .Include(site => site.CanonicalLocation)
             .Where(s => parseResult.UniqueDomains.Contains(s.Domain));
 
-        var includeNotFound = !AreFiltersActive(query);
-
         // "Not found" must mean "not present in DB", not "not included due to export limit".
         // Compute matched domains from the base query BEFORE applying policy limits.
-        List<string> notFound = new();
-        int? multiSearchFoundCount = null;
-        if (includeNotFound || isClientRole)
-        {
-            var matchedDomains = await baseQuery
-                .Select(s => s.Domain)
-                .ToListAsync(cancellationToken);
-            multiSearchFoundCount = matchedDomains.Count;
-
-            if (includeNotFound)
-            {
-                var matchedSet = new HashSet<string>(matchedDomains, StringComparer.Ordinal);
-                notFound = parseResult.UniqueDomains
-                    .Where(d => !matchedSet.Contains(d))
-                    .ToList();
-            }
-        }
+        var matchedDomains = await baseQuery
+            .Select(s => s.Domain)
+            .ToListAsync(cancellationToken);
+        var multiSearchFoundCount = matchedDomains.Count;
+        var matchedSet = new HashSet<string>(matchedDomains, StringComparer.Ordinal);
+        var notFound = parseResult.UniqueDomains
+            .Where(d => !matchedSet.Contains(d))
+            .ToList();
 
         var filteredQuery = _queryBuilder.BuildQuery(baseQuery, query);
 
         var requestedRows = await filteredQuery.CountAsync(cancellationToken);
 
-        var limitedQuery = policy.Mode == ExportLimitMode.Limited && policy.Rows.HasValue
-            ? filteredQuery.Take(policy.Rows.Value)
-            : filteredQuery;
-        var sites = await limitedQuery.ToListAsync(cancellationToken);
+        var sites = await GetMultiSearchExportSitesAsync(
+            filteredQuery,
+            parseResult.UniqueDomains,
+            query,
+            policy,
+            cancellationToken);
 
-        var rowsReturned = sites.Count + (includeNotFound ? notFound.Count : 0);
+        var rowsReturned = sites.Count + notFound.Count;
         var exportedRows = sites.Count;
         var truncated = policy.Mode == ExportLimitMode.Limited && requestedRows > exportedRows;
         var stream = _excelExportGenerator.Generate(new SitesExcelExportRequest(
             sites,
-            includeNotFound ? notFound : [],
+            notFound,
             visibleColumnKeys,
             userRole,
             userEmail,
@@ -183,13 +174,13 @@ public class ExportService : IExportService
             exportedRows,
             truncated,
             policy.Mode == ExportLimitMode.Limited ? policy.Rows : null,
-            includeNotFound));
+            notFound.Count > 0));
 
         var searchContext = isClientRole
             ? ExportAnalyticsSnapshotBuilder.CreateMultiSearchContext(
                 parseResult.InputCount,
                 parseResult.UniqueDomains.Count,
-                multiSearchFoundCount.GetValueOrDefault())
+                multiSearchFoundCount)
             : null;
 
         await LogExportAsync(userId, userEmail, userRole, rowsReturned, query, searchContext, cancellationToken);
@@ -217,6 +208,41 @@ public class ExportService : IExportService
             userRole,
             SitesExportColumnRegistry.GetDefaultColumnKeysForRole(userRole),
             cancellationToken);
+
+    private static async Task<List<Site>> GetMultiSearchExportSitesAsync(
+        IQueryable<Site> filteredQuery,
+        IReadOnlyList<string> inputDomains,
+        SitesQuery query,
+        EffectiveExportPolicy policy,
+        CancellationToken cancellationToken)
+    {
+        if (UsesMultiSearchInputOrder(query))
+        {
+            var inputOrder = inputDomains
+                .Select((domain, index) => new { domain, index })
+                .ToDictionary(item => item.domain, item => item.index, StringComparer.Ordinal);
+
+            IEnumerable<Site> orderedSites = (await filteredQuery.ToListAsync(cancellationToken))
+                .OrderBy(site => inputOrder.GetValueOrDefault(site.Domain, int.MaxValue));
+
+            if (policy.Mode == ExportLimitMode.Limited && policy.Rows.HasValue)
+            {
+                orderedSites = orderedSites.Take(policy.Rows.Value);
+            }
+
+            return orderedSites.ToList();
+        }
+
+        var limitedQuery = policy.Mode == ExportLimitMode.Limited && policy.Rows.HasValue
+            ? filteredQuery.Take(policy.Rows.Value)
+            : filteredQuery;
+
+        return await limitedQuery.ToListAsync(cancellationToken);
+    }
+
+    private static bool UsesMultiSearchInputOrder(SitesQuery query)
+        => string.IsNullOrWhiteSpace(query.SortBy) ||
+           string.Equals(query.SortBy, SortFields.Domain, StringComparison.OrdinalIgnoreCase);
 
     private async Task LogExportAsync(
         string userId,
@@ -247,41 +273,6 @@ public class ExportService : IExportService
 
         await _context.SaveChangesAsync(cancellationToken);
     }
-
-    /// <summary>
-    /// True when any filter differs from defaults (same definition as UI: range, location, availability, quarantine).
-    /// </summary>
-    private static bool AreFiltersActive(SitesQuery query)
-    {
-        if (query.DrMin.HasValue || query.DrMax.HasValue) { return true; }
-        if (query.TrafficMin.HasValue || query.TrafficMax.HasValue) { return true; }
-        if (query.PriceMin.HasValue || query.PriceMax.HasValue) { return true; }
-        if (query.Locations is { Count: > 0 }) { return true; }
-        if (query.LocationKeys is { Count: > 0 }) { return true; }
-        if (query.LocationGroupKeys is { Count: > 0 }) { return true; }
-        if (query.ExcludedLocationKeys is { Count: > 0 }) { return true; }
-        if (query.IncludeUnknownLocation || query.IncludeOtherLocation) { return true; }
-        if (query.Languages is { Count: > 0 }) { return true; }
-        if (NicheNormalizer.NormalizeTokens(query.Niches ?? []).Length > 0) { return true; }
-        if (CategorySearchTermParser.NormalizeAndValidate(query.CategorySearchTerms) is { Count: > 0 }) { return true; }
-        if (NicheNormalizer.NormalizeTokens(query.ExcludedNiches ?? []).Length > 0) { return true; }
-        if (CategorySearchTermParser.NormalizeAndValidate(query.ExcludedCategorySearchTerms) is { Count: > 0 }) { return true; }
-        if (IsAvailabilityFilterActive(query.CasinoAvailability)) { return true; }
-        if (IsAvailabilityFilterActive(query.CryptoAvailability)) { return true; }
-        if (IsAvailabilityFilterActive(query.LinkInsertAvailability)) { return true; }
-        if (IsAvailabilityFilterActive(query.LinkInsertCasinoAvailability)) { return true; }
-        if (IsAvailabilityFilterActive(query.DatingAvailability)) { return true; }
-        if (!string.IsNullOrEmpty(query.Quarantine) &&
-            !string.Equals(query.Quarantine, QuarantineFilterValues.All, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsAvailabilityFilterActive(IReadOnlyCollection<ServiceAvailabilityStatus>? availability)
-        => availability is { Count: > 0 };
 
     private static object CreateFilterSummary(SitesQuery query)
         => new

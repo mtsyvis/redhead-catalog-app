@@ -74,9 +74,30 @@ public class SitesController : ControllerBase
             parseResult.Duplicates,
             cancellationToken);
 
+        var includeInternalFields = CanViewInternalSiteFields();
+        var found = result.Found
+            .Select(site => SitesMapper.ToSiteResponse(site, includeInternalFields))
+            .ToList();
+        var foundByDomain = found.ToDictionary(site => site.Domain, StringComparer.Ordinal);
+
         var response = new MultiSearchResponse
         {
-            Found = result.Found.Select(site => SitesMapper.ToSiteResponse(site, CanViewInternalSiteFields())).ToList(),
+            Results = parseResult.UniqueDomains
+                .Select(domain => foundByDomain.TryGetValue(domain, out var site)
+                    ? new MultiSearchResultResponse
+                    {
+                        Domain = domain,
+                        Found = true,
+                        Site = site
+                    }
+                    : new MultiSearchResultResponse
+                    {
+                        Domain = domain,
+                        Found = false,
+                        Site = null
+                    })
+                .ToList(),
+            Found = found,
             NotFound = result.NotFound,
             Duplicates = result.Duplicates
         };

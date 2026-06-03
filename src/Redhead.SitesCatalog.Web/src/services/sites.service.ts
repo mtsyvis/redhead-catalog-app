@@ -100,6 +100,7 @@ class SitesService {
 
   /**
    * Export multi-search result as Excel (filtered Found + Not found sheet when applicable). Uses POST.
+   * Domain/default sorting preserves normalized input order.
    * Returns metadata from response headers.
    */
   async exportSitesMultiSearch(payload: ExportMultiSearchPayload): Promise<ExportMetadata> {

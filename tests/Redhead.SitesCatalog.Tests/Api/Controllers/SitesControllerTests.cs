@@ -97,6 +97,53 @@ public class SitesControllerTests
     }
 
     [Fact]
+    public async Task MultiSearch_ReturnsOrderedResultsInNormalizedInputOrder()
+    {
+        // Arrange
+        var sitesService = new Mock<ISitesService>();
+        sitesService
+            .Setup(service => service.MultiSearchSitesAsync(
+                It.Is<IReadOnlyList<string>>(domains => domains.SequenceEqual(new[]
+                {
+                    "example.com",
+                    "missing.com",
+                    "test.com"
+                })),
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MultiSearchSitesResult
+            {
+                Found =
+                [
+                    new SiteDto { Domain = "test.com", Location = "UK" },
+                    new SiteDto { Domain = "example.com", Location = "US" }
+                ],
+                NotFound = ["missing.com"],
+                Duplicates = []
+            });
+        var controller = new SitesController(sitesService.Object);
+        SetUser(controller, AppRoles.Admin, "admin@test.com");
+        var request = new MultiSearchRequest
+        {
+            QueryText = "https://www.Example.com/path missing.com test.com"
+        };
+
+        // Act
+        var result = await controller.MultiSearch(request, CancellationToken.None);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<MultiSearchResponse>(ok.Value);
+        Assert.Equal(["example.com", "missing.com", "test.com"], response.Results.Select(item => item.Domain).ToArray());
+        Assert.True(response.Results[0].Found);
+        Assert.Equal("example.com", response.Results[0].Site?.Domain);
+        Assert.False(response.Results[1].Found);
+        Assert.Null(response.Results[1].Site);
+        Assert.True(response.Results[2].Found);
+        Assert.Equal("test.com", response.Results[2].Site?.Domain);
+    }
+
+    [Fact]
     public async Task SearchSites_WithInvalidStopList_ThrowsValidationException_AndDoesNotCallService()
     {
         var sitesService = new Mock<ISitesService>();

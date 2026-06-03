@@ -11,7 +11,7 @@ public class MultiSearchRequest
     public string QueryText { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional filters (accepted; in 10A not applied to multi-search results)
+    /// Optional filters. Stop-list values are rejected; other filters are not applied by this endpoint.
     /// </summary>
     public SitesQueryRequest? Filters { get; set; }
 
@@ -21,13 +21,13 @@ public class MultiSearchRequest
     public List<string>? StopListDomains { get; set; }
 
     /// <summary>
-    /// Optional sort (accepted; in 10A not applied to multi-search results)
+    /// Optional sort metadata. Sorting is applied by the grid/export context, not by this endpoint.
     /// </summary>
     public SortDto? Sort { get; set; }
 }
 
 /// <summary>
-/// Sort options (accepted in multi-search; applied in later commits)
+/// Sort options accepted with multi-search request metadata.
 /// </summary>
 public class SortDto
 {

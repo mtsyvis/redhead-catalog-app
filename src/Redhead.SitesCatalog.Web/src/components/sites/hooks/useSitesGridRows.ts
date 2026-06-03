@@ -156,6 +156,11 @@ function getSortValue(site: Site, field: string): Site[keyof Site] | undefined {
   return site[field as keyof Site];
 }
 
+function isMultiSearchInputOrderSort(sortModel: GridSortModel): boolean {
+  const field = sortModel[0]?.field;
+  return field == null || field === 'domain';
+}
+
 export function useSitesGridRows({
   sites,
   total,
@@ -171,7 +176,28 @@ export function useSitesGridRows({
     if (multiSearchResult === null) {
       return sites;
     }
-    const filtered = filterSites(multiSearchResult.found, filters);
+
+    const orderedResults = multiSearchResult.results;
+    const filteredFoundDomains = new Set(
+      filterSites(
+        orderedResults.flatMap((result) => (result.found ? [result.site] : [])),
+        filters
+      ).map((site) => site.domain)
+    );
+
+    if (isMultiSearchInputOrderSort(sortModel)) {
+      return orderedResults.flatMap((result): GridRow[] => {
+        if (!result.found) {
+          return gridFiltersActive ? [] : [{ domain: result.domain, _isNotFound: true as const }];
+        }
+
+        return filteredFoundDomains.has(result.site.domain) ? [result.site] : [];
+      });
+    }
+
+    const filtered = orderedResults.flatMap((result) =>
+      result.found && filteredFoundDomains.has(result.site.domain) ? [result.site] : []
+    );
     const field = sortModel[0]?.field ?? 'domain';
     const dir = sortModel[0]?.sort ?? 'asc';
     const sorted = [...filtered].sort((a, b) => {
@@ -190,7 +216,9 @@ export function useSitesGridRows({
     });
     const notFoundRows: NotFoundRow[] = gridFiltersActive
       ? []
-      : multiSearchResult.notFound.map((d) => ({ domain: d, _isNotFound: true as const }));
+      : orderedResults
+          .filter((result) => !result.found)
+          .map((result) => ({ domain: result.domain, _isNotFound: true as const }));
     return [...sorted, ...notFoundRows];
   }, [multiSearchResult, filters, sortModel, sites, gridFiltersActive]);
 

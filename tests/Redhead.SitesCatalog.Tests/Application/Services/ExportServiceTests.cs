@@ -210,20 +210,74 @@ public class ExportServiceTests : IDisposable
     [Fact]
     public async Task ExportMultiSearchAsExcelAsync_NoActiveFilters_WritesNotFoundDomainsToSeparateSheet()
     {
+        // Arrange
+        var query = DefaultQuery();
+
+        // Act
         var result = await _service.ExportMultiSearchAsExcelAsync(
-            "example.com missing.com test.com",
-            DefaultQuery(),
+            "test.com missing-b.com example.com missing-a.com",
+            query,
             TestUserId,
             TestUserEmail,
             AppRoles.Admin,
             CancellationToken.None);
 
+        // Assert
         var siteRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
         var notFoundRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Not found");
 
-        Assert.Equal(["example.com", "test.com"], siteRows.Select(row => row["Domain"]).ToList());
-        Assert.Single(notFoundRows);
-        Assert.Equal("missing.com", notFoundRows[0]["Domain"]);
+        Assert.Equal(["test.com", "example.com"], siteRows.Select(row => row["Domain"]).ToList());
+        Assert.Equal(["missing-b.com", "missing-a.com"], notFoundRows.Select(row => row["Domain"]).ToList());
+    }
+
+    [Fact]
+    public async Task ExportMultiSearchAsExcelAsync_WithNonDomainSort_SortsFoundSitesAndKeepsNotFoundInputOrder()
+    {
+        // Arrange
+        var query = DefaultQuery();
+        query.SortBy = SortFields.Traffic;
+        query.SortDir = SortingDefaults.Descending;
+
+        // Act
+        var result = await _service.ExportMultiSearchAsExcelAsync(
+            "example.com missing-b.com test.com missing-a.com gambling.com",
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var siteRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
+        var notFoundRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Not found");
+
+        Assert.Equal(
+            ["gambling.com", "test.com", "example.com"],
+            siteRows.Select(row => row["Domain"]).ToArray());
+        Assert.Equal(["missing-b.com", "missing-a.com"], notFoundRows.Select(row => row["Domain"]).ToArray());
+    }
+
+    [Fact]
+    public async Task ExportMultiSearchAsExcelAsync_WithInputOrderSort_AppliesLimitAfterInputOrdering()
+    {
+        // Arrange
+        var internalSettings = await _context.RoleSettings.SingleAsync(rs => rs.RoleName == AppRoles.Internal);
+        internalSettings.ExportLimitRows = 1;
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.ExportMultiSearchAsExcelAsync(
+            "test.com example.com",
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Internal,
+            CancellationToken.None);
+
+        // Assert
+        var siteRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
+        Assert.Equal(["test.com"], siteRows.Select(row => row["Domain"]).ToArray());
+        Assert.True(result.Truncated);
     }
 
     [Fact]
@@ -544,36 +598,15 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportMultiSearchAsExcelAsync_WithCategorySearchFilter_ExportsOnlyFilteredFoundSites()
-    {
-        var query = DefaultQuery();
-        query.CategorySearchTerms = ["news"];
-
-        var result = await _service.ExportMultiSearchAsExcelAsync(
-            "example.com test.com missing.com",
-            query,
-            TestUserId,
-            TestUserEmail,
-            AppRoles.Admin,
-            CancellationToken.None);
-
-        var siteRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
-        var sheetNames = XlsxTestWorkbook.GetSheetNames(result.FileStream);
-
-        Assert.Equal(["test.com"], siteRows.Select(row => row["Domain"]).ToArray());
-        Assert.DoesNotContain("Not found", sheetNames);
-    }
-
-    [Fact]
-    public async Task ExportMultiSearchAsExcelAsync_WithExcludedNicheFilter_ExportsOnlyFilteredFoundSites()
+    public async Task ExportMultiSearchAsExcelAsync_WithCategorySearchFilter_ExportsFilteredFoundSitesAndNotFoundInputOrder()
     {
         // Arrange
         var query = DefaultQuery();
-        query.ExcludedNiches = ["casino"];
+        query.CategorySearchTerms = ["news"];
 
         // Act
         var result = await _service.ExportMultiSearchAsExcelAsync(
-            "example.com gambling.com missing.com",
+            "missing-a.com example.com test.com missing-b.com",
             query,
             TestUserId,
             TestUserEmail,
@@ -582,10 +615,34 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         var siteRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
-        var sheetNames = XlsxTestWorkbook.GetSheetNames(result.FileStream);
+        var notFoundRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Not found");
+
+        Assert.Equal(["test.com"], siteRows.Select(row => row["Domain"]).ToArray());
+        Assert.Equal(["missing-a.com", "missing-b.com"], notFoundRows.Select(row => row["Domain"]).ToArray());
+    }
+
+    [Fact]
+    public async Task ExportMultiSearchAsExcelAsync_WithExcludedNicheFilter_ExportsFilteredFoundSitesAndNotFoundInputOrder()
+    {
+        // Arrange
+        var query = DefaultQuery();
+        query.ExcludedNiches = ["casino"];
+
+        // Act
+        var result = await _service.ExportMultiSearchAsExcelAsync(
+            "missing-b.com example.com gambling.com missing-a.com",
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var siteRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
+        var notFoundRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Not found");
 
         Assert.Equal(["example.com"], siteRows.Select(row => row["Domain"]).ToArray());
-        Assert.DoesNotContain("Not found", sheetNames);
+        Assert.Equal(["missing-b.com", "missing-a.com"], notFoundRows.Select(row => row["Domain"]).ToArray());
     }
 
     [Fact]

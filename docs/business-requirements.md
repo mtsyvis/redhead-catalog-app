@@ -455,7 +455,7 @@ Topic fit rules:
 * In Narrow mode, when both Niche include and Categories include are active, a site matches only if both groups match.
 * If only one include group is active, Expand and Narrow produce the same include result.
 * Niche exclude and Categories exclude always apply as exclusions after the include match.
-* Topic fit filters are active filters for the sites table, multi-search found-row filtering, not-found row visibility, export, and export analytics snapshots.
+* Topic fit filters are active filters for the sites table, multi-search found-row filtering, export, and export analytics snapshots.
 
 ## Multi-search
 
@@ -477,17 +477,22 @@ Input rules:
 Display rules:
 
 * Found rows are shown in the same sites grid as normal search results.
-* Not found rows are appended at the end only when no filters are active.
+* By default, found and not found rows are shown together in normalized input order after duplicate removal.
 * Not found rows contain only `Domain`; all other columns show placeholders.
-* When any filters are active, not found rows are hidden.
-* If not found rows are hidden, show a clear hint such as: `Not found (X) hidden while filters are active` and provide a clear-filters action.
+* Not found rows should be visually distinguishable from found rows, for example with a subtle warning row background.
+* When no filters are active, the Sites table result count shows unique searched domains, found domains, and not found domains.
+* Filters apply only to found site rows. When filters are active, not found rows are hidden from the grid and the result count shows visible rows out of unique searched domains plus how many not found domains are hidden by filters.
+* Domain/default sorting in Multi-search means normalized input order.
+* Sorting by a non-domain column sorts found rows by that column and appends not found rows afterward in normalized input order.
 
 Export rules:
 
-* If no filters are active, export includes found rows in the `Sites` sheet and, only when any domains are not found, those domains in a `Not found` sheet.
-* If filters are active, export includes only filtered found rows.
-* Not found domains must not be included in export while filters are active.
-* Effective export limits still apply.
+* Export keeps separate workbook sheets: found rows in the `Sites` sheet and, only when any domains are not found, those domains in a `Not found` sheet.
+* With Domain/default sorting, the `Sites` sheet preserves normalized input order after duplicate removal.
+* With non-domain sorting, the `Sites` sheet uses the active sort for found rows.
+* The `Not found` sheet always preserves normalized input order after duplicate removal.
+* Filters apply only to found rows in the `Sites` sheet. Not found domains remain included in the `Not found` sheet.
+* Effective export limits apply to found rows.
 
 ## Imports
 

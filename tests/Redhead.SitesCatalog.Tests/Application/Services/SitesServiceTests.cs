@@ -2256,6 +2256,22 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task MultiSearchSitesAsync_ReturnsFoundRowsInInputOrder()
+    {
+        // Arrange
+        var normalizedDomains = new List<string> { "crypto.com", "example.com", "test.com" };
+        var duplicates = new List<string>();
+
+        // Act
+        var result = await _service.MultiSearchSitesAsync(normalizedDomains, duplicates);
+
+        // Assert
+        Assert.Equal(
+            ["crypto.com", "example.com", "test.com"],
+            result.Found.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
     public async Task MultiSearchSitesAsync_ReturnsDuplicatesFromInput()
     {
         var normalizedDomains = new List<string> { "example.com" };

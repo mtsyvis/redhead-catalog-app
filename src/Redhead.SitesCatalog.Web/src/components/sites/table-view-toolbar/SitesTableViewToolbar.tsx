@@ -43,6 +43,9 @@ export function SitesTableViewToolbar({
   exporting,
   loading,
   resultCount,
+  resultSearchedCount = 0,
+  resultNotFoundCount = 0,
+  resultHiddenNotFoundCount = 0,
   resultLoading,
   onShowFilteredColumns,
   onClearHiddenFilters,
@@ -408,6 +411,22 @@ export function SitesTableViewToolbar({
   const hiddenColumnsLabel = pluralize('column', hiddenFiltersCount);
   const columnsButtonLabel = pluralize('Column', visibleCount);
   const formattedResultCount = formatInteger(resultCount);
+  const formattedSearchedResultCount = formatInteger(resultSearchedCount);
+  const formattedNotFoundResultCount = formatInteger(resultNotFoundCount);
+  const formattedHiddenNotFoundResultCount = formatInteger(resultHiddenNotFoundCount);
+  const searchedFoundCount = Math.max(
+    0,
+    resultSearchedCount - resultNotFoundCount - resultHiddenNotFoundCount
+  );
+  const formattedSearchedFoundCount = formatInteger(searchedFoundCount);
+  const resultLabel =
+    resultSearchedCount > 0 && resultHiddenNotFoundCount > 0
+      ? `${formattedResultCount} visible of ${formattedSearchedResultCount} searched · ${formattedHiddenNotFoundResultCount} not found hidden by filters`
+      : resultSearchedCount > 0 && resultNotFoundCount > 0
+      ? `${formattedSearchedResultCount} searched · ${formattedSearchedFoundCount} found · ${formattedNotFoundResultCount} not found`
+      : resultSearchedCount > 0
+      ? `${formattedSearchedResultCount} searched · ${formattedSearchedFoundCount} found`
+      : `${formattedResultCount} ${pluralize('result', resultCount)}`;
 
   return (
     <>
@@ -494,7 +513,7 @@ export function SitesTableViewToolbar({
             ml: { xs: 0, sm: 0.5 },
           }}
         >
-          {formattedResultCount} {pluralize('result', resultCount)}
+          {resultLabel}
           {resultLoading && (
             <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
               <CircularProgress size={12} color="inherit" />
