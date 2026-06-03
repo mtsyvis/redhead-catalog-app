@@ -160,6 +160,7 @@ export function Sites() {
   const [debouncedSearch, setDebouncedSearch] = useState(INITIAL_FILTERS.search);
   const [multiSearchMode, setMultiSearchMode] = useState(false);
   const [multiSearchResult, setMultiSearchResult] = useState<MultiSearchResponse | null>(null);
+  const [multiSearchAppliedText, setMultiSearchAppliedText] = useState('');
   const [multiSearchLoading, setMultiSearchLoading] = useState(false);
   const [filterOptionsRefreshKey, setFilterOptionsRefreshKey] = useState(0);
   const [duplicatesAnchor, setDuplicatesAnchor] = useState<HTMLElement | null>(null);
@@ -219,7 +220,6 @@ export function Sites() {
 
   useEffect(() => {
     if (multiSearchMode) {
-      setDebouncedSearch(filters.search);
       return;
     }
 
@@ -230,7 +230,7 @@ export function Sites() {
     return () => globalThis.clearTimeout(timeoutId);
   }, [filters.search, multiSearchMode]);
 
-  const effectiveSearch = multiSearchMode ? filters.search : debouncedSearch;
+  const effectiveSearch = debouncedSearch;
   const gridFiltersActive = useMemo(() => hasGridFiltersActive(filters), [filters]);
 
   const buildSitesQueryParams = useCallback(
@@ -239,7 +239,7 @@ export function Sites() {
       pageSize,
       sortBy: sortModel[0]?.field || 'domain',
       sortDir: sortModel[0]?.sort || 'asc',
-      search: effectiveSearch || undefined,
+      search: !multiSearchMode && effectiveSearch ? effectiveSearch : undefined,
       drMin: filters.drMin ? Number(filters.drMin) : undefined,
       drMax: filters.drMax ? Number(filters.drMax) : undefined,
       trafficMin: filters.trafficMin ? Number(filters.trafficMin) : undefined,
@@ -317,7 +317,7 @@ export function Sites() {
   } = useSitesExport({
     buildSitesQueryParams,
     multiSearchResult,
-    searchText: filters.search,
+    searchText: multiSearchAppliedText,
     visibleColumnKeys: tableViews.visibleColumnIds,
     showSnackbar: setSnackbar,
   });
@@ -358,7 +358,10 @@ export function Sites() {
       setMultiSearchLoading(true);
       sitesService
         .multiSearch(query)
-        .then((res) => setMultiSearchResult(res))
+        .then((res) => {
+          setMultiSearchResult(res);
+          setMultiSearchAppliedText(query);
+        })
         .catch((err) => {
           console.error('Multi-search failed:', err);
           setSnackbar({
@@ -437,6 +440,7 @@ export function Sites() {
     setMultiSearchMode(enabled);
     if (!enabled) {
       setMultiSearchResult(null);
+      setMultiSearchAppliedText('');
       setDebouncedSearch(filters.search);
     }
   };

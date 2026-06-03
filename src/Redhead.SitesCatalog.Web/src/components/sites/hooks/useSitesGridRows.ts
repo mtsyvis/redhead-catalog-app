@@ -172,6 +172,58 @@ export function useSitesGridRows({
   gridFiltersActive,
 }: UseSitesGridRowsOptions) {
   const isMultiSearchView = multiSearchResult !== null;
+  const multiSearchGridFilters = useMemo<FiltersType>(
+    () => ({
+      search: '',
+      drMin: filters.drMin,
+      drMax: filters.drMax,
+      trafficMin: filters.trafficMin,
+      trafficMax: filters.trafficMax,
+      priceMin: filters.priceMin,
+      priceMax: filters.priceMax,
+      stopListDomains: [],
+      locationSelections: filters.locationSelections,
+      excludedLocationKeys: filters.excludedLocationKeys,
+      niches: filters.niches,
+      categorySearchTerms: filters.categorySearchTerms,
+      topicFitMode: filters.topicFitMode,
+      excludedNiches: filters.excludedNiches,
+      excludedCategorySearchTerms: filters.excludedCategorySearchTerms,
+      languages: filters.languages,
+      casinoAvailability: filters.casinoAvailability,
+      cryptoAvailability: filters.cryptoAvailability,
+      linkInsertAvailability: filters.linkInsertAvailability,
+      linkInsertCasinoAvailability: filters.linkInsertCasinoAvailability,
+      datingAvailability: filters.datingAvailability,
+      quarantine: filters.quarantine,
+      lastPublishedFromMonth: filters.lastPublishedFromMonth,
+      lastPublishedToMonth: filters.lastPublishedToMonth,
+    }),
+    [
+      filters.drMin,
+      filters.drMax,
+      filters.trafficMin,
+      filters.trafficMax,
+      filters.priceMin,
+      filters.priceMax,
+      filters.locationSelections,
+      filters.excludedLocationKeys,
+      filters.niches,
+      filters.categorySearchTerms,
+      filters.topicFitMode,
+      filters.excludedNiches,
+      filters.excludedCategorySearchTerms,
+      filters.languages,
+      filters.casinoAvailability,
+      filters.cryptoAvailability,
+      filters.linkInsertAvailability,
+      filters.linkInsertCasinoAvailability,
+      filters.datingAvailability,
+      filters.quarantine,
+      filters.lastPublishedFromMonth,
+      filters.lastPublishedToMonth,
+    ]
+  );
   const gridRows: GridRow[] = useMemo(() => {
     if (multiSearchResult === null) {
       return sites;
@@ -181,7 +233,7 @@ export function useSitesGridRows({
     const filteredFoundDomains = new Set(
       filterSites(
         orderedResults.flatMap((result) => (result.found ? [result.site] : [])),
-        filters
+        multiSearchGridFilters
       ).map((site) => site.domain)
     );
 
@@ -220,7 +272,7 @@ export function useSitesGridRows({
           .filter((result) => !result.found)
           .map((result) => ({ domain: result.domain, _isNotFound: true as const }));
     return [...sorted, ...notFoundRows];
-  }, [multiSearchResult, filters, sortModel, sites, gridFiltersActive]);
+  }, [multiSearchResult, multiSearchGridFilters, sortModel, sites, gridFiltersActive]);
 
   return {
     gridRows,

@@ -218,8 +218,13 @@ export function SitesFilters({
   const [savedFilterDeleteOpen, setSavedFilterDeleteOpen] = useState(false);
   const [savedFilterDeleteError, setSavedFilterDeleteError] = useState<string | null>(null);
   const [savedFilterActionLoading, setSavedFilterActionLoading] = useState(false);
+  const [searchDraft, setSearchDraft] = useState(filters.search);
   const categoriesSearchFilterRef = useRef<CategoriesSearchFilterHandle>(null);
   const excludedCategoriesSearchFilterRef = useRef<CategoriesSearchFilterHandle>(null);
+
+  useEffect(() => {
+    setSearchDraft(filters.search);
+  }, [filters.search, multiSearchMode]);
 
   useEffect(() => {
     const loadFilterOptions = async () => {
@@ -279,16 +284,23 @@ export function SitesFilters({
   };
 
   const handleApply = () => {
+    const appliedSearch = multiSearchMode ? searchDraft : filters.search;
+    const filtersWithSearch =
+      appliedSearch === filters.search ? filters : { ...filters, search: appliedSearch };
     const categorySearchTerms =
-      categoriesSearchFilterRef.current?.commitPendingInput() ?? filters.categorySearchTerms;
+      categoriesSearchFilterRef.current?.commitPendingInput() ??
+      filtersWithSearch.categorySearchTerms;
     const excludedCategorySearchTerms =
       excludedCategoriesSearchFilterRef.current?.commitPendingInput() ??
-      filters.excludedCategorySearchTerms;
+      filtersWithSearch.excludedCategorySearchTerms;
     const nextFilters =
-      areStringArraysEqual(categorySearchTerms, filters.categorySearchTerms) &&
-      areStringArraysEqual(excludedCategorySearchTerms, filters.excludedCategorySearchTerms)
-        ? filters
-        : { ...filters, categorySearchTerms, excludedCategorySearchTerms };
+      areStringArraysEqual(categorySearchTerms, filtersWithSearch.categorySearchTerms) &&
+      areStringArraysEqual(
+        excludedCategorySearchTerms,
+        filtersWithSearch.excludedCategorySearchTerms
+      )
+        ? filtersWithSearch
+        : { ...filtersWithSearch, categorySearchTerms, excludedCategorySearchTerms };
 
     if (nextFilters !== filters) {
       onFiltersChange(nextFilters);
@@ -370,6 +382,7 @@ export function SitesFilters({
       : stopListPaused
         ? `${stopListCount} ${pluralize(stopListCount, 'domain')} saved`
         : `${stopListCount} ${pluralize(stopListCount, 'domain')} excluded`;
+  const searchValue = multiSearchMode ? searchDraft : filters.search;
 
   const handleOpenStopListDialog = () => {
     setStopListDialogOpen(true);
@@ -390,14 +403,28 @@ export function SitesFilters({
   };
 
   const handleClearSearch = () => {
-    if (filters.search === '') return;
+    const currentSearch = multiSearchMode ? searchDraft : filters.search;
+
+    if (currentSearch === '') return;
+
+    if (multiSearchMode) {
+      setSearchDraft('');
+      return;
+    }
 
     const nextFilters = { ...filters, search: '' };
     onFiltersChange(nextFilters);
 
-    if (!multiSearchMode) {
-      onApply(nextFilters);
+    onApply(nextFilters);
+  };
+
+  const handleSearchChange = (value: string) => {
+    if (multiSearchMode) {
+      setSearchDraft(value);
+      return;
     }
+
+    handleChange('search', value);
   };
 
   const toggleFiltersPanel = () => {
@@ -610,8 +637,8 @@ export function SitesFilters({
           ? 'Paste domains or URLs (one per line or space-separated, max 500)'
           : 'Search by domain (example.com or https://www.example.com/path)'
       }
-      value={filters.search}
-      onChange={(e) => handleChange('search', e.target.value)}
+      value={searchValue}
+      onChange={(e) => handleSearchChange(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' && !multiSearchMode) {
           e.preventDefault();
@@ -620,7 +647,7 @@ export function SitesFilters({
       }}
       InputProps={{
         startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-        endAdornment: filters.search ? (
+        endAdornment: searchValue ? (
           <IconButton
             aria-label="Clear search"
             edge="end"
