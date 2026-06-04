@@ -73,6 +73,18 @@ export interface ResetPasswordResponse {
   temporaryPassword: string;
 }
 
+export interface UpdateUserRoleRequest {
+  role: string;
+}
+
+export interface ReactivateUserRequest {
+  role: string;
+}
+
+export interface ReactivateUserResponse {
+  temporaryPassword: string;
+}
+
 export interface UpdateExportLimitRequest {
   overrideMode: ExportLimitMode | null;
   overrideRows: number | null;
@@ -84,3 +96,5 @@ export interface UpdateSuperAdminNoteRequest {
 
 export const ROLES = ['SuperAdmin', 'Admin', 'Internal', 'Client'] as const;
 export type Role = (typeof ROLES)[number];
+export const NON_SUPER_ADMIN_ROLES = ['Admin', 'Internal', 'Client'] as const;
+export type NonSuperAdminRole = (typeof NON_SUPER_ADMIN_ROLES)[number];

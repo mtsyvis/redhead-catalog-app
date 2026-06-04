@@ -6,6 +6,9 @@ import type {
   CreateUserRequest,
   CreateUserResponse,
   ResetPasswordResponse,
+  UpdateUserRoleRequest,
+  ReactivateUserRequest,
+  ReactivateUserResponse,
   UpdateExportLimitRequest,
   UpdateSuperAdminNoteRequest,
 } from '../types/adminUsers.types';
@@ -35,6 +38,14 @@ export const adminUsersService = {
 
   disable(id: string): Promise<{ message: string }> {
     return ApiClient.post<{ message: string }>(`/api/admin/users/${id}/disable`);
+  },
+
+  updateRole(id: string, data: UpdateUserRoleRequest): Promise<void> {
+    return ApiClient.put<void, UpdateUserRoleRequest>(`/api/admin/users/${id}/role`, data);
+  },
+
+  reactivate(id: string, data: ReactivateUserRequest): Promise<ReactivateUserResponse> {
+    return ApiClient.post<ReactivateUserResponse, ReactivateUserRequest>(`/api/admin/users/${id}/reactivate`, data);
   },
 
   updateExportLimit(id: string, data: UpdateExportLimitRequest): Promise<void> {

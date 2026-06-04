@@ -57,7 +57,10 @@ public class AdminUsersController : ControllerBase
         var existing = await _userManager.FindByEmailAsync(request.Email);
         if (existing != null)
         {
-            return BadRequest(new MessageResponse("A user with this email already exists."));
+            var message = existing.IsActive
+                ? "A user with this email already exists."
+                : "A disabled user with this email already exists. Reactivate that user instead.";
+            return BadRequest(new MessageResponse(message));
         }
 
         var temporaryPassword = PasswordGenerator.Generate();
@@ -174,9 +177,19 @@ public class AdminUsersController : ControllerBase
             return Forbid();
         }
 
+        if (currentUser?.Id == target.Id)
+        {
+            return BadRequest(new MessageResponse("You cannot disable your own account."));
+        }
+
         if (!target.IsActive)
         {
             return BadRequest(new MessageResponse("User is already disabled."));
+        }
+
+        if (targetRoles.Contains(AppRoles.SuperAdmin) && await IsLastActiveSuperAdminAsync(target))
+        {
+            return BadRequest(new MessageResponse("Cannot disable the last active SuperAdmin."));
         }
 
         target.IsActive = false;
@@ -185,6 +198,162 @@ public class AdminUsersController : ControllerBase
         _logger.LogInformation("User disabled: {Email}", target.Email);
 
         return Ok(new MessageResponse("User has been disabled."));
+    }
+
+    [HttpPut("{id}/role")]
+    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    public async Task<ActionResult> UpdateUserRole(string id, [FromBody] UpdateUserRoleRequest request)
+    {
+        if (!AppRoles.All.Contains(request.Role))
+        {
+            return BadRequest(new MessageResponse("Invalid role."));
+        }
+
+        var target = await _userManager.FindByIdAsync(id);
+        if (target == null)
+        {
+            return NotFound(new MessageResponse("User not found."));
+        }
+
+        var currentUser = await _userManager.GetUserAsync(User);
+        if (currentUser == null)
+        {
+            return Forbid();
+        }
+
+        var currentRoles = await _userManager.GetRolesAsync(currentUser);
+        if (!currentRoles.Contains(AppRoles.SuperAdmin))
+        {
+            return Forbid();
+        }
+
+        if (currentUser.Id == target.Id)
+        {
+            return BadRequest(new MessageResponse("You cannot change your own role."));
+        }
+
+        if (!target.IsActive)
+        {
+            return BadRequest(new MessageResponse("Cannot change roles for disabled users. Reactivate the user instead."));
+        }
+
+        var targetRoles = await _userManager.GetRolesAsync(target);
+        var currentRole = targetRoles.FirstOrDefault() ?? string.Empty;
+        if (!CanChangeProtectedRole(currentRole, request.Role))
+        {
+            return BadRequest(new MessageResponse("SuperAdmin is a protected role and cannot be changed here."));
+        }
+
+        if (string.Equals(currentRole, request.Role, StringComparison.Ordinal))
+        {
+            return NoContent();
+        }
+
+        var roleResult = await ReplaceUserRoleAsync(target, targetRoles, request.Role);
+        if (roleResult != null)
+        {
+            return BadRequest(new MessageResponse(roleResult));
+        }
+
+        var updateResult = await _userManager.UpdateAsync(target);
+        if (!updateResult.Succeeded)
+        {
+            return BadRequest(new MessageResponse(FormatIdentityErrors(updateResult)));
+        }
+
+        var stampResult = await _userManager.UpdateSecurityStampAsync(target);
+        if (!stampResult.Succeeded)
+        {
+            return BadRequest(new MessageResponse(FormatIdentityErrors(stampResult)));
+        }
+
+        _logger.LogInformation(
+            "User role updated: {Email}, old role: {OldRole}, new role: {NewRole}",
+            target.Email, currentRole, request.Role);
+
+        return NoContent();
+    }
+
+    [HttpPost("{id}/reactivate")]
+    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    public async Task<ActionResult<ReactivateUserResponse>> ReactivateUser(
+        string id,
+        [FromBody] ReactivateUserRequest request)
+    {
+        if (!AppRoles.All.Contains(request.Role))
+        {
+            return BadRequest(new MessageResponse("Invalid role."));
+        }
+
+        if (!await IsCurrentUserSuperAdminAsync())
+        {
+            return Forbid();
+        }
+
+        var target = await _userManager.FindByIdAsync(id);
+        if (target == null)
+        {
+            return NotFound(new MessageResponse("User not found."));
+        }
+
+        if (target.IsActive)
+        {
+            return BadRequest(new MessageResponse("User is already active."));
+        }
+
+        var targetRoles = await _userManager.GetRolesAsync(target);
+        var currentRole = targetRoles.FirstOrDefault() ?? string.Empty;
+        if (!CanReactivateAsRole(currentRole, request.Role))
+        {
+            return BadRequest(new MessageResponse("Invalid reactivation role for this user."));
+        }
+
+        if (!string.IsNullOrWhiteSpace(target.Email))
+        {
+            var existing = await _userManager.FindByEmailAsync(target.Email);
+            if (existing != null && existing.Id != target.Id && existing.IsActive)
+            {
+                return BadRequest(new MessageResponse("Another active user already uses this email."));
+            }
+        }
+
+        var temporaryPassword = PasswordGenerator.Generate();
+        var token = await _userManager.GeneratePasswordResetTokenAsync(target);
+        var passwordResult = await _userManager.ResetPasswordAsync(target, token, temporaryPassword);
+        if (!passwordResult.Succeeded)
+        {
+            return BadRequest(new MessageResponse(FormatIdentityErrors(passwordResult)));
+        }
+
+        if (!string.Equals(currentRole, request.Role, StringComparison.Ordinal))
+        {
+            var roleResult = await ReplaceUserRoleAsync(target, targetRoles, request.Role);
+            if (roleResult != null)
+            {
+                return BadRequest(new MessageResponse(roleResult));
+            }
+        }
+
+        target.IsActive = true;
+        target.MustChangePassword = true;
+
+        var updateResult = await _userManager.UpdateAsync(target);
+        if (!updateResult.Succeeded)
+        {
+            return BadRequest(new MessageResponse(FormatIdentityErrors(updateResult)));
+        }
+
+        var stampResult = await _userManager.UpdateSecurityStampAsync(target);
+        if (!stampResult.Succeeded)
+        {
+            return BadRequest(new MessageResponse(FormatIdentityErrors(stampResult)));
+        }
+
+        _logger.LogInformation(
+            "User reactivated: {Email}, role: {Role}",
+            target.Email, request.Role);
+
+        return Ok(new ReactivateUserResponse(temporaryPassword));
     }
 
     [HttpPut("{id}/export-limit")]
@@ -278,6 +447,57 @@ public class AdminUsersController : ControllerBase
         var currentUser = await _userManager.GetUserAsync(User);
         var currentRoles = currentUser != null ? await _userManager.GetRolesAsync(currentUser) : Array.Empty<string>();
         return currentRoles.Contains(AppRoles.SuperAdmin);
+    }
+
+    private static bool CanChangeProtectedRole(string currentRole, string requestedRole)
+    {
+        return AppRoles.NonSuperAdmin.Contains(currentRole)
+            && AppRoles.NonSuperAdmin.Contains(requestedRole);
+    }
+
+    private static bool CanReactivateAsRole(string currentRole, string requestedRole)
+    {
+        if (string.Equals(currentRole, AppRoles.SuperAdmin, StringComparison.Ordinal))
+        {
+            return string.Equals(requestedRole, AppRoles.SuperAdmin, StringComparison.Ordinal);
+        }
+
+        return AppRoles.NonSuperAdmin.Contains(currentRole)
+            && AppRoles.NonSuperAdmin.Contains(requestedRole);
+    }
+
+    private async Task<bool> IsLastActiveSuperAdminAsync(ApplicationUser target)
+    {
+        var superAdmins = await _userManager.GetUsersInRoleAsync(AppRoles.SuperAdmin);
+        return superAdmins.Count(user => user.IsActive) <= 1 && target.IsActive;
+    }
+
+    private async Task<string?> ReplaceUserRoleAsync(
+        ApplicationUser user,
+        IList<string> currentRoles,
+        string requestedRole)
+    {
+        if (currentRoles.Count > 0)
+        {
+            var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
+            if (!removeResult.Succeeded)
+            {
+                return FormatIdentityErrors(removeResult);
+            }
+        }
+
+        var addResult = await _userManager.AddToRoleAsync(user, requestedRole);
+        if (!addResult.Succeeded)
+        {
+            return FormatIdentityErrors(addResult);
+        }
+
+        return null;
+    }
+
+    private static string FormatIdentityErrors(IdentityResult result)
+    {
+        return string.Join(" ", result.Errors.Select(e => e.Description));
     }
 
     private static object ToResponse(AdminUsersListResult result, bool includeSuperAdminNote)

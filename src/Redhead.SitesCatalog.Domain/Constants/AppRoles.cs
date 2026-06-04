@@ -8,4 +8,5 @@ public static class AppRoles
     public const string Client = "Client";
 
     public static readonly string[] All = [SuperAdmin, Admin, Internal, Client];
+    public static readonly string[] NonSuperAdmin = [Admin, Internal, Client];
 }

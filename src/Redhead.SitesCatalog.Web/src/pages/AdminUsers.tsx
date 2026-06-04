@@ -31,7 +31,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { adminUsersService } from '../services/adminUsers.service';
 import { roleSettingsService } from '../services/roleSettings.service';
 import type { UserListItem as UserListItemType, UserTypeFilter } from '../types/adminUsers.types';
-import { ROLES } from '../types/adminUsers.types';
+import { NON_SUPER_ADMIN_ROLES, ROLES } from '../types/adminUsers.types';
 import type { RoleSettingItem } from '../types/roleSettings.types';
 import type { ExportLimitMode } from '../utils/exportLimit';
 import { formatExportLimit } from '../utils/exportLimit';
@@ -101,6 +101,14 @@ export const AdminUsers: React.FC = () => {
 
   const [disableConfirmUser, setDisableConfirmUser] = useState<UserListItemType | null>(null);
   const [resetPasswordConfirmUser, setResetPasswordConfirmUser] = useState<UserListItemType | null>(null);
+  const [changeRoleUser, setChangeRoleUser] = useState<UserListItemType | null>(null);
+  const [changeRoleValue, setChangeRoleValue] = useState<string>(NON_SUPER_ADMIN_ROLES[0]);
+  const [changeRoleLoading, setChangeRoleLoading] = useState(false);
+  const [changeRoleError, setChangeRoleError] = useState<string | null>(null);
+  const [reactivateUser, setReactivateUser] = useState<UserListItemType | null>(null);
+  const [reactivateRoleValue, setReactivateRoleValue] = useState<string>(NON_SUPER_ADMIN_ROLES[0]);
+  const [reactivateLoading, setReactivateLoading] = useState(false);
+  const [reactivateError, setReactivateError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [rowActionsAnchor, setRowActionsAnchor] = useState<null | HTMLElement>(null);
   const [rowActionsUser, setRowActionsUser] = useState<UserListItemType | null>(null);
@@ -119,6 +127,7 @@ export const AdminUsers: React.FC = () => {
   const isAdmin = currentUser?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
   const isSuperAdmin = currentUser?.roles?.includes('SuperAdmin');
   const allowedRoles = isSuperAdmin ? ROLES : ROLES.filter((r) => r !== 'SuperAdmin');
+  const normalRoles = NON_SUPER_ADMIN_ROLES;
 
   const loadUsers = useCallback(async (fallbackToPreviousPage = false) => {
     setLoading(true);
@@ -251,6 +260,85 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
+  const handleChangeRoleClick = useCallback((u: UserListItemType) => {
+    setRowActionsAnchor(null);
+    setRowActionsUser(null);
+    setChangeRoleUser(u);
+    setChangeRoleValue(
+      normalRoles.includes(u.role as (typeof normalRoles)[number])
+        ? u.role
+        : normalRoles[0],
+    );
+    setChangeRoleError(null);
+  }, [normalRoles]);
+
+  const handleCloseChangeRole = () => {
+    if (changeRoleLoading) return;
+    setChangeRoleUser(null);
+    setChangeRoleError(null);
+  };
+
+  const handleChangeRoleConfirm = async () => {
+    if (!changeRoleUser || changeRoleValue === changeRoleUser.role) return;
+
+    setChangeRoleError(null);
+    setChangeRoleLoading(true);
+    setActionLoadingId(changeRoleUser.id);
+    try {
+      await adminUsersService.updateRole(changeRoleUser.id, { role: changeRoleValue });
+      setChangeRoleUser(null);
+      await loadUsers(true);
+    } catch (err) {
+      setChangeRoleError(err instanceof ApiClientError ? err.message : 'Failed to change role');
+    } finally {
+      setActionLoadingId(null);
+      setChangeRoleLoading(false);
+    }
+  };
+
+  const handleReactivateClick = useCallback((u: UserListItemType) => {
+    setRowActionsAnchor(null);
+    setRowActionsUser(null);
+    setReactivateUser(u);
+    setReactivateRoleValue(
+      u.role === 'SuperAdmin'
+        ? 'SuperAdmin'
+        : normalRoles.includes(u.role as (typeof normalRoles)[number])
+          ? u.role
+          : normalRoles[0],
+    );
+    setReactivateError(null);
+  }, [normalRoles]);
+
+  const handleCloseReactivate = () => {
+    if (reactivateLoading) return;
+    setReactivateUser(null);
+    setReactivateError(null);
+  };
+
+  const handleReactivateConfirm = async () => {
+    if (!reactivateUser) return;
+
+    setReactivateError(null);
+    setReactivateLoading(true);
+    setActionLoadingId(reactivateUser.id);
+    try {
+      const res = await adminUsersService.reactivate(reactivateUser.id, { role: reactivateRoleValue });
+      setReactivateUser(null);
+      setTempPasswordDialog({
+        title: 'User reactivated',
+        email: reactivateUser.email,
+        password: res.temporaryPassword,
+      });
+      await loadUsers(true);
+    } catch (err) {
+      setReactivateError(err instanceof ApiClientError ? err.message : 'Failed to reactivate user');
+    } finally {
+      setActionLoadingId(null);
+      setReactivateLoading(false);
+    }
+  };
+
   const handleOpenEditExportLimit = useCallback((u: UserListItemType) => {
     setRowActionsAnchor(null);
     setRowActionsUser(null);
@@ -377,10 +465,18 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
-  const canModifyUser = useCallback((targetRole: string): boolean => {
-    if (isSuperAdmin) return true;
-    return targetRole !== 'SuperAdmin' && targetRole !== 'Admin';
-  }, [isSuperAdmin]);
+  const canModifyUser = useCallback((targetUser: UserListItemType): boolean => {
+    return Boolean(isSuperAdmin && targetUser.id !== currentUser?.id);
+  }, [currentUser?.id, isSuperAdmin]);
+
+  const canChangeUserRole = useCallback((targetUser: UserListItemType): boolean => {
+    return Boolean(
+      isSuperAdmin &&
+      targetUser.isActive &&
+      targetUser.id !== currentUser?.id &&
+      normalRoles.includes(targetUser.role as (typeof normalRoles)[number]),
+    );
+  }, [currentUser?.id, isSuperAdmin, normalRoles]);
 
   const copyPassword = () => {
     if (tempPasswordDialog) {
@@ -571,7 +667,9 @@ export const AdminUsers: React.FC = () => {
               headerAlign: 'center' as const,
               renderCell: (params: { row: UserListItemType }) => {
                 const u = params.row;
-                const hasActions = u.isActive && (canModifyUser(u.role) || u.isExportLimitEditable || isSuperAdmin);
+                const hasActions =
+                  (u.isActive && (canModifyUser(u) || u.isExportLimitEditable || isSuperAdmin)) ||
+                  (!u.isActive && isSuperAdmin);
                 return (
                   <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
                     <Tooltip title="Actions">
@@ -611,7 +709,9 @@ export const AdminUsers: React.FC = () => {
       isSuperAdmin,
     ],
   );
-  const rowActionsCanModify = rowActionsUser ? rowActionsUser.isActive && canModifyUser(rowActionsUser.role) : false;
+  const rowActionsCanModify = rowActionsUser ? rowActionsUser.isActive && canModifyUser(rowActionsUser) : false;
+  const rowActionsCanChangeRole = rowActionsUser ? canChangeUserRole(rowActionsUser) : false;
+  const rowActionsCanReactivate = Boolean(isSuperAdmin && rowActionsUser && !rowActionsUser.isActive);
   const rowActionsCanEditLimit = Boolean(rowActionsUser?.isActive && rowActionsUser.isExportLimitEditable);
   const rowActionsCanEditNote = Boolean(isSuperAdmin && rowActionsUser?.isActive);
 
@@ -738,6 +838,16 @@ export const AdminUsers: React.FC = () => {
             Edit super admin note
           </MenuItem>
         )}
+        {rowActionsCanChangeRole && rowActionsUser && (
+          <MenuItem onClick={() => handleChangeRoleClick(rowActionsUser)}>
+            Change role
+          </MenuItem>
+        )}
+        {rowActionsCanReactivate && rowActionsUser && (
+          <MenuItem onClick={() => handleReactivateClick(rowActionsUser)}>
+            Reactivate
+          </MenuItem>
+        )}
         {rowActionsCanModify && rowActionsUser && (
           <MenuItem onClick={() => handleResetPasswordClick(rowActionsUser)}>
             Reset password
@@ -823,6 +933,121 @@ export const AdminUsers: React.FC = () => {
       </Dialog>
 
       <Dialog
+        open={!!changeRoleUser}
+        onClose={handleCloseChangeRole}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Change role</DialogTitle>
+        <DialogContent>
+          {changeRoleUser && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <Box>
+                <Typography variant="body2">
+                  <strong>{changeRoleUser.email}</strong>
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Current role: {changeRoleUser.role}
+                </Typography>
+              </Box>
+              <FormControl fullWidth disabled={changeRoleLoading} required>
+                <InputLabel>New role</InputLabel>
+                <Select
+                  value={changeRoleValue}
+                  label="New role"
+                  onChange={(e) => {
+                    setChangeRoleValue(e.target.value);
+                    setChangeRoleError(null);
+                  }}
+                >
+                  {normalRoles.map((r) => (
+                    <MenuItem key={r} value={r}>
+                      {r}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {changeRoleError && <Alert severity="error">{changeRoleError}</Alert>}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <BrandButton kind="outline" onClick={handleCloseChangeRole} disabled={changeRoleLoading}>
+            Cancel
+          </BrandButton>
+          <BrandButton
+            kind="primary"
+            onClick={handleChangeRoleConfirm}
+            disabled={changeRoleLoading || !changeRoleUser || changeRoleValue === changeRoleUser.role}
+          >
+            {changeRoleLoading ? <CircularProgress size={24} color="inherit" /> : 'Save'}
+          </BrandButton>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={!!reactivateUser}
+        onClose={handleCloseReactivate}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Reactivate user</DialogTitle>
+        <DialogContent>
+          {reactivateUser && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <Box>
+                <Typography variant="body2">
+                  <strong>{reactivateUser.email}</strong>
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Current role: {reactivateUser.role}
+                </Typography>
+              </Box>
+
+              {reactivateUser.role === 'SuperAdmin' ? (
+                <TextField label="Role" value="SuperAdmin" disabled fullWidth />
+              ) : (
+                <FormControl fullWidth disabled={reactivateLoading} required>
+                  <InputLabel>Role</InputLabel>
+                  <Select
+                    value={reactivateRoleValue}
+                    label="Role"
+                    onChange={(e) => {
+                      setReactivateRoleValue(e.target.value);
+                      setReactivateError(null);
+                    }}
+                  >
+                    {normalRoles.map((r) => (
+                      <MenuItem key={r} value={r}>
+                        {r}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
+              <Typography variant="body2" color="text.secondary">
+                A new temporary password will be generated and shown only once.
+              </Typography>
+              {reactivateError && <Alert severity="error">{reactivateError}</Alert>}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <BrandButton kind="outline" onClick={handleCloseReactivate} disabled={reactivateLoading}>
+            Cancel
+          </BrandButton>
+          <BrandButton
+            kind="primary"
+            onClick={handleReactivateConfirm}
+            disabled={reactivateLoading || !reactivateUser}
+          >
+            {reactivateLoading ? <CircularProgress size={24} color="inherit" /> : 'Reactivate'}
+          </BrandButton>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
         open={!!resetPasswordConfirmUser}
         onClose={() => !actionLoadingId && setResetPasswordConfirmUser(null)}
         maxWidth="sm"
@@ -878,8 +1103,7 @@ export const AdminUsers: React.FC = () => {
                 Disable user <strong>{disableConfirmUser.email}</strong>?
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                This user will no longer be able to sign in or access the application. This action
-                cannot be reverted.
+                This user will no longer be able to sign in or access the application.
               </Typography>
             </>
           )}

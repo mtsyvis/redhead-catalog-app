@@ -40,6 +40,7 @@ General rules:
 * Users can update only their own profile names.
 * Disabled users cannot log in or access API endpoints.
 * Users are soft-disabled with `IsActive = false`; physical deletion is not allowed.
+* Disabled users may be reactivated only by `SuperAdmin`.
 * Authorization must be enforced server-side. UI hiding is only a convenience layer.
 * The admin users list is paginated and can be filtered by all users, client users, or internal users.
 * Internal users in the admin users list means any user whose role is not `Client`.
@@ -54,8 +55,14 @@ Current rules:
 * Only `SuperAdmin` can update role export limits.
 * Only `SuperAdmin` can update per-user export limit overrides.
 * Only `SuperAdmin` can create or update the internal `SuperAdmin` note on user accounts.
+* Only `SuperAdmin` can change user roles.
+* `SuperAdmin` can change roles only between `Admin`, `Internal`, and `Client`; `SuperAdmin` is a protected role and cannot be promoted or demoted through normal role editing.
+* `SuperAdmin` cannot change their own role.
+* Changing a user's role preserves any per-user export limit override; removing or changing that override is a separate explicit action.
 * `SuperAdmin` export access is unlimited and must not be editable in the UI.
 * `SuperAdmin` can reset passwords and disable users according to server-side authorization rules.
+* `SuperAdmin` cannot disable their own account.
+* The last active `SuperAdmin` account cannot be disabled.
 
 ### Admin
 
@@ -99,9 +106,15 @@ Rules:
 * Temporary password is displayed once after creation or reset.
 * Temporary password must not be logged or stored in plain text.
 * New users must change password on first login.
+* If a new user is created with an email that belongs to an active user, creation is rejected.
+* If a new user is created with an email that belongs to a disabled user, creation is rejected and the disabled account should be reactivated instead.
 * New users are created without first or last name in the admin create-user flow and must complete profile names during account setup.
 * Account setup can complete password change, profile names, or both depending on the user's current required setup state.
 * After password reset, `MustChangePassword` must be set to `true` again.
+* After reactivation, `MustChangePassword` must be set to `true` and the temporary password must be displayed once.
+* Reactivation preserves profile names, internal `SuperAdmin` note, Google Drive connection, saved filters, table views, and user history.
+* Reactivation clears per-user export limit overrides.
+* Disabled `SuperAdmin` users can be reactivated only as `SuperAdmin`; disabled `Admin`, `Internal`, and `Client` users can be reactivated only as `Admin`, `Internal`, or `Client`.
 * While `MustChangePassword = true` or profile names are incomplete, the user must be forced to `/account-setup` and blocked from normal app pages.
 * Users can update their own profile names from `/profile`; admins must not edit another user's profile names.
 
@@ -693,6 +706,8 @@ Rules:
 * Backend policies remain authoritative even if navigation hides a section.
 * User creation UI is available only to `SuperAdmin`.
 * The Users page should keep creation out of the table flow by opening the create-user form from an `Add user` dialog.
+* User reactivation UI is available only to `SuperAdmin` for disabled users.
+* Role-change UI is available only to `SuperAdmin` for active non-`SuperAdmin` users.
 * Admin users list should show user profile name for completed profiles and profile completion status for incomplete profiles.
 * Admin users list should show the user's name/profile status and email together in a single user-identification column.
 * `SuperAdmin` and `Admin` can view readonly admin user details, including account role, profile name fields, profile completion status, export-limit information, and Google Drive connection status.

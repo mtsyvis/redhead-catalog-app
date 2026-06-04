@@ -590,6 +590,375 @@ public sealed class AdminUsersControllerTests
     }
 
     [Fact]
+    public async Task CreateUser_WhenEmailBelongsToDisabledUser_ReturnsReactivationGuidance()
+    {
+        // Arrange
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            ExistingUserByEmail = new ApplicationUser
+            {
+                Id = "disabled-client-1",
+                Email = "client@example.com",
+                IsActive = false
+            }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.CreateUser(new CreateUserRequest("client@example.com", AppRoles.Client));
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("Reactivate", payload.Message);
+        Assert.Null(userManager.CreatedUser);
+    }
+
+    [Fact]
+    public async Task UpdateUserRole_WhenSuperAdminChangesNormalUserRole_UpdatesRoleAndPreservesOverride()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            IsActive = true,
+            ExportLimitOverrideMode = ExportLimitMode.Limited,
+            ExportLimitRowsOverride = 250
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserRole(
+            targetUser.Id,
+            new UpdateUserRoleRequest(AppRoles.Internal));
+
+        // Assert
+        Assert.IsType<NoContentResult>(result);
+        Assert.Equal([AppRoles.Client], userManager.RemovedRoles);
+        Assert.Equal(AppRoles.Internal, userManager.AddedRole);
+        Assert.Equal(ExportLimitMode.Limited, targetUser.ExportLimitOverrideMode);
+        Assert.Equal(250, targetUser.ExportLimitRowsOverride);
+        Assert.Equal(1, userManager.SecurityStampUpdateCount);
+    }
+
+    [Fact]
+    public async Task UpdateUserRole_WhenCurrentUserIsAdmin_ReturnsForbid()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser { Id = "client-1", Email = "client@example.com", IsActive = true };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "admin-1", Email = "admin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.Admin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserRole(
+            targetUser.Id,
+            new UpdateUserRoleRequest(AppRoles.Internal));
+
+        // Assert
+        Assert.IsType<ForbidResult>(result);
+        Assert.Null(userManager.AddedRole);
+        Assert.Equal(0, userManager.SecurityStampUpdateCount);
+    }
+
+    [Fact]
+    public async Task UpdateUserRole_WhenChangingOwnRole_ReturnsBadRequest()
+    {
+        // Arrange
+        var currentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com", IsActive = true };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = currentUser,
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = currentUser,
+            TargetRoles = new List<string> { AppRoles.Admin }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserRole(
+            currentUser.Id,
+            new UpdateUserRoleRequest(AppRoles.Internal));
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("own role", payload.Message);
+    }
+
+    [Theory]
+    [InlineData(AppRoles.SuperAdmin, AppRoles.Admin)]
+    [InlineData(AppRoles.Client, AppRoles.SuperAdmin)]
+    public async Task UpdateUserRole_WhenRoleChangeInvolvesSuperAdmin_ReturnsBadRequest(
+        string currentRole,
+        string requestedRole)
+    {
+        // Arrange
+        var targetUser = new ApplicationUser { Id = "target-1", Email = "target@example.com", IsActive = true };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { currentRole }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserRole(
+            targetUser.Id,
+            new UpdateUserRoleRequest(requestedRole));
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("protected role", payload.Message);
+        Assert.Null(userManager.AddedRole);
+    }
+
+    [Fact]
+    public async Task DisableUser_WhenDisablingOwnAccount_ReturnsBadRequest()
+    {
+        // Arrange
+        var currentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com", IsActive = true };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = currentUser,
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = currentUser,
+            TargetRoles = new List<string> { AppRoles.SuperAdmin }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.DisableUser(currentUser.Id);
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("own account", payload.Message);
+        Assert.True(currentUser.IsActive);
+    }
+
+    [Fact]
+    public async Task DisableUser_WhenTargetIsLastActiveSuperAdmin_ReturnsBadRequest()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser { Id = "superadmin-2", Email = "target@example.com", IsActive = true };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "current@example.com", IsActive = true },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.SuperAdmin },
+            SuperAdminUsers = new List<ApplicationUser> { targetUser }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.DisableUser(targetUser.Id);
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("last active SuperAdmin", payload.Message);
+        Assert.True(targetUser.IsActive);
+    }
+
+    [Fact]
+    public async Task ReactivateUser_WhenNormalUserIsDisabled_ActivatesWithSelectedRoleAndTemporaryPassword()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            IsActive = false,
+            MustChangePassword = false,
+            FirstName = "Ada",
+            LastName = "Lovelace",
+            SuperAdminNote = "Preserve note",
+            ExportLimitOverrideMode = ExportLimitMode.Limited,
+            ExportLimitRowsOverride = 300
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client },
+            ExistingUserByEmail = targetUser
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.ReactivateUser(
+            targetUser.Id,
+            new ReactivateUserRequest(AppRoles.Internal));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
+        Assert.False(string.IsNullOrWhiteSpace(payload.TemporaryPassword));
+        Assert.True(targetUser.IsActive);
+        Assert.True(targetUser.MustChangePassword);
+        Assert.Equal("Ada", targetUser.FirstName);
+        Assert.Equal("Lovelace", targetUser.LastName);
+        Assert.Equal("Preserve note", targetUser.SuperAdminNote);
+        Assert.Equal([AppRoles.Client], userManager.RemovedRoles);
+        Assert.Equal(AppRoles.Internal, userManager.AddedRole);
+        Assert.Equal(1, userManager.ResetPasswordCount);
+        Assert.Equal(1, userManager.SecurityStampUpdateCount);
+    }
+
+    [Fact]
+    public async Task ReactivateUser_WhenCurrentUserIsAdmin_ReturnsForbid()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser { Id = "client-1", Email = "client@example.com", IsActive = false };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "admin-1", Email = "admin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.Admin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.ReactivateUser(
+            targetUser.Id,
+            new ReactivateUserRequest(AppRoles.Internal));
+
+        // Assert
+        Assert.IsType<ForbidResult>(result.Result);
+        Assert.False(targetUser.IsActive);
+        Assert.Equal(0, userManager.ResetPasswordCount);
+    }
+
+    [Fact]
+    public async Task ReactivateUser_WhenDisabledSuperAdminIsReactivatedAsSuperAdmin_ReturnsTemporaryPassword()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "superadmin-2",
+            Email = "target@example.com",
+            IsActive = false,
+            MustChangePassword = false
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.SuperAdmin },
+            ExistingUserByEmail = targetUser
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.ReactivateUser(
+            targetUser.Id,
+            new ReactivateUserRequest(AppRoles.SuperAdmin));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
+        Assert.False(string.IsNullOrWhiteSpace(payload.TemporaryPassword));
+        Assert.True(targetUser.IsActive);
+        Assert.True(targetUser.MustChangePassword);
+        Assert.Null(userManager.AddedRole);
+        Assert.Equal(1, userManager.ResetPasswordCount);
+    }
+
+    [Fact]
+    public async Task ReactivateUser_WhenDisabledSuperAdminIsReactivatedAsNormalRole_ReturnsBadRequest()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser { Id = "superadmin-2", Email = "target@example.com", IsActive = false };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.SuperAdmin }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.ReactivateUser(
+            targetUser.Id,
+            new ReactivateUserRequest(AppRoles.Admin));
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("Invalid reactivation role", payload.Message);
+        Assert.False(targetUser.IsActive);
+    }
+
+    [Fact]
+    public async Task ReactivateUser_WhenEmailIsUsedByAnotherActiveUser_ReturnsBadRequest()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser { Id = "client-1", Email = "client@example.com", IsActive = false };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client },
+            ExistingUserByEmail = new ApplicationUser
+            {
+                Id = "client-2",
+                Email = "client@example.com",
+                IsActive = true
+            }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.ReactivateUser(
+            targetUser.Id,
+            new ReactivateUserRequest(AppRoles.Internal));
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("Another active user", payload.Message);
+        Assert.False(targetUser.IsActive);
+        Assert.Equal(0, userManager.ResetPasswordCount);
+    }
+
+    [Fact]
     public async Task UpdateUserSuperAdminNote_WhenCurrentUserIsSuperAdmin_UpdatesTrimmedNote()
     {
         // Arrange
@@ -853,9 +1222,15 @@ public sealed class AdminUsersControllerTests
     {
         public ApplicationUser? CurrentUser { get; init; }
         public IList<string> CurrentRoles { get; init; } = new List<string>();
+        public IList<string> TargetRoles { get; init; } = new List<string>();
+        public IList<ApplicationUser> SuperAdminUsers { get; init; } = new List<ApplicationUser>();
         public ApplicationUser? ExistingUserByEmail { get; set; }
         public ApplicationUser? TargetUserById { get; init; }
         public ApplicationUser? CreatedUser { get; private set; }
+        public List<string> RemovedRoles { get; } = [];
+        public string? AddedRole { get; private set; }
+        public int SecurityStampUpdateCount { get; private set; }
+        public int ResetPasswordCount { get; private set; }
 
         public StubUserManager()
             : base(
@@ -875,7 +1250,19 @@ public sealed class AdminUsersControllerTests
             => Task.FromResult(CurrentUser);
 
         public override Task<IList<string>> GetRolesAsync(ApplicationUser user)
-            => Task.FromResult(CurrentRoles);
+        {
+            if (CurrentUser != null && user.Id == CurrentUser.Id)
+            {
+                return Task.FromResult(CurrentRoles);
+            }
+
+            if (TargetUserById != null && user.Id == TargetUserById.Id)
+            {
+                return Task.FromResult(TargetRoles);
+            }
+
+            return Task.FromResult<IList<string>>(new List<string>());
+        }
 
         public override Task<ApplicationUser?> FindByEmailAsync(string email)
             => Task.FromResult(ExistingUserByEmail);
@@ -891,10 +1278,53 @@ public sealed class AdminUsersControllerTests
         }
 
         public override Task<IdentityResult> AddToRoleAsync(ApplicationUser user, string role)
-            => Task.FromResult(IdentityResult.Success);
+        {
+            AddedRole = role;
+            if (TargetUserById != null && user.Id == TargetUserById.Id)
+            {
+                TargetRoles.Add(role);
+            }
+
+            return Task.FromResult(IdentityResult.Success);
+        }
+
+        public override Task<IdentityResult> RemoveFromRolesAsync(ApplicationUser user, IEnumerable<string> roles)
+        {
+            var roleList = roles.ToList();
+            RemovedRoles.AddRange(roleList);
+            foreach (var role in roleList)
+            {
+                TargetRoles.Remove(role);
+            }
+
+            return Task.FromResult(IdentityResult.Success);
+        }
 
         public override Task<IdentityResult> UpdateAsync(ApplicationUser user)
             => Task.FromResult(IdentityResult.Success);
+
+        public override Task<IdentityResult> UpdateSecurityStampAsync(ApplicationUser user)
+        {
+            SecurityStampUpdateCount++;
+            return Task.FromResult(IdentityResult.Success);
+        }
+
+        public override Task<string> GeneratePasswordResetTokenAsync(ApplicationUser user)
+            => Task.FromResult("reset-token");
+
+        public override Task<IdentityResult> ResetPasswordAsync(ApplicationUser user, string token, string newPassword)
+        {
+            ResetPasswordCount++;
+            return Task.FromResult(IdentityResult.Success);
+        }
+
+        public override Task<IList<ApplicationUser>> GetUsersInRoleAsync(string roleName)
+        {
+            IList<ApplicationUser> users = string.Equals(roleName, AppRoles.SuperAdmin, StringComparison.Ordinal)
+                ? SuperAdminUsers
+                : new List<ApplicationUser>();
+            return Task.FromResult(users);
+        }
     }
 
     private sealed class StubUserStore : IUserStore<ApplicationUser>

@@ -145,6 +145,14 @@ public record SuperAdminUserDetailsResponse(
 
 public record ResetPasswordResponse(string TemporaryPassword);
 
+public record UpdateUserRoleRequest(
+    [Required, MinLength(1)] string Role);
+
+public record ReactivateUserRequest(
+    [Required, MinLength(1)] string Role);
+
+public record ReactivateUserResponse(string TemporaryPassword);
+
 public record UpdateUserExportLimitRequest(
     ExportLimitMode? OverrideMode,
     int? OverrideRows);
