@@ -561,19 +561,36 @@ export const AdminUsers: React.FC = () => {
         sortable: false,
         renderCell: (params) => {
           const profileName = getProfileName(params.row);
+          const isCurrentUserRow = params.row.id === currentUser?.id;
 
           return (
             <Box sx={{ py: 0.75, minWidth: 0 }}>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 600,
-                  color: profileName ? 'text.primary' : 'warning.dark',
-                  wordBreak: 'break-word',
-                }}
-              >
-                {profileName ?? 'Profile incomplete'}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flexWrap: 'wrap' }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: 600,
+                    color: profileName ? 'text.primary' : 'warning.dark',
+                    wordBreak: 'break-word',
+                    minWidth: 0,
+                  }}
+                >
+                  {profileName ?? 'Profile incomplete'}
+                </Typography>
+                {isCurrentUserRow && (
+                  <Chip
+                    label="You"
+                    color="primary"
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                      height: 20,
+                      fontSize: '0.6875rem',
+                      fontWeight: 700,
+                    }}
+                  />
+                )}
+              </Box>
               <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
                 {params.row.email}
               </Typography>
@@ -637,20 +654,24 @@ export const AdminUsers: React.FC = () => {
                 const note = params.row.superAdminNote?.trim();
 
                 return (
-                  <Typography
-                    variant="body2"
-                    color={note ? 'text.primary' : 'text.secondary'}
-                    sx={{
-                      py: 0.75,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      wordBreak: 'break-word',
-                    }}
-                  >
-                    {note || '—'}
-                  </Typography>
+                  <Box sx={{ py: 0.75, minWidth: 0, width: '100%', overflow: 'hidden' }}>
+                    <Typography
+                      variant="body2"
+                      color={note ? 'text.primary' : 'text.secondary'}
+                      sx={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        wordBreak: 'break-word',
+                        lineHeight: 1.35,
+                        maxHeight: '2.7em',
+                      }}
+                    >
+                      {note || '—'}
+                    </Typography>
+                  </Box>
                 );
               },
             } satisfies GridColDef<UserListItemType>,
@@ -705,6 +726,7 @@ export const AdminUsers: React.FC = () => {
     [
       actionLoadingId,
       canModifyUser,
+      currentUser?.id,
       handleOpenRowActions,
       isSuperAdmin,
     ],
@@ -779,6 +801,7 @@ export const AdminUsers: React.FC = () => {
           paginationMode="server"
           onPaginationModelChange={handlePaginationModelChange}
           onRowClick={handleRowClick}
+          getRowClassName={(params) => (params.row.id === currentUser?.id ? 'current-user-row' : '')}
           localeText={dataGridLocaleText}
           disableRowSelectionOnClick
           disableColumnMenu
@@ -794,8 +817,15 @@ export const AdminUsers: React.FC = () => {
             '& .MuiDataGrid-row': {
               cursor: 'pointer',
             },
+            '& .MuiDataGrid-row.current-user-row': {
+              backgroundColor: 'rgba(25, 118, 210, 0.04)',
+              boxShadow: 'inset 3px 0 0 rgba(25, 118, 210, 0.85)',
+            },
             '& .MuiDataGrid-row:hover': {
               backgroundColor: 'action.hover',
+            },
+            '& .MuiDataGrid-row.current-user-row:hover': {
+              backgroundColor: 'rgba(25, 118, 210, 0.08)',
             },
             '& .MuiDataGrid-cell:focus': {
               outline: 'none',
