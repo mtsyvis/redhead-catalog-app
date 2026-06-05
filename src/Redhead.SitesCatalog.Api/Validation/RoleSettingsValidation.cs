@@ -38,8 +38,28 @@ public static class RoleSettingsValidation
                 => "ExportLimitRows must be greater than 0 when mode is Limited.",
             ExportLimitMode.Disabled or ExportLimitMode.Unlimited when item.ExportLimitRows is not null
                 => "ExportLimitRows must be null when mode is Disabled or Unlimited.",
-            _ => null
+            _ => ValidateUsageLimits(item)
         };
     }
-}
 
+    private static string? ValidateUsageLimits(RoleSettingUpdateItemDto item)
+    {
+        return ValidatePositiveIfProvided(
+            item.DailyUniqueExportedDomainsLimit,
+            nameof(item.DailyUniqueExportedDomainsLimit))
+            ?? ValidatePositiveIfProvided(
+                item.WeeklyUniqueExportedDomainsLimit,
+                nameof(item.WeeklyUniqueExportedDomainsLimit))
+            ?? ValidatePositiveIfProvided(
+                item.DailyExportOperationsLimit,
+                nameof(item.DailyExportOperationsLimit))
+            ?? ValidatePositiveIfProvided(
+                item.WeeklyExportOperationsLimit,
+                nameof(item.WeeklyExportOperationsLimit));
+    }
+
+    private static string? ValidatePositiveIfProvided(int? value, string fieldName)
+        => value is <= 0
+            ? $"{fieldName} must be greater than 0 when provided."
+            : null;
+}

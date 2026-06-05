@@ -384,10 +384,17 @@ public class AdminUsersController : ControllerBase
             return BadRequest(new MessageResponse(overrideError));
         }
 
+        var usageLimitRoleError = UserExportLimitValidation.ValidateUsageLimitTargetRole(targetRole, request);
+        if (usageLimitRoleError != null)
+        {
+            return BadRequest(new MessageResponse(usageLimitRoleError));
+        }
+
         targetUser.ExportLimitOverrideMode = request.OverrideMode;
         targetUser.ExportLimitRowsOverride = request.OverrideMode == ExportLimitMode.Limited
             ? request.OverrideRows
             : null;
+        ApplyClientUsageLimitOverrides(targetUser, request);
 
         await _userManager.UpdateAsync(targetUser);
 
@@ -396,6 +403,25 @@ public class AdminUsersController : ControllerBase
             targetUser.Email, request.OverrideMode);
 
         return NoContent();
+    }
+
+    private static void ApplyClientUsageLimitOverrides(
+        ApplicationUser targetUser,
+        UpdateUserExportLimitRequest request)
+    {
+        if (request.ClientUsageLimitOverrides == null)
+        {
+            return;
+        }
+
+        targetUser.DailyUniqueExportedDomainsLimitOverride =
+            request.ClientUsageLimitOverrides.DailyUniqueExportedDomainsLimit;
+        targetUser.WeeklyUniqueExportedDomainsLimitOverride =
+            request.ClientUsageLimitOverrides.WeeklyUniqueExportedDomainsLimit;
+        targetUser.DailyExportOperationsLimitOverride =
+            request.ClientUsageLimitOverrides.DailyExportOperationsLimit;
+        targetUser.WeeklyExportOperationsLimitOverride =
+            request.ClientUsageLimitOverrides.WeeklyExportOperationsLimit;
     }
 
     [HttpPut("{id}/super-admin-note")]
@@ -521,86 +547,87 @@ public class AdminUsersController : ControllerBase
     }
 
     private static UserListItem ToResponseItem(AdminUserListItemDto item)
-    {
-        return new UserListItem(
-            Id: item.Id,
-            Email: item.Email,
-            FirstName: item.FirstName,
-            LastName: item.LastName,
-            DisplayName: item.DisplayName,
-            MustCompleteProfile: item.MustCompleteProfile,
-            Role: item.Role,
-            IsActive: item.IsActive,
-            ExportLimitOverrideMode: item.ExportLimitOverrideMode,
-            ExportLimitRowsOverride: item.ExportLimitRowsOverride,
-            EffectiveExportLimitMode: item.EffectiveExportLimitMode,
-            EffectiveExportLimitRows: item.EffectiveExportLimitRows,
-            IsExportLimitOverridden: item.IsExportLimitOverridden,
-            IsExportLimitEditable: item.IsExportLimitEditable);
-    }
+        => ToUserListItem<UserListItem>(item);
 
     private static SuperAdminUserListItem ToSuperAdminResponseItem(AdminUserListItemDto item)
+        => ToUserListItem<SuperAdminUserListItem>(item) with
+        {
+            SuperAdminNote = item.SuperAdminNote
+        };
+
+    private static T ToUserListItem<T>(AdminUserListItemDto item)
+        where T : UserListItem, new()
     {
-        return new SuperAdminUserListItem(
-            Id: item.Id,
-            Email: item.Email,
-            FirstName: item.FirstName,
-            LastName: item.LastName,
-            DisplayName: item.DisplayName,
-            MustCompleteProfile: item.MustCompleteProfile,
-            Role: item.Role,
-            IsActive: item.IsActive,
-            ExportLimitOverrideMode: item.ExportLimitOverrideMode,
-            ExportLimitRowsOverride: item.ExportLimitRowsOverride,
-            EffectiveExportLimitMode: item.EffectiveExportLimitMode,
-            EffectiveExportLimitRows: item.EffectiveExportLimitRows,
-            IsExportLimitOverridden: item.IsExportLimitOverridden,
-            IsExportLimitEditable: item.IsExportLimitEditable,
-            SuperAdminNote: item.SuperAdminNote);
+        return new T
+        {
+            Id = item.Id,
+            Email = item.Email,
+            FirstName = item.FirstName,
+            LastName = item.LastName,
+            DisplayName = item.DisplayName,
+            MustCompleteProfile = item.MustCompleteProfile,
+            Role = item.Role,
+            IsActive = item.IsActive,
+            ExportLimitOverrideMode = item.ExportLimitOverrideMode,
+            ExportLimitRowsOverride = item.ExportLimitRowsOverride,
+            EffectiveExportLimitMode = item.EffectiveExportLimitMode,
+            EffectiveExportLimitRows = item.EffectiveExportLimitRows,
+            IsExportLimitOverridden = item.IsExportLimitOverridden,
+            IsExportLimitEditable = item.IsExportLimitEditable,
+            DailyUniqueExportedDomainsLimitOverride = item.DailyUniqueExportedDomainsLimitOverride,
+            WeeklyUniqueExportedDomainsLimitOverride = item.WeeklyUniqueExportedDomainsLimitOverride,
+            DailyExportOperationsLimitOverride = item.DailyExportOperationsLimitOverride,
+            WeeklyExportOperationsLimitOverride = item.WeeklyExportOperationsLimitOverride,
+            EffectiveDailyUniqueExportedDomainsLimit = item.EffectiveDailyUniqueExportedDomainsLimit,
+            EffectiveWeeklyUniqueExportedDomainsLimit = item.EffectiveWeeklyUniqueExportedDomainsLimit,
+            EffectiveDailyExportOperationsLimit = item.EffectiveDailyExportOperationsLimit,
+            EffectiveWeeklyExportOperationsLimit = item.EffectiveWeeklyExportOperationsLimit
+        };
     }
 
     private static object ToResponse(AdminUserDetailsDto user, bool includeSuperAdminNote)
     {
         if (includeSuperAdminNote)
         {
-            return new SuperAdminUserDetailsResponse(
-                Id: user.Id,
-                Email: user.Email,
-                FirstName: user.FirstName,
-                LastName: user.LastName,
-                DisplayName: user.DisplayName,
-                MustCompleteProfile: user.MustCompleteProfile,
-                MustChangePassword: user.MustChangePassword,
-                Role: user.Role,
-                IsActive: user.IsActive,
-                ExportLimitOverrideMode: user.ExportLimitOverrideMode,
-                ExportLimitRowsOverride: user.ExportLimitRowsOverride,
-                EffectiveExportLimitMode: user.EffectiveExportLimitMode,
-                EffectiveExportLimitRows: user.EffectiveExportLimitRows,
-                IsExportLimitOverridden: user.IsExportLimitOverridden,
-                IsExportLimitEditable: user.IsExportLimitEditable,
-                GoogleDriveConnected: user.GoogleDriveConnected,
-                GoogleDrive: user.GoogleDrive,
-                SuperAdminNote: user.SuperAdminNote);
+            return ToUserDetailsResponse<SuperAdminUserDetailsResponse>(user) with
+            {
+                SuperAdminNote = user.SuperAdminNote
+            };
         }
 
-        return new AdminUserDetailsResponse(
-            Id: user.Id,
-            Email: user.Email,
-            FirstName: user.FirstName,
-            LastName: user.LastName,
-            DisplayName: user.DisplayName,
-            MustCompleteProfile: user.MustCompleteProfile,
-            MustChangePassword: user.MustChangePassword,
-            Role: user.Role,
-            IsActive: user.IsActive,
-            ExportLimitOverrideMode: user.ExportLimitOverrideMode,
-            ExportLimitRowsOverride: user.ExportLimitRowsOverride,
-            EffectiveExportLimitMode: user.EffectiveExportLimitMode,
-            EffectiveExportLimitRows: user.EffectiveExportLimitRows,
-            IsExportLimitOverridden: user.IsExportLimitOverridden,
-            IsExportLimitEditable: user.IsExportLimitEditable,
-            GoogleDriveConnected: user.GoogleDriveConnected,
-            GoogleDrive: user.GoogleDrive);
+        return ToUserDetailsResponse<AdminUserDetailsResponse>(user);
+    }
+
+    private static T ToUserDetailsResponse<T>(AdminUserDetailsDto user)
+        where T : AdminUserDetailsResponse, new()
+    {
+        return new T
+        {
+            Id = user.Id,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            DisplayName = user.DisplayName,
+            MustCompleteProfile = user.MustCompleteProfile,
+            MustChangePassword = user.MustChangePassword,
+            Role = user.Role,
+            IsActive = user.IsActive,
+            ExportLimitOverrideMode = user.ExportLimitOverrideMode,
+            ExportLimitRowsOverride = user.ExportLimitRowsOverride,
+            EffectiveExportLimitMode = user.EffectiveExportLimitMode,
+            EffectiveExportLimitRows = user.EffectiveExportLimitRows,
+            IsExportLimitOverridden = user.IsExportLimitOverridden,
+            IsExportLimitEditable = user.IsExportLimitEditable,
+            GoogleDriveConnected = user.GoogleDriveConnected,
+            GoogleDrive = user.GoogleDrive,
+            DailyUniqueExportedDomainsLimitOverride = user.DailyUniqueExportedDomainsLimitOverride,
+            WeeklyUniqueExportedDomainsLimitOverride = user.WeeklyUniqueExportedDomainsLimitOverride,
+            DailyExportOperationsLimitOverride = user.DailyExportOperationsLimitOverride,
+            WeeklyExportOperationsLimitOverride = user.WeeklyExportOperationsLimitOverride,
+            EffectiveDailyUniqueExportedDomainsLimit = user.EffectiveDailyUniqueExportedDomainsLimit,
+            EffectiveWeeklyUniqueExportedDomainsLimit = user.EffectiveWeeklyUniqueExportedDomainsLimit,
+            EffectiveDailyExportOperationsLimit = user.EffectiveDailyExportOperationsLimit,
+            EffectiveWeeklyExportOperationsLimit = user.EffectiveWeeklyExportOperationsLimit
+        };
     }
 }

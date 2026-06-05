@@ -1,4 +1,5 @@
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Models.Exports;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
@@ -18,6 +19,15 @@ public interface IExportService
         IReadOnlyList<string> visibleColumnKeys,
         CancellationToken cancellationToken = default);
 
+    Task<PreparedExportResult> PrepareSitesExportAsync(
+        SitesQuery query,
+        string userId,
+        string userEmail,
+        string userRole,
+        IReadOnlyList<string> visibleColumnKeys,
+        string destination,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Export multi-search as Excel: filtered Found rows (effective policy limit) plus Not found domains.
     /// Domain/default sort preserves normalized input order; other sorts apply to Found rows.
@@ -30,5 +40,19 @@ public interface IExportService
         string userEmail,
         string userRole,
         IReadOnlyList<string> visibleColumnKeys,
+        CancellationToken cancellationToken = default);
+
+    Task<PreparedExportResult> PrepareMultiSearchExportAsync(
+        string searchText,
+        SitesQuery query,
+        string userId,
+        string userEmail,
+        string userRole,
+        IReadOnlyList<string> visibleColumnKeys,
+        string destination,
+        CancellationToken cancellationToken = default);
+
+    Task<ExportResult> CompletePreparedExportAsync(
+        PreparedExportResult preparedExport,
         CancellationToken cancellationToken = default);
 }

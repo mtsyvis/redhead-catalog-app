@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 
@@ -22,6 +23,22 @@ public class RoleSettingsConfiguration : IEntityTypeConfiguration<RoleSettings>
             t.HasCheckConstraint(
                 "CK_RoleSettings_ExportLimitRows_NonLimitedRequiresNullRows",
                 @"""ExportLimitMode"" = 2 OR ""ExportLimitRows"" IS NULL");
+
+            t.HasCheckConstraint(
+                "CK_RoleSettings_DailyUniqueExportedDomainsLimit_PositiveOrNull",
+                @"""DailyUniqueExportedDomainsLimit"" IS NULL OR ""DailyUniqueExportedDomainsLimit"" > 0");
+
+            t.HasCheckConstraint(
+                "CK_RoleSettings_WeeklyUniqueExportedDomainsLimit_PositiveOrNull",
+                @"""WeeklyUniqueExportedDomainsLimit"" IS NULL OR ""WeeklyUniqueExportedDomainsLimit"" > 0");
+
+            t.HasCheckConstraint(
+                "CK_RoleSettings_DailyExportOperationsLimit_PositiveOrNull",
+                @"""DailyExportOperationsLimit"" IS NULL OR ""DailyExportOperationsLimit"" > 0");
+
+            t.HasCheckConstraint(
+                "CK_RoleSettings_WeeklyExportOperationsLimit_PositiveOrNull",
+                @"""WeeklyExportOperationsLimit"" IS NULL OR ""WeeklyExportOperationsLimit"" > 0");
         });
 
         builder.HasKey(rs => rs.RoleName);
@@ -37,12 +54,33 @@ public class RoleSettingsConfiguration : IEntityTypeConfiguration<RoleSettings>
         builder.Property(rs => rs.ExportLimitRows)
             .IsRequired(false);
 
+        builder.Property(rs => rs.DailyUniqueExportedDomainsLimit)
+            .IsRequired(false);
+
+        builder.Property(rs => rs.WeeklyUniqueExportedDomainsLimit)
+            .IsRequired(false);
+
+        builder.Property(rs => rs.DailyExportOperationsLimit)
+            .IsRequired(false);
+
+        builder.Property(rs => rs.WeeklyExportOperationsLimit)
+            .IsRequired(false);
+
         // Seed default role settings with explicit mode-based values
         builder.HasData(
             new RoleSettings { RoleName = "SuperAdmin", ExportLimitMode = ExportLimitMode.Unlimited, ExportLimitRows = null },
             new RoleSettings { RoleName = "Admin", ExportLimitMode = ExportLimitMode.Unlimited, ExportLimitRows = null },
             new RoleSettings { RoleName = "Internal", ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 10000 },
-            new RoleSettings { RoleName = "Client", ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 5000 }
+            new RoleSettings
+            {
+                RoleName = "Client",
+                ExportLimitMode = ExportLimitMode.Limited,
+                ExportLimitRows = 5000,
+                DailyUniqueExportedDomainsLimit = ExportConstants.TrustedClientDailyUniqueExportedDomainsLimit,
+                WeeklyUniqueExportedDomainsLimit = ExportConstants.TrustedClientWeeklyUniqueExportedDomainsLimit,
+                DailyExportOperationsLimit = ExportConstants.TrustedClientDailyExportOperationsLimit,
+                WeeklyExportOperationsLimit = ExportConstants.TrustedClientWeeklyExportOperationsLimit
+            }
         );
     }
 }

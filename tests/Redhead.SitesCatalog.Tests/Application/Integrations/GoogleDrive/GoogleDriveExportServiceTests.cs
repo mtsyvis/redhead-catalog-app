@@ -165,6 +165,78 @@ public sealed class GoogleDriveExportServiceTests
     }
 
     [Fact]
+    public async Task ExportSitesAsync_ClientUsageLimitReached_UploadsPartialWorkbookAndLogsGoogleDriveDestination()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        SeedExportData(
+            db,
+            ExportLimitMode.Limited,
+            limitRows: 10,
+            roleName: AppRoles.Client,
+            dailyUniqueDomains: 1,
+            weeklyUniqueDomains: 10,
+            dailyOperations: 10,
+            weeklyOperations: 10);
+        SeedConnection(db);
+        var driveClient = CreateDriveClientMock();
+        var sut = CreateService(db, driveClient.Object);
+
+        // Act
+        var response = await sut.ExportSitesAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(1, response.RowsExported);
+        Assert.True(response.WasTruncated);
+        Assert.Equal(ExportConstants.DailyUniqueDomainLimitReached, response.TruncationReason);
+
+        var exportLog = await db.ExportLogs.SingleAsync();
+        Assert.Equal(ExportConstants.DestinationGoogleDrive, exportLog.Destination);
+        Assert.Equal(ExportConstants.ExportModeSites, exportLog.ExportMode);
+        Assert.Equal(1, exportLog.ExportedRowsCount);
+        Assert.Single(await db.ExportedDomainAccesses.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsync_WhenUploadFails_DoesNotLogSuccessfulExport()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        SeedExportData(db, ExportLimitMode.Unlimited);
+        SeedConnection(db);
+        var driveClient = CreateDriveClientMock();
+        driveClient
+            .Setup(client => client.UploadFileAsync(
+                It.IsAny<string>(),
+                "folder-1",
+                ExportConstants.SitesFileName,
+                It.IsAny<Stream>(),
+                ExportConstants.ExcelContentType,
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new GoogleDriveApiException("Upload failed."));
+        var sut = CreateService(db, driveClient.Object);
+
+        // Act
+        var act = () => sut.ExportSitesAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            CancellationToken.None);
+
+        // Assert
+        var exception = await Assert.ThrowsAsync<GoogleDriveExportException>(act);
+        Assert.Equal(GoogleDriveExportException.UploadFailedErrorCode, exception.ErrorCode);
+        Assert.Empty(await db.ExportLogs.ToListAsync());
+        Assert.Empty(await db.ExportedDomainAccesses.ToListAsync());
+    }
+
+    [Fact]
     public async Task ExportSitesAsync_WhenGoogleRequiresReconnect_MarksConnectionRevoked()
     {
         // Arrange
@@ -249,6 +321,7 @@ public sealed class GoogleDriveExportServiceTests
             db,
             new SitesQueryBuilder(db),
             new EffectiveExportPolicyService(db),
+            new ExportUsageLimitService(db),
             new SitesExcelExportGenerator());
 
         return new GoogleDriveExportService(
@@ -276,13 +349,22 @@ public sealed class GoogleDriveExportServiceTests
     private static void SeedExportData(
         ApplicationDbContext db,
         ExportLimitMode mode,
-        int? limitRows = null)
+        int? limitRows = null,
+        string roleName = AppRoles.Admin,
+        int? dailyUniqueDomains = null,
+        int? weeklyUniqueDomains = null,
+        int? dailyOperations = null,
+        int? weeklyOperations = null)
     {
         db.RoleSettings.Add(new RoleSettings
         {
-            RoleName = AppRoles.Admin,
+            RoleName = roleName,
             ExportLimitMode = mode,
-            ExportLimitRows = limitRows
+            ExportLimitRows = limitRows,
+            DailyUniqueExportedDomainsLimit = dailyUniqueDomains,
+            WeeklyUniqueExportedDomainsLimit = weeklyUniqueDomains,
+            DailyExportOperationsLimit = dailyOperations,
+            WeeklyExportOperationsLimit = weeklyOperations
         });
 
         db.Sites.AddRange(

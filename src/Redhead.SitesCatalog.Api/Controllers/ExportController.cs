@@ -8,6 +8,7 @@ using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Exceptions;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Exceptions;
@@ -260,6 +261,11 @@ public class ExportController : ControllerBase
         if (result.LimitRows.HasValue)
         {
             Response.Headers["X-Export-Limit-Rows"] = result.LimitRows.Value.ToString();
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.TruncationReason))
+        {
+            Response.Headers["X-Export-Truncation-Reason"] = result.TruncationReason;
         }
     }
 

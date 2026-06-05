@@ -83,8 +83,16 @@ public sealed class AdminUsersListService : IAdminUsersListService
             IsActive = listItem.IsActive,
             ExportLimitOverrideMode = listItem.ExportLimitOverrideMode,
             ExportLimitRowsOverride = listItem.ExportLimitRowsOverride,
+            DailyUniqueExportedDomainsLimitOverride = listItem.DailyUniqueExportedDomainsLimitOverride,
+            WeeklyUniqueExportedDomainsLimitOverride = listItem.WeeklyUniqueExportedDomainsLimitOverride,
+            DailyExportOperationsLimitOverride = listItem.DailyExportOperationsLimitOverride,
+            WeeklyExportOperationsLimitOverride = listItem.WeeklyExportOperationsLimitOverride,
             EffectiveExportLimitMode = listItem.EffectiveExportLimitMode,
             EffectiveExportLimitRows = listItem.EffectiveExportLimitRows,
+            EffectiveDailyUniqueExportedDomainsLimit = listItem.EffectiveDailyUniqueExportedDomainsLimit,
+            EffectiveWeeklyUniqueExportedDomainsLimit = listItem.EffectiveWeeklyUniqueExportedDomainsLimit,
+            EffectiveDailyExportOperationsLimit = listItem.EffectiveDailyExportOperationsLimit,
+            EffectiveWeeklyExportOperationsLimit = listItem.EffectiveWeeklyExportOperationsLimit,
             IsExportLimitOverridden = listItem.IsExportLimitOverridden,
             IsExportLimitEditable = listItem.IsExportLimitEditable,
             GoogleDriveConnected = googleDrive.Connected,
@@ -112,7 +120,11 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 IsActive = user.IsActive,
                 MustChangePassword = user.MustChangePassword,
                 ExportLimitOverrideMode = user.ExportLimitOverrideMode,
-                ExportLimitRowsOverride = user.ExportLimitRowsOverride
+                ExportLimitRowsOverride = user.ExportLimitRowsOverride,
+                DailyUniqueExportedDomainsLimitOverride = user.DailyUniqueExportedDomainsLimitOverride,
+                WeeklyUniqueExportedDomainsLimitOverride = user.WeeklyUniqueExportedDomainsLimitOverride,
+                DailyExportOperationsLimitOverride = user.DailyExportOperationsLimitOverride,
+                WeeklyExportOperationsLimitOverride = user.WeeklyExportOperationsLimitOverride
             };
     }
 
@@ -176,8 +188,16 @@ public sealed class AdminUsersListService : IAdminUsersListService
             IsActive = user.IsActive,
             ExportLimitOverrideMode = isSuperAdmin ? null : user.ExportLimitOverrideMode,
             ExportLimitRowsOverride = isSuperAdmin ? null : user.ExportLimitRowsOverride,
+            DailyUniqueExportedDomainsLimitOverride = isSuperAdmin ? null : user.DailyUniqueExportedDomainsLimitOverride,
+            WeeklyUniqueExportedDomainsLimitOverride = isSuperAdmin ? null : user.WeeklyUniqueExportedDomainsLimitOverride,
+            DailyExportOperationsLimitOverride = isSuperAdmin ? null : user.DailyExportOperationsLimitOverride,
+            WeeklyExportOperationsLimitOverride = isSuperAdmin ? null : user.WeeklyExportOperationsLimitOverride,
             EffectiveExportLimitMode = effectivePolicy.Mode,
             EffectiveExportLimitRows = effectivePolicy.Rows,
+            EffectiveDailyUniqueExportedDomainsLimit = effectivePolicy.DailyUniqueExportedDomainsLimit,
+            EffectiveWeeklyUniqueExportedDomainsLimit = effectivePolicy.WeeklyUniqueExportedDomainsLimit,
+            EffectiveDailyExportOperationsLimit = effectivePolicy.DailyExportOperationsLimit,
+            EffectiveWeeklyExportOperationsLimit = effectivePolicy.WeeklyExportOperationsLimit,
             IsExportLimitOverridden = effectivePolicy.IsOverridden,
             IsExportLimitEditable = !isSuperAdmin
         };
@@ -191,7 +211,11 @@ public sealed class AdminUsersListService : IAdminUsersListService
             Email = user.Email,
             IsActive = user.IsActive,
             ExportLimitOverrideMode = user.ExportLimitOverrideMode,
-            ExportLimitRowsOverride = user.ExportLimitRowsOverride
+            ExportLimitRowsOverride = user.ExportLimitRowsOverride,
+            DailyUniqueExportedDomainsLimitOverride = user.DailyUniqueExportedDomainsLimitOverride,
+            WeeklyUniqueExportedDomainsLimitOverride = user.WeeklyUniqueExportedDomainsLimitOverride,
+            DailyExportOperationsLimitOverride = user.DailyExportOperationsLimitOverride,
+            WeeklyExportOperationsLimitOverride = user.WeeklyExportOperationsLimitOverride
         };
     }
 
@@ -208,5 +232,9 @@ public sealed class AdminUsersListService : IAdminUsersListService
         public bool MustChangePassword { get; init; }
         public ExportLimitMode? ExportLimitOverrideMode { get; init; }
         public int? ExportLimitRowsOverride { get; init; }
+        public int? DailyUniqueExportedDomainsLimitOverride { get; init; }
+        public int? WeeklyUniqueExportedDomainsLimitOverride { get; init; }
+        public int? DailyExportOperationsLimitOverride { get; init; }
+        public int? WeeklyExportOperationsLimitOverride { get; init; }
     }
 }

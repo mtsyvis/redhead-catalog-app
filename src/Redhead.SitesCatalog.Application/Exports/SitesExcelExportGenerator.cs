@@ -41,7 +41,8 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
                     request.Truncated,
                     request.LimitRows,
                     request.NotFoundDomains.Count,
-                    request.NotFoundIncluded),
+                    request.NotFoundIncluded,
+                    request.TruncationReason),
                 [28d, 80d],
                 FreezeHeader: false,
                 AutoFilter: false));
@@ -62,7 +63,8 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
         bool truncated,
         int? limitRows,
         int notFoundRows,
-        bool notFoundIncluded)
+        bool notFoundIncluded,
+        string? truncationReason)
     {
         var rows = new List<IReadOnlyList<XlsxCell>>
         {
@@ -81,6 +83,11 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
         {
             rows.Add(InfoRow("Not found sheet rows", XlsxCell.Number(notFoundRows, XlsxCellStyle.Integer)));
             rows.Add(InfoRow("Not found included", XlsxCell.Text(notFoundIncluded ? "Yes" : "No")));
+        }
+
+        if (!string.IsNullOrWhiteSpace(truncationReason))
+        {
+            rows.Add(InfoRow("Export truncation reason", XlsxCell.Text(truncationReason)));
         }
 
         return rows;

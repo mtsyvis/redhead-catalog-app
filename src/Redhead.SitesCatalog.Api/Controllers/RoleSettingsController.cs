@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Validation;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
@@ -35,7 +36,11 @@ public class RoleSettingsController : ControllerBase
                 Role: rs.RoleName,
                 ExportLimitMode: isSuperAdmin ? ExportLimitMode.Unlimited : rs.ExportLimitMode,
                 ExportLimitRows: isSuperAdmin ? null : rs.ExportLimitRows,
-                IsEditable: !isSuperAdmin);
+                IsEditable: !isSuperAdmin,
+                DailyUniqueExportedDomainsLimit: isSuperAdmin ? null : rs.DailyUniqueExportedDomainsLimit,
+                WeeklyUniqueExportedDomainsLimit: isSuperAdmin ? null : rs.WeeklyUniqueExportedDomainsLimit,
+                DailyExportOperationsLimit: isSuperAdmin ? null : rs.DailyExportOperationsLimit,
+                WeeklyExportOperationsLimit: isSuperAdmin ? null : rs.WeeklyExportOperationsLimit);
         }).ToList();
 
         return Ok(result);
@@ -70,10 +75,36 @@ public class RoleSettingsController : ControllerBase
             {
                 entity.ExportLimitMode = item.ExportLimitMode!.Value;
                 entity.ExportLimitRows = item.ExportLimitRows;
+                ApplyClientUsageLimitDefaults(entity, item);
             }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
         return NoContent();
+    }
+
+    private static void ApplyClientUsageLimitDefaults(
+        RoleSettings entity,
+        RoleSettingUpdateItemDto item)
+    {
+        if (item.DailyUniqueExportedDomainsLimit is { } dailyUniqueDomains)
+        {
+            entity.DailyUniqueExportedDomainsLimit = dailyUniqueDomains;
+        }
+
+        if (item.WeeklyUniqueExportedDomainsLimit is { } weeklyUniqueDomains)
+        {
+            entity.WeeklyUniqueExportedDomainsLimit = weeklyUniqueDomains;
+        }
+
+        if (item.DailyExportOperationsLimit is { } dailyOperations)
+        {
+            entity.DailyExportOperationsLimit = dailyOperations;
+        }
+
+        if (item.WeeklyExportOperationsLimit is { } weeklyOperations)
+        {
+            entity.WeeklyExportOperationsLimit = weeklyOperations;
+        }
     }
 }

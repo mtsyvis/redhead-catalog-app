@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -21,8 +22,15 @@ public static class EffectiveExportPolicyResolver
                 Mode: ExportLimitMode.Unlimited,
                 Rows: null,
                 IsOverridden: false,
-                Source: EffectivePolicySource.SuperAdminFixed);
+                Source: EffectivePolicySource.SuperAdminFixed,
+                DailyUniqueExportedDomainsLimit: null,
+                WeeklyUniqueExportedDomainsLimit: null,
+                DailyExportOperationsLimit: null,
+                WeeklyExportOperationsLimit: null);
         }
+
+        var isClient = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
+        var hasUsageOverride = isClient && HasUsageLimitOverride(user);
 
         if (user?.ExportLimitOverrideMode is { } overrideMode)
         {
@@ -34,13 +42,54 @@ public static class EffectiveExportPolicyResolver
                 Mode: overrideMode,
                 Rows: overrideRows,
                 IsOverridden: true,
-                Source: EffectivePolicySource.UserOverride);
+                Source: EffectivePolicySource.UserOverride,
+                DailyUniqueExportedDomainsLimit: ResolveClientUsageLimit(
+                    isClient,
+                    user.DailyUniqueExportedDomainsLimitOverride,
+                    roleSettings.DailyUniqueExportedDomainsLimit),
+                WeeklyUniqueExportedDomainsLimit: ResolveClientUsageLimit(
+                    isClient,
+                    user.WeeklyUniqueExportedDomainsLimitOverride,
+                    roleSettings.WeeklyUniqueExportedDomainsLimit),
+                DailyExportOperationsLimit: ResolveClientUsageLimit(
+                    isClient,
+                    user.DailyExportOperationsLimitOverride,
+                    roleSettings.DailyExportOperationsLimit),
+                WeeklyExportOperationsLimit: ResolveClientUsageLimit(
+                    isClient,
+                    user.WeeklyExportOperationsLimitOverride,
+                    roleSettings.WeeklyExportOperationsLimit));
         }
 
         return new EffectiveExportPolicy(
             Mode: roleSettings.ExportLimitMode,
             Rows: roleSettings.ExportLimitRows,
-            IsOverridden: false,
-            Source: EffectivePolicySource.Role);
+            IsOverridden: hasUsageOverride,
+            Source: hasUsageOverride ? EffectivePolicySource.UserOverride : EffectivePolicySource.Role,
+            DailyUniqueExportedDomainsLimit: ResolveClientUsageLimit(
+                isClient,
+                user?.DailyUniqueExportedDomainsLimitOverride,
+                roleSettings.DailyUniqueExportedDomainsLimit),
+            WeeklyUniqueExportedDomainsLimit: ResolveClientUsageLimit(
+                isClient,
+                user?.WeeklyUniqueExportedDomainsLimitOverride,
+                roleSettings.WeeklyUniqueExportedDomainsLimit),
+            DailyExportOperationsLimit: ResolveClientUsageLimit(
+                isClient,
+                user?.DailyExportOperationsLimitOverride,
+                roleSettings.DailyExportOperationsLimit),
+            WeeklyExportOperationsLimit: ResolveClientUsageLimit(
+                isClient,
+                user?.WeeklyExportOperationsLimitOverride,
+                roleSettings.WeeklyExportOperationsLimit));
     }
+
+    private static int? ResolveClientUsageLimit(bool isClient, int? userOverride, int? roleDefault)
+        => isClient ? userOverride ?? roleDefault : null;
+
+    private static bool HasUsageLimitOverride(ApplicationUser? user)
+        => user?.DailyUniqueExportedDomainsLimitOverride.HasValue == true ||
+           user?.WeeklyUniqueExportedDomainsLimitOverride.HasValue == true ||
+           user?.DailyExportOperationsLimitOverride.HasValue == true ||
+           user?.WeeklyExportOperationsLimitOverride.HasValue == true;
 }

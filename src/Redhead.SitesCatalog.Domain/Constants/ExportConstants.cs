@@ -5,6 +5,22 @@ namespace Redhead.SitesCatalog.Domain.Constants;
 /// </summary>
 public static class ExportConstants
 {
+    public const int TrustedClientDailyUniqueExportedDomainsLimit = 1000;
+    public const int TrustedClientWeeklyUniqueExportedDomainsLimit = 3000;
+    public const int TrustedClientDailyExportOperationsLimit = 20;
+    public const int TrustedClientWeeklyExportOperationsLimit = 60;
+
+    public const string DestinationDownload = "Download";
+    public const string DestinationGoogleDrive = "GoogleDrive";
+
+    public const string ExportModeSites = "Sites";
+    public const string ExportModeMultiSearch = "MultiSearch";
+
+    public const string DailyUniqueDomainLimitReached = "DailyUniqueDomainLimitReached";
+    public const string WeeklyUniqueDomainLimitReached = "WeeklyUniqueDomainLimitReached";
+    public const string DailyExportOperationLimitReached = "DailyExportOperationLimitReached";
+    public const string WeeklyExportOperationLimitReached = "WeeklyExportOperationLimitReached";
+
     /// <summary>
     /// Excel file name for sites export
     /// </summary>

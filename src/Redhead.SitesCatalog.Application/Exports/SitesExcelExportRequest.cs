@@ -13,4 +13,5 @@ public sealed record SitesExcelExportRequest(
     int ExportedRows,
     bool Truncated,
     int? LimitRows,
-    bool NotFoundIncluded);
+    bool NotFoundIncluded,
+    string? TruncationReason = null);

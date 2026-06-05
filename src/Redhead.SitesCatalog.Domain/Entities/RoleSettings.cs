@@ -15,4 +15,12 @@ public class RoleSettings
     /// Maximum rows to export. Non-null only when ExportLimitMode is Limited.
     /// </summary>
     public int? ExportLimitRows { get; set; }
+
+    public int? DailyUniqueExportedDomainsLimit { get; set; }
+
+    public int? WeeklyUniqueExportedDomainsLimit { get; set; }
+
+    public int? DailyExportOperationsLimit { get; set; }
+
+    public int? WeeklyExportOperationsLimit { get; set; }
 }

@@ -32,7 +32,50 @@ public class ExportLogConfiguration : IEntityTypeConfiguration<ExportLog>
         builder.Property(e => e.RowsReturned)
             .IsRequired();
 
-        builder.Property(e => e.FilterSummaryJson)
-            .HasColumnType("jsonb");
+        builder.Property(e => e.RequestedRowsCount)
+            .IsRequired();
+
+        builder.Property(e => e.ExportedRowsCount)
+            .IsRequired();
+
+        builder.Property(e => e.WasTruncated)
+            .IsRequired();
+
+        builder.Property(e => e.ExportLimitRows)
+            .IsRequired(false);
+
+        builder.Property(e => e.DailyUniqueExportedDomainsLimit)
+            .IsRequired(false);
+
+        builder.Property(e => e.WeeklyUniqueExportedDomainsLimit)
+            .IsRequired(false);
+
+        builder.Property(e => e.DailyExportOperationsLimit)
+            .IsRequired(false);
+
+        builder.Property(e => e.WeeklyExportOperationsLimit)
+            .IsRequired(false);
+
+        builder.Property(e => e.Destination)
+            .IsRequired()
+            .HasMaxLength(50);
+
+        builder.HasIndex(e => e.Destination);
+
+        builder.Property(e => e.ExportMode)
+            .IsRequired()
+            .HasMaxLength(50);
+
+        builder.HasIndex(e => e.ExportMode);
+
+        builder.Property(e => e.BlockedReason)
+            .HasMaxLength(100);
+
+        builder.HasIndex(e => new { e.UserId, e.TimestampUtc, e.BlockedReason });
+
+        builder.HasMany(e => e.ExportedDomainAccesses)
+            .WithOne(e => e.ExportLog)
+            .HasForeignKey(e => e.ExportLogId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

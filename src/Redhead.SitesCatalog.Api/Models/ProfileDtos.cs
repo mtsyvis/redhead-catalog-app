@@ -16,7 +16,15 @@ public record CurrentUserProfileResponse(
 public record CurrentUserProfileLimitsResponse(
     ExportLimitMode ExportLimitMode,
     int? ExportLimitRows,
-    bool IsUnlimited);
+    bool IsUnlimited,
+    int? DailyUniqueExportedDomainsUsed = null,
+    int? DailyUniqueExportedDomainsLimit = null,
+    int? WeeklyUniqueExportedDomainsUsed = null,
+    int? WeeklyUniqueExportedDomainsLimit = null,
+    int? DailyExportOperationsUsed = null,
+    int? DailyExportOperationsLimit = null,
+    int? WeeklyExportOperationsUsed = null,
+    int? WeeklyExportOperationsLimit = null);
 
 public record UpdateCurrentUserProfileRequest(
     string? FirstName,

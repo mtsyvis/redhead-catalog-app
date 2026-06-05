@@ -68,6 +68,9 @@ public class GlobalExceptionHandler : IExceptionHandler
             ExportDisabledException ex
                 => (HttpStatusCode.Forbidden, ex.Message),
 
+            ExportUsageLimitExceededException ex
+                => (HttpStatusCode.Forbidden, ex.Reason),
+
             RoleSettingsNotFoundException
                 => (HttpStatusCode.InternalServerError, "An unexpected error occurred. Please try again later."),
 
