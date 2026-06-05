@@ -338,7 +338,7 @@ Rules:
 * Field is visible to all users.
 * Field is read-only in the normal site edit UI.
 * Field is updated only via Last Published Date import.
-* If date is missing, UI displays: `Last publication before January 2026`.
+* If date is missing, API and export values remain empty/null; the Sites UI displays `-`.
 * Null values sort last when sorting by last published date.
 * `LastPublishedDateIsMonthOnly` distinguishes exact dates from month-only dates.
 * Exact dates should display as `DD.MM.YYYY`.
@@ -658,7 +658,7 @@ Rules:
 * Export includes only the Sites table columns currently visible in the UI, including unsaved column visibility/order changes.
 * Export column order must match the current Sites table visible column order.
 * Export column names should match the Sites UI table where a matching UI column exists.
-* Export values should match Sites UI display formatting where practical, including `Last Published` display values.
+* Export values should match Sites UI display formatting where practical, except UI-only empty-state placeholders such as `Last Published` `-`.
 * The backend must validate requested export column keys and reject unknown, blank, UI-only/action, non-exportable, or role-forbidden columns.
 * Duplicate requested export column keys are normalized to the first occurrence.
 * Client-role users must not be able to export internal-only columns by manually editing export requests.

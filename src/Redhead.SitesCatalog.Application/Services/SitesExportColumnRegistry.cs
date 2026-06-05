@@ -119,7 +119,7 @@ internal static class SitesExportColumnRegistry
     {
         if (!site.LastPublishedDate.HasValue)
         {
-            return "Before January 2026";
+            return string.Empty;
         }
 
         return site.LastPublishedDateIsMonthOnly

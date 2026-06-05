@@ -977,7 +977,7 @@ public class ExportServiceTests : IDisposable
 
         Assert.Equal("15.01.2025", rows.Single(row => row["Domain"] == "example.com")["Last Published"]);
         Assert.Equal("January 2025", rows.Single(row => row["Domain"] == "test.com")["Last Published"]);
-        Assert.Equal("Before January 2026", rows.Single(row => row["Domain"] == "gambling.com")["Last Published"]);
+        Assert.Equal(string.Empty, rows.Single(row => row["Domain"] == "gambling.com")["Last Published"]);
     }
 
     [Fact]

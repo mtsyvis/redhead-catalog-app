@@ -273,7 +273,7 @@ export function useSitesColumns({
             if (isNotFoundRow(row)) return '—';
             const site = row as Site;
             if (site.lastPublishedDate == null) {
-              return 'Before January 2026';
+              return '-';
             }
             const d = new Date(site.lastPublishedDate);
             if (site.lastPublishedDateIsMonthOnly) {
