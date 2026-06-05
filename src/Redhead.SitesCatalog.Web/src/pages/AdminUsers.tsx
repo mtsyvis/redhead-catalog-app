@@ -626,12 +626,6 @@ export const AdminUsers: React.FC = () => {
     return null;
   };
 
-  const getRoleDefaultText = (role: string): string => {
-    const item = roleSettings.find((r) => r.role === role);
-    if (!item) return '—';
-    return `Role default: ${formatExportLimit(item.exportLimitMode, item.exportLimitRows)}`;
-  };
-
   const getClientUsageLimitPreviewRows = () => {
     if (!editExportLimitUser || editExportLimitUser.role !== 'Client') return [];
 
@@ -1348,9 +1342,6 @@ export const AdminUsers: React.FC = () => {
               <Box>
                 <Typography variant="body2">
                   <strong>{editExportLimitUser.email}</strong> · {editExportLimitUser.role}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {getRoleDefaultText(editExportLimitUser.role)}
                 </Typography>
               </Box>
 
