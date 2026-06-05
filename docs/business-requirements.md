@@ -690,6 +690,7 @@ Rules:
 * The existing Excel download export must remain available and unchanged when Google Drive is not connected or unavailable.
 * Export logs store requested row count, exported row count, truncation state, row-limit value, active client usage-limit values, destination, export mode, and blocked reason when applicable.
 * Successful and partially successful exports persist the actual exported site domains linked to the export log so rolling unique-domain usage can be calculated.
+* Exported-domain access rows are retained only for rolling usage checks and may be cleaned up after the configured retention period, which must not be shorter than 7 days.
 * Client-role analytics snapshots of filters, sorting, and search context remain separate from exported-domain access records.
 
 ### Google Drive export connection

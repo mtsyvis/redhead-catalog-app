@@ -29,6 +29,7 @@ builder.Services.AddHttpClient();
 builder.Services.Configure<GoogleDriveOptions>(
     builder.Configuration.GetSection(GoogleDriveOptions.SectionName));
 builder.Services.AddEmergencySitesExportOptions(builder.Configuration);
+builder.Services.AddExportedDomainAccessCleanup(builder.Configuration);
 builder.Services.Configure<FrontendOptions>(
     builder.Configuration.GetSection(FrontendOptions.SectionName));
 

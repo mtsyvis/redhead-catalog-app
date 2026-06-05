@@ -45,6 +45,10 @@ services:
       EmergencySitesExport__RetentionWeeks: ${EmergencySitesExport__RetentionWeeks:-8}
       EmergencySitesExport__FilePrefix: ${EmergencySitesExport__FilePrefix:-redhead-sites-full}
       EmergencySitesExport__UploadTimeoutMinutes: ${EmergencySitesExport__UploadTimeoutMinutes:-30}
+      ExportedDomainAccessCleanup__Enabled: ${ExportedDomainAccessCleanup__Enabled:-true}
+      ExportedDomainAccessCleanup__RetentionDays: ${ExportedDomainAccessCleanup__RetentionDays:-30}
+      ExportedDomainAccessCleanup__BatchSize: ${ExportedDomainAccessCleanup__BatchSize:-1000}
+      ExportedDomainAccessCleanup__IntervalHours: ${ExportedDomainAccessCleanup__IntervalHours:-24}
       Frontend__BaseUrl: ${FRONTEND_BASE_URL}
     volumes:
       - dataprotection_keys:/root/.aspnet/DataProtection-Keys
