@@ -27,4 +27,12 @@ public class ApplicationUser : IdentityUser
     /// Per-user row cap override. Non-null only when ExportLimitOverrideMode is Limited.
     /// </summary>
     public int? ExportLimitRowsOverride { get; set; }
+
+    public int? DailyUniqueExportedDomainsLimitOverride { get; set; }
+
+    public int? WeeklyUniqueExportedDomainsLimitOverride { get; set; }
+
+    public int? DailyExportOperationsLimitOverride { get; set; }
+
+    public int? WeeklyExportOperationsLimitOverride { get; set; }
 }

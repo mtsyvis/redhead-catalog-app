@@ -16,6 +16,14 @@ export interface UserListItem {
   effectiveExportLimitRows: number | null;
   isExportLimitOverridden: boolean;
   isExportLimitEditable: boolean;
+  dailyUniqueExportedDomainsLimitOverride: number | null;
+  weeklyUniqueExportedDomainsLimitOverride: number | null;
+  dailyExportOperationsLimitOverride: number | null;
+  weeklyExportOperationsLimitOverride: number | null;
+  effectiveDailyUniqueExportedDomainsLimit: number | null;
+  effectiveWeeklyUniqueExportedDomainsLimit: number | null;
+  effectiveDailyExportOperationsLimit: number | null;
+  effectiveWeeklyExportOperationsLimit: number | null;
   superAdminNote?: string | null;
 }
 
@@ -53,6 +61,14 @@ export interface AdminUserDetails {
   isExportLimitEditable: boolean;
   googleDriveConnected: boolean;
   googleDrive: GoogleDriveStatus;
+  dailyUniqueExportedDomainsLimitOverride: number | null;
+  weeklyUniqueExportedDomainsLimitOverride: number | null;
+  dailyExportOperationsLimitOverride: number | null;
+  weeklyExportOperationsLimitOverride: number | null;
+  effectiveDailyUniqueExportedDomainsLimit: number | null;
+  effectiveWeeklyUniqueExportedDomainsLimit: number | null;
+  effectiveDailyExportOperationsLimit: number | null;
+  effectiveWeeklyExportOperationsLimit: number | null;
   superAdminNote?: string | null;
 }
 
@@ -88,6 +104,14 @@ export interface ReactivateUserResponse {
 export interface UpdateExportLimitRequest {
   overrideMode: ExportLimitMode | null;
   overrideRows: number | null;
+  clientUsageLimitOverrides?: ClientExportUsageLimitOverridesRequest | null;
+}
+
+export interface ClientExportUsageLimitOverridesRequest {
+  dailyUniqueExportedDomainsLimit: number | null;
+  weeklyUniqueExportedDomainsLimit: number | null;
+  dailyExportOperationsLimit: number | null;
+  weeklyExportOperationsLimit: number | null;
 }
 
 export interface UpdateSuperAdminNoteRequest {

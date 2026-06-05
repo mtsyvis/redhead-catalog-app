@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ApiClientError } from '../services/api.client';
+import { authService } from '../services/auth.service';
 import { googleDriveService } from '../services/googleDrive.service';
 import { sitesService } from '../services/sites.service';
 import type { GoogleDriveDialogState } from '../components/sites/dialogs/GoogleDriveConnectionDialog';
@@ -11,6 +12,12 @@ import type {
   SitesQueryParams,
 } from '../types/sites.types';
 import type { GoogleDriveStatus } from '../types/googleDrive.types';
+import type { CurrentUserProfileLimits } from '../types/auth.types';
+import {
+  getExportUsageLimitMessage,
+  getExportUsageLimitUsageLine,
+  isExportUsageLimitReason,
+} from '../utils/exportUsageLimits';
 
 const GOOGLE_DRIVE_NOT_CONNECTED = 'GoogleDriveNotConnected';
 const GOOGLE_DRIVE_RECONNECT_REQUIRED = 'GoogleDriveReconnectRequired';
@@ -19,6 +26,7 @@ const GOOGLE_DRIVE_CONFIGURATION_MISSING = 'GoogleDriveConfigurationMissing';
 
 interface UseSitesExportOptions {
   buildSitesQueryParams: (page: number, pageSize: number) => SitesQueryParams;
+  isClient: boolean;
   multiSearchResult: MultiSearchResponse | null;
   searchText: string;
   visibleColumnKeys: string[];
@@ -42,8 +50,28 @@ function openGoogleDriveFile(webViewLink: string | null): boolean {
   }
 }
 
+function getUsageLimitErrorMessage(error: unknown): string | null {
+  if (!(error instanceof ApiClientError)) {
+    return null;
+  }
+
+  return getExportUsageLimitMessage(error.message);
+}
+
+function buildPartialExportDetail(
+  exportedRows: number,
+  reason: string | null | undefined,
+  limits: CurrentUserProfileLimits | null
+): string {
+  const exportedText = `Exported ${exportedRows.toLocaleString()} domains.`;
+  const usageLine = getExportUsageLimitUsageLine(reason, limits);
+
+  return usageLine ? `${exportedText} ${usageLine}` : exportedText;
+}
+
 export function useSitesExport({
   buildSitesQueryParams,
+  isClient,
   multiSearchResult,
   searchText,
   visibleColumnKeys,
@@ -58,6 +86,7 @@ export function useSitesExport({
     reconnect: false,
   });
   const [connectingGoogleDrive, setConnectingGoogleDrive] = useState(false);
+  const [exportUsageLimits, setExportUsageLimits] = useState<CurrentUserProfileLimits | null>(null);
 
   const loadGoogleDriveStatus = useCallback(async () => {
     try {
@@ -69,9 +98,30 @@ export function useSitesExport({
     }
   }, []);
 
+  const loadExportUsageLimits = useCallback(async (): Promise<CurrentUserProfileLimits | null> => {
+    if (!isClient) {
+      setExportUsageLimits(null);
+      return null;
+    }
+
+    try {
+      const profile = await authService.getCurrentProfile();
+      setExportUsageLimits(profile.limits);
+      return profile.limits;
+    } catch (error) {
+      console.error('Failed to load export usage limits:', error);
+      setExportUsageLimits(null);
+      return null;
+    }
+  }, [isClient]);
+
   useEffect(() => {
     void loadGoogleDriveStatus();
   }, [loadGoogleDriveStatus]);
+
+  useEffect(() => {
+    void loadExportUsageLimits();
+  }, [loadExportUsageLimits]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -136,7 +186,20 @@ export function useSitesExport({
         metadata = await sitesService.exportSites({ filters: params, visibleColumnKeys });
       }
 
-      if (metadata.truncated) {
+      const updatedUsageLimits = await loadExportUsageLimits();
+
+      if (metadata.truncated && isExportUsageLimitReason(metadata.truncationReason)) {
+        showSnackbar({
+          open: true,
+          message: 'Export completed partially because your export limit was reached.',
+          detail: buildPartialExportDetail(
+            metadata.exportedRows,
+            metadata.truncationReason,
+            updatedUsageLimits
+          ),
+          severity: 'success',
+        });
+      } else if (metadata.truncated) {
         showSnackbar({
           open: true,
           message: `Export completed with limit applied: ${metadata.exportedRows} of ${metadata.requestedRows} rows downloaded.`,
@@ -155,7 +218,14 @@ export function useSitesExport({
     } finally {
       setExporting(false);
     }
-  }, [buildSitesQueryParams, multiSearchResult, searchText, visibleColumnKeys, showSnackbar]);
+  }, [
+    buildSitesQueryParams,
+    multiSearchResult,
+    searchText,
+    visibleColumnKeys,
+    loadExportUsageLimits,
+    showSnackbar,
+  ]);
 
   const handleSaveToGoogleDrive = useCallback(async () => {
     if (googleDriveStatus?.needsReconnect) {
@@ -173,18 +243,32 @@ export function useSitesExport({
     try {
       const result = await sitesService.exportSitesToGoogleDrive(buildGoogleDriveExportPayload());
       openGoogleDriveFile(result.webViewLink);
+      const updatedUsageLimits = await loadExportUsageLimits();
+      const wasUsageLimitPartial =
+        result.wasTruncated && isExportUsageLimitReason(result.truncationReason);
 
-      const details = [
-        result.fileName,
-        result.destinationLabel,
-        result.wasTruncated
-          ? `Limit applied: ${result.rowsExported} rows saved.`
-          : `${result.rowsExported} rows saved.`,
-      ].filter(Boolean);
+      const details = wasUsageLimitPartial
+        ? [
+            result.fileName,
+            buildPartialExportDetail(
+              result.rowsExported,
+              result.truncationReason,
+              updatedUsageLimits
+            ),
+          ].filter(Boolean)
+        : [
+            result.fileName,
+            result.destinationLabel,
+            result.wasTruncated
+              ? `Limit applied: ${result.rowsExported} rows saved.`
+              : `${result.rowsExported} rows saved.`,
+          ].filter(Boolean);
 
       showSnackbar({
         open: true,
-        message: 'Export saved to Google Drive',
+        message: wasUsageLimitPartial
+          ? 'Export completed partially because your export limit was reached.'
+          : 'Export saved to Google Drive',
         detail: details.join(' - '),
         severity: 'success',
         actionLabel: 'Open file',
@@ -196,8 +280,16 @@ export function useSitesExport({
       void loadGoogleDriveStatus();
     } catch (error) {
       const errorCode = getApiErrorCode(error);
+      const usageLimitMessage = getUsageLimitErrorMessage(error);
 
-      if (errorCode === GOOGLE_DRIVE_NOT_CONNECTED) {
+      if (usageLimitMessage) {
+        showSnackbar({
+          open: true,
+          message: usageLimitMessage,
+          severity: 'error',
+        });
+        void loadExportUsageLimits();
+      } else if (errorCode === GOOGLE_DRIVE_NOT_CONNECTED) {
         setGoogleDriveDialog({ open: true, reconnect: false });
       } else if (errorCode === GOOGLE_DRIVE_RECONNECT_REQUIRED) {
         setGoogleDriveDialog({ open: true, reconnect: true });
@@ -254,6 +346,7 @@ export function useSitesExport({
     googleDriveStatus,
     buildGoogleDriveExportPayload,
     loadGoogleDriveStatus,
+    loadExportUsageLimits,
     showSnackbar,
     handleDownloadExport,
   ]);
@@ -282,6 +375,7 @@ export function useSitesExport({
   return {
     exporting,
     googleDriveStatus,
+    exportUsageLimits,
     googleDriveDialog,
     connectingGoogleDrive,
     handleDownloadExport,

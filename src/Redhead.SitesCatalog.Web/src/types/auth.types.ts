@@ -77,6 +77,14 @@ export interface CurrentUserProfileLimits {
   exportLimitMode: ExportLimitMode;
   exportLimitRows: number | null;
   isUnlimited: boolean;
+  dailyUniqueExportedDomainsUsed: number | null;
+  dailyUniqueExportedDomainsLimit: number | null;
+  weeklyUniqueExportedDomainsUsed: number | null;
+  weeklyUniqueExportedDomainsLimit: number | null;
+  dailyExportOperationsUsed: number | null;
+  dailyExportOperationsLimit: number | null;
+  weeklyExportOperationsUsed: number | null;
+  weeklyExportOperationsLimit: number | null;
 }
 
 export interface UpdateCurrentUserProfileRequest {

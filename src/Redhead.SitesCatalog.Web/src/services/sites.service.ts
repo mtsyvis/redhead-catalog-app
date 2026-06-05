@@ -12,12 +12,14 @@ import type {
   GoogleDriveExportResponse,
   UpdateSitePayload,
 } from '../types/sites.types';
+import { getExportUsageLimitMessage } from '../utils/exportUsageLimits';
 
 export interface ExportMetadata {
   requestedRows: number;
   exportedRows: number;
   truncated: boolean;
   limitRows?: number;
+  truncationReason?: string;
 }
 
 /**
@@ -154,6 +156,7 @@ function readExportMetadata(headers: Headers): ExportMetadata {
     limitRows: headers.has('X-Export-Limit-Rows')
       ? parseInt(headers.get('X-Export-Limit-Rows')!, 10)
       : undefined,
+    truncationReason: headers.get('X-Export-Truncation-Reason') ?? undefined,
   };
 }
 
@@ -181,5 +184,8 @@ async function readExportErrorMessage(response: Response, fallback: string): Pro
     }
   }
 
-  return error.error || error.message || error.detail || error.title || response.statusText || fallback;
+  const message =
+    error.error || error.message || error.detail || error.title || response.statusText || fallback;
+
+  return getExportUsageLimitMessage(message) ?? message;
 }

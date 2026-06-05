@@ -32,6 +32,7 @@ public class ExportServiceTests : IDisposable
             _context,
             queryBuilder,
             new EffectiveExportPolicyService(_context),
+            new ExportUsageLimitService(_context),
             new SitesExcelExportGenerator());
 
         SeedTestData();
@@ -60,7 +61,16 @@ public class ExportServiceTests : IDisposable
             new() { RoleName = AppRoles.SuperAdmin, ExportLimitMode = ExportLimitMode.Unlimited, ExportLimitRows = null },
             new() { RoleName = AppRoles.Admin, ExportLimitMode = ExportLimitMode.Unlimited, ExportLimitRows = null },
             new() { RoleName = AppRoles.Internal, ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 10000 },
-            new() { RoleName = AppRoles.Client, ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 5000 },
+            new()
+            {
+                RoleName = AppRoles.Client,
+                ExportLimitMode = ExportLimitMode.Limited,
+                ExportLimitRows = 5000,
+                DailyUniqueExportedDomainsLimit = ExportConstants.TrustedClientDailyUniqueExportedDomainsLimit,
+                WeeklyUniqueExportedDomainsLimit = ExportConstants.TrustedClientWeeklyUniqueExportedDomainsLimit,
+                DailyExportOperationsLimit = ExportConstants.TrustedClientDailyExportOperationsLimit,
+                WeeklyExportOperationsLimit = ExportConstants.TrustedClientWeeklyExportOperationsLimit
+            },
             new() { RoleName = "DisabledRole", ExportLimitMode = ExportLimitMode.Disabled, ExportLimitRows = null }
         };
         _context.RoleSettings.AddRange(roleSettings);
@@ -1645,6 +1655,228 @@ public class ExportServiceTests : IDisposable
         Assert.Equal("NonExistentRole", exception.RoleName);
     }
 
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientUnderUsageLimits_ExportsAndLogsDomains()
+    {
+        // Arrange
+        await SetClientUsageLimitDefaultsAsync(
+            dailyUniqueDomains: 10,
+            weeklyUniqueDomains: 10,
+            dailyOperations: 10,
+            weeklyOperations: 10);
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(3, result.ExportedRows);
+        Assert.False(result.Truncated);
+        Assert.Null(result.TruncationReason);
+
+        var exportLog = await _context.ExportLogs.SingleAsync();
+        Assert.Equal(3, exportLog.RequestedRowsCount);
+        Assert.Equal(3, exportLog.ExportedRowsCount);
+        Assert.Equal(ExportConstants.DestinationDownload, exportLog.Destination);
+        Assert.Equal(ExportConstants.ExportModeSites, exportLog.ExportMode);
+        Assert.Equal(10, exportLog.DailyUniqueExportedDomainsLimit);
+        Assert.Equal(10, exportLog.WeeklyUniqueExportedDomainsLimit);
+        Assert.Equal(10, exportLog.DailyExportOperationsLimit);
+        Assert.Equal(10, exportLog.WeeklyExportOperationsLimit);
+        Assert.Null(exportLog.BlockedReason);
+
+        var domains = await _context.ExportedDomainAccesses
+            .OrderBy(access => access.Domain)
+            .Select(access => access.Domain)
+            .ToListAsync();
+        Assert.Equal(["example.com", "gambling.com", "test.com"], domains);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientDailyUniqueLimitReached_ExportsPartialRows()
+    {
+        // Arrange
+        await SetClientUsageLimitDefaultsAsync(dailyUniqueDomains: 2, weeklyUniqueDomains: 10);
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(3, result.RequestedRows);
+        Assert.Equal(2, result.ExportedRows);
+        Assert.True(result.Truncated);
+        Assert.Equal(ExportConstants.DailyUniqueDomainLimitReached, result.TruncationReason);
+
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        Assert.Equal(["example.com", "gambling.com"], rows.Select(row => row["Domain"]).ToArray());
+
+        var exportLog = await _context.ExportLogs.SingleAsync();
+        Assert.True(exportLog.WasTruncated);
+        Assert.Null(exportLog.BlockedReason);
+        Assert.Equal(2, await _context.ExportedDomainAccesses.CountAsync());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientDailyUniqueLimitReachedWithNoAllowedDomains_LogsBlockedAttempt()
+    {
+        // Arrange
+        await SetClientUsageLimitDefaultsAsync(dailyUniqueDomains: 1, weeklyUniqueDomains: 10);
+        AddPriorSuccessfulExportUsage(["already-used.com"], DateTime.UtcNow.AddMinutes(-10));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var exception = await Assert.ThrowsAsync<ExportUsageLimitExceededException>(
+            () => _service.ExportSitesAsExcelAsync(
+                DefaultQuery(),
+                TestUserId,
+                TestUserEmail,
+                AppRoles.Client,
+                CancellationToken.None));
+
+        // Assert
+        Assert.Equal(ExportConstants.DailyUniqueDomainLimitReached, exception.Reason);
+
+        var logs = await _context.ExportLogs.OrderBy(log => log.TimestampUtc).ToListAsync();
+        Assert.Equal(2, logs.Count);
+        Assert.Equal(ExportConstants.DailyUniqueDomainLimitReached, logs.Last().BlockedReason);
+        Assert.Equal(3, logs.Last().RequestedRowsCount);
+        Assert.Equal(0, logs.Last().ExportedRowsCount);
+        Assert.Single(await _context.ExportedDomainAccesses.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ClientWeeklyUniqueLimitReached_ExportsPartialRows()
+    {
+        // Arrange
+        await SetClientUsageLimitDefaultsAsync(dailyUniqueDomains: 10, weeklyUniqueDomains: 2);
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(2, result.ExportedRows);
+        Assert.True(result.Truncated);
+        Assert.Equal(ExportConstants.WeeklyUniqueDomainLimitReached, result.TruncationReason);
+
+        var exportLog = await _context.ExportLogs.SingleAsync();
+        Assert.True(exportLog.WasTruncated);
+        Assert.Equal(2, exportLog.ExportedRowsCount);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_ReExportingSameDomainWithinWindow_DoesNotConsumeUniqueQuota()
+    {
+        // Arrange
+        await SetClientUsageLimitDefaultsAsync(dailyUniqueDomains: 1, weeklyUniqueDomains: 1);
+        AddPriorSuccessfulExportUsage(["example.com"], DateTime.UtcNow.AddMinutes(-10));
+        await _context.SaveChangesAsync();
+
+        var query = DefaultQuery();
+        query.Search = "example.com";
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Client,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(1, result.ExportedRows);
+        Assert.False(result.Truncated);
+        Assert.Null(result.TruncationReason);
+        Assert.Equal(2, await _context.ExportedDomainAccesses.CountAsync(access => access.Domain == "example.com"));
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_DailyOperationLimitReached_BlocksAndDoesNotConsumeOperationQuota()
+    {
+        // Arrange
+        await SetClientUsageLimitDefaultsAsync(dailyOperations: 1, weeklyOperations: 10);
+        AddPriorSuccessfulExportUsage(["example.com"], DateTime.UtcNow.AddMinutes(-10));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var exception = await Assert.ThrowsAsync<ExportUsageLimitExceededException>(
+            () => _service.ExportSitesAsExcelAsync(
+                DefaultQuery(),
+                TestUserId,
+                TestUserEmail,
+                AppRoles.Client,
+                CancellationToken.None));
+
+        // Assert
+        Assert.Equal(ExportConstants.DailyExportOperationLimitReached, exception.Reason);
+        Assert.Equal(1, await _context.ExportLogs.CountAsync(log => log.BlockedReason == null));
+        Assert.Equal(1, await _context.ExportLogs.CountAsync(log =>
+            log.BlockedReason == ExportConstants.DailyExportOperationLimitReached));
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WeeklyOperationLimitReached_BlocksExport()
+    {
+        // Arrange
+        await SetClientUsageLimitDefaultsAsync(dailyOperations: 10, weeklyOperations: 1);
+        AddPriorSuccessfulExportUsage(["example.com"], DateTime.UtcNow.AddDays(-2));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var exception = await Assert.ThrowsAsync<ExportUsageLimitExceededException>(
+            () => _service.ExportSitesAsExcelAsync(
+                DefaultQuery(),
+                TestUserId,
+                TestUserEmail,
+                AppRoles.Client,
+                CancellationToken.None));
+
+        // Assert
+        Assert.Equal(ExportConstants.WeeklyExportOperationLimitReached, exception.Reason);
+        Assert.Equal(1, await _context.ExportLogs.CountAsync(log => log.BlockedReason == null));
+        Assert.Equal(1, await _context.ExportLogs.CountAsync(log =>
+            log.BlockedReason == ExportConstants.WeeklyExportOperationLimitReached));
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_InternalRole_IgnoresClientUsageLimits()
+    {
+        // Arrange
+        var internalSettings = await _context.RoleSettings.SingleAsync(settings => settings.RoleName == AppRoles.Internal);
+        internalSettings.DailyUniqueExportedDomainsLimit = 1;
+        internalSettings.WeeklyUniqueExportedDomainsLimit = 1;
+        internalSettings.DailyExportOperationsLimit = 1;
+        internalSettings.WeeklyExportOperationsLimit = 1;
+        AddPriorSuccessfulExportUsage(["already-used.com"], DateTime.UtcNow.AddMinutes(-10), AppRoles.Internal);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            DefaultQuery(),
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Internal,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(3, result.ExportedRows);
+        Assert.False(result.Truncated);
+        Assert.Null(result.TruncationReason);
+    }
+
     #endregion
 
     #region Export Log Tests
@@ -1675,8 +1907,6 @@ public class ExportServiceTests : IDisposable
         Assert.Equal(TestUserEmail, exportLog.UserEmail);
         Assert.Equal(AppRoles.Admin, exportLog.Role);
         Assert.Equal(2, exportLog.RowsReturned); // 2 sites match DR >= 60
-        Assert.NotNull(exportLog.FilterSummaryJson);
-        Assert.Contains("\"DrMin\":60", exportLog.FilterSummaryJson);
     }
 
     [Fact]
@@ -1720,7 +1950,6 @@ public class ExportServiceTests : IDisposable
         Assert.Equal(ExportAnalyticsSnapshotBuilder.CurrentSnapshotVersion, snapshot.SnapshotVersion);
         Assert.Equal(exportLog.TimestampUtc, snapshot.CreatedAtUtc);
         Assert.Equal(3, exportLog.RowsReturned);
-        Assert.NotNull(exportLog.FilterSummaryJson);
         Assert.NotNull(snapshot.FiltersSnapshotJson);
         Assert.NotNull(snapshot.SortSnapshotJson);
     }
@@ -2135,6 +2364,66 @@ public class ExportServiceTests : IDisposable
     }
 
     #endregion
+
+    private async Task SetClientUsageLimitDefaultsAsync(
+        int? dailyUniqueDomains = null,
+        int? weeklyUniqueDomains = null,
+        int? dailyOperations = null,
+        int? weeklyOperations = null)
+    {
+        var clientSettings = await _context.RoleSettings.SingleAsync(settings => settings.RoleName == AppRoles.Client);
+        clientSettings.DailyUniqueExportedDomainsLimit = dailyUniqueDomains ?? clientSettings.DailyUniqueExportedDomainsLimit;
+        clientSettings.WeeklyUniqueExportedDomainsLimit = weeklyUniqueDomains ?? clientSettings.WeeklyUniqueExportedDomainsLimit;
+        clientSettings.DailyExportOperationsLimit = dailyOperations ?? clientSettings.DailyExportOperationsLimit;
+        clientSettings.WeeklyExportOperationsLimit = weeklyOperations ?? clientSettings.WeeklyExportOperationsLimit;
+        await _context.SaveChangesAsync();
+    }
+
+    private void AddPriorSuccessfulExportUsage(
+        IReadOnlyList<string> domains,
+        DateTime timestampUtc,
+        string role = AppRoles.Client)
+    {
+        var exportLog = CreateSuccessfulExportLog(domains.Count, timestampUtc, role);
+
+        _context.ExportLogs.Add(exportLog);
+        _context.ExportedDomainAccesses.AddRange(
+            domains.Select(domain => CreateExportedDomainAccess(exportLog.Id, domain, timestampUtc)));
+    }
+
+    private static ExportLog CreateSuccessfulExportLog(
+        int exportedDomainCount,
+        DateTime timestampUtc,
+        string role)
+    {
+        return new ExportLog
+        {
+            Id = Guid.NewGuid(),
+            UserId = TestUserId,
+            UserEmail = TestUserEmail,
+            Role = role,
+            TimestampUtc = timestampUtc,
+            RowsReturned = exportedDomainCount,
+            RequestedRowsCount = exportedDomainCount,
+            ExportedRowsCount = exportedDomainCount,
+            WasTruncated = false,
+            Destination = ExportConstants.DestinationDownload,
+            ExportMode = ExportConstants.ExportModeSites
+        };
+    }
+
+    private static ExportedDomainAccess CreateExportedDomainAccess(
+        Guid exportLogId,
+        string domain,
+        DateTime timestampUtc)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            ExportLogId = exportLogId,
+            UserId = TestUserId,
+            Domain = domain,
+            ExportedAtUtc = timestampUtc
+        };
 
     private static Site SiteWithNullPrice(string domain) => new()
     {

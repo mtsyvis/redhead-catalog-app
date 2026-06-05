@@ -166,6 +166,12 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("text");
 
+                    b.Property<int?>("DailyExportOperationsLimitOverride")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DailyUniqueExportedDomainsLimitOverride")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
@@ -230,6 +236,12 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<int?>("WeeklyExportOperationsLimitOverride")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("WeeklyUniqueExportedDomainsLimitOverride")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("NormalizedEmail")
@@ -241,6 +253,10 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
 
                     b.ToTable("AspNetUsers", null, t =>
                         {
+                            t.HasCheckConstraint("CK_AspNetUsers_DailyExportOperationsLimitOverride_PositiveOrNull", "\"DailyExportOperationsLimitOverride\" IS NULL OR \"DailyExportOperationsLimitOverride\" > 0");
+
+                            t.HasCheckConstraint("CK_AspNetUsers_DailyUniqueExportedDomainsLimitOverride_PositiveOrNull", "\"DailyUniqueExportedDomainsLimitOverride\" IS NULL OR \"DailyUniqueExportedDomainsLimitOverride\" > 0");
+
                             t.HasCheckConstraint("CK_AspNetUsers_ExportLimitOverride_LimitedRequiresRows", "\"ExportLimitOverrideMode\" IS NULL OR \"ExportLimitOverrideMode\" <> 2 OR (\"ExportLimitRowsOverride\" IS NOT NULL AND \"ExportLimitRowsOverride\" > 0)");
 
                             t.HasCheckConstraint("CK_AspNetUsers_ExportLimitOverride_NonLimitedRequiresNullRows", "\"ExportLimitOverrideMode\" IS NULL OR \"ExportLimitOverrideMode\" = 2 OR \"ExportLimitRowsOverride\" IS NULL");
@@ -248,6 +264,10 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                             t.HasCheckConstraint("CK_AspNetUsers_ExportLimitOverride_NullModeRequiresNullRows", "\"ExportLimitOverrideMode\" IS NOT NULL OR \"ExportLimitRowsOverride\" IS NULL");
 
                             t.HasCheckConstraint("CK_AspNetUsers_ExportLimitOverride_ValidMode", "\"ExportLimitOverrideMode\" IS NULL OR \"ExportLimitOverrideMode\" IN (1, 2, 3)");
+
+                            t.HasCheckConstraint("CK_AspNetUsers_WeeklyExportOperationsLimitOverride_PositiveOrNull", "\"WeeklyExportOperationsLimitOverride\" IS NULL OR \"WeeklyExportOperationsLimitOverride\" > 0");
+
+                            t.HasCheckConstraint("CK_AspNetUsers_WeeklyUniqueExportedDomainsLimitOverride_PositiveOrNull", "\"WeeklyUniqueExportedDomainsLimitOverride\" IS NULL OR \"WeeklyUniqueExportedDomainsLimitOverride\" > 0");
                         });
                 });
 
@@ -317,8 +337,34 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("FilterSummaryJson")
-                        .HasColumnType("jsonb");
+                    b.Property<string>("BlockedReason")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("DailyExportOperationsLimit")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DailyUniqueExportedDomainsLimit")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Destination")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int?>("ExportLimitRows")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ExportMode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("ExportedRowsCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RequestedRowsCount")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -341,11 +387,65 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
+                    b.Property<bool>("WasTruncated")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("WeeklyExportOperationsLimit")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("WeeklyUniqueExportedDomainsLimit")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Destination");
+
+                    b.HasIndex("ExportMode");
 
                     b.HasIndex("TimestampUtc");
 
+                    b.HasIndex("UserId", "TimestampUtc", "BlockedReason");
+
                     b.ToTable("ExportLogs", (string)null);
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ExportedDomainAccess", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<Guid>("ExportLogId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExportedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Domain");
+
+                    b.HasIndex("ExportLogId");
+
+                    b.HasIndex("ExportedAtUtc");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "ExportedAtUtc");
+
+                    b.HasIndex("UserId", "Domain", "ExportedAtUtc");
+
+                    b.ToTable("ExportedDomainAccesses", (string)null);
                 });
 
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.GoogleDriveConnection", b =>
@@ -502,21 +602,41 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<int?>("DailyExportOperationsLimit")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DailyUniqueExportedDomainsLimit")
+                        .HasColumnType("integer");
+
                     b.Property<int>("ExportLimitMode")
                         .HasColumnType("integer");
 
                     b.Property<int?>("ExportLimitRows")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("WeeklyExportOperationsLimit")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("WeeklyUniqueExportedDomainsLimit")
+                        .HasColumnType("integer");
+
                     b.HasKey("RoleName");
 
                     b.ToTable("RoleSettings", null, t =>
                         {
+                            t.HasCheckConstraint("CK_RoleSettings_DailyExportOperationsLimit_PositiveOrNull", "\"DailyExportOperationsLimit\" IS NULL OR \"DailyExportOperationsLimit\" > 0");
+
+                            t.HasCheckConstraint("CK_RoleSettings_DailyUniqueExportedDomainsLimit_PositiveOrNull", "\"DailyUniqueExportedDomainsLimit\" IS NULL OR \"DailyUniqueExportedDomainsLimit\" > 0");
+
                             t.HasCheckConstraint("CK_RoleSettings_ExportLimitMode_ValidValue", "\"ExportLimitMode\" IN (1, 2, 3)");
 
                             t.HasCheckConstraint("CK_RoleSettings_ExportLimitRows_LimitedRequiresRows", "\"ExportLimitMode\" <> 2 OR (\"ExportLimitRows\" IS NOT NULL AND \"ExportLimitRows\" > 0)");
 
                             t.HasCheckConstraint("CK_RoleSettings_ExportLimitRows_NonLimitedRequiresNullRows", "\"ExportLimitMode\" = 2 OR \"ExportLimitRows\" IS NULL");
+
+                            t.HasCheckConstraint("CK_RoleSettings_WeeklyExportOperationsLimit_PositiveOrNull", "\"WeeklyExportOperationsLimit\" IS NULL OR \"WeeklyExportOperationsLimit\" > 0");
+
+                            t.HasCheckConstraint("CK_RoleSettings_WeeklyUniqueExportedDomainsLimit_PositiveOrNull", "\"WeeklyUniqueExportedDomainsLimit\" IS NULL OR \"WeeklyUniqueExportedDomainsLimit\" > 0");
                         });
 
                     b.HasData(
@@ -539,8 +659,12 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         new
                         {
                             RoleName = "Client",
+                            DailyExportOperationsLimit = 20,
+                            DailyUniqueExportedDomainsLimit = 1000,
                             ExportLimitMode = 2,
-                            ExportLimitRows = 5000
+                            ExportLimitRows = 5000,
+                            WeeklyExportOperationsLimit = 60,
+                            WeeklyUniqueExportedDomainsLimit = 3000
                         });
                 });
 
@@ -1043,6 +1167,17 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Navigation("ExportLog");
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ExportedDomainAccess", b =>
+                {
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.ExportLog", "ExportLog")
+                        .WithMany("ExportedDomainAccesses")
+                        .HasForeignKey("ExportLogId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ExportLog");
+                });
+
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.GoogleDriveConnection", b =>
                 {
                     b.HasOne("Redhead.SitesCatalog.Domain.Entities.ApplicationUser", null)
@@ -1129,6 +1264,8 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ExportLog", b =>
                 {
                     b.Navigation("AnalyticsSnapshot");
+
+                    b.Navigation("ExportedDomainAccesses");
                 });
 
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LocationGroup", b =>

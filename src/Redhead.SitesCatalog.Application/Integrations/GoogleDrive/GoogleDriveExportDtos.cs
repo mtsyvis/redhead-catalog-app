@@ -7,4 +7,5 @@ public sealed record GoogleDriveExportResponse(
     int RowsExported,
     bool WasTruncated,
     DateTime ExportedAtUtc,
-    string DestinationLabel);
+    string DestinationLabel,
+    string? TruncationReason = null);

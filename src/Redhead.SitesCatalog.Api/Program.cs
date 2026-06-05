@@ -29,6 +29,7 @@ builder.Services.AddHttpClient();
 builder.Services.Configure<GoogleDriveOptions>(
     builder.Configuration.GetSection(GoogleDriveOptions.SectionName));
 builder.Services.AddEmergencySitesExportOptions(builder.Configuration);
+builder.Services.AddExportedDomainAccessCleanup(builder.Configuration);
 builder.Services.Configure<FrontendOptions>(
     builder.Configuration.GetSection(FrontendOptions.SectionName));
 
@@ -41,6 +42,7 @@ builder.Services.AddScoped<ISitesService, SitesService>();
 builder.Services.AddScoped<IAdminUsersListService, AdminUsersListService>();
 builder.Services.AddScoped<IAccountSetupService, AccountSetupService>();
 builder.Services.AddScoped<IEffectiveExportPolicyService, EffectiveExportPolicyService>();
+builder.Services.AddScoped<IExportUsageLimitService, ExportUsageLimitService>();
 builder.Services.AddScoped<IUserTableViewsService, UserTableViewsService>();
 builder.Services.AddScoped<IUserSavedFilterSetsService, UserSavedFilterSetsService>();
 builder.Services.AddScoped<ISitesExcelExportGenerator, SitesExcelExportGenerator>();
@@ -151,7 +153,8 @@ builder.Services.AddCors(options =>
                   "X-Export-Requested-Rows",
                   "X-Export-Exported-Rows",
                   "X-Export-Truncated",
-                  "X-Export-Limit-Rows");
+                  "X-Export-Limit-Rows",
+                  "X-Export-Truncation-Reason");
     });
 });
 

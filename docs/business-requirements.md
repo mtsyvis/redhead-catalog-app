@@ -143,6 +143,20 @@ Rules:
 * If export is disabled for the current user, `/sites` must hide the export menu.
 * If export is truncated by a limit, the user should receive clear feedback.
 
+Client-role exports also have rolling usage limits:
+
+* Daily unique exported domains limit: default `1000`.
+* Weekly unique exported domains limit: default `3000`.
+* Daily export operations limit: default `20`.
+* Weekly export operations limit: default `60`.
+* Daily means the last 24 hours. Weekly means the last 7 days.
+* These usage limits apply only to `Client` users.
+* Unique-domain usage is counted per user by exported site domain. Re-exporting the same domain inside the same rolling window does not consume another unique-domain slot.
+* Export operation usage is counted per user for successful and partially successful exports only. Blocked attempts are logged but do not consume operation quota.
+* If only part of a requested export fits within the remaining daily or weekly unique-domain quota, the export is partial and includes only allowed site rows.
+* If no requested site rows can be exported because a usage limit is reached, the backend rejects the export and does not create a downloadable file or Google Drive file.
+* Google Drive exports must enforce the same row and usage limits as download exports.
+
 ## Sites catalog
 
 The catalog is expected to contain tens of thousands of sites. Search, filtering, sorting, paging, imports, and exports must be designed for that scale.
@@ -667,13 +681,17 @@ Rules:
 * Export workbooks include a `Not found` sheet only for multi-search exports that have not-found domains included by the export rules.
 * Export must enforce the user's effective export policy.
 * Export actions should be logged.
-* Current export logs do not distinguish regular download delivery from Google Drive delivery.
+* Export logs distinguish regular download delivery from Google Drive delivery.
 * Client-role exports create a separate analytics snapshot of active filters, sorting, and available search context for future analysis. These snapshots must not store exported site IDs or exported domains.
 * If export is truncated by limit, the user must be informed.
 * Disabled export must be enforced by backend, not only by hiding the button.
 * The Sites export UI offers both `Download Excel` and `Save to Google Drive`.
 * On `/sites`, export actions live in the Sites table toolbar so they are tied to the current table view, visible columns, search, filters, and sorting.
 * The existing Excel download export must remain available and unchanged when Google Drive is not connected or unavailable.
+* Export logs store requested row count, exported row count, truncation state, row-limit value, active client usage-limit values, destination, export mode, and blocked reason when applicable.
+* Successful and partially successful exports persist the actual exported site domains linked to the export log so rolling unique-domain usage can be calculated.
+* Exported-domain access rows are retained only for rolling usage checks and may be cleaned up after the configured retention period, which must not be shorter than 7 days.
+* Client-role analytics snapshots of filters, sorting, and search context remain separate from exported-domain access records.
 
 ### Google Drive export connection
 

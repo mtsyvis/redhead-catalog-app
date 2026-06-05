@@ -6,6 +6,7 @@ using Moq;
 using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -32,7 +33,16 @@ public sealed class ProfileControllerTests
                 5000,
                 false,
                 EffectivePolicySource.Role));
-        var sut = CreateController(userManager, googleDrive, policyService);
+        var usage = new ExportUsageSummary(
+            DailyUniqueExportedDomainsUsed: 2,
+            DailyUniqueExportedDomainsLimit: 1000,
+            WeeklyUniqueExportedDomainsUsed: 4,
+            WeeklyUniqueExportedDomainsLimit: 3000,
+            DailyExportOperationsUsed: 1,
+            DailyExportOperationsLimit: 20,
+            WeeklyExportOperationsUsed: 3,
+            WeeklyExportOperationsLimit: 60);
+        var sut = CreateController(userManager, googleDrive, policyService, usage);
 
         // Act
         var result = await sut.GetProfile(CancellationToken.None);
@@ -48,6 +58,14 @@ public sealed class ProfileControllerTests
         Assert.Equal(ExportLimitMode.Limited, payload.Limits.ExportLimitMode);
         Assert.Equal(5000, payload.Limits.ExportLimitRows);
         Assert.False(payload.Limits.IsUnlimited);
+        Assert.Equal(2, payload.Limits.DailyUniqueExportedDomainsUsed);
+        Assert.Equal(1000, payload.Limits.DailyUniqueExportedDomainsLimit);
+        Assert.Equal(4, payload.Limits.WeeklyUniqueExportedDomainsUsed);
+        Assert.Equal(3000, payload.Limits.WeeklyUniqueExportedDomainsLimit);
+        Assert.Equal(1, payload.Limits.DailyExportOperationsUsed);
+        Assert.Equal(20, payload.Limits.DailyExportOperationsLimit);
+        Assert.Equal(3, payload.Limits.WeeklyExportOperationsUsed);
+        Assert.Equal(60, payload.Limits.WeeklyExportOperationsLimit);
         policyService.Verify(
             service => service.GetEffectivePolicyAsync(user, AppRoles.Client, It.IsAny<CancellationToken>()),
             Times.Once);
@@ -171,12 +189,34 @@ public sealed class ProfileControllerTests
     private static ProfileController CreateController(
         Mock<UserManager<ApplicationUser>> userManager,
         Mock<IGoogleDriveIntegrationService> googleDriveIntegrationService,
-        Mock<IEffectiveExportPolicyService> effectiveExportPolicyService)
-        => new(
+        Mock<IEffectiveExportPolicyService> effectiveExportPolicyService,
+        ExportUsageSummary? usage = null)
+    {
+        var usageService = new Mock<IExportUsageLimitService>();
+        usageService
+            .Setup(service => service.GetUsageAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<EffectiveExportPolicy>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(usage ?? new ExportUsageSummary(
+                DailyUniqueExportedDomainsUsed: null,
+                DailyUniqueExportedDomainsLimit: null,
+                WeeklyUniqueExportedDomainsUsed: null,
+                WeeklyUniqueExportedDomainsLimit: null,
+                DailyExportOperationsUsed: null,
+                DailyExportOperationsLimit: null,
+                WeeklyExportOperationsUsed: null,
+                WeeklyExportOperationsLimit: null));
+
+        return new(
             userManager.Object,
             googleDriveIntegrationService.Object,
             effectiveExportPolicyService.Object,
+            usageService.Object,
             NullLogger<ProfileController>.Instance);
+    }
 
     private static Mock<IEffectiveExportPolicyService> CreatePolicyService(
         ApplicationUser user,

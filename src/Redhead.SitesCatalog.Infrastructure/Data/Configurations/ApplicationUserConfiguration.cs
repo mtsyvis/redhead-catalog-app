@@ -25,6 +25,22 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
             t.HasCheckConstraint(
                 "CK_AspNetUsers_ExportLimitOverride_NullModeRequiresNullRows",
                 @"""ExportLimitOverrideMode"" IS NOT NULL OR ""ExportLimitRowsOverride"" IS NULL");
+
+            t.HasCheckConstraint(
+                "CK_AspNetUsers_DailyUniqueExportedDomainsLimitOverride_PositiveOrNull",
+                @"""DailyUniqueExportedDomainsLimitOverride"" IS NULL OR ""DailyUniqueExportedDomainsLimitOverride"" > 0");
+
+            t.HasCheckConstraint(
+                "CK_AspNetUsers_WeeklyUniqueExportedDomainsLimitOverride_PositiveOrNull",
+                @"""WeeklyUniqueExportedDomainsLimitOverride"" IS NULL OR ""WeeklyUniqueExportedDomainsLimitOverride"" > 0");
+
+            t.HasCheckConstraint(
+                "CK_AspNetUsers_DailyExportOperationsLimitOverride_PositiveOrNull",
+                @"""DailyExportOperationsLimitOverride"" IS NULL OR ""DailyExportOperationsLimitOverride"" > 0");
+
+            t.HasCheckConstraint(
+                "CK_AspNetUsers_WeeklyExportOperationsLimitOverride_PositiveOrNull",
+                @"""WeeklyExportOperationsLimitOverride"" IS NULL OR ""WeeklyExportOperationsLimitOverride"" > 0");
         });
 
         builder.Property(u => u.ExportLimitOverrideMode)
@@ -32,6 +48,18 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
             .HasConversion<int?>();
 
         builder.Property(u => u.ExportLimitRowsOverride)
+            .IsRequired(false);
+
+        builder.Property(u => u.DailyUniqueExportedDomainsLimitOverride)
+            .IsRequired(false);
+
+        builder.Property(u => u.WeeklyUniqueExportedDomainsLimitOverride)
+            .IsRequired(false);
+
+        builder.Property(u => u.DailyExportOperationsLimitOverride)
+            .IsRequired(false);
+
+        builder.Property(u => u.WeeklyExportOperationsLimitOverride)
             .IsRequired(false);
 
         builder.Property(u => u.FirstName)

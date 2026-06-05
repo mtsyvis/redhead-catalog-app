@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Redhead.SitesCatalog.Application.Exceptions;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -48,12 +49,13 @@ public sealed class GoogleDriveExportService : IGoogleDriveExportService
             throw GoogleDriveExportException.NotConnected();
         }
 
-        var export = await _exportService.ExportSitesAsExcelAsync(
+        var export = await _exportService.PrepareSitesExportAsync(
             query,
             userId,
             userEmail,
             userRole,
             visibleColumnKeys,
+            ExportConstants.DestinationGoogleDrive,
             cancellationToken);
 
         return await UploadExportAsync(connection, export, cancellationToken);
@@ -88,13 +90,14 @@ public sealed class GoogleDriveExportService : IGoogleDriveExportService
             throw GoogleDriveExportException.NotConnected();
         }
 
-        var export = await _exportService.ExportMultiSearchAsExcelAsync(
+        var export = await _exportService.PrepareMultiSearchExportAsync(
             searchText,
             query,
             userId,
             userEmail,
             userRole,
             visibleColumnKeys,
+            ExportConstants.DestinationGoogleDrive,
             cancellationToken);
 
         return await UploadExportAsync(connection, export, cancellationToken);
@@ -118,7 +121,7 @@ public sealed class GoogleDriveExportService : IGoogleDriveExportService
 
     private async Task<GoogleDriveExportResponse> UploadExportAsync(
         GoogleDriveConnection connection,
-        ExportResult export,
+        PreparedExportResult export,
         CancellationToken cancellationToken)
     {
         var options = GetValidatedOptions();
@@ -153,14 +156,17 @@ public sealed class GoogleDriveExportService : IGoogleDriveExportService
                 ExportConstants.ExcelContentType,
                 cancellationToken);
 
+            var completedExport = await _exportService.CompletePreparedExportAsync(export, cancellationToken);
+
             return new GoogleDriveExportResponse(
                 uploadedFile.Id,
                 uploadedFile.Name,
                 uploadedFile.WebViewLink,
-                export.ExportedRows,
-                export.Truncated,
+                completedExport.ExportedRows,
+                completedExport.Truncated,
                 exportedAtUtc,
-                $"Google Drive / {connection.ExportFolderName}");
+                $"Google Drive / {connection.ExportFolderName}",
+                completedExport.TruncationReason);
         }
         catch (GoogleDriveApiException ex) when (ex.ReconnectRequired)
         {

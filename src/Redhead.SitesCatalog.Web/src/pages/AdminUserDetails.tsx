@@ -48,6 +48,41 @@ function getLimitSource(user: AdminUserDetailsType): string | null {
   return null;
 }
 
+const CLIENT_USAGE_LIMIT_ROWS: Array<{
+  label: string;
+  getEffective: (user: AdminUserDetailsType) => number | null;
+  getOverride: (user: AdminUserDetailsType) => number | null;
+}> = [
+  {
+    label: 'Daily unique exported domains',
+    getEffective: (user) => user.effectiveDailyUniqueExportedDomainsLimit,
+    getOverride: (user) => user.dailyUniqueExportedDomainsLimitOverride,
+  },
+  {
+    label: 'Weekly unique exported domains',
+    getEffective: (user) => user.effectiveWeeklyUniqueExportedDomainsLimit,
+    getOverride: (user) => user.weeklyUniqueExportedDomainsLimitOverride,
+  },
+  {
+    label: 'Daily export operations',
+    getEffective: (user) => user.effectiveDailyExportOperationsLimit,
+    getOverride: (user) => user.dailyExportOperationsLimitOverride,
+  },
+  {
+    label: 'Weekly export operations',
+    getEffective: (user) => user.effectiveWeeklyExportOperationsLimit,
+    getOverride: (user) => user.weeklyExportOperationsLimitOverride,
+  },
+];
+
+function formatClientUsageLimit(value: number | null | undefined): string {
+  return value == null ? 'Not available' : value.toLocaleString();
+}
+
+function formatClientUsageOverride(value: number | null | undefined): string {
+  return value == null ? 'Role default' : value.toLocaleString();
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
     if (error.statusCode === 403) return 'You do not have access to this user.';
@@ -123,6 +158,7 @@ export const AdminUserDetails: React.FC = () => {
     ? formatMaybeExportLimit(user.exportLimitOverrideMode, user.exportLimitRowsOverride)
     : null;
   const limitSource = user ? getLimitSource(user) : null;
+  const clientUsageLimitRows = user?.role === 'Client' ? CLIENT_USAGE_LIMIT_ROWS : [];
   const googleDrive = user?.googleDrive;
   const googleDriveConnected = user ? user.googleDriveConnected : null;
   const connectedAt = formatDateTime(googleDrive?.connectedAtUtc);
@@ -218,6 +254,41 @@ export const AdminUserDetails: React.FC = () => {
                       <DetailRow label="Effective export limit" value={effectiveLimit ?? 'Not available'} />
                       {limitSource && <DetailRow label="Source" value={limitSource} />}
                       <DetailRow label="User override" value={overrideLimit ?? 'No custom limit'} />
+                      {user.role === 'Client' && clientUsageLimitRows.length > 0 && (
+                        <>
+                          <Divider />
+                          <Box>
+                            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                              Client usage limits
+                            </Typography>
+                            <Box
+                              sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                                gap: 1.5,
+                              }}
+                            >
+                              {clientUsageLimitRows.map((row) => (
+                                <Box key={row.label}>
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    sx={{ display: 'block' }}
+                                  >
+                                    {row.label}
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    {formatClientUsageLimit(row.getEffective(user))}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Override: {formatClientUsageOverride(row.getOverride(user))}
+                                  </Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                          </Box>
+                        </>
+                      )}
                     </Stack>
                   ) : (
                     <Typography variant="body2" color="text.secondary">

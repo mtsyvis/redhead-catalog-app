@@ -128,10 +128,15 @@ EmergencySitesExport__ServiceAccountJsonPath=/run/secrets/google-service-account
 EmergencySitesExport__RetentionWeeks=8
 EmergencySitesExport__FilePrefix=redhead-sites-full
 EmergencySitesExport__UploadTimeoutMinutes=30
+ExportedDomainAccessCleanup__Enabled=true
+ExportedDomainAccessCleanup__RetentionDays=30
+ExportedDomainAccessCleanup__BatchSize=1000
+ExportedDomainAccessCleanup__IntervalHours=24
 FRONTEND_BASE_URL=https://catalog.rhda.us
 ```
 
 `EmergencySitesExport__ScheduleCron` uses standard five-field cron in UTC: `minute hour day-of-month month day-of-week`.
+`ExportedDomainAccessCleanup__RetentionDays` must be at least `7` because client weekly unique-domain limits use a rolling 7-day window.
 
 The app receives these values through Docker Compose:
 
@@ -153,6 +158,10 @@ EmergencySitesExport__ServiceAccountJsonPath=${EmergencySitesExport__ServiceAcco
 EmergencySitesExport__RetentionWeeks=${EmergencySitesExport__RetentionWeeks}
 EmergencySitesExport__FilePrefix=${EmergencySitesExport__FilePrefix}
 EmergencySitesExport__UploadTimeoutMinutes=${EmergencySitesExport__UploadTimeoutMinutes}
+ExportedDomainAccessCleanup__Enabled=${ExportedDomainAccessCleanup__Enabled}
+ExportedDomainAccessCleanup__RetentionDays=${ExportedDomainAccessCleanup__RetentionDays}
+ExportedDomainAccessCleanup__BatchSize=${ExportedDomainAccessCleanup__BatchSize}
+ExportedDomainAccessCleanup__IntervalHours=${ExportedDomainAccessCleanup__IntervalHours}
 Frontend__BaseUrl=${FRONTEND_BASE_URL}
 ```
 

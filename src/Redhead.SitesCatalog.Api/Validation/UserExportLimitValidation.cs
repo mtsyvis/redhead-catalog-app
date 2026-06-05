@@ -29,12 +29,14 @@ public static class UserExportLimitValidation
     {
         if (request.OverrideMode is null)
         {
-            return request.OverrideRows is not null
+            var rowError = request.OverrideRows is not null
                 ? "OverrideRows must be null when OverrideMode is null."
                 : null;
+
+            return rowError ?? ValidateUsageLimitOverrides(request);
         }
 
-        return request.OverrideMode.Value switch
+        var modeError = request.OverrideMode.Value switch
         {
             ExportLimitMode.Limited when request.OverrideRows is null or <= 0
                 => "OverrideRows must be greater than 0 when mode is Limited.",
@@ -42,6 +44,48 @@ public static class UserExportLimitValidation
                 => "OverrideRows must be null when mode is Disabled or Unlimited.",
             _ => null
         };
-    }
-}
 
+        return modeError ?? ValidateUsageLimitOverrides(request);
+    }
+
+    public static string? ValidateUsageLimitTargetRole(
+        string targetRole,
+        UpdateUserExportLimitRequest request)
+    {
+        if (request.ClientUsageLimitOverrides == null)
+        {
+            return null;
+        }
+
+        return string.Equals(targetRole, AppRoles.Client, StringComparison.Ordinal)
+            ? null
+            : "Client export usage limits can only be changed for Client users.";
+    }
+
+    private static string? ValidateUsageLimitOverrides(UpdateUserExportLimitRequest request)
+    {
+        var overrides = request.ClientUsageLimitOverrides;
+        if (overrides == null)
+        {
+            return null;
+        }
+
+        return ValidatePositiveIfProvided(
+            overrides.DailyUniqueExportedDomainsLimit,
+            nameof(overrides.DailyUniqueExportedDomainsLimit))
+            ?? ValidatePositiveIfProvided(
+                overrides.WeeklyUniqueExportedDomainsLimit,
+                nameof(overrides.WeeklyUniqueExportedDomainsLimit))
+            ?? ValidatePositiveIfProvided(
+                overrides.DailyExportOperationsLimit,
+                nameof(overrides.DailyExportOperationsLimit))
+            ?? ValidatePositiveIfProvided(
+                overrides.WeeklyExportOperationsLimit,
+                nameof(overrides.WeeklyExportOperationsLimit));
+    }
+
+    private static string? ValidatePositiveIfProvided(int? value, string fieldName)
+        => value is <= 0
+            ? $"{fieldName} must be greater than 0 when provided."
+            : null;
+}

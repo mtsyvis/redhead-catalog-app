@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -417,10 +418,3 @@ public static class ExportAnalyticsSnapshotBuilder
         int FoundCount,
         int NotFoundCount);
 }
-
-public sealed record ExportAnalyticsSearchContext(
-    string Mode,
-    int? InputCount = null,
-    int? UniqueInputCount = null,
-    int? FoundCount = null,
-    int? NotFoundCount = null);
