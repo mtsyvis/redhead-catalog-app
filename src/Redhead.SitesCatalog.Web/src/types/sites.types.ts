@@ -241,6 +241,7 @@ export interface GoogleDriveExportResponse {
   wasTruncated: boolean;
   exportedAtUtc: string;
   destinationLabel: string;
+  truncationReason: string | null;
 }
 
 /**

@@ -308,6 +308,7 @@ export function Sites() {
   const {
     exporting,
     googleDriveStatus,
+    exportUsageLimits,
     googleDriveDialog,
     connectingGoogleDrive,
     handleDownloadExport,
@@ -316,6 +317,7 @@ export function Sites() {
     closeGoogleDriveDialog,
   } = useSitesExport({
     buildSitesQueryParams,
+    isClient,
     multiSearchResult,
     searchText: multiSearchAppliedText,
     visibleColumnKeys: tableViews.visibleColumnIds,
@@ -725,6 +727,7 @@ export function Sites() {
             canExport={canExport}
             exporting={exporting}
             loading={loading || tableViews.loading}
+            exportUsageLimits={exportUsageLimits}
             resultCount={gridRowCount}
             resultSearchedCount={gridSearchedRowCount}
             resultNotFoundCount={gridNotFoundRowCount}

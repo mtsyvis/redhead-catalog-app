@@ -1,4 +1,5 @@
 import type { TableViewSettings } from '../../../types/tableViews.types';
+import type { CurrentUserProfileLimits } from '../../../types/auth.types';
 import type { SitesColumnMetadata } from '../table-views/sitesTableColumns';
 import type { useSitesTableViews } from '../table-views/useSitesTableViews';
 
@@ -19,6 +20,7 @@ export interface SitesTableViewToolbarProps {
   canExport: boolean;
   exporting: boolean;
   loading: boolean;
+  exportUsageLimits: CurrentUserProfileLimits | null;
   resultCount: number;
   resultSearchedCount?: number;
   resultNotFoundCount?: number;

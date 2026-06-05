@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Divider,
   Chip,
   IconButton,
   Menu,
@@ -30,7 +31,11 @@ import { BrandButton } from '../components/common/BrandButton';
 import { useAuth } from '../contexts/AuthContext';
 import { adminUsersService } from '../services/adminUsers.service';
 import { roleSettingsService } from '../services/roleSettings.service';
-import type { UserListItem as UserListItemType, UserTypeFilter } from '../types/adminUsers.types';
+import type {
+  ClientExportUsageLimitOverridesRequest,
+  UserListItem as UserListItemType,
+  UserTypeFilter,
+} from '../types/adminUsers.types';
 import { NON_SUPER_ADMIN_ROLES, ROLES } from '../types/adminUsers.types';
 import type { RoleSettingItem } from '../types/roleSettings.types';
 import type { ExportLimitMode } from '../utils/exportLimit';
@@ -39,6 +44,8 @@ import { dataGridLocaleText } from '../utils/numberFormat';
 import { ApiClientError } from '../services/api.client';
 
 type ExportLimitOverrideOption = 'role-default' | ExportLimitMode;
+type ClientUsageLimitInputName = keyof ClientExportUsageLimitOverridesRequest;
+type ClientUsageLimitInputs = Record<ClientUsageLimitInputName, string>;
 
 const USER_TYPE_OPTIONS: Array<{ value: UserTypeFilter; label: string; emptyMessage: string }> = [
   { value: 'all', label: 'All users', emptyMessage: 'No users found.' },
@@ -49,6 +56,48 @@ const USER_TYPE_OPTIONS: Array<{ value: UserTypeFilter; label: string; emptyMess
 const SUPER_ADMIN_NOTE_MAX_LENGTH = 1000;
 const SUPER_ADMIN_NOTE_HELPER_TEXT =
   'Visible only to Super Admin. Use it for internal client/account identification.';
+
+const CLIENT_USAGE_LIMIT_FIELDS: Array<{
+  name: ClientUsageLimitInputName;
+  label: string;
+  helperText: string;
+  getOverride: (user: UserListItemType) => number | null;
+  getEffective: (user: UserListItemType) => number | null;
+  getRoleDefault: (setting: RoleSettingItem) => number | null;
+}> = [
+  {
+    name: 'dailyUniqueExportedDomainsLimit',
+    label: 'Daily unique exported domains',
+    helperText: '24h window',
+    getOverride: (user) => user.dailyUniqueExportedDomainsLimitOverride,
+    getEffective: (user) => user.effectiveDailyUniqueExportedDomainsLimit,
+    getRoleDefault: (setting) => setting.dailyUniqueExportedDomainsLimit,
+  },
+  {
+    name: 'weeklyUniqueExportedDomainsLimit',
+    label: 'Weekly unique exported domains',
+    helperText: '7d window',
+    getOverride: (user) => user.weeklyUniqueExportedDomainsLimitOverride,
+    getEffective: (user) => user.effectiveWeeklyUniqueExportedDomainsLimit,
+    getRoleDefault: (setting) => setting.weeklyUniqueExportedDomainsLimit,
+  },
+  {
+    name: 'dailyExportOperationsLimit',
+    label: 'Daily export operations',
+    helperText: '24h window',
+    getOverride: (user) => user.dailyExportOperationsLimitOverride,
+    getEffective: (user) => user.effectiveDailyExportOperationsLimit,
+    getRoleDefault: (setting) => setting.dailyExportOperationsLimit,
+  },
+  {
+    name: 'weeklyExportOperationsLimit',
+    label: 'Weekly export operations',
+    helperText: '7d window',
+    getOverride: (user) => user.weeklyExportOperationsLimitOverride,
+    getEffective: (user) => user.effectiveWeeklyExportOperationsLimit,
+    getRoleDefault: (setting) => setting.weeklyExportOperationsLimit,
+  },
+];
 
 function parsePositiveInt(value: string): number | null {
   const trimmed = value.trim();
@@ -61,6 +110,19 @@ function parsePositiveInt(value: string): number | null {
 function normalizeOptionalText(value: string): string | null {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function createEmptyClientUsageLimitInputs(): ClientUsageLimitInputs {
+  return {
+    dailyUniqueExportedDomainsLimit: '',
+    weeklyUniqueExportedDomainsLimit: '',
+    dailyExportOperationsLimit: '',
+    weeklyExportOperationsLimit: '',
+  };
+}
+
+function formatEffectiveNumber(value: number | null | undefined): string {
+  return value == null ? 'Not available' : value.toLocaleString();
 }
 
 function getProfileName(user: UserListItemType): string | null {
@@ -116,6 +178,9 @@ export const AdminUsers: React.FC = () => {
   const [editExportLimitUser, setEditExportLimitUser] = useState<UserListItemType | null>(null);
   const [exportLimitOption, setExportLimitOption] = useState<ExportLimitOverrideOption>('role-default');
   const [exportLimitRowsInput, setExportLimitRowsInput] = useState('');
+  const [clientUsageLimitInputs, setClientUsageLimitInputs] = useState<ClientUsageLimitInputs>(
+    createEmptyClientUsageLimitInputs
+  );
   const [exportLimitSaveLoading, setExportLimitSaveLoading] = useState(false);
   const [exportLimitError, setExportLimitError] = useState<string | null>(null);
 
@@ -354,6 +419,24 @@ export const AdminUsers: React.FC = () => {
           : '',
       );
     }
+    setClientUsageLimitInputs({
+      dailyUniqueExportedDomainsLimit:
+        u.dailyUniqueExportedDomainsLimitOverride != null
+          ? String(u.dailyUniqueExportedDomainsLimitOverride)
+          : '',
+      weeklyUniqueExportedDomainsLimit:
+        u.weeklyUniqueExportedDomainsLimitOverride != null
+          ? String(u.weeklyUniqueExportedDomainsLimitOverride)
+          : '',
+      dailyExportOperationsLimit:
+        u.dailyExportOperationsLimitOverride != null
+          ? String(u.dailyExportOperationsLimitOverride)
+          : '',
+      weeklyExportOperationsLimit:
+        u.weeklyExportOperationsLimitOverride != null
+          ? String(u.weeklyExportOperationsLimitOverride)
+          : '',
+    });
     setExportLimitError(null);
   }, []);
 
@@ -399,9 +482,18 @@ export const AdminUsers: React.FC = () => {
     setExportLimitError(null);
   };
 
+  const handleClientUsageLimitInputChange = (
+    field: ClientUsageLimitInputName,
+    value: string
+  ) => {
+    setClientUsageLimitInputs((prev) => ({ ...prev, [field]: value }));
+    setExportLimitError(null);
+  };
+
   const handleCloseExportLimit = () => {
     if (exportLimitSaveLoading) return;
     setEditExportLimitUser(null);
+    setClientUsageLimitInputs(createEmptyClientUsageLimitInputs());
   };
 
   const handleCloseEditNote = () => {
@@ -416,6 +508,7 @@ export const AdminUsers: React.FC = () => {
 
     let overrideMode: ExportLimitMode | null = null;
     let overrideRows: number | null = null;
+    let clientUsageLimitOverrides: ClientExportUsageLimitOverridesRequest | undefined;
 
     if (exportLimitOption !== 'role-default') {
       overrideMode = exportLimitOption;
@@ -429,11 +522,43 @@ export const AdminUsers: React.FC = () => {
       }
     }
 
+    if (editExportLimitUser.role === 'Client') {
+      const nextClientUsageLimitOverrides: ClientExportUsageLimitOverridesRequest = {
+        dailyUniqueExportedDomainsLimit: null,
+        weeklyUniqueExportedDomainsLimit: null,
+        dailyExportOperationsLimit: null,
+        weeklyExportOperationsLimit: null,
+      };
+
+      for (const field of CLIENT_USAGE_LIMIT_FIELDS) {
+        const rawValue = clientUsageLimitInputs[field.name].trim();
+        if (!rawValue) {
+          nextClientUsageLimitOverrides[field.name] = null;
+          continue;
+        }
+
+        const parsed = parsePositiveInt(rawValue);
+        if (parsed === null) {
+          setExportLimitError(`${field.label}: enter a positive integer (no decimals, no zero).`);
+          return;
+        }
+
+        nextClientUsageLimitOverrides[field.name] = parsed;
+      }
+
+      clientUsageLimitOverrides = nextClientUsageLimitOverrides;
+    }
+
     setExportLimitError(null);
     setExportLimitSaveLoading(true);
     try {
-      await adminUsersService.updateExportLimit(editExportLimitUser.id, { overrideMode, overrideRows });
+      await adminUsersService.updateExportLimit(editExportLimitUser.id, {
+        overrideMode,
+        overrideRows,
+        clientUsageLimitOverrides,
+      });
       setEditExportLimitUser(null);
+      setClientUsageLimitInputs(createEmptyClientUsageLimitInputs());
       await loadUsers(true);
     } catch (err) {
       setExportLimitError(
@@ -489,14 +614,14 @@ export const AdminUsers: React.FC = () => {
     if (exportLimitOption === 'role-default') {
       const roleDefault = roleSettings.find((r) => r.role === editExportLimitUser.role);
       if (!roleDefault) return null;
-      return `Effective export limit: ${formatExportLimit(roleDefault.exportLimitMode, roleDefault.exportLimitRows)}`;
+      return formatExportLimit(roleDefault.exportLimitMode, roleDefault.exportLimitRows);
     }
-    if (exportLimitOption === 'Disabled') return 'Effective export limit: Disabled';
-    if (exportLimitOption === 'Unlimited') return 'Effective export limit: Unlimited';
+    if (exportLimitOption === 'Disabled') return 'Disabled';
+    if (exportLimitOption === 'Unlimited') return 'Unlimited';
     if (exportLimitOption === 'Limited') {
       const parsed = parsePositiveInt(exportLimitRowsInput);
       if (parsed === null) return null;
-      return `Effective export limit: ${parsed} rows`;
+      return `${parsed.toLocaleString()} rows`;
     }
     return null;
   };
@@ -505,6 +630,25 @@ export const AdminUsers: React.FC = () => {
     const item = roleSettings.find((r) => r.role === role);
     if (!item) return '—';
     return `Role default: ${formatExportLimit(item.exportLimitMode, item.exportLimitRows)}`;
+  };
+
+  const getClientUsageLimitPreviewRows = () => {
+    if (!editExportLimitUser || editExportLimitUser.role !== 'Client') return [];
+
+    const roleDefault = roleSettings.find((r) => r.role === editExportLimitUser.role);
+
+    return CLIENT_USAGE_LIMIT_FIELDS.map((field) => {
+      const rawValue = clientUsageLimitInputs[field.name].trim();
+      const parsedOverride = rawValue ? parsePositiveInt(rawValue) : null;
+      const invalidOverride = Boolean(rawValue && parsedOverride === null);
+      const roleDefaultValue = roleDefault ? field.getRoleDefault(roleDefault) : null;
+      const effectiveValue = parsedOverride ?? roleDefaultValue;
+
+      return {
+        label: field.label,
+        effective: invalidOverride ? 'Invalid' : formatEffectiveNumber(effectiveValue),
+      };
+    });
   };
 
   const handleUserTypeChange = (_event: React.MouseEvent<HTMLElement>, nextUserType: UserTypeFilter | null) => {
@@ -742,6 +886,7 @@ export const AdminUsers: React.FC = () => {
   }
 
   const exportLimitPreview = getExportLimitPreview();
+  const clientUsageLimitPreviewRows = getClientUsageLimitPreviewRows();
 
   return (
     <PageShell
@@ -1209,43 +1354,129 @@ export const AdminUsers: React.FC = () => {
                 </Typography>
               </Box>
 
-              <FormControl fullWidth>
-                <InputLabel>Override</InputLabel>
-                <Select
-                  value={exportLimitOption}
-                  label="Override"
-                  onChange={(e) =>
-                    handleExportLimitOptionChange(e.target.value as ExportLimitOverrideOption)
-                  }
-                  disabled={exportLimitSaveLoading}
-                >
-                  <MenuItem value="role-default">Use role default</MenuItem>
-                  <MenuItem value="Disabled">Disabled</MenuItem>
-                  <MenuItem value="Limited">Limited</MenuItem>
-                  <MenuItem value="Unlimited">Unlimited</MenuItem>
-                </Select>
-              </FormControl>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Box>
+                  <Typography variant="subtitle2">Per-export row limit</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Controls how many site rows this user can export in one file.
+                  </Typography>
+                </Box>
 
-              {exportLimitOption === 'Limited' && (
-                <TextField
-                  label="Rows"
-                  type="number"
-                  value={exportLimitRowsInput}
-                  onChange={(e) => {
-                    setExportLimitRowsInput(e.target.value);
-                    setExportLimitError(null);
-                  }}
-                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
-                  disabled={exportLimitSaveLoading}
-                  required
-                  fullWidth
-                />
-              )}
+                <FormControl fullWidth>
+                  <InputLabel>Override</InputLabel>
+                  <Select
+                    value={exportLimitOption}
+                    label="Override"
+                    onChange={(e) =>
+                      handleExportLimitOptionChange(e.target.value as ExportLimitOverrideOption)
+                    }
+                    disabled={exportLimitSaveLoading}
+                  >
+                    <MenuItem value="role-default">Use role default</MenuItem>
+                    <MenuItem value="Disabled">Disabled</MenuItem>
+                    <MenuItem value="Limited">Limited</MenuItem>
+                    <MenuItem value="Unlimited">Unlimited</MenuItem>
+                  </Select>
+                </FormControl>
 
-              {exportLimitPreview && (
-                <Typography variant="body2" color="text.secondary">
-                  {exportLimitPreview}
-                </Typography>
+                {exportLimitOption === 'Limited' && (
+                  <TextField
+                    label="Rows per export"
+                    type="number"
+                    value={exportLimitRowsInput}
+                    onChange={(e) => {
+                      setExportLimitRowsInput(e.target.value);
+                      setExportLimitError(null);
+                    }}
+                    slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                    disabled={exportLimitSaveLoading}
+                    required
+                    fullWidth
+                  />
+                )}
+
+                {exportLimitPreview && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      px: 1.5,
+                      py: 1,
+                      borderRadius: 1,
+                      bgcolor: 'background.default',
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      Effective per-export limit
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {exportLimitPreview}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+
+              {editExportLimitUser.role === 'Client' && (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="subtitle2">Client usage limits</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                      Daily and weekly quotas. Blank fields use the Client role default.
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                    {CLIENT_USAGE_LIMIT_FIELDS.map((field) => {
+                      const value = clientUsageLimitInputs[field.name];
+                      const invalid = value.trim() !== '' && parsePositiveInt(value) === null;
+
+                      return (
+                        <TextField
+                          key={field.name}
+                          label={field.label}
+                          type="number"
+                          value={value}
+                          onChange={(e) => handleClientUsageLimitInputChange(field.name, e.target.value)}
+                          slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                          disabled={exportLimitSaveLoading}
+                          error={invalid}
+                          helperText={invalid ? 'Positive integer required' : field.helperText}
+                          fullWidth
+                        />
+                      );
+                    })}
+                  </Box>
+
+                  <Box
+                    sx={{
+                      border: 1,
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      p: 1.5,
+                      bgcolor: 'background.default',
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                      Effective usage limits
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
+                      {clientUsageLimitPreviewRows.map((row) => (
+                        <Box
+                          key={row.label}
+                          sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}
+                        >
+                          <Typography variant="body2" color="text.secondary">
+                            {row.label}
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {row.effective}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                </>
               )}
 
               {exportLimitError && (

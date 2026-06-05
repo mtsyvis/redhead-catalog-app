@@ -42,6 +42,7 @@ export function SitesTableViewToolbar({
   canExport,
   exporting,
   loading,
+  exportUsageLimits,
   resultCount,
   resultSearchedCount = 0,
   resultNotFoundCount = 0,
@@ -528,6 +529,7 @@ export function SitesTableViewToolbar({
           <SitesExportMenu
             exporting={exporting}
             loading={loading}
+            exportUsageLimits={exportUsageLimits}
             onDownloadExcel={onDownloadExcel}
             onSaveToGoogleDrive={onSaveToGoogleDrive}
           />

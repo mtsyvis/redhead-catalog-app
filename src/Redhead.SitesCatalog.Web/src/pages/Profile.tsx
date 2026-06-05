@@ -23,6 +23,7 @@ import { ApiClientError } from '../services/api.client';
 import { authService } from '../services/auth.service';
 import { googleDriveService } from '../services/googleDrive.service';
 import type { CurrentUserProfile, CurrentUserProfileLimits } from '../types/auth.types';
+import { formatUsageLimitPair, hasClientExportUsage } from '../utils/exportUsageLimits';
 
 function getFieldError(errors: Record<string, string[]> | undefined, field: string): string | undefined {
   return errors?.[field]?.[0];
@@ -60,6 +61,33 @@ function getExportLimitDescription(limits: CurrentUserProfileLimits | null | und
 
   return 'No export limit is configured for this account.';
 }
+
+const CLIENT_EXPORT_USAGE_ROWS: Array<{
+  label: string;
+  getUsed: (limits: CurrentUserProfileLimits) => number | null;
+  getLimit: (limits: CurrentUserProfileLimits) => number | null;
+}> = [
+  {
+    label: 'Daily exported domains',
+    getUsed: (limits) => limits.dailyUniqueExportedDomainsUsed,
+    getLimit: (limits) => limits.dailyUniqueExportedDomainsLimit,
+  },
+  {
+    label: 'Weekly exported domains',
+    getUsed: (limits) => limits.weeklyUniqueExportedDomainsUsed,
+    getLimit: (limits) => limits.weeklyUniqueExportedDomainsLimit,
+  },
+  {
+    label: 'Daily exports',
+    getUsed: (limits) => limits.dailyExportOperationsUsed,
+    getLimit: (limits) => limits.dailyExportOperationsLimit,
+  },
+  {
+    label: 'Weekly exports',
+    getUsed: (limits) => limits.weeklyExportOperationsUsed,
+    getLimit: (limits) => limits.weeklyExportOperationsLimit,
+  },
+];
 
 export const Profile: React.FC = () => {
   const { refreshUser } = useAuth();
@@ -164,6 +192,7 @@ export const Profile: React.FC = () => {
   const googleDrive = profile?.googleDrive;
   const limits = profile?.limits;
   const exportDisabled = limits?.exportLimitMode === 'Disabled';
+  const showClientExportUsage = profile?.role === 'Client' && hasClientExportUsage(limits);
   const connectedAt = formatConnectedAt(googleDrive?.connectedAtUtc ?? null);
   const trimmedFirstName = firstName.trim();
   const trimmedLastName = lastName.trim();
@@ -245,11 +274,43 @@ export const Profile: React.FC = () => {
                 <Stack spacing={1.25}>
                   <Typography variant="h6">Export limits</Typography>
                   <Typography variant="body2">
-                    Export row limit: <strong>{formatExportLimitValue(limits)}</strong>
+                    Rows per export: <strong>{formatExportLimitValue(limits)}</strong>
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {getExportLimitDescription(limits)}
                   </Typography>
+                  {showClientExportUsage && limits && (
+                    <>
+                      <Divider sx={{ my: 0.75 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Daily limits are calculated over the last 24 hours. Weekly limits are
+                        calculated over the last 7 days.
+                      </Typography>
+                      <Box
+                        sx={{
+                          display: 'grid',
+                          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                          gap: 1.5,
+                        }}
+                      >
+                        {CLIENT_EXPORT_USAGE_ROWS.map((row) => {
+                          const usage = formatUsageLimitPair(row.getUsed(limits), row.getLimit(limits));
+                          if (!usage) return null;
+
+                          return (
+                            <Box key={row.label}>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                {row.label}
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {usage}
+                              </Typography>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    </>
+                  )}
                 </Stack>
               </CardContent>
             </Card>
