@@ -496,7 +496,7 @@ Input rules:
 
 * Uses the same search area as normal search, with a Multi-search mode/toggle.
 * Input accepts domains or URLs separated by spaces and/or new lines.
-* Maximum input count: 500.
+* Maximum input count: 5,000.
 * Inputs are normalized before matching.
 * Matching is exact normalized `Domain` equality, not substring search.
 * Duplicate inputs after normalization are detected, removed from search execution, and reported to the user.

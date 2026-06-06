@@ -44,7 +44,7 @@ public class SitesController : ControllerBase
     }
 
     /// <summary>
-    /// Multi-search by domains/URLs: exact match on normalized Domain. Max 500 inputs.
+    /// Multi-search by domains/URLs: exact match on normalized Domain. Max 5000 inputs.
     /// </summary>
     [HttpPost("multi-search")]
     public async Task<ActionResult<MultiSearchResponse>> MultiSearch(

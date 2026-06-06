@@ -54,26 +54,35 @@ public class MultiSearchParserTests
     }
 
     [Fact]
-    public void Parse_MoreThan500Inputs_ThrowsRequestValidationException()
+    public void Parse_MoreThanMaxInputs_ThrowsRequestValidationException()
     {
-        var tokens = Enumerable.Range(0, 501).Select(i => $"domain{i}.com").ToArray();
+        // Arrange
+        var receivedCount = MultiSearchConstants.MaxInputs + 1;
+        var tokens = Enumerable.Range(0, receivedCount).Select(i => $"domain{i}.com").ToArray();
         var queryText = string.Join(' ', tokens);
 
+        // Act
         var ex = Assert.Throws<RequestValidationException>(() => MultiSearchParser.Parse(queryText));
 
+        // Assert
         Assert.Contains(MultiSearchConstants.MaxInputs.ToString(), ex.Message);
-        Assert.Contains("501", ex.Message);
+        Assert.Contains(receivedCount.ToString(), ex.Message);
     }
 
     [Fact]
-    public void Parse_Exactly500Inputs_DoesNotThrow()
+    public void Parse_ExactlyMaxInputs_DoesNotThrow()
     {
-        var tokens = Enumerable.Range(0, 500).Select(i => $"domain{i}.com").ToArray();
+        // Arrange
+        var tokens = Enumerable.Range(0, MultiSearchConstants.MaxInputs)
+            .Select(i => $"domain{i}.com")
+            .ToArray();
         var queryText = string.Join(' ', tokens);
 
+        // Act
         var result = MultiSearchParser.Parse(queryText);
 
-        Assert.Equal(500, result.UniqueDomains.Count);
+        // Assert
+        Assert.Equal(MultiSearchConstants.MaxInputs, result.UniqueDomains.Count);
     }
 
     [Fact]

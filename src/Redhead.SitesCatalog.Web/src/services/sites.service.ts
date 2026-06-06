@@ -36,7 +36,7 @@ class SitesService {
   }
 
   /**
-   * Multi-search by domains/URLs (exact match, max 500).
+   * Multi-search by domains/URLs (exact match, max 5000).
    */
   async multiSearch(queryText: string): Promise<MultiSearchResponse> {
     return apiClient.post<MultiSearchResponse, { queryText: string }>(

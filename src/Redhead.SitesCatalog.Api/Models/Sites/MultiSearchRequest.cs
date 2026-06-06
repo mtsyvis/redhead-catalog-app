@@ -6,7 +6,7 @@ namespace Redhead.SitesCatalog.Api.Models.Sites;
 public class MultiSearchRequest
 {
     /// <summary>
-    /// Domains or URLs separated by whitespace (spaces, newlines, tabs). Max 500 inputs.
+    /// Domains or URLs separated by whitespace (spaces, newlines, tabs). Max 5000 inputs.
     /// </summary>
     public string QueryText { get; set; } = string.Empty;
 

@@ -634,7 +634,7 @@ export function SitesFilters({
       maxRows={multiSearchMode ? 8 : 1}
       placeholder={
         multiSearchMode
-          ? 'Paste domains or URLs (one per line or space-separated, max 500)'
+          ? 'Paste domains or URLs (one per line or space-separated, max 5,000)'
           : 'Search by domain (example.com or https://www.example.com/path)'
       }
       value={searchValue}

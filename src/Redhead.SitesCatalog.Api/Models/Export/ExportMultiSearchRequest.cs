@@ -8,7 +8,7 @@ namespace Redhead.SitesCatalog.Api.Models.Export;
 public sealed class ExportMultiSearchRequest
 {
     /// <summary>
-    /// Domains/URLs separated by whitespace (max 500). Parsed and normalized for exact Domain match.
+    /// Domains/URLs separated by whitespace (max 5000). Parsed and normalized for exact Domain match.
     /// </summary>
     public string SearchText { get; set; } = string.Empty;
 

@@ -18,7 +18,7 @@ public static class MultiSearchParser
     /// </summary>
     /// <param name="queryText">Raw input (domains/URLs separated by whitespace)</param>
     /// <returns>Unique domains to search and list of domains that appeared more than once</returns>
-    /// <exception cref="RequestValidationException">Thrown when input count exceeds MaxInputs (500)</exception>
+    /// <exception cref="RequestValidationException">Thrown when input count exceeds MaxInputs</exception>
     public static MultiSearchParseResult Parse(string? queryText)
     {
         if (string.IsNullOrWhiteSpace(queryText))
