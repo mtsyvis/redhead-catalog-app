@@ -79,6 +79,7 @@ export const PageShell: React.FC<PageShellProps> = ({
 
   const displayName = user?.displayName || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email;
   const isAdmin = user?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
+  const isSuperAdmin = user?.roles?.includes('SuperAdmin');
   const isAdminPath = location.pathname.startsWith('/admin');
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
@@ -164,6 +165,11 @@ export const PageShell: React.FC<PageShellProps> = ({
                       anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
                       transformOrigin={{ vertical: 'top', horizontal: 'left' }}
                     >
+                      {isSuperAdmin && (
+                        <MenuItem onClick={() => handleAdminNav('/admin/analytics')}>
+                          Analytics
+                        </MenuItem>
+                      )}
                       <MenuItem onClick={() => handleAdminNav('/admin/users')}>Users</MenuItem>
                       <MenuItem onClick={() => handleAdminNav('/admin/role-settings')}>
                         Role Settings

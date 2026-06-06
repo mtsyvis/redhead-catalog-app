@@ -16,6 +16,7 @@ import { Imports } from './pages/Imports';
 import { AdminUsers } from './pages/AdminUsers';
 import { AdminUserDetails } from './pages/AdminUserDetails';
 import { RoleSettings } from './pages/RoleSettings';
+import { Analytics } from './pages/Analytics';
 import { OAuthHome, PrivacyPolicy, TermsOfService } from './pages/OAuthVerificationPages';
 
 /**
@@ -96,6 +97,17 @@ const App: React.FC = () => {
                 <ProtectedRoute>
                   <AccountSetupRequiredRoute>
                     <RoleSettings />
+                  </AccountSetupRequiredRoute>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/admin/analytics"
+              element={
+                <ProtectedRoute>
+                  <AccountSetupRequiredRoute>
+                    <Analytics />
                   </AccountSetupRequiredRoute>
                 </ProtectedRoute>
               }

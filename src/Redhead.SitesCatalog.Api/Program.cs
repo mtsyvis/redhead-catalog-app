@@ -40,6 +40,7 @@ builder.Services.AddScoped<ISitesQueryBuilder, SitesQueryBuilder>();
 builder.Services.AddScoped<INicheFilterOptionsCache, NicheFilterOptionsCache>();
 builder.Services.AddScoped<ISitesService, SitesService>();
 builder.Services.AddScoped<IAdminUsersListService, AdminUsersListService>();
+builder.Services.AddScoped<IBusinessDemandAnalyticsService, BusinessDemandAnalyticsService>();
 builder.Services.AddScoped<IAccountSetupService, AccountSetupService>();
 builder.Services.AddScoped<IEffectiveExportPolicyService, EffectiveExportPolicyService>();
 builder.Services.AddScoped<IExportUsageLimitService, ExportUsageLimitService>();

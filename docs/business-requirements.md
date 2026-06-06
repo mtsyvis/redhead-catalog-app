@@ -735,6 +735,10 @@ Rules:
 * Role settings editing is available only to `SuperAdmin`.
 * Per-user export override editing is available only to `SuperAdmin`.
 * `SuperAdmin` export settings are shown as unlimited and not editable.
+* `SuperAdmin` can access an Analytics page for Business Demand based on Client export requests.
+* Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
+* Business Demand analytics are based on export requests, not all UI searches, and must not expose raw export logs or raw filter/sort/search snapshot JSON in the page.
+* Future note: an export detail drawer with full filter, sort, and search snapshots may be added later for debugging, but it is not part of the current Analytics page.
 
 ## Branding and UI direction
 
