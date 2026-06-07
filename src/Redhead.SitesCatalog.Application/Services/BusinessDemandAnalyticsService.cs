@@ -113,11 +113,11 @@ public sealed class BusinessDemandAnalyticsService : IBusinessDemandAnalyticsSer
 
         filtered = query.Status switch
         {
-            BusinessDemandAnalyticsStatuses.Successful => filtered
+            AnalyticsStatusFilters.Successful => filtered
                 .Where(log => log.BlockedReason == null && !log.WasTruncated),
-            BusinessDemandAnalyticsStatuses.Partial => filtered
+            AnalyticsStatusFilters.Partial => filtered
                 .Where(log => log.BlockedReason == null && log.WasTruncated),
-            BusinessDemandAnalyticsStatuses.Blocked => filtered
+            AnalyticsStatusFilters.Blocked => filtered
                 .Where(log => log.BlockedReason != null),
             _ => filtered
         };

@@ -1,20 +1,6 @@
 namespace Redhead.SitesCatalog.Application.Models.Analytics;
 
-public static class BusinessDemandAnalyticsStatuses
-{
-    public const string Successful = "successful";
-    public const string Partial = "partial";
-    public const string Blocked = "blocked";
-}
-
-public sealed class BusinessDemandAnalyticsQuery
-{
-    public DateTime FromUtc { get; init; }
-    public DateTime ToUtc { get; init; }
-    public string? ClientId { get; init; }
-    public string? Destination { get; init; }
-    public string? Status { get; init; }
-}
+public sealed class BusinessDemandAnalyticsQuery : AnalyticsQuery;
 
 public sealed record BusinessDemandAnalyticsDto(
     BusinessDemandSummaryDto Summary,
@@ -49,8 +35,3 @@ public sealed record FilterStrictnessDto(
     int BroadExports,
     int FilteredExports,
     int BroadExportThreshold);
-
-public sealed record AnalyticsClientOptionDto(
-    string Id,
-    string Email,
-    string DisplayName);

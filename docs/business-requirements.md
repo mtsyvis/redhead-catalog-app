@@ -738,7 +738,11 @@ Rules:
 * `SuperAdmin` can access an Analytics page for Business Demand based on Client export requests.
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
 * Business Demand analytics are based on export requests, not all UI searches, and must not expose raw export logs or raw filter/sort/search snapshot JSON in the page.
-* Future note: an export detail drawer with full filter, sort, and search snapshots may be added later for debugging, but it is not part of the current Analytics page.
+* `SuperAdmin` can access an Export Activity analytics tab based on Client export logs and exported-domain access records.
+* Export Activity analytics summarize completed, partial, and blocked exports; unique exported domains; requested versus exported rows; daily export activity; Client rolling 24-hour and 7-day usage; and paginated recent export logs.
+* Export Activity page filters apply to selected-period summaries, daily activity, Client selected-period columns, and recent logs. Rolling 24-hour and 7-day Client usage columns always use current rolling windows and may differ from the selected page date range.
+* Export Activity recent logs must show readable filter and sort summaries and must not display raw snapshot JSON.
+* Future improvement: add an export detail drawer with full filter, sort, and search snapshots for debugging.
 
 ## Branding and UI direction
 

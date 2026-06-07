@@ -14,6 +14,7 @@ public sealed class AnalyticsControllerTests
         var methods = new[]
         {
             controllerType.GetMethod(nameof(AnalyticsController.GetBusinessDemand)),
+            controllerType.GetMethod(nameof(AnalyticsController.GetExportActivity)),
             controllerType.GetMethod(nameof(AnalyticsController.GetClientOptions))
         };
 
