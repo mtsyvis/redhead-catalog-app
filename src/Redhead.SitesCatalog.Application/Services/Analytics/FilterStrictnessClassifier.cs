@@ -23,14 +23,14 @@ internal static class FilterStrictnessClassifier
         foreach (var filter in snapshot.Filters)
         {
             // Topic fit only changes how Niche and Categories combine. It is not demand by itself.
-            if (string.Equals(filter.Field, "topicFitMode", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(filter.Field, ExportAnalyticsSnapshotSchema.Filters.TopicFitMode, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
             // The Sites page defaults to excluding quarantined rows, so this default should not
             // make an otherwise unfiltered export look like a filtered request.
-            if (string.Equals(filter.Field, "quarantine", StringComparison.OrdinalIgnoreCase) &&
+            if (string.Equals(filter.Field, ExportAnalyticsSnapshotSchema.Filters.Quarantine, StringComparison.OrdinalIgnoreCase) &&
                 filter.StringValues.Any(value => string.Equals(value, "exclude", StringComparison.OrdinalIgnoreCase)))
             {
                 continue;

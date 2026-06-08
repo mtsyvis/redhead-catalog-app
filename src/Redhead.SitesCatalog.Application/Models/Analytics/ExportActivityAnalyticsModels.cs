@@ -1,12 +1,5 @@
 namespace Redhead.SitesCatalog.Application.Models.Analytics;
 
-public static class ExportActivityClientUsageStatuses
-{
-    public const string Normal = "Normal";
-    public const string NearLimit = "NearLimit";
-    public const string LimitReached = "LimitReached";
-}
-
 public sealed class ExportActivityAnalyticsQuery : AnalyticsQuery
 {
     public DateTime NowUtc { get; init; }
@@ -17,7 +10,7 @@ public sealed class ExportActivityAnalyticsQuery : AnalyticsQuery
 public sealed record ExportActivityAnalyticsDto(
     ExportActivitySummaryDto Summary,
     IReadOnlyList<ExportActivityOverTimeDto> ExportsOverTime,
-    IReadOnlyList<ExportActivityClientUsageDto> ClientUsage,
+    IReadOnlyList<ExportActivityClientSummaryDto> ClientSummaries,
     ExportActivityRecentExportsDto RecentExports);
 
 public sealed record ExportActivitySummaryDto(
@@ -35,24 +28,16 @@ public sealed record ExportActivityOverTimeDto(
     int BlockedExports,
     int ExportedDomains);
 
-public sealed record ExportActivityClientUsageDto(
+public sealed record ExportActivityClientSummaryDto(
     string UserId,
     string Email,
     string? DisplayName,
-    int DailyUniqueDomainsUsed,
-    int? DailyUniqueDomainsLimit,
-    int WeeklyUniqueDomainsUsed,
-    int? WeeklyUniqueDomainsLimit,
-    int DailyExportOperationsUsed,
-    int? DailyExportOperationsLimit,
-    int WeeklyExportOperationsUsed,
-    int? WeeklyExportOperationsLimit,
+    int SuccessfulExports,
     int PartialExports,
     int BlockedExports,
     long RequestedRows,
     long ExportedRows,
-    DateTime? LastExportAtUtc,
-    string Status);
+    DateTime? LastExportAtUtc);
 
 public sealed record ExportActivityRecentExportsDto(
     IReadOnlyList<ExportActivityRecentExportDto> Items,

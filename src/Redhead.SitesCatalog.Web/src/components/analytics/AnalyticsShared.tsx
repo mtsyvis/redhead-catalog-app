@@ -1,5 +1,6 @@
 import React from 'react';
-import { Paper, Typography } from '@mui/material';
+import { Chip, Paper, Typography } from '@mui/material';
+import type { ExportActivityStatus } from '../../types/analytics.types';
 import { formatInteger } from '../../utils/numberFormat';
 
 interface KpiCardProps {
@@ -50,4 +51,14 @@ export function EmptyState({ text }: { text: string }) {
       {text}
     </Typography>
   );
+}
+
+export function ExportStatusChip({ status }: { status: ExportActivityStatus }) {
+  const color = status === 'Blocked'
+    ? 'error'
+    : status === 'Partial'
+      ? 'warning'
+      : 'success';
+
+  return <Chip size="small" label={status} color={color} variant="outlined" />;
 }

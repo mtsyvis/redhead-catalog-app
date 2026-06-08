@@ -5,6 +5,7 @@ import type {
   BusinessDemandAnalyticsQueryParams,
   ExportActivityAnalytics,
   ExportActivityAnalyticsQueryParams,
+  ExportLogDetails,
 } from '../types/analytics.types';
 
 export const adminAnalyticsService = {
@@ -42,5 +43,11 @@ export const adminAnalyticsService = {
 
   listClients(): Promise<AnalyticsClientOption[]> {
     return ApiClient.get<AnalyticsClientOption[]>('/api/admin/analytics/clients');
+  },
+
+  getExportLogDetails(id: string): Promise<ExportLogDetails> {
+    return ApiClient.get<ExportLogDetails>(
+      `/api/admin/analytics/logs/${encodeURIComponent(id)}`
+    );
   },
 };

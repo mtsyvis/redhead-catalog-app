@@ -1,4 +1,5 @@
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Application.Models;
@@ -58,4 +59,5 @@ public sealed class AdminUserDetailsDto : AdminUserListItemDto
     public bool MustChangePassword { get; init; }
     public bool GoogleDriveConnected { get; init; }
     public GoogleDriveStatusResponse GoogleDrive { get; init; } = null!;
+    public ExportUsageSummary? ClientExportUsage { get; init; }
 }

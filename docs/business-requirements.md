@@ -729,6 +729,7 @@ Rules:
 * Admin users list should show user profile name for completed profiles and profile completion status for incomplete profiles.
 * Admin users list should show the user's name/profile status and email together in a single user-identification column.
 * `SuperAdmin` and `Admin` can view readonly admin user details, including account role, profile name fields, profile completion status, export-limit information, and Google Drive connection status.
+* For `Client` users, admin user details also show current rolling export-usage values for the last 24 hours and last 7 days.
 * `SuperAdmin` can view and edit the optional internal note in SuperAdmin user management responses.
 * Admins must not edit another user's `FirstName` or `LastName`.
 * Admins must not see or edit the internal `SuperAdmin` note.
@@ -739,10 +740,10 @@ Rules:
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
 * Business Demand analytics are based on export requests, not all UI searches, and must not expose raw export logs or raw filter/sort/search snapshot JSON in the page.
 * `SuperAdmin` can access an Export Activity analytics tab based on Client export logs and exported-domain access records.
-* Export Activity analytics summarize completed, partial, and blocked exports; unique exported domains; requested versus exported rows; daily export activity; Client rolling 24-hour and 7-day usage; and paginated recent export logs.
-* Export Activity page filters apply to selected-period summaries, daily activity, Client selected-period columns, and recent logs. Rolling 24-hour and 7-day Client usage columns always use current rolling windows and may differ from the selected page date range.
+* Export Activity analytics summarize completed, partial, and blocked exports; unique exported domains; requested versus exported rows; daily export activity; per-client export results inside the selected period; and paginated recent export logs.
+* Export Activity page filters apply to the selected-period summaries, daily activity, per-client export summary table, and recent logs.
 * Export Activity recent logs must show readable filter and sort summaries and must not display raw snapshot JSON.
-* Future improvement: add an export detail drawer with full filter, sort, and search snapshots for debugging.
+* Export Activity recent logs allow `SuperAdmin` users to open a detail drawer for a selected log. The drawer loads details by log id, shows readable filter, sort, and search context, and keeps raw snapshot JSON collapsed under technical details.
 
 ## Branding and UI direction
 

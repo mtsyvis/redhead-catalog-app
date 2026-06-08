@@ -21,6 +21,7 @@ import { adminUsersService } from '../services/adminUsers.service';
 import type { AdminUserDetails as AdminUserDetailsType } from '../types/adminUsers.types';
 import type { ExportLimitMode } from '../utils/exportLimit';
 import { formatExportLimit } from '../utils/exportLimit';
+import { formatUsageLimitPair } from '../utils/exportUsageLimits';
 
 const emptyValue = 'Not completed yet';
 
@@ -41,37 +42,62 @@ function formatMaybeExportLimit(mode: ExportLimitMode | null | undefined, rows: 
   return formatExportLimit(mode, rows ?? null);
 }
 
-function getLimitSource(user: AdminUserDetailsType): string | null {
-  if (user.isExportLimitEditable === false) return 'Fixed system setting';
-  if (user.isExportLimitOverridden === true) return 'Personal override';
-  if (user.isExportLimitOverridden === false) return 'Inherited from role';
-  return null;
-}
-
 const CLIENT_USAGE_LIMIT_ROWS: Array<{
   label: string;
+  helperText: string;
   getEffective: (user: AdminUserDetailsType) => number | null;
   getOverride: (user: AdminUserDetailsType) => number | null;
 }> = [
   {
     label: 'Daily unique exported domains',
+    helperText: '24h window',
     getEffective: (user) => user.effectiveDailyUniqueExportedDomainsLimit,
     getOverride: (user) => user.dailyUniqueExportedDomainsLimitOverride,
   },
   {
     label: 'Weekly unique exported domains',
+    helperText: '7d window',
     getEffective: (user) => user.effectiveWeeklyUniqueExportedDomainsLimit,
     getOverride: (user) => user.weeklyUniqueExportedDomainsLimitOverride,
   },
   {
     label: 'Daily export operations',
+    helperText: '24h window',
     getEffective: (user) => user.effectiveDailyExportOperationsLimit,
     getOverride: (user) => user.dailyExportOperationsLimitOverride,
   },
   {
     label: 'Weekly export operations',
+    helperText: '7d window',
     getEffective: (user) => user.effectiveWeeklyExportOperationsLimit,
     getOverride: (user) => user.weeklyExportOperationsLimitOverride,
+  },
+];
+
+const CURRENT_CLIENT_USAGE_ROWS: Array<{
+  label: string;
+  getUsed: (user: AdminUserDetailsType) => number | null | undefined;
+  getLimit: (user: AdminUserDetailsType) => number | null | undefined;
+}> = [
+  {
+    label: 'Daily exported domains',
+    getUsed: (user) => user.clientExportUsage?.dailyUniqueExportedDomainsUsed,
+    getLimit: (user) => user.clientExportUsage?.dailyUniqueExportedDomainsLimit,
+  },
+  {
+    label: 'Weekly exported domains',
+    getUsed: (user) => user.clientExportUsage?.weeklyUniqueExportedDomainsUsed,
+    getLimit: (user) => user.clientExportUsage?.weeklyUniqueExportedDomainsLimit,
+  },
+  {
+    label: 'Daily exports',
+    getUsed: (user) => user.clientExportUsage?.dailyExportOperationsUsed,
+    getLimit: (user) => user.clientExportUsage?.dailyExportOperationsLimit,
+  },
+  {
+    label: 'Weekly exports',
+    getUsed: (user) => user.clientExportUsage?.weeklyExportOperationsUsed,
+    getLimit: (user) => user.clientExportUsage?.weeklyExportOperationsLimit,
   },
 ];
 
@@ -79,8 +105,31 @@ function formatClientUsageLimit(value: number | null | undefined): string {
   return value == null ? 'Not available' : value.toLocaleString();
 }
 
-function formatClientUsageOverride(value: number | null | undefined): string {
-  return value == null ? 'Role default' : value.toLocaleString();
+function getPerExportLimitSettingChip(user: AdminUserDetailsType): string {
+  if (user.isExportLimitEditable === false) {
+    return 'Fixed setting';
+  }
+
+  return user.exportLimitOverrideMode == null
+    ? 'Uses role default'
+    : 'Custom setting';
+}
+
+function getPerExportLimitSettingValue(
+  user: AdminUserDetailsType,
+  effectiveLimit: string | null
+): string {
+  if (user.exportLimitOverrideMode != null) {
+    return formatExportLimit(user.exportLimitOverrideMode, user.exportLimitRowsOverride ?? null);
+  }
+
+  return effectiveLimit ?? 'Not available';
+}
+
+function getClientUsageLimitsChip(user: AdminUserDetailsType): string {
+  return CLIENT_USAGE_LIMIT_ROWS.some((row) => row.getOverride(user) != null)
+    ? 'Custom settings'
+    : 'Uses role defaults';
 }
 
 function getErrorMessage(error: unknown): string {
@@ -154,11 +203,9 @@ export const AdminUserDetails: React.FC = () => {
   const effectiveLimit = user
     ? formatMaybeExportLimit(user.effectiveExportLimitMode, user.effectiveExportLimitRows)
     : null;
-  const overrideLimit = user
-    ? formatMaybeExportLimit(user.exportLimitOverrideMode, user.exportLimitRowsOverride)
-    : null;
-  const limitSource = user ? getLimitSource(user) : null;
   const clientUsageLimitRows = user?.role === 'Client' ? CLIENT_USAGE_LIMIT_ROWS : [];
+  const showCurrentClientUsage = user?.role === 'Client'
+    && CURRENT_CLIENT_USAGE_ROWS.some((row) => row.getLimit(user) != null);
   const googleDrive = user?.googleDrive;
   const googleDriveConnected = user ? user.googleDriveConnected : null;
   const connectedAt = formatDateTime(googleDrive?.connectedAtUtc);
@@ -249,52 +296,88 @@ export const AdminUserDetails: React.FC = () => {
                   <Typography variant="h6" sx={{ mb: 2 }}>
                     Limits
                   </Typography>
-                  {effectiveLimit || overrideLimit || limitSource ? (
-                    <Stack spacing={2}>
-                      <DetailRow label="Effective export limit" value={effectiveLimit ?? 'Not available'} />
-                      {limitSource && <DetailRow label="Source" value={limitSource} />}
-                      <DetailRow label="User override" value={overrideLimit ?? 'No custom limit'} />
-                      {user.role === 'Client' && clientUsageLimitRows.length > 0 && (
-                        <>
-                          <Divider />
+
+                  <Stack spacing={2}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: 2,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle2">Per-export row limit</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Controls how many site rows this user can export in one file.
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={getPerExportLimitSettingChip(user)}
+                        color={user.exportLimitOverrideMode == null ? 'default' : 'warning'}
+                        variant="outlined"
+                        size="small"
+                      />
+                    </Box>
+
+                    <Box sx={{ px: 0.25 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        {getPerExportLimitSettingValue(user, effectiveLimit)}
+                      </Typography>
+                    </Box>
+
+                    {user.role === 'Client' && clientUsageLimitRows.length > 0 && (
+                      <>
+                        <Divider />
+
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            gap: 2,
+                            flexWrap: 'wrap',
+                          }}
+                        >
                           <Box>
-                            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                              Client usage limits
+                            <Typography variant="subtitle2">Client usage limits</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                              Daily and weekly quotas. Blank fields use the Client role default.
                             </Typography>
-                            <Box
-                              sx={{
-                                display: 'grid',
-                                gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                                gap: 1.5,
-                              }}
-                            >
-                              {clientUsageLimitRows.map((row) => (
-                                <Box key={row.label}>
-                                  <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                    sx={{ display: 'block' }}
-                                  >
-                                    {row.label}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    {formatClientUsageLimit(row.getEffective(user))}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    Override: {formatClientUsageOverride(row.getOverride(user))}
-                                  </Typography>
-                                </Box>
-                              ))}
-                            </Box>
                           </Box>
-                        </>
-                      )}
-                    </Stack>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Limit information is not available for this user.
-                    </Typography>
-                  )}
+                          <Chip
+                            label={getClientUsageLimitsChip(user)}
+                            color={clientUsageLimitRows.some((row) => row.getOverride(user) != null) ? 'warning' : 'default'}
+                            variant="outlined"
+                            size="small"
+                          />
+                        </Box>
+
+                        <Box
+                          sx={{
+                            display: 'grid',
+                            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                            gap: 1.5,
+                          }}
+                        >
+                          {clientUsageLimitRows.map((row) => (
+                            <Box key={row.label}>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                {row.label}
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {formatClientUsageLimit(row.getEffective(user))}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {row.helperText} · {row.getOverride(user) == null ? 'Role default' : 'Custom setting'}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                      </>
+                    )}
+                  </Stack>
                 </CardContent>
               </Card>
 
@@ -347,6 +430,44 @@ export const AdminUserDetails: React.FC = () => {
                   )}
                 </CardContent>
               </Card>
+
+              {showCurrentClientUsage && user && (
+                <Card>
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography variant="h6" sx={{ mb: 1 }}>
+                      Current client usage
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Calculated from the current rolling 24-hour and 7-day windows.
+                    </Typography>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                        gap: 1.5,
+                      }}
+                    >
+                      {CURRENT_CLIENT_USAGE_ROWS.map((row) => {
+                        const value = formatUsageLimitPair(row.getUsed(user), row.getLimit(user));
+                        if (!value) {
+                          return null;
+                        }
+
+                        return (
+                          <Box key={row.label}>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              {row.label}
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {value}
+                            </Typography>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </CardContent>
+                </Card>
+              )}
 
             </Box>
           </>

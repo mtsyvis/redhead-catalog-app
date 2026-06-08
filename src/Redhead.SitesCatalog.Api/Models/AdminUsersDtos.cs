@@ -88,6 +88,7 @@ public record AdminUserDetailsResponse
     public bool IsExportLimitEditable { get; init; }
     public bool GoogleDriveConnected { get; init; }
     public GoogleDriveStatusResponse GoogleDrive { get; init; } = new(false, null, null, null, false, false, false);
+    public AdminUserClientExportUsageResponse? ClientExportUsage { get; init; }
     public int? DailyUniqueExportedDomainsLimitOverride { get; init; }
     public int? WeeklyUniqueExportedDomainsLimitOverride { get; init; }
     public int? DailyExportOperationsLimitOverride { get; init; }
@@ -97,6 +98,16 @@ public record AdminUserDetailsResponse
     public int? EffectiveDailyExportOperationsLimit { get; init; }
     public int? EffectiveWeeklyExportOperationsLimit { get; init; }
 }
+
+public record AdminUserClientExportUsageResponse(
+    int? DailyUniqueExportedDomainsUsed,
+    int? DailyUniqueExportedDomainsLimit,
+    int? WeeklyUniqueExportedDomainsUsed,
+    int? WeeklyUniqueExportedDomainsLimit,
+    int? DailyExportOperationsUsed,
+    int? DailyExportOperationsLimit,
+    int? WeeklyExportOperationsUsed,
+    int? WeeklyExportOperationsLimit);
 
 public sealed record SuperAdminUserDetailsResponse : AdminUserDetailsResponse
 {

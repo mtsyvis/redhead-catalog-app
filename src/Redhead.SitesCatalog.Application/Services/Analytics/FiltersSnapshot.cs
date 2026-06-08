@@ -28,6 +28,13 @@ internal sealed class FiltersSnapshot
             .Where(filter => filter.Min.HasValue || filter.Max.HasValue)
             .Select(filter => new RangeValue(filter.Min, filter.Max))
             .ToArray();
+
+    public IReadOnlyList<IReadOnlyDictionary<string, string>> GetObjectValues(string field)
+        => Filters
+            .Where(filter => string.Equals(filter.Field, field, StringComparison.OrdinalIgnoreCase))
+            .Where(filter => filter.ObjectValues.Count > 0)
+            .Select(filter => filter.ObjectValues)
+            .ToArray();
 }
 
 internal sealed record FilterItem(
@@ -35,12 +42,14 @@ internal sealed record FilterItem(
     IReadOnlyList<string> StringValues,
     bool? BoolValue,
     decimal? Min,
-    decimal? Max);
+    decimal? Max,
+    IReadOnlyDictionary<string, string> ObjectValues);
 
 internal sealed record FilterValue(
     IReadOnlyList<string> StringValues,
     bool? BoolValue,
     decimal? Min,
-    decimal? Max);
+    decimal? Max,
+    IReadOnlyDictionary<string, string> ObjectValues);
 
 internal sealed record RangeValue(decimal? Min, decimal? Max);

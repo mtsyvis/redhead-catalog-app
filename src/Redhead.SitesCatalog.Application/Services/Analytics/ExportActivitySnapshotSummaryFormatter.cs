@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Application.Services.Analytics;
@@ -9,22 +8,13 @@ internal static class ExportActivitySnapshotSummaryFormatter
     private const int SummaryItemLimit = 3;
     private const string OtherLocationName = "Other";
 
-    private static readonly ServiceFilterDefinition[] ServiceFilters =
-    [
-        new("priceCasinoAvailability", "Casino"),
-        new("priceCryptoAvailability", "Crypto"),
-        new("priceLinkInsertAvailability", "Link insert"),
-        new("priceLinkInsertCasinoAvailability", "Link insert casino"),
-        new("priceDatingAvailability", "Dating")
-    ];
-
     public static string FormatFilters(
         string? filtersSnapshotJson,
         string? searchSnapshotJson,
         BusinessDemandLocationLookups locationLookups)
     {
         var hasParsedFilters = ExportFiltersSnapshotParser.TryParse(filtersSnapshotJson, out var snapshot);
-        var searchLabels = ParseSearchLabels(searchSnapshotJson);
+        var searchLabels = BuildSearchLabels(ExportAnalyticsSearchSnapshotParser.Parse(searchSnapshotJson));
         if (!hasParsedFilters && searchLabels == null)
         {
             return "Unavailable";
@@ -67,43 +57,21 @@ internal static class ExportActivitySnapshotSummaryFormatter
 
     public static string FormatSort(string? sortSnapshotJson)
     {
-        if (string.IsNullOrWhiteSpace(sortSnapshotJson))
+        if (!ExportSortSnapshotParser.TryParse(sortSnapshotJson, out var snapshot))
         {
             return "Unavailable";
         }
 
-        try
+        if (snapshot.Sorts.Count == 0)
         {
-            var document = JsonSerializer.Deserialize<SortsSnapshotDocument>(
-                sortSnapshotJson,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web));
-            if (document?.Sorts is null)
-            {
-                return "Unavailable";
-            }
-
-            if (document.Sorts.Count == 0)
-            {
-                return "—";
-            }
-
-            var firstSort = document.Sorts
-                .OrderBy(sort => sort.Priority)
-                .FirstOrDefault();
-            if (firstSort == null || string.IsNullOrWhiteSpace(firstSort.Field))
-            {
-                return "Unavailable";
-            }
-
-            var label = $"{FormatSortField(firstSort.Field)} {FormatSortDirection(firstSort.Direction)}";
-            return document.Sorts.Count > 1
-                ? $"{label} +{document.Sorts.Count - 1} more"
-                : label;
+            return "—";
         }
-        catch (JsonException)
-        {
-            return "Unavailable";
-        }
+
+        var firstSort = snapshot.Sorts[0];
+        var label = $"{FormatSortField(firstSort.Field)} {FormatSortDirection(firstSort.Direction)}";
+        return snapshot.Sorts.Count > 1
+            ? $"{label} +{snapshot.Sorts.Count - 1} more"
+            : label;
     }
 
     private static IReadOnlyList<string> BuildFilterLabels(
@@ -113,17 +81,17 @@ internal static class ExportActivitySnapshotSummaryFormatter
         var labels = new List<string>();
 
         AddLocationLabel(labels, snapshot, locationLookups);
-        AddRangeLabels(labels, snapshot, "dr", QualityRangeFormatter.FormatDrRange);
-        AddRangeLabels(labels, snapshot, "traffic", QualityRangeFormatter.FormatTrafficRange);
-        AddRangeLabels(labels, snapshot, "priceUsd", QualityRangeFormatter.FormatPriceRange);
-        AddValuesLabel(labels, snapshot.GetStringValues("niche"), singular: "Niche", plural: "niches");
-        AddValuesLabel(labels, snapshot.GetStringValues("categories"), singular: "Category", plural: "categories");
-        AddValuesLabel(labels, snapshot.GetStringValues("language").Select(value => value.ToUpperInvariant()).ToArray(), singular: "Language", plural: "languages");
-        AddValuesLabel(labels, snapshot.GetStringValues("excludedNiche"), singular: "Excluded niche", plural: "excluded niches");
-        AddValuesLabel(labels, snapshot.GetStringValues("excludedCategories"), singular: "Excluded category", plural: "excluded categories");
+        AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.Dr, QualityRangeFormatter.FormatDrRange);
+        AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.Traffic, QualityRangeFormatter.FormatTrafficRange);
+        AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, QualityRangeFormatter.FormatPriceRange);
+        AddValuesLabel(labels, snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.Niche), singular: "Niche", plural: "niches");
+        AddValuesLabel(labels, snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.Categories), singular: "Category", plural: "categories");
+        AddValuesLabel(labels, snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.Language).Select(value => value.ToUpperInvariant()).ToArray(), singular: "Language", plural: "languages");
+        AddValuesLabel(labels, snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.ExcludedNiche), singular: "Excluded niche", plural: "excluded niches");
+        AddValuesLabel(labels, snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.ExcludedCategories), singular: "Excluded category", plural: "excluded categories");
         AddServiceLabels(labels, snapshot);
 
-        if (snapshot.GetBooleanValue("stopList") == true)
+        if (snapshot.GetBooleanValue(ExportAnalyticsSnapshotSchema.Filters.StopList) == true)
         {
             labels.Add("Stop list");
         }
@@ -137,27 +105,27 @@ internal static class ExportActivitySnapshotSummaryFormatter
         BusinessDemandLocationLookups locationLookups)
     {
         var selectedLocationNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var locationKey in snapshot.GetStringValues("locationKey"))
+        foreach (var locationKey in snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.LocationKey))
         {
             selectedLocationNames.Add(ResolveLocationName(locationKey, locationLookups));
         }
 
-        foreach (var location in snapshot.GetStringValues("location"))
+        foreach (var location in snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.Location))
         {
             selectedLocationNames.Add(location);
         }
 
-        if (snapshot.GetBooleanValue("locationUnknown") == true)
+        if (snapshot.GetBooleanValue(ExportAnalyticsSnapshotSchema.Filters.LocationUnknown) == true)
         {
             selectedLocationNames.Add("Unknown");
         }
 
-        if (snapshot.GetBooleanValue("locationOther") == true)
+        if (snapshot.GetBooleanValue(ExportAnalyticsSnapshotSchema.Filters.LocationOther) == true)
         {
             selectedLocationNames.Add(OtherLocationName);
         }
 
-        foreach (var groupKey in snapshot.GetStringValues("locationGroup"))
+        foreach (var groupKey in snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.LocationGroup))
         {
             selectedLocationNames.Add($"{groupKey} group");
         }
@@ -223,7 +191,7 @@ internal static class ExportActivitySnapshotSummaryFormatter
 
     private static void AddServiceLabels(List<string> labels, FiltersSnapshot snapshot)
     {
-        foreach (var service in ServiceFilters)
+        foreach (var service in ExportAnalyticsServiceFilters.All)
         {
             var selected = snapshot.GetStringValues(service.Field)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -244,66 +212,34 @@ internal static class ExportActivitySnapshotSummaryFormatter
         }
     }
 
-    private static IReadOnlyList<string>? ParseSearchLabels(string? searchSnapshotJson)
+    private static IReadOnlyList<string>? BuildSearchLabels(ExportAnalyticsSearchSnapshot searchSnapshot)
     {
-        if (string.IsNullOrWhiteSpace(searchSnapshotJson))
-        {
-            return [];
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(searchSnapshotJson);
-            var root = document.RootElement;
-            if (!TryGetProperty(root, "mode", out var modeElement) ||
-                modeElement.ValueKind != JsonValueKind.String)
-            {
-                return [];
-            }
-
-            var mode = modeElement.GetString();
-            if (string.Equals(mode, "multiSearch", StringComparison.OrdinalIgnoreCase))
-            {
-                return [FormatMultiSearchLabel(root)];
-            }
-
-            if (string.Equals(mode, "catalogSearch", StringComparison.OrdinalIgnoreCase) &&
-                TryGetProperty(root, "query", out var queryElement) &&
-                queryElement.ValueKind == JsonValueKind.String &&
-                !string.IsNullOrWhiteSpace(queryElement.GetString()))
-            {
-                return [$"Search {queryElement.GetString()!.Trim()}"];
-            }
-
-            return [];
-        }
-        catch (JsonException)
+        if (!searchSnapshot.IsAvailable)
         {
             return null;
         }
+
+        if (searchSnapshot.IsMultiSearch == true)
+        {
+            return [FormatMultiSearchLabel(searchSnapshot)];
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchSnapshot.CatalogQuery))
+        {
+            return [$"Search {searchSnapshot.CatalogQuery}"];
+        }
+
+        return [];
     }
 
-    private static string FormatMultiSearchLabel(JsonElement root)
+    private static string FormatMultiSearchLabel(ExportAnalyticsSearchSnapshot searchSnapshot)
     {
-        if (!TryGetProperty(root, "uniqueInputCount", out var uniqueInputCountElement) ||
-            uniqueInputCountElement.ValueKind != JsonValueKind.Number ||
-            !uniqueInputCountElement.TryGetInt32(out var uniqueInputCount))
+        if (!searchSnapshot.UniqueInputCount.HasValue)
         {
             return "Multi-search";
         }
 
-        return $"Multi-search {uniqueInputCount.ToString("N0", CultureInfo.GetCultureInfo("en-US"))} domains";
-    }
-
-    private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement value)
-    {
-        if (element.TryGetProperty(propertyName, out value))
-        {
-            return true;
-        }
-
-        var pascalName = char.ToUpperInvariant(propertyName[0]) + propertyName[1..];
-        return element.TryGetProperty(pascalName, out value);
+        return $"Multi-search {searchSnapshot.UniqueInputCount.Value.ToString("N0", CultureInfo.GetCultureInfo("en-US"))} domains";
     }
 
     private static string FormatFilterCount(int count)
@@ -311,13 +247,13 @@ internal static class ExportActivitySnapshotSummaryFormatter
             ? "1 filter"
             : $"{count.ToString("N0", CultureInfo.GetCultureInfo("en-US"))} filters";
 
-    private static string FormatSortField(string field)
+    internal static string FormatSortField(string field)
         => field.Trim().ToLowerInvariant() switch
         {
-            "domain" => "Domain",
-            "dr" => "DR",
-            "traffic" => "Traffic",
-            "location" => "Location",
+            ExportAnalyticsSnapshotSchema.Sort.Domain => "Domain",
+            ExportAnalyticsSnapshotSchema.Sort.Dr => "DR",
+            ExportAnalyticsSnapshotSchema.Sort.Traffic => "Traffic",
+            ExportAnalyticsSnapshotSchema.Sort.Location => "Location",
             "priceusd" => "Price",
             "pricecasino" => "Casino price",
             "pricecrypto" => "Crypto price",
@@ -325,30 +261,20 @@ internal static class ExportActivitySnapshotSummaryFormatter
             "pricelinkinsertcasino" => "Link insert casino price",
             "pricedating" => "Dating price",
             "numberdflinks" => "DF links",
-            "term" => "Term",
+            ExportAnalyticsSnapshotSchema.Sort.Term => "Term",
             "createdat" => "Created",
             "updatedat" => "Updated",
             "lastpublisheddate" => "Last published",
             _ => field.Trim()
         };
 
-    private static string FormatSortDirection(string? direction)
+    internal static string FormatSortDirection(string? direction)
         => string.Equals(direction, SortingDefaults.Descending, StringComparison.OrdinalIgnoreCase)
             ? "desc"
             : "asc";
 
-    private sealed record ServiceFilterDefinition(string Field, string DisplayName);
-
-    private sealed class SortsSnapshotDocument
-    {
-        public int SchemaVersion { get; set; }
-        public IReadOnlyList<SortSnapshotItemDocument>? Sorts { get; set; }
-    }
-
-    private sealed class SortSnapshotItemDocument
-    {
-        public string? Field { get; set; }
-        public string? Direction { get; set; }
-        public int Priority { get; set; }
-    }
+    internal static string FormatSortDirectionLong(string? direction)
+        => string.Equals(direction, SortingDefaults.Descending, StringComparison.OrdinalIgnoreCase)
+            ? "descending"
+            : "ascending";
 }

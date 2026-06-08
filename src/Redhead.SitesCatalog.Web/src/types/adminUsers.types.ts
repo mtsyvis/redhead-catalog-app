@@ -61,6 +61,7 @@ export interface AdminUserDetails {
   isExportLimitEditable: boolean;
   googleDriveConnected: boolean;
   googleDrive: GoogleDriveStatus;
+  clientExportUsage?: AdminUserClientExportUsage | null;
   dailyUniqueExportedDomainsLimitOverride: number | null;
   weeklyUniqueExportedDomainsLimitOverride: number | null;
   dailyExportOperationsLimitOverride: number | null;
@@ -70,6 +71,17 @@ export interface AdminUserDetails {
   effectiveDailyExportOperationsLimit: number | null;
   effectiveWeeklyExportOperationsLimit: number | null;
   superAdminNote?: string | null;
+}
+
+export interface AdminUserClientExportUsage {
+  dailyUniqueExportedDomainsUsed: number | null;
+  dailyUniqueExportedDomainsLimit: number | null;
+  weeklyUniqueExportedDomainsUsed: number | null;
+  weeklyUniqueExportedDomainsLimit: number | null;
+  dailyExportOperationsUsed: number | null;
+  dailyExportOperationsLimit: number | null;
+  weeklyExportOperationsUsed: number | null;
+  weeklyExportOperationsLimit: number | null;
 }
 
 export interface CreateUserRequest {

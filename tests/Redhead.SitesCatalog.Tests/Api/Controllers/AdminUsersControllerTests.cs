@@ -292,6 +292,126 @@ public sealed class AdminUsersControllerTests
     }
 
     [Fact]
+    public async Task GetUser_WhenClientHasRecentExportUsage_ReturnsCurrentClientUsage()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(db, "client-1", "client@example.com", AppRoles.Client);
+        var nowUtc = DateTime.UtcNow;
+        var successful = new ExportLog
+        {
+            Id = Guid.NewGuid(),
+            UserId = "client-1",
+            UserEmail = "client@example.com",
+            Role = AppRoles.Client,
+            TimestampUtc = nowUtc.AddHours(-1),
+            RequestedRowsCount = 2,
+            ExportedRowsCount = 2,
+            RowsReturned = 2,
+            Destination = ExportConstants.DestinationDownload,
+            ExportMode = ExportConstants.ExportModeSites
+        };
+        var partial = new ExportLog
+        {
+            Id = Guid.NewGuid(),
+            UserId = "client-1",
+            UserEmail = "client@example.com",
+            Role = AppRoles.Client,
+            TimestampUtc = nowUtc.AddHours(-2),
+            RequestedRowsCount = 2,
+            ExportedRowsCount = 1,
+            RowsReturned = 1,
+            WasTruncated = true,
+            ExportLimitRows = 1,
+            Destination = ExportConstants.DestinationDownload,
+            ExportMode = ExportConstants.ExportModeSites
+        };
+        var weekly = new ExportLog
+        {
+            Id = Guid.NewGuid(),
+            UserId = "client-1",
+            UserEmail = "client@example.com",
+            Role = AppRoles.Client,
+            TimestampUtc = nowUtc.AddDays(-3),
+            RequestedRowsCount = 1,
+            ExportedRowsCount = 1,
+            RowsReturned = 1,
+            Destination = ExportConstants.DestinationDownload,
+            ExportMode = ExportConstants.ExportModeSites
+        };
+        var blocked = new ExportLog
+        {
+            Id = Guid.NewGuid(),
+            UserId = "client-1",
+            UserEmail = "client@example.com",
+            Role = AppRoles.Client,
+            TimestampUtc = nowUtc.AddHours(-4),
+            RequestedRowsCount = 1,
+            ExportedRowsCount = 0,
+            RowsReturned = 0,
+            Destination = ExportConstants.DestinationDownload,
+            ExportMode = ExportConstants.ExportModeSites,
+            BlockedReason = ExportConstants.DailyExportOperationLimitReached
+        };
+        db.ExportLogs.AddRange(successful, partial, weekly, blocked);
+        db.ExportedDomainAccesses.AddRange(
+            new ExportedDomainAccess
+            {
+                Id = Guid.NewGuid(),
+                ExportLogId = successful.Id,
+                ExportLog = successful,
+                UserId = "client-1",
+                Domain = "alpha.com",
+                ExportedAtUtc = successful.TimestampUtc
+            },
+            new ExportedDomainAccess
+            {
+                Id = Guid.NewGuid(),
+                ExportLogId = partial.Id,
+                ExportLog = partial,
+                UserId = "client-1",
+                Domain = "beta.com",
+                ExportedAtUtc = partial.TimestampUtc
+            },
+            new ExportedDomainAccess
+            {
+                Id = Guid.NewGuid(),
+                ExportLogId = partial.Id,
+                ExportLog = partial,
+                UserId = "client-1",
+                Domain = "alpha.com",
+                ExportedAtUtc = partial.TimestampUtc
+            },
+            new ExportedDomainAccess
+            {
+                Id = Guid.NewGuid(),
+                ExportLogId = weekly.Id,
+                ExportLog = weekly,
+                UserId = "client-1",
+                Domain = "gamma.com",
+                ExportedAtUtc = weekly.TimestampUtc
+            });
+        await db.SaveChangesAsync();
+        var sut = CreateController(db);
+
+        // Act
+        var result = await sut.GetUser("client-1", CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        Assert.NotNull(payload.ClientExportUsage);
+        Assert.Equal(2, payload.ClientExportUsage.DailyUniqueExportedDomainsUsed);
+        Assert.Equal(1000, payload.ClientExportUsage.DailyUniqueExportedDomainsLimit);
+        Assert.Equal(3, payload.ClientExportUsage.WeeklyUniqueExportedDomainsUsed);
+        Assert.Equal(3000, payload.ClientExportUsage.WeeklyUniqueExportedDomainsLimit);
+        Assert.Equal(2, payload.ClientExportUsage.DailyExportOperationsUsed);
+        Assert.Equal(20, payload.ClientExportUsage.DailyExportOperationsLimit);
+        Assert.Equal(3, payload.ClientExportUsage.WeeklyExportOperationsUsed);
+        Assert.Equal(60, payload.ClientExportUsage.WeeklyExportOperationsLimit);
+    }
+
+    [Fact]
     public void GetUser_UsesAdminAccessAuthorizationPolicy()
     {
         // Arrange
@@ -1134,7 +1254,10 @@ public sealed class AdminUsersControllerTests
     {
         return new AdminUsersController(
             userManager,
-            new AdminUsersListService(db, CreateGoogleDriveIntegrationService(db)),
+            new AdminUsersListService(
+                db,
+                CreateGoogleDriveIntegrationService(db),
+                new ExportUsageLimitService(db)),
             NullLogger<AdminUsersController>.Instance);
     }
 
@@ -1166,7 +1289,16 @@ public sealed class AdminUsersControllerTests
             new RoleSettings { RoleName = AppRoles.SuperAdmin, ExportLimitMode = ExportLimitMode.Unlimited },
             new RoleSettings { RoleName = AppRoles.Admin, ExportLimitMode = ExportLimitMode.Unlimited },
             new RoleSettings { RoleName = AppRoles.Internal, ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 1000 },
-            new RoleSettings { RoleName = AppRoles.Client, ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 100 });
+            new RoleSettings
+            {
+                RoleName = AppRoles.Client,
+                ExportLimitMode = ExportLimitMode.Limited,
+                ExportLimitRows = 100,
+                DailyUniqueExportedDomainsLimit = 1000,
+                WeeklyUniqueExportedDomainsLimit = 3000,
+                DailyExportOperationsLimit = 20,
+                WeeklyExportOperationsLimit = 60
+            });
 
         await db.SaveChangesAsync();
     }

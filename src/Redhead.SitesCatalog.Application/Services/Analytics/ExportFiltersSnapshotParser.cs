@@ -57,14 +57,20 @@ internal static class ExportFiltersSnapshotParser
         var field = filterDocument.Field.Trim();
         var value = ReadFilterValue(filterDocument.Value);
 
-        return new FilterItem(field, value.StringValues, value.BoolValue, value.Min, value.Max);
+        return new FilterItem(
+            field,
+            value.StringValues,
+            value.BoolValue,
+            value.Min,
+            value.Max,
+            value.ObjectValues);
     }
 
     private static FilterValue ReadFilterValue(JsonElement valueElement)
     {
         if (valueElement.ValueKind == JsonValueKind.Undefined)
         {
-            return new FilterValue([], null, null, null);
+            return new FilterValue([], null, null, null, new Dictionary<string, string>());
         }
 
         var stringValues = ReadStringValues(valueElement);
@@ -72,8 +78,9 @@ internal static class ExportFiltersSnapshotParser
             ? valueElement.GetBoolean()
             : (bool?)null;
         var (min, max) = ReadRange(valueElement);
+        var objectValues = ReadObjectValues(valueElement);
 
-        return new FilterValue(stringValues, boolValue, min, max);
+        return new FilterValue(stringValues, boolValue, min, max, objectValues);
     }
 
     private static IReadOnlyList<string> ReadStringValues(JsonElement valueElement)
@@ -113,6 +120,26 @@ internal static class ExportFiltersSnapshotParser
         return (
             TryReadDecimalProperty(valueElement, "min", out var min) ? min : null,
             TryReadDecimalProperty(valueElement, "max", out var max) ? max : null);
+    }
+
+    private static IReadOnlyDictionary<string, string> ReadObjectValues(JsonElement valueElement)
+    {
+        if (valueElement.ValueKind != JsonValueKind.Object)
+        {
+            return new Dictionary<string, string>();
+        }
+
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in valueElement.EnumerateObject())
+        {
+            var value = ReadStringValue(property.Value);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                values[property.Name] = value.Trim();
+            }
+        }
+
+        return values;
     }
 
     private static bool TryReadDecimalProperty(JsonElement element, string propertyName, out decimal value)

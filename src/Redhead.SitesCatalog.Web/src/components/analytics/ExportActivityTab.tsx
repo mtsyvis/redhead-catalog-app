@@ -1,8 +1,7 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
-  Chip,
   Paper,
   Table,
   TableBody,
@@ -18,14 +17,19 @@ import {
 } from '@mui/x-data-grid';
 import type {
   ExportActivityAnalytics,
-  ExportActivityClientUsageItem,
-  ExportActivityClientUsageStatus,
+  ExportActivityClientSummaryItem,
   ExportActivityOverTimeItem,
   ExportActivityRecentExportItem,
-  ExportActivityStatus,
 } from '../../types/analytics.types';
 import { dataGridLocaleText, formatInteger } from '../../utils/numberFormat';
-import { AnalyticsSection, EmptyState, KpiCard } from './AnalyticsShared';
+import { AnalyticsSection, EmptyState, ExportStatusChip, KpiCard } from './AnalyticsShared';
+import {
+  formatClientName,
+  formatDateTime,
+  formatDestination,
+  formatNullableText,
+} from './analyticsDisplayUtils';
+import { ExportLogDetailsDrawer } from './ExportLogDetailsDrawer';
 
 const EXPORT_ACTIVITY_KPI_HELPERS = {
   completedExports: 'Successful and partial exports where the client received data.',
@@ -35,9 +39,6 @@ const EXPORT_ACTIVITY_KPI_HELPERS = {
   requestedVsExported:
     'Requested rows show what clients attempted to receive before limits. Exported rows show what clients actually received.',
 };
-
-const ROLLING_USAGE_HELPER =
-  '24h and 7d usage use rolling windows and may differ from the selected date range.';
 
 export interface ExportActivityTabProps {
   analytics: ExportActivityAnalytics;
@@ -50,8 +51,15 @@ export function ExportActivityTab({
   recentExportsPaginationModel,
   onRecentExportsPaginationChange,
 }: ExportActivityTabProps) {
+  const [selectedExportLogId, setSelectedExportLogId] = useState<string | null>(null);
   const noExportActivity =
     analytics.summary.completedExports === 0 && analytics.summary.blockedExports === 0;
+  const handleOpenDetails = useCallback((id: string) => {
+    setSelectedExportLogId(id);
+  }, []);
+  const handleCloseDetails = useCallback(() => {
+    setSelectedExportLogId(null);
+  }, []);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -100,21 +108,31 @@ export function ExportActivityTab({
         <ExportsOverTimeTable items={analytics.exportsOverTime} />
       </AnalyticsSection>
 
-      <AnalyticsSection title="Client usage" helperText={ROLLING_USAGE_HELPER}>
-        <ClientUsageTable rows={analytics.clientUsage} />
+      <AnalyticsSection
+        title="Client export summary"
+        helperText="Summarizes client export results in the selected period."
+      >
+        <ClientExportSummaryTable rows={analytics.clientSummaries} />
       </AnalyticsSection>
 
       <AnalyticsSection
         title="Recent export logs"
-        helperText="Shows recent client export requests for the selected filters."
+        helperText="Shows recent client export requests for the selected filters. Click a row to view details."
       >
         <RecentExportsTable
           rows={analytics.recentExports.items}
           totalCount={analytics.recentExports.totalCount}
           paginationModel={recentExportsPaginationModel}
           onPaginationModelChange={onRecentExportsPaginationChange}
+          onViewDetails={handleOpenDetails}
         />
       </AnalyticsSection>
+
+      <ExportLogDetailsDrawer
+        open={selectedExportLogId !== null}
+        logId={selectedExportLogId}
+        onClose={handleCloseDetails}
+      />
     </Box>
   );
 }
@@ -177,8 +195,8 @@ function ExportsOverTimeTable({ items }: { items: ExportActivityOverTimeItem[] }
   );
 }
 
-function ClientUsageTable({ rows }: { rows: ExportActivityClientUsageItem[] }) {
-  const columns = useMemo<GridColDef<ExportActivityClientUsageItem>[]>(
+function ClientExportSummaryTable({ rows }: { rows: ExportActivityClientSummaryItem[] }) {
+  const columns = useMemo<GridColDef<ExportActivityClientSummaryItem>[]>(
     () => [
       {
         field: 'client',
@@ -194,37 +212,19 @@ function ClientUsageTable({ rows }: { rows: ExportActivityClientUsageItem[] }) {
         ),
       },
       {
-        field: 'dailyUniqueDomainsUsed',
-        headerName: '24h domains',
-        minWidth: 130,
-        valueGetter: (_value, row) =>
-          formatUsageValue(row.dailyUniqueDomainsUsed, row.dailyUniqueDomainsLimit),
-      },
-      {
-        field: 'weeklyUniqueDomainsUsed',
-        headerName: '7d domains',
-        minWidth: 130,
-        valueGetter: (_value, row) =>
-          formatUsageValue(row.weeklyUniqueDomainsUsed, row.weeklyUniqueDomainsLimit),
-      },
-      {
-        field: 'dailyExportOperationsUsed',
-        headerName: '24h exports',
-        minWidth: 125,
-        valueGetter: (_value, row) =>
-          formatUsageValue(row.dailyExportOperationsUsed, row.dailyExportOperationsLimit),
-      },
-      {
-        field: 'weeklyExportOperationsUsed',
-        headerName: '7d exports',
-        minWidth: 125,
-        valueGetter: (_value, row) =>
-          formatUsageValue(row.weeklyExportOperationsUsed, row.weeklyExportOperationsLimit),
+        field: 'successfulExports',
+        headerName: 'Successful',
+        minWidth: 105,
+        flex: 0.6,
+        align: 'right',
+        headerAlign: 'right',
+        valueFormatter: (value) => formatInteger(value as number),
       },
       {
         field: 'partialExports',
         headerName: 'Partial',
         minWidth: 95,
+        flex: 0.55,
         align: 'right',
         headerAlign: 'right',
         valueFormatter: (value) => formatInteger(value as number),
@@ -233,6 +233,7 @@ function ClientUsageTable({ rows }: { rows: ExportActivityClientUsageItem[] }) {
         field: 'blockedExports',
         headerName: 'Blocked',
         minWidth: 95,
+        flex: 0.55,
         align: 'right',
         headerAlign: 'right',
         valueFormatter: (value) => formatInteger(value as number),
@@ -240,7 +241,8 @@ function ClientUsageTable({ rows }: { rows: ExportActivityClientUsageItem[] }) {
       {
         field: 'requestedRows',
         headerName: 'Requested rows',
-        minWidth: 140,
+        minWidth: 135,
+        flex: 0.75,
         align: 'right',
         headerAlign: 'right',
         valueFormatter: (value) => formatInteger(value as number),
@@ -248,29 +250,25 @@ function ClientUsageTable({ rows }: { rows: ExportActivityClientUsageItem[] }) {
       {
         field: 'exportedRows',
         headerName: 'Exported rows',
-        minWidth: 135,
+        minWidth: 130,
+        flex: 0.75,
         align: 'right',
         headerAlign: 'right',
         valueFormatter: (value) => formatInteger(value as number),
       },
       {
         field: 'lastExportAtUtc',
-        headerName: 'Last export',
+        headerName: 'Last export in period',
         minWidth: 180,
+        flex: 0.95,
         valueFormatter: (value) => formatDateTime(value as string | null | undefined),
-      },
-      {
-        field: 'status',
-        headerName: 'Status',
-        minWidth: 130,
-        renderCell: (params) => <ClientUsageStatusChip status={params.row.status} />,
       },
     ],
     []
   );
 
   if (rows.length === 0) {
-    return <EmptyState text="No client usage data available." />;
+    return <EmptyState text="No client export activity found for the selected filters." />;
   }
 
   return (
@@ -297,25 +295,27 @@ function RecentExportsTable({
   totalCount,
   paginationModel,
   onPaginationModelChange,
+  onViewDetails,
 }: {
   rows: ExportActivityRecentExportItem[];
   totalCount: number;
   paginationModel: GridPaginationModel;
   onPaginationModelChange: (model: GridPaginationModel) => void;
+  onViewDetails: (id: string) => void;
 }) {
   const columns = useMemo<GridColDef<ExportActivityRecentExportItem>[]>(
     () => [
       {
         field: 'timestampUtc',
         headerName: 'Time',
-        minWidth: 180,
+        minWidth: 160,
         valueFormatter: (value) => formatDateTime(value as string | null | undefined),
       },
       {
         field: 'client',
         headerName: 'Client',
-        minWidth: 240,
-        flex: 1,
+        minWidth: 220,
+        flex: 1.2,
         sortable: false,
         valueGetter: (_value, row) => formatClientName(row.email, row.displayName),
         renderCell: (params) => (
@@ -327,19 +327,22 @@ function RecentExportsTable({
       {
         field: 'destination',
         headerName: 'Destination',
-        minWidth: 130,
+        minWidth: 110,
+        flex: 0.75,
         valueFormatter: (value) => formatDestination(value as string | null | undefined),
       },
       {
         field: 'status',
         headerName: 'Status',
-        minWidth: 120,
+        minWidth: 100,
+        flex: 0.75,
         renderCell: (params) => <ExportStatusChip status={params.row.status} />,
       },
       {
         field: 'requestedRows',
         headerName: 'Requested',
-        minWidth: 115,
+        minWidth: 100,
+        flex: 0.7,
         align: 'right',
         headerAlign: 'right',
         valueFormatter: (value) => formatInteger(value as number),
@@ -347,7 +350,8 @@ function RecentExportsTable({
       {
         field: 'exportedRows',
         headerName: 'Exported',
-        minWidth: 110,
+        minWidth: 95,
+        flex: 0.7,
         align: 'right',
         headerAlign: 'right',
         valueFormatter: (value) => formatInteger(value as number),
@@ -355,21 +359,35 @@ function RecentExportsTable({
       {
         field: 'reason',
         headerName: 'Reason',
-        minWidth: 160,
-        valueFormatter: (value) => formatNullableText(value as string | null | undefined),
+        minWidth: 140,
+        flex: 0.95,
+        renderCell: (params) => (
+          <Typography variant="body2" sx={multiLineCellSx}>
+            {formatNullableText(params.row.reason)}
+          </Typography>
+        ),
       },
       {
         field: 'filtersSummary',
         headerName: 'Filters',
-        minWidth: 220,
-        flex: 1,
-        valueFormatter: (value) => formatNullableText(value as string | null | undefined),
+        minWidth: 130,
+        flex: 0.9,
+        renderCell: (params) => (
+          <Typography variant="body2" sx={multiLineCellSx}>
+            {formatNullableText(params.row.filtersSummary)}
+          </Typography>
+        ),
       },
       {
         field: 'sortSummary',
         headerName: 'Sort',
-        minWidth: 150,
-        valueFormatter: (value) => formatNullableText(value as string | null | undefined),
+        minWidth: 120,
+        flex: 0.8,
+        renderCell: (params) => (
+          <Typography variant="body2" sx={multiLineCellSx}>
+            {formatNullableText(params.row.sortSummary)}
+          </Typography>
+        ),
       },
     ],
     []
@@ -389,66 +407,15 @@ function RecentExportsTable({
       paginationModel={paginationModel}
       paginationMode="server"
       onPaginationModelChange={onPaginationModelChange}
+      onRowClick={(params) => onViewDetails(params.row.id)}
       localeText={dataGridLocaleText}
       disableRowSelectionOnClick
       disableColumnMenu
       autoHeight
       getRowHeight={() => 'auto'}
-      sx={analyticsGridSx}
+      sx={clickableAnalyticsGridSx}
     />
   );
-}
-
-function ClientUsageStatusChip({ status }: { status: ExportActivityClientUsageStatus }) {
-  const label = status === 'NearLimit'
-    ? 'Near limit'
-    : status === 'LimitReached'
-      ? 'Limit reached'
-      : 'Normal';
-  const color = status === 'LimitReached'
-    ? 'error'
-    : status === 'NearLimit'
-      ? 'warning'
-      : 'success';
-
-  return <Chip size="small" label={label} color={color} variant="outlined" />;
-}
-
-function ExportStatusChip({ status }: { status: ExportActivityStatus }) {
-  const color = status === 'Blocked'
-    ? 'error'
-    : status === 'Partial'
-      ? 'warning'
-      : 'success';
-
-  return <Chip size="small" label={status} color={color} variant="outlined" />;
-}
-
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
-}
-
-function formatDestination(value: string | null | undefined): string {
-  if (value === 'GoogleDrive') return 'Google Drive';
-  if (value === 'Download') return 'Download';
-  return value?.trim() || '—';
-}
-
-function formatNullableText(value: string | null | undefined): string {
-  return value?.trim() || '—';
-}
-
-function formatUsageValue(used: number, limit: number | null | undefined): string {
-  if (limit == null) return '—';
-  return `${formatInteger(used)} / ${formatInteger(limit)}`;
-}
-
-function formatClientName(email: string, displayName?: string | null): string {
-  const name = displayName?.trim();
-  if (!name || name === email) return email;
-  return `${name} (${email})`;
 }
 
 const analyticsGridSx = {
@@ -472,4 +439,20 @@ const analyticsGridSx = {
   '& .MuiDataGrid-columnHeader:focus-within': {
     outline: 'none',
   },
+};
+
+const clickableAnalyticsGridSx = {
+  ...analyticsGridSx,
+  '& .MuiDataGrid-row': {
+    cursor: 'pointer',
+  },
+  '& .MuiDataGrid-row:hover': {
+    backgroundColor: 'action.hover',
+  },
+};
+
+const multiLineCellSx = {
+  lineHeight: 1.4,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 };

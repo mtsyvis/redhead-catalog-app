@@ -8,15 +8,6 @@ internal sealed class BusinessDemandAccumulator
     private const int TopListLimit = 10;
     private const string OtherLocationName = "Other";
 
-    private static readonly ServiceFilterDefinition[] ServiceFilters =
-    [
-        new("priceCasinoAvailability", "Casino"),
-        new("priceCryptoAvailability", "Crypto"),
-        new("priceLinkInsertAvailability", "Link insert"),
-        new("priceLinkInsertCasinoAvailability", "Link insert casino"),
-        new("priceDatingAvailability", "Dating")
-    ];
-
     private readonly BusinessDemandLocationLookups _locationLookups;
     private readonly Dictionary<string, int> _topLocations = CreateCounter();
     private readonly Dictionary<string, int> _topNiches = CreateCounter();
@@ -34,7 +25,7 @@ internal sealed class BusinessDemandAccumulator
     public BusinessDemandAccumulator(BusinessDemandLocationLookups locationLookups)
     {
         _locationLookups = locationLookups;
-        _serviceCounters = ServiceFilters.ToDictionary(
+        _serviceCounters = ExportAnalyticsServiceFilters.All.ToDictionary(
             service => service.Field,
             service => new ServiceDemandCounter(service.DisplayName),
             StringComparer.Ordinal);
@@ -43,13 +34,13 @@ internal sealed class BusinessDemandAccumulator
     public void Add(ExportAnalyticsLogRow row, FiltersSnapshot snapshot)
     {
         CountLocationDemand(snapshot);
-        CountMultiSelectValues(snapshot, "niche", _topNiches);
-        CountMultiSelectValues(snapshot, "categories", _topCategories);
-        CountMultiSelectValues(snapshot, "language", _topLanguages);
+        CountMultiSelectValues(snapshot, ExportAnalyticsSnapshotSchema.Filters.Niche, _topNiches);
+        CountMultiSelectValues(snapshot, ExportAnalyticsSnapshotSchema.Filters.Categories, _topCategories);
+        CountMultiSelectValues(snapshot, ExportAnalyticsSnapshotSchema.Filters.Language, _topLanguages);
         CountServiceDemand(snapshot);
-        CountRangeDemand(snapshot, "dr", QualityRangeFormatter.FormatDrRange, _drRanges);
-        CountRangeDemand(snapshot, "traffic", QualityRangeFormatter.FormatTrafficRange, _trafficRanges);
-        CountRangeDemand(snapshot, "priceUsd", QualityRangeFormatter.FormatPriceRange, _priceRanges);
+        CountRangeDemand(snapshot, ExportAnalyticsSnapshotSchema.Filters.Dr, QualityRangeFormatter.FormatDrRange, _drRanges);
+        CountRangeDemand(snapshot, ExportAnalyticsSnapshotSchema.Filters.Traffic, QualityRangeFormatter.FormatTrafficRange, _trafficRanges);
+        CountRangeDemand(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, QualityRangeFormatter.FormatPriceRange, _priceRanges);
         CountStrictness(row, snapshot);
     }
 
@@ -89,17 +80,17 @@ internal sealed class BusinessDemandAccumulator
     private void CountLocationDemand(FiltersSnapshot snapshot)
     {
         var selectedLocationKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var locationKey in snapshot.GetStringValues("locationKey"))
+        foreach (var locationKey in snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.LocationKey))
         {
             selectedLocationKeys.Add(locationKey);
         }
 
-        if (snapshot.GetBooleanValue("locationUnknown") == true)
+        if (snapshot.GetBooleanValue(ExportAnalyticsSnapshotSchema.Filters.LocationUnknown) == true)
         {
             selectedLocationKeys.Add(LocationConstants.UnknownLocationKey);
         }
 
-        foreach (var groupKey in snapshot.GetStringValues("locationGroup"))
+        foreach (var groupKey in snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.LocationGroup))
         {
             if (!_locationLookups.GroupLocationKeys.TryGetValue(groupKey, out var groupMembers))
             {
@@ -112,21 +103,21 @@ internal sealed class BusinessDemandAccumulator
             }
         }
 
-        selectedLocationKeys.ExceptWith(snapshot.GetStringValues("excludedLocationKey"));
+        selectedLocationKeys.ExceptWith(snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.ExcludedLocationKey));
 
         var selectedNames = selectedLocationKeys
             .Select(ResolveLocationName)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        if (snapshot.GetBooleanValue("locationOther") == true)
+        if (snapshot.GetBooleanValue(ExportAnalyticsSnapshotSchema.Filters.LocationOther) == true)
         {
             selectedNames.Add(OtherLocationName);
         }
 
         if (selectedNames.Count == 0)
         {
-            selectedNames.UnionWith(snapshot.GetStringValues("location"));
+            selectedNames.UnionWith(snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.Location));
         }
 
         foreach (var name in selectedNames)
@@ -160,7 +151,7 @@ internal sealed class BusinessDemandAccumulator
 
     private void CountServiceDemand(FiltersSnapshot snapshot)
     {
-        foreach (var service in ServiceFilters)
+        foreach (var service in ExportAnalyticsServiceFilters.All)
         {
             var selectedValues = snapshot.GetStringValues(service.Field)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -238,9 +229,6 @@ internal sealed class BusinessDemandAccumulator
 
         counts[key] = counts.GetValueOrDefault(key) + 1;
     }
-
-    private sealed record ServiceFilterDefinition(string Field, string DisplayName);
-
     private sealed class ServiceDemandCounter
     {
         public ServiceDemandCounter(string displayName)

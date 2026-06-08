@@ -93,120 +93,94 @@ public sealed class ExportActivityAnalyticsServiceTests
     }
 
     [Fact]
-    public async Task GetExportActivityAsync_ClientUsageCalculatesRollingDomainWindows()
+    public async Task GetExportActivityAsync_ClientSummariesAggregateSelectedPeriodResults()
     {
         // Arrange
         await using var db = CreateDbContext();
         SeedClientRoleSettings(db);
         AddClient(db, "client-1", "client-1@example.com");
-        var nowUtc = new DateTime(2026, 6, 10, 12, 0, 0, DateTimeKind.Utc);
-        var log = AddExportLog(db, "client-1", nowUtc.AddHours(-1), requestedRows: 1, exportedRows: 1);
-        AddDomainAccess(db, log, "alpha.com", nowUtc.AddHours(-1));
-        AddDomainAccess(db, log, "alpha.com", nowUtc.AddHours(-2));
-        AddDomainAccess(db, log, "beta.com", nowUtc.AddHours(-25));
-        AddDomainAccess(db, log, "gamma.com", nowUtc.AddDays(-6));
-        AddDomainAccess(db, log, "delta.com", nowUtc.AddDays(-8));
-        await db.SaveChangesAsync();
-        var sut = CreateService(db);
-
-        // Act
-        var result = await sut.GetExportActivityAsync(CreateQuery(nowUtc: nowUtc), CancellationToken.None);
-
-        // Assert
-        var usage = Assert.Single(result.ClientUsage);
-        Assert.Equal(1, usage.DailyUniqueDomainsUsed);
-        Assert.Equal(3, usage.WeeklyUniqueDomainsUsed);
-    }
-
-    [Fact]
-    public async Task GetExportActivityAsync_ClientUsageCalculatesRollingOperationWindows()
-    {
-        // Arrange
-        await using var db = CreateDbContext();
-        SeedClientRoleSettings(db);
-        AddClient(db, "client-1", "client-1@example.com");
-        var nowUtc = new DateTime(2026, 6, 10, 12, 0, 0, DateTimeKind.Utc);
-        AddExportLog(db, "client-1", nowUtc.AddHours(-1), requestedRows: 1, exportedRows: 1);
-        AddExportLog(db, "client-1", nowUtc.AddHours(-2), requestedRows: 1, exportedRows: 1, wasTruncated: true);
         AddExportLog(
             db,
             "client-1",
-            nowUtc.AddHours(-3),
-            requestedRows: 1,
+            new DateTime(2026, 6, 1, 9, 0, 0, DateTimeKind.Utc),
+            requestedRows: 10,
+            exportedRows: 10);
+        AddExportLog(
+            db,
+            "client-1",
+            new DateTime(2026, 6, 1, 11, 0, 0, DateTimeKind.Utc),
+            requestedRows: 20,
+            exportedRows: 5,
+            wasTruncated: true);
+        AddExportLog(
+            db,
+            "client-1",
+            new DateTime(2026, 6, 1, 13, 0, 0, DateTimeKind.Utc),
+            requestedRows: 30,
             exportedRows: 0,
-            blockedReason: ExportConstants.DailyExportOperationLimitReached);
-        AddExportLog(db, "client-1", nowUtc.AddHours(-25), requestedRows: 1, exportedRows: 1);
-        AddExportLog(db, "client-1", nowUtc.AddDays(-6), requestedRows: 1, exportedRows: 1);
-        AddExportLog(db, "client-1", nowUtc.AddDays(-8), requestedRows: 1, exportedRows: 1);
+            blockedReason: ExportConstants.DailyUniqueDomainLimitReached);
         await db.SaveChangesAsync();
         var sut = CreateService(db);
 
         // Act
-        var result = await sut.GetExportActivityAsync(CreateQuery(nowUtc: nowUtc), CancellationToken.None);
+        var result = await sut.GetExportActivityAsync(CreateQuery(), CancellationToken.None);
 
         // Assert
-        var usage = Assert.Single(result.ClientUsage);
-        Assert.Equal(2, usage.DailyExportOperationsUsed);
-        Assert.Equal(4, usage.WeeklyExportOperationsUsed);
+        var summary = Assert.Single(result.ClientSummaries);
+        Assert.Equal("client-1", summary.UserId);
+        Assert.Equal(1, summary.SuccessfulExports);
+        Assert.Equal(1, summary.PartialExports);
+        Assert.Equal(1, summary.BlockedExports);
+        Assert.Equal(60, summary.RequestedRows);
+        Assert.Equal(15, summary.ExportedRows);
+        Assert.Equal(new DateTime(2026, 6, 1, 13, 0, 0, DateTimeKind.Utc), summary.LastExportAtUtc);
     }
 
     [Fact]
-    public async Task GetExportActivityAsync_ClientUsageStatusIsNearLimitAtEightyPercent()
+    public async Task GetExportActivityAsync_ClientSummariesUseSelectedPeriodOnly()
     {
         // Arrange
         await using var db = CreateDbContext();
-        SeedClientRoleSettings(db, dailyDomains: 10);
+        SeedClientRoleSettings(db);
         AddClient(db, "client-1", "client-1@example.com");
-        var nowUtc = new DateTime(2026, 6, 10, 12, 0, 0, DateTimeKind.Utc);
-        var log = AddExportLog(db, "client-1", nowUtc.AddHours(-1), requestedRows: 8, exportedRows: 8);
-        for (var index = 1; index <= 8; index++)
-        {
-            AddDomainAccess(db, log, $"domain-{index}.com", nowUtc.AddHours(-1));
-        }
-
-        await db.SaveChangesAsync();
-        var sut = CreateService(db);
-
-        // Act
-        var result = await sut.GetExportActivityAsync(CreateQuery(nowUtc: nowUtc), CancellationToken.None);
-
-        // Assert
-        var usage = Assert.Single(result.ClientUsage);
-        Assert.Equal(ExportActivityClientUsageStatuses.NearLimit, usage.Status);
-    }
-
-    [Fact]
-    public async Task GetExportActivityAsync_ClientUsageStatusIsLimitReachedAtFullUsageOrBlockedExport()
-    {
-        // Arrange
-        await using var db = CreateDbContext();
-        SeedClientRoleSettings(db, dailyDomains: 10);
-        AddClient(db, "client-1", "client-1@example.com");
+        AddExportLog(
+            db,
+            "client-1",
+            new DateTime(2026, 5, 31, 23, 0, 0, DateTimeKind.Utc),
+            requestedRows: 999,
+            exportedRows: 999);
+        AddExportLog(
+            db,
+            "client-1",
+            new DateTime(2026, 6, 1, 8, 0, 0, DateTimeKind.Utc),
+            requestedRows: 25,
+            exportedRows: 25);
+        AddExportLog(
+            db,
+            "client-1",
+            new DateTime(2026, 6, 2, 0, 0, 0, DateTimeKind.Utc),
+            requestedRows: 500,
+            exportedRows: 500);
         AddClient(db, "client-2", "client-2@example.com");
-        var nowUtc = new DateTime(2026, 6, 10, 12, 0, 0, DateTimeKind.Utc);
-        var log = AddExportLog(db, "client-1", nowUtc.AddHours(-1), requestedRows: 10, exportedRows: 10);
-        for (var index = 1; index <= 10; index++)
-        {
-            AddDomainAccess(db, log, $"domain-{index}.com", nowUtc.AddHours(-1));
-        }
-
         AddExportLog(
             db,
             "client-2",
             new DateTime(2026, 6, 1, 10, 0, 0, DateTimeKind.Utc),
-            requestedRows: 1,
-            exportedRows: 0,
-            blockedReason: ExportConstants.WeeklyUniqueDomainLimitReached);
+            requestedRows: 10,
+            exportedRows: 10);
         await db.SaveChangesAsync();
         var sut = CreateService(db);
 
         // Act
-        var result = await sut.GetExportActivityAsync(CreateQuery(nowUtc: nowUtc), CancellationToken.None);
+        var result = await sut.GetExportActivityAsync(CreateQuery(), CancellationToken.None);
 
         // Assert
-        var statuses = result.ClientUsage.ToDictionary(row => row.UserId, row => row.Status);
-        Assert.Equal(ExportActivityClientUsageStatuses.LimitReached, statuses["client-1"]);
-        Assert.Equal(ExportActivityClientUsageStatuses.LimitReached, statuses["client-2"]);
+        Assert.Equal(2, result.ClientSummaries.Count);
+        var first = Assert.Single(result.ClientSummaries, item => item.UserId == "client-1");
+        Assert.Equal(1, first.SuccessfulExports);
+        Assert.Equal(25, first.RequestedRows);
+        Assert.Equal(25, first.ExportedRows);
+        Assert.Equal(new DateTime(2026, 6, 1, 8, 0, 0, DateTimeKind.Utc), first.LastExportAtUtc);
     }
 
     [Fact]
@@ -259,6 +233,117 @@ public sealed class ExportActivityAnalyticsServiceTests
         var item = Assert.Single(result.RecentExports.Items);
         Assert.Equal("Unavailable", item.FiltersSummary);
         Assert.Equal("Unavailable", item.SortSummary);
+    }
+
+    [Fact]
+    public async Task GetExportLogDetailsAsync_WhenLogExists_ReturnsReadableFilterAndSortDetails()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        SeedClientRoleSettings(db);
+        AddClient(db, "client-1", "client-1@example.com");
+        db.CanonicalLocations.AddRange(
+            new CanonicalLocation
+            {
+                Key = "ID",
+                DisplayName = "Indonesia",
+                IsActive = true
+            },
+            new CanonicalLocation
+            {
+                Key = "US",
+                DisplayName = "United States",
+                IsActive = true
+            });
+        AddExportLog(
+            db,
+            "client-1",
+            new DateTime(2026, 6, 1, 8, 0, 0, DateTimeKind.Utc),
+            requestedRows: 1,
+            exportedRows: 1);
+        var selected = AddExportLog(
+            db,
+            "client-1",
+            new DateTime(2026, 6, 1, 9, 0, 0, DateTimeKind.Utc),
+            requestedRows: 10,
+            exportedRows: 5,
+            wasTruncated: true,
+            filtersJson: """
+                {
+                  "schemaVersion": 1,
+                  "filters": [
+                    { "field": "locationKey", "kind": "multiSelect", "operator": "anyOf", "value": ["ID", "US"] },
+                    { "field": "dr", "kind": "numberRange", "operator": "between", "value": { "min": 10, "max": 70 } },
+                    { "field": "priceUsd", "kind": "numberRange", "operator": "gte", "value": { "min": 100 } },
+                    { "field": "quarantine", "kind": "enum", "operator": "eq", "value": "exclude" },
+                    { "field": "priceCasinoAvailability", "kind": "availability", "operator": "in", "value": ["available", "availableWithUnknownPrice"] },
+                    { "field": "priceCryptoAvailability", "kind": "availability", "operator": "in", "value": ["notAvailable"] },
+                    { "field": "lastPublishedDate", "kind": "monthRange", "operator": "between", "value": { "minMonth": "2026-01", "maxMonth": "2026-03" } }
+                  ]
+                }
+                """,
+            sortJson: """
+                {
+                  "schemaVersion": 1,
+                  "sorts": [
+                    { "field": "dr", "direction": "desc", "priority": 1 }
+                  ]
+                }
+                """,
+            searchJson: """
+                {
+                  "schemaVersion": 1,
+                  "mode": "multiSearch",
+                  "inputCount": 4,
+                  "uniqueInputCount": 3,
+                  "foundCount": 2,
+                  "notFoundCount": 1
+                }
+                """);
+        await db.SaveChangesAsync();
+        var sut = CreateService(db);
+
+        // Act
+        var result = await sut.GetExportLogDetailsAsync(selected.Id, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(selected.Id, result.Id);
+        Assert.Equal("Partial", result.Status);
+        Assert.Equal("Rows per export limit", result.OutcomeReason);
+        Assert.Equal(ExportConstants.ExportModeSites, result.ExportMode);
+        Assert.Equal("Indonesia, United States", GetFilterValue(result, "Locations", "Locations"));
+        Assert.Equal("10-70", GetFilterValue(result, "Quality and price", "DR"));
+        Assert.Equal("No filter", GetFilterValue(result, "Quality and price", "Traffic"));
+        Assert.Equal("From $100", GetFilterValue(result, "Quality and price", "Price USD"));
+        Assert.Equal("Available", GetFilterValue(result, "Status", "Status"));
+        Assert.Equal("2026-01-2026-03", GetFilterValue(result, "Status", "Last published"));
+        Assert.Equal("Has price, YES", GetFilterValue(result, "Optional services", "Casino"));
+        Assert.Equal("NO", GetFilterValue(result, "Optional services", "Crypto"));
+        Assert.Equal("Yes", GetFilterValue(result, "Multi-search", "Enabled"));
+        Assert.Equal("4", GetFilterValue(result, "Multi-search", "Input domains count"));
+        Assert.Equal("2", GetFilterValue(result, "Multi-search", "Found count"));
+        Assert.Equal("DR descending", result.Sort.Summary);
+        var sortItem = Assert.Single(result.Sort.Items);
+        Assert.Equal("DR", sortItem.Label);
+        Assert.Equal("descending", sortItem.Value);
+        Assert.NotNull(result.TechnicalDetails);
+        Assert.Contains("\"filters\"", result.TechnicalDetails.FiltersSnapshotJson);
+    }
+
+    [Fact]
+    public async Task GetExportLogDetailsAsync_WhenLogDoesNotExist_ReturnsNull()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        SeedClientRoleSettings(db);
+        var sut = CreateService(db);
+
+        // Act
+        var result = await sut.GetExportLogDetailsAsync(Guid.NewGuid(), CancellationToken.None);
+
+        // Assert
+        Assert.Null(result);
     }
 
     private static ApplicationDbContext CreateDbContext()
@@ -408,4 +493,13 @@ public sealed class ExportActivityAnalyticsServiceTests
             ["schemaVersion"] = 1,
             ["filters"] = filters
         });
+
+    private static string GetFilterValue(
+        ExportLogDetailsDto details,
+        string sectionTitle,
+        string label)
+    {
+        var section = Assert.Single(details.AppliedFilters, section => section.Title == sectionTitle);
+        return Assert.Single(section.Rows, row => row.Label == label).Value;
+    }
 }

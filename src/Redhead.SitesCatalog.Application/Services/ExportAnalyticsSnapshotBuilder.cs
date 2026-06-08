@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Models.Exports;
+using Redhead.SitesCatalog.Application.Services.Analytics;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -43,7 +44,7 @@ public static class ExportAnalyticsSnapshotBuilder
         int foundCount)
     {
         return new ExportAnalyticsSearchContext(
-            Mode: "multiSearch",
+            Mode: ExportAnalyticsSnapshotSchema.Search.MultiSearchMode,
             InputCount: inputCount,
             UniqueInputCount: uniqueInputCount,
             FoundCount: foundCount,
@@ -54,49 +55,49 @@ public static class ExportAnalyticsSnapshotBuilder
     {
         var filters = new List<FilterSnapshotItemDto>();
 
-        AddNumberRange(filters, "dr", query.DrMin, query.DrMax);
-        AddNumberRange(filters, "traffic", query.TrafficMin, query.TrafficMax);
-        AddNumberRange(filters, "priceUsd", query.PriceMin, query.PriceMax);
-        AddMultiSelect(filters, "location", query.Locations);
-        AddMultiSelect(filters, "locationKey", query.LocationKeys);
-        AddMultiSelect(filters, "locationGroup", query.LocationGroupKeys);
-        AddMultiSelect(filters, "excludedLocationKey", query.ExcludedLocationKeys);
+        AddNumberRange(filters, ExportAnalyticsSnapshotSchema.Filters.Dr, query.DrMin, query.DrMax);
+        AddNumberRange(filters, ExportAnalyticsSnapshotSchema.Filters.Traffic, query.TrafficMin, query.TrafficMax);
+        AddNumberRange(filters, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, query.PriceMin, query.PriceMax);
+        AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.Location, query.Locations);
+        AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.LocationKey, query.LocationKeys);
+        AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.LocationGroup, query.LocationGroupKeys);
+        AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.ExcludedLocationKey, query.ExcludedLocationKeys);
         if (query.IncludeUnknownLocation)
         {
-            filters.Add(new FilterSnapshotItemDto("locationUnknown", "boolean", "eq", true));
+            filters.Add(new FilterSnapshotItemDto(ExportAnalyticsSnapshotSchema.Filters.LocationUnknown, "boolean", "eq", true));
         }
 
         if (query.IncludeOtherLocation)
         {
-            filters.Add(new FilterSnapshotItemDto("locationOther", "boolean", "eq", true));
+            filters.Add(new FilterSnapshotItemDto(ExportAnalyticsSnapshotSchema.Filters.LocationOther, "boolean", "eq", true));
         }
 
-        AddMultiSelect(filters, "language", query.Languages);
+        AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.Language, query.Languages);
 
         var niches = NicheNormalizer.NormalizeTokens(query.Niches ?? []);
         var categorySearchTerms = CategorySearchTermParser.NormalizeAndValidate(query.CategorySearchTerms);
         AddTopicFitMode(filters, query.TopicFitMode, niches.Length > 0, categorySearchTerms is { Count: > 0 });
-        AddMultiSelect(filters, "niche", niches);
-        AddCategorySearch(filters, "categories", "containsAny", categorySearchTerms);
-        AddMultiSelect(filters, "excludedNiche", NicheNormalizer.NormalizeTokens(query.ExcludedNiches ?? []));
+        AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.Niche, niches);
+        AddCategorySearch(filters, ExportAnalyticsSnapshotSchema.Filters.Categories, "containsAny", categorySearchTerms);
+        AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.ExcludedNiche, NicheNormalizer.NormalizeTokens(query.ExcludedNiches ?? []));
         AddCategorySearch(
             filters,
-            "excludedCategories",
+            ExportAnalyticsSnapshotSchema.Filters.ExcludedCategories,
             "notContainsAny",
             query.ExcludedCategorySearchTerms);
 
-        AddAvailability(filters, "priceCasinoAvailability", query.CasinoAvailability);
-        AddAvailability(filters, "priceCryptoAvailability", query.CryptoAvailability);
-        AddAvailability(filters, "priceLinkInsertAvailability", query.LinkInsertAvailability);
-        AddAvailability(filters, "priceLinkInsertCasinoAvailability", query.LinkInsertCasinoAvailability);
-        AddAvailability(filters, "priceDatingAvailability", query.DatingAvailability);
+        AddAvailability(filters, ExportAnalyticsServiceFilters.Casino.Field, query.CasinoAvailability);
+        AddAvailability(filters, ExportAnalyticsServiceFilters.Crypto.Field, query.CryptoAvailability);
+        AddAvailability(filters, ExportAnalyticsServiceFilters.LinkInsert.Field, query.LinkInsertAvailability);
+        AddAvailability(filters, ExportAnalyticsServiceFilters.LinkInsertCasino.Field, query.LinkInsertCasinoAvailability);
+        AddAvailability(filters, ExportAnalyticsServiceFilters.Dating.Field, query.DatingAvailability);
         AddQuarantine(filters, query.Quarantine);
         AddLastPublishedDate(filters, query.LastPublishedFrom, query.LastPublishedToExclusive);
 
         if (query.StopListDomains is { Count: > 0 })
         {
             filters.Add(new FilterSnapshotItemDto(
-                Field: "stopList",
+                Field: ExportAnalyticsSnapshotSchema.Filters.StopList,
                 Kind: "boolean",
                 Operator: "eq",
                 Value: true));
@@ -130,7 +131,7 @@ public static class ExportAnalyticsSnapshotBuilder
     {
         object? snapshot = searchContext?.Mode switch
         {
-            "multiSearch" => new MultiSearchSnapshotDto(
+            ExportAnalyticsSnapshotSchema.Search.MultiSearchMode => new MultiSearchSnapshotDto(
                 CurrentSnapshotVersion,
                 searchContext.Mode,
                 searchContext.InputCount.GetValueOrDefault(),
@@ -158,7 +159,7 @@ public static class ExportAnalyticsSnapshotBuilder
 
         return new CatalogSearchSnapshotDto(
             CurrentSnapshotVersion,
-            "catalogSearch",
+            ExportAnalyticsSnapshotSchema.Search.CatalogSearchMode,
             query.Search.Trim(),
             normalizedQuery);
     }
@@ -246,7 +247,7 @@ public static class ExportAnalyticsSnapshotBuilder
             : TopicFitModeValues.Narrow;
 
         filters.Add(new FilterSnapshotItemDto(
-            Field: "topicFitMode",
+            Field: ExportAnalyticsSnapshotSchema.Filters.TopicFitMode,
             Kind: "enum",
             Operator: "eq",
             Value: normalizedMode));
@@ -302,7 +303,7 @@ public static class ExportAnalyticsSnapshotBuilder
         }
 
         filters.Add(new FilterSnapshotItemDto(
-            Field: "quarantine",
+            Field: ExportAnalyticsSnapshotSchema.Filters.Quarantine,
             Kind: "enum",
             Operator: "eq",
             Value: quarantine.Trim().ToLowerInvariant()));
@@ -335,7 +336,7 @@ public static class ExportAnalyticsSnapshotBuilder
         }
 
         filters.Add(new FilterSnapshotItemDto(
-            Field: "lastPublishedDate",
+            Field: ExportAnalyticsSnapshotSchema.Filters.LastPublishedDate,
             Kind: "monthRange",
             Operator: CreateMonthRangeOperator(from.HasValue, toExclusive.HasValue),
             Value: value));
@@ -372,21 +373,21 @@ public static class ExportAnalyticsSnapshotBuilder
     private static string ToBusinessFieldName(string sortBy)
         => sortBy.Trim().ToLowerInvariant() switch
         {
-            SortFields.Domain => "domain",
-            SortFields.DR => "dr",
-            SortFields.Traffic => "traffic",
-            SortFields.Location => "location",
-            SortFields.PriceUsd => "priceUsd",
-            SortFields.PriceCasino => "priceCasino",
-            SortFields.PriceCrypto => "priceCrypto",
-            SortFields.PriceLinkInsert => "priceLinkInsert",
-            SortFields.PriceLinkInsertCasino => "priceLinkInsertCasino",
-            SortFields.PriceDating => "priceDating",
-            SortFields.NumberDFLinks => "numberDFLinks",
-            SortFields.Term => "term",
-            SortFields.CreatedAt => "createdAt",
-            SortFields.UpdatedAt => "updatedAt",
-            SortFields.LastPublishedDate => "lastPublishedDate",
+            SortFields.Domain => ExportAnalyticsSnapshotSchema.Sort.Domain,
+            SortFields.DR => ExportAnalyticsSnapshotSchema.Sort.Dr,
+            SortFields.Traffic => ExportAnalyticsSnapshotSchema.Sort.Traffic,
+            SortFields.Location => ExportAnalyticsSnapshotSchema.Sort.Location,
+            SortFields.PriceUsd => ExportAnalyticsSnapshotSchema.Sort.PriceUsd,
+            SortFields.PriceCasino => ExportAnalyticsSnapshotSchema.Sort.PriceCasino,
+            SortFields.PriceCrypto => ExportAnalyticsSnapshotSchema.Sort.PriceCrypto,
+            SortFields.PriceLinkInsert => ExportAnalyticsSnapshotSchema.Sort.PriceLinkInsert,
+            SortFields.PriceLinkInsertCasino => ExportAnalyticsSnapshotSchema.Sort.PriceLinkInsertCasino,
+            SortFields.PriceDating => ExportAnalyticsSnapshotSchema.Sort.PriceDating,
+            SortFields.NumberDFLinks => ExportAnalyticsSnapshotSchema.Sort.NumberDfLinks,
+            SortFields.Term => ExportAnalyticsSnapshotSchema.Sort.Term,
+            SortFields.CreatedAt => ExportAnalyticsSnapshotSchema.Sort.CreatedAt,
+            SortFields.UpdatedAt => ExportAnalyticsSnapshotSchema.Sort.UpdatedAt,
+            SortFields.LastPublishedDate => ExportAnalyticsSnapshotSchema.Sort.LastPublishedDate,
             _ => SortingDefaults.DefaultSortBy
         };
 

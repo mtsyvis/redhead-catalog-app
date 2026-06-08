@@ -63,7 +63,6 @@ export interface AnalyticsClientOption {
 }
 
 export type ExportActivityStatus = 'Successful' | 'Partial' | 'Blocked';
-export type ExportActivityClientUsageStatus = 'Normal' | 'NearLimit' | 'LimitReached';
 
 export interface ExportActivitySummary {
   completedExports: number;
@@ -82,24 +81,16 @@ export interface ExportActivityOverTimeItem {
   exportedDomains: number;
 }
 
-export interface ExportActivityClientUsageItem {
+export interface ExportActivityClientSummaryItem {
   userId: string;
   email: string;
   displayName?: string | null;
-  dailyUniqueDomainsUsed: number;
-  dailyUniqueDomainsLimit?: number | null;
-  weeklyUniqueDomainsUsed: number;
-  weeklyUniqueDomainsLimit?: number | null;
-  dailyExportOperationsUsed: number;
-  dailyExportOperationsLimit?: number | null;
-  weeklyExportOperationsUsed: number;
-  weeklyExportOperationsLimit?: number | null;
+  successfulExports: number;
   partialExports: number;
   blockedExports: number;
   requestedRows: number;
   exportedRows: number;
   lastExportAtUtc?: string | null;
-  status: ExportActivityClientUsageStatus;
 }
 
 export interface ExportActivityRecentExportItem {
@@ -126,6 +117,45 @@ export interface ExportActivityRecentExports {
 export interface ExportActivityAnalytics {
   summary: ExportActivitySummary;
   exportsOverTime: ExportActivityOverTimeItem[];
-  clientUsage: ExportActivityClientUsageItem[];
+  clientSummaries: ExportActivityClientSummaryItem[];
   recentExports: ExportActivityRecentExports;
+}
+
+export interface ExportLogDetailsRow {
+  label: string;
+  value: string;
+}
+
+export interface ExportLogDetailsSection {
+  title: string;
+  rows: ExportLogDetailsRow[];
+}
+
+export interface ExportLogSortDetails {
+  summary: string;
+  items: ExportLogDetailsRow[];
+}
+
+export interface ExportLogTechnicalDetails {
+  filtersSnapshotJson?: string | null;
+  sortSnapshotJson?: string | null;
+  searchSnapshotJson?: string | null;
+}
+
+export interface ExportLogDetails {
+  id: string;
+  timestampUtc: string;
+  userId: string;
+  email: string;
+  displayName?: string | null;
+  destination?: string | null;
+  status: ExportActivityStatus;
+  requestedRows: number;
+  exportedRows: number;
+  blockedReason?: string | null;
+  outcomeReason?: string | null;
+  exportMode?: string | null;
+  appliedFilters: ExportLogDetailsSection[];
+  sort: ExportLogSortDetails;
+  technicalDetails?: ExportLogTechnicalDetails | null;
 }

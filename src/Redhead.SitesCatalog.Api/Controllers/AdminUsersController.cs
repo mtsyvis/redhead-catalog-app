@@ -620,6 +620,17 @@ public class AdminUsersController : ControllerBase
             IsExportLimitEditable = user.IsExportLimitEditable,
             GoogleDriveConnected = user.GoogleDriveConnected,
             GoogleDrive = user.GoogleDrive,
+            ClientExportUsage = user.ClientExportUsage == null
+                ? null
+                : new AdminUserClientExportUsageResponse(
+                    user.ClientExportUsage.DailyUniqueExportedDomainsUsed,
+                    user.ClientExportUsage.DailyUniqueExportedDomainsLimit,
+                    user.ClientExportUsage.WeeklyUniqueExportedDomainsUsed,
+                    user.ClientExportUsage.WeeklyUniqueExportedDomainsLimit,
+                    user.ClientExportUsage.DailyExportOperationsUsed,
+                    user.ClientExportUsage.DailyExportOperationsLimit,
+                    user.ClientExportUsage.WeeklyExportOperationsUsed,
+                    user.ClientExportUsage.WeeklyExportOperationsLimit),
             DailyUniqueExportedDomainsLimitOverride = user.DailyUniqueExportedDomainsLimitOverride,
             WeeklyUniqueExportedDomainsLimitOverride = user.WeeklyUniqueExportedDomainsLimitOverride,
             DailyExportOperationsLimitOverride = user.DailyExportOperationsLimitOverride,

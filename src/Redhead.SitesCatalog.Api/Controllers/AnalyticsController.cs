@@ -63,6 +63,22 @@ public sealed class AnalyticsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("logs/{id:guid}")]
+    public async Task<ActionResult<ExportLogDetailsDto>> GetExportLogDetails(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _exportActivityAnalyticsService.GetExportLogDetailsAsync(
+            id,
+            cancellationToken);
+        if (result == null)
+        {
+            return NotFound(new MessageResponse("Export log not found."));
+        }
+
+        return Ok(result);
+    }
+
     [HttpGet("clients")]
     public async Task<ActionResult<IReadOnlyList<AnalyticsClientOptionDto>>> GetClientOptions(
         CancellationToken cancellationToken)

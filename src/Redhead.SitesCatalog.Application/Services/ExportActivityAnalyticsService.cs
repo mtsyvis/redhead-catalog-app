@@ -11,8 +11,6 @@ namespace Redhead.SitesCatalog.Application.Services;
 
 public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsService
 {
-    private const decimal NearLimitThreshold = 0.8m;
-
     private readonly ApplicationDbContext _context;
 
     public ExportActivityAnalyticsService(ApplicationDbContext context)
@@ -31,13 +29,62 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
         return new ExportActivityAnalyticsDto(
             Summary: await GetSummaryAsync(query, filteredLogs, cancellationToken),
             ExportsOverTime: await GetExportsOverTimeAsync(query, filteredLogs, cancellationToken),
-            ClientUsage: await GetClientUsageAsync(query, filteredLogs, clientUsers, cancellationToken),
+            ClientSummaries: await GetClientSummariesAsync(filteredLogs, clientUsers, cancellationToken),
             RecentExports: await GetRecentExportsAsync(
                 query,
                 filteredLogs,
                 locationLookups,
                 clientUsers,
                 cancellationToken));
+    }
+
+    public async Task<ExportLogDetailsDto?> GetExportLogDetailsAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var row = await _context.ExportLogs
+            .AsNoTracking()
+            .Where(log => log.Role == AppRoles.Client)
+            .Where(log => log.Id == id)
+            .Select(log => new ExportLogDetailsSource(
+                log.Id,
+                log.TimestampUtc,
+                log.UserId,
+                log.UserEmail,
+                log.Destination,
+                log.RequestedRowsCount,
+                log.ExportedRowsCount,
+                log.WasTruncated,
+                log.ExportLimitRows,
+                log.BlockedReason,
+                log.ExportMode,
+                log.AnalyticsSnapshot == null ? null : log.AnalyticsSnapshot.FiltersSnapshotJson,
+                log.AnalyticsSnapshot == null ? null : log.AnalyticsSnapshot.SortSnapshotJson,
+                log.AnalyticsSnapshot == null ? null : log.AnalyticsSnapshot.SearchSnapshotJson))
+            .SingleOrDefaultAsync(cancellationToken);
+        if (row == null)
+        {
+            return null;
+        }
+
+        var user = await _context.Users
+            .AsNoTracking()
+            .Where(candidate => candidate.Id == row.UserId)
+            .Select(candidate => new
+            {
+                candidate.Email,
+                candidate.FirstName,
+                candidate.LastName
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        var displayName = user == null
+            ? null
+            : UserProfileNameValidator.GetDisplayName(user.FirstName, user.LastName, user.Email);
+
+        return ExportLogDetailsMapper.Map(
+            row,
+            displayName,
+            await LoadLocationLookupsAsync(cancellationToken));
     }
 
     private async Task<ExportActivitySummaryDto> GetSummaryAsync(
@@ -111,8 +158,7 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
             .ToArray();
     }
 
-    private async Task<IReadOnlyList<ExportActivityClientUsageDto>> GetClientUsageAsync(
-        ExportActivityAnalyticsQuery query,
+    private async Task<IReadOnlyList<ExportActivityClientSummaryDto>> GetClientSummariesAsync(
         IQueryable<ExportLog> filteredLogs,
         IReadOnlyList<ApplicationUser> clientUsers,
         CancellationToken cancellationToken)
@@ -122,92 +168,41 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
             return [];
         }
 
-        var clientRoleSettings = await _context.RoleSettings
-            .AsNoTracking()
-            .FirstAsync(settings => settings.RoleName == AppRoles.Client, cancellationToken);
-
-        var selectedUsage = await filteredLogs
+        var selectedSummaries = await filteredLogs
             .GroupBy(log => log.UserId)
-            .Select(group => new ExportActivitySelectedClientUsage(
+            .Select(group => new ExportActivitySelectedClientSummary(
                 group.Key,
+                group.Count(log => log.BlockedReason == null && !log.WasTruncated),
                 group.Count(log => log.BlockedReason == null && log.WasTruncated),
                 group.Count(log => log.BlockedReason != null),
                 group.Sum(log => (long)log.RequestedRowsCount),
                 group.Sum(log => (long)log.ExportedRowsCount),
                 group.Max(log => (DateTime?)log.TimestampUtc)))
             .ToListAsync(cancellationToken);
-        var selectedUsageByUserId = selectedUsage.ToDictionary(item => item.UserId, StringComparer.Ordinal);
+        var selectedSummariesByUserId = selectedSummaries.ToDictionary(item => item.UserId, StringComparer.Ordinal);
 
-        var windows = RollingExportWindows.From(query.NowUtc);
-        var dailyDomainUsage = await GetRollingUniqueDomainUsageAsync(
-            windows.DailyStartUtc,
-            cancellationToken);
-        var weeklyDomainUsage = await GetRollingUniqueDomainUsageAsync(
-            windows.WeeklyStartUtc,
-            cancellationToken);
-        var dailyOperationUsage = await GetRollingOperationUsageAsync(
-            windows.DailyStartUtc,
-            cancellationToken);
-        var weeklyOperationUsage = await GetRollingOperationUsageAsync(
-            windows.WeeklyStartUtc,
-            cancellationToken);
-
-        var rows = new List<ExportActivityClientUsageDto>();
+        var rows = new List<ExportActivityClientSummaryDto>();
         foreach (var user in clientUsers)
         {
-            selectedUsageByUserId.TryGetValue(user.Id, out var selected);
-            var dailyDomainsUsed = dailyDomainUsage.GetValueOrDefault(user.Id);
-            var weeklyDomainsUsed = weeklyDomainUsage.GetValueOrDefault(user.Id);
-            var dailyOperationsUsed = dailyOperationUsage.GetValueOrDefault(user.Id);
-            var weeklyOperationsUsed = weeklyOperationUsage.GetValueOrDefault(user.Id);
-
-            if (selected == null &&
-                dailyDomainsUsed == 0 &&
-                weeklyDomainsUsed == 0 &&
-                dailyOperationsUsed == 0 &&
-                weeklyOperationsUsed == 0)
+            if (!selectedSummariesByUserId.TryGetValue(user.Id, out var selected))
             {
                 continue;
             }
 
-            var policy = EffectiveExportPolicyResolver.Resolve(
-                AppRoles.Client,
-                clientRoleSettings,
-                user);
-
-            rows.Add(new ExportActivityClientUsageDto(
+            rows.Add(new ExportActivityClientSummaryDto(
                 UserId: user.Id,
                 Email: user.Email ?? string.Empty,
                 DisplayName: UserProfileNameValidator.GetDisplayName(user.FirstName, user.LastName, user.Email),
-                DailyUniqueDomainsUsed: dailyDomainsUsed,
-                DailyUniqueDomainsLimit: policy.DailyUniqueExportedDomainsLimit,
-                WeeklyUniqueDomainsUsed: weeklyDomainsUsed,
-                WeeklyUniqueDomainsLimit: policy.WeeklyUniqueExportedDomainsLimit,
-                DailyExportOperationsUsed: dailyOperationsUsed,
-                DailyExportOperationsLimit: policy.DailyExportOperationsLimit,
-                WeeklyExportOperationsUsed: weeklyOperationsUsed,
-                WeeklyExportOperationsLimit: policy.WeeklyExportOperationsLimit,
-                PartialExports: selected?.PartialExports ?? 0,
-                BlockedExports: selected?.BlockedExports ?? 0,
-                RequestedRows: selected?.RequestedRows ?? 0,
-                ExportedRows: selected?.ExportedRows ?? 0,
-                LastExportAtUtc: selected?.LastExportAtUtc,
-                Status: GetClientUsageStatus(
-                    selected?.BlockedExports ?? 0,
-                    dailyDomainsUsed,
-                    policy.DailyUniqueExportedDomainsLimit,
-                    weeklyDomainsUsed,
-                    policy.WeeklyUniqueExportedDomainsLimit,
-                    dailyOperationsUsed,
-                    policy.DailyExportOperationsLimit,
-                    weeklyOperationsUsed,
-                    policy.WeeklyExportOperationsLimit)));
+                SuccessfulExports: selected.SuccessfulExports,
+                PartialExports: selected.PartialExports,
+                BlockedExports: selected.BlockedExports,
+                RequestedRows: selected.RequestedRows,
+                ExportedRows: selected.ExportedRows,
+                LastExportAtUtc: selected.LastExportAtUtc));
         }
 
         return rows
-            .OrderByDescending(row => row.Status == ExportActivityClientUsageStatuses.LimitReached)
-            .ThenByDescending(row => row.Status == ExportActivityClientUsageStatuses.NearLimit)
-            .ThenByDescending(row => row.LastExportAtUtc)
+            .OrderByDescending(row => row.LastExportAtUtc)
             .ThenBy(row => row.Email, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -249,7 +244,6 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
 
         var userProfilesById = clientUsers.ToDictionary(user => user.Id, StringComparer.Ordinal);
 
-        // Future improvement: add an export detail drawer with full filter, sort, and search snapshots for debugging.
         var items = rows
             .Select(row =>
             {
@@ -269,7 +263,11 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
                     RequestedRows: row.RequestedRows,
                     ExportedRows: row.ExportedRows,
                     BlockedReason: row.BlockedReason,
-                    Reason: FormatReason(row),
+                    Reason: ExportActivityReasonFormatter.Format(
+                        row.BlockedReason,
+                        row.WasTruncated,
+                        row.ExportLimitRows,
+                        row.ExportedRows),
                     FiltersSummary: ExportActivitySnapshotSummaryFormatter.FormatFilters(
                         row.FiltersSnapshotJson,
                         row.SearchSnapshotJson,
@@ -279,44 +277,6 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
             .ToArray();
 
         return new ExportActivityRecentExportsDto(items, totalCount);
-    }
-
-    private async Task<IReadOnlyDictionary<string, int>> GetRollingUniqueDomainUsageAsync(
-        DateTime startUtc,
-        CancellationToken cancellationToken)
-    {
-        var rows = await _context.ExportedDomainAccesses
-            .AsNoTracking()
-            .Where(access => access.ExportedAtUtc >= startUtc)
-            .GroupBy(access => access.UserId)
-            .Select(group => new
-            {
-                UserId = group.Key,
-                Count = group.Select(access => access.Domain).Distinct().Count()
-            })
-            .ToListAsync(cancellationToken);
-
-        return rows.ToDictionary(row => row.UserId, row => row.Count, StringComparer.Ordinal);
-    }
-
-    private async Task<IReadOnlyDictionary<string, int>> GetRollingOperationUsageAsync(
-        DateTime startUtc,
-        CancellationToken cancellationToken)
-    {
-        var rows = await _context.ExportLogs
-            .AsNoTracking()
-            .Where(log => log.Role == AppRoles.Client)
-            .Where(log => log.BlockedReason == null)
-            .Where(log => log.TimestampUtc >= startUtc)
-            .GroupBy(log => log.UserId)
-            .Select(group => new
-            {
-                UserId = group.Key,
-                Count = group.Count()
-            })
-            .ToListAsync(cancellationToken);
-
-        return rows.ToDictionary(row => row.UserId, row => row.Count, StringComparer.Ordinal);
     }
 
     private async Task<IReadOnlyList<ApplicationUser>> GetClientUsersAsync(
@@ -421,101 +381,6 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
             _ => logs
         };
 
-    private static string GetClientUsageStatus(
-        int blockedExports,
-        int dailyDomainsUsed,
-        int? dailyDomainsLimit,
-        int weeklyDomainsUsed,
-        int? weeklyDomainsLimit,
-        int dailyOperationsUsed,
-        int? dailyOperationsLimit,
-        int weeklyOperationsUsed,
-        int? weeklyOperationsLimit)
-    {
-        if (blockedExports > 0 ||
-            IsLimitReached(dailyDomainsUsed, dailyDomainsLimit) ||
-            IsLimitReached(weeklyDomainsUsed, weeklyDomainsLimit) ||
-            IsLimitReached(dailyOperationsUsed, dailyOperationsLimit) ||
-            IsLimitReached(weeklyOperationsUsed, weeklyOperationsLimit))
-        {
-            return ExportActivityClientUsageStatuses.LimitReached;
-        }
-
-        if (IsNearLimit(dailyDomainsUsed, dailyDomainsLimit) ||
-            IsNearLimit(weeklyDomainsUsed, weeklyDomainsLimit) ||
-            IsNearLimit(dailyOperationsUsed, dailyOperationsLimit) ||
-            IsNearLimit(weeklyOperationsUsed, weeklyOperationsLimit))
-        {
-            return ExportActivityClientUsageStatuses.NearLimit;
-        }
-
-        return ExportActivityClientUsageStatuses.Normal;
-    }
-
-    private static bool IsLimitReached(int used, int? limit)
-        => limit.HasValue && used >= limit.Value;
-
-    private static bool IsNearLimit(int used, int? limit)
-        => limit.HasValue && limit.Value > 0 && used / (decimal)limit.Value >= NearLimitThreshold;
-
-    private static string? FormatReason(RecentExportLogRow row)
-    {
-        if (!string.IsNullOrWhiteSpace(row.BlockedReason))
-        {
-            return row.BlockedReason switch
-            {
-                ExportConstants.DailyUniqueDomainLimitReached => "Daily domain limit",
-                ExportConstants.WeeklyUniqueDomainLimitReached => "Weekly domain limit",
-                ExportConstants.DailyExportOperationLimitReached => "Daily operation limit",
-                ExportConstants.WeeklyExportOperationLimitReached => "Weekly operation limit",
-                _ => SplitTechnicalName(row.BlockedReason)
-            };
-        }
-
-        if (row.WasTruncated &&
-            row.ExportLimitRows.HasValue &&
-            row.ExportedRows >= row.ExportLimitRows.Value)
-        {
-            return "Rows per export limit";
-        }
-
-        return null;
-    }
-
-    private static string SplitTechnicalName(string value)
-    {
-        var trimmed = value.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed))
-        {
-            return trimmed;
-        }
-
-        var words = new List<char>(trimmed.Length + 4);
-        for (var index = 0; index < trimmed.Length; index++)
-        {
-            var current = trimmed[index];
-            if (index > 0 &&
-                char.IsUpper(current) &&
-                char.IsLetter(trimmed[index - 1]))
-            {
-                words.Add(' ');
-            }
-
-            words.Add(current);
-        }
-
-        var result = new string(words.ToArray());
-        return char.ToUpperInvariant(result[0]) + result[1..];
-    }
-
-    private sealed record RollingExportWindows(DateTime DailyStartUtc, DateTime WeeklyStartUtc)
-    {
-        public static RollingExportWindows From(DateTime nowUtc)
-            => new(
-                DailyStartUtc: nowUtc.AddHours(-24),
-                WeeklyStartUtc: nowUtc.AddDays(-7));
-    }
-
     private sealed record ExportActivityDailyLogCounts(
         DateTime Date,
         int SuccessfulExports,
@@ -526,8 +391,9 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
         DateTime Date,
         int ExportedDomains);
 
-    private sealed record ExportActivitySelectedClientUsage(
+    private sealed record ExportActivitySelectedClientSummary(
         string UserId,
+        int SuccessfulExports,
         int PartialExports,
         int BlockedExports,
         long RequestedRows,

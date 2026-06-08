@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -13,13 +14,16 @@ public sealed class AdminUsersListService : IAdminUsersListService
 {
     private readonly ApplicationDbContext _context;
     private readonly IGoogleDriveIntegrationService _googleDriveIntegrationService;
+    private readonly IExportUsageLimitService _exportUsageLimitService;
 
     public AdminUsersListService(
         ApplicationDbContext context,
-        IGoogleDriveIntegrationService googleDriveIntegrationService)
+        IGoogleDriveIntegrationService googleDriveIntegrationService,
+        IExportUsageLimitService exportUsageLimitService)
     {
         _context = context;
         _googleDriveIntegrationService = googleDriveIntegrationService;
+        _exportUsageLimitService = exportUsageLimitService;
     }
 
     public async Task<AdminUsersListResult> ListUsersAsync(
@@ -43,7 +47,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
         return new AdminUsersListResult
         {
             Items = pagedUsers
-                .Select(user => ToListItem(user, roleSettingsMap))
+                .Select(user => ToListItem(user, BuildEffectivePolicy(user, roleSettingsMap)))
                 .ToList(),
             Page = query.Page,
             PageSize = query.PageSize,
@@ -66,8 +70,17 @@ public sealed class AdminUsersListService : IAdminUsersListService
 
         var roleSettingsMap = await _context.RoleSettings
             .ToDictionaryAsync(rs => rs.RoleName, cancellationToken);
-        var listItem = ToListItem(user, roleSettingsMap);
+        var effectivePolicy = BuildEffectivePolicy(user, roleSettingsMap);
+        var listItem = ToListItem(user, effectivePolicy);
         var googleDrive = await _googleDriveIntegrationService.GetStatusAsync(id, cancellationToken);
+        var clientExportUsage = string.Equals(listItem.Role, AppRoles.Client, StringComparison.Ordinal)
+            ? await _exportUsageLimitService.GetUsageAsync(
+                listItem.Id,
+                listItem.Role,
+                effectivePolicy,
+                DateTime.UtcNow,
+                cancellationToken)
+            : null;
 
         return new AdminUserDetailsDto
         {
@@ -96,7 +109,8 @@ public sealed class AdminUsersListService : IAdminUsersListService
             IsExportLimitOverridden = listItem.IsExportLimitOverridden,
             IsExportLimitEditable = listItem.IsExportLimitEditable,
             GoogleDriveConnected = googleDrive.Connected,
-            GoogleDrive = googleDrive
+            GoogleDrive = googleDrive,
+            ClientExportUsage = clientExportUsage
         };
     }
 
@@ -163,17 +177,10 @@ public sealed class AdminUsersListService : IAdminUsersListService
 
     private static AdminUserListItemDto ToListItem(
         UserListQueryItem user,
-        IReadOnlyDictionary<string, RoleSettings> roleSettingsMap)
+        EffectiveExportPolicy effectivePolicy)
     {
         var role = user.Role;
         var isSuperAdmin = string.Equals(role, AppRoles.SuperAdmin, StringComparison.Ordinal);
-        var roleSettings = roleSettingsMap.TryGetValue(role, out var settings)
-            ? settings
-            : new RoleSettings { RoleName = role, ExportLimitMode = ExportLimitMode.Disabled };
-        var effectivePolicy = EffectiveExportPolicyResolver.Resolve(
-            role,
-            roleSettings,
-            ToPolicyUser(user));
 
         return new AdminUserListItemDto
         {
@@ -201,6 +208,20 @@ public sealed class AdminUsersListService : IAdminUsersListService
             IsExportLimitOverridden = effectivePolicy.IsOverridden,
             IsExportLimitEditable = !isSuperAdmin
         };
+    }
+
+    private static EffectiveExportPolicy BuildEffectivePolicy(
+        UserListQueryItem user,
+        IReadOnlyDictionary<string, RoleSettings> roleSettingsMap)
+    {
+        var roleSettings = roleSettingsMap.TryGetValue(user.Role, out var settings)
+            ? settings
+            : new RoleSettings { RoleName = user.Role, ExportLimitMode = ExportLimitMode.Disabled };
+
+        return EffectiveExportPolicyResolver.Resolve(
+            user.Role,
+            roleSettings,
+            ToPolicyUser(user));
     }
 
     private static ApplicationUser ToPolicyUser(UserListQueryItem user)
