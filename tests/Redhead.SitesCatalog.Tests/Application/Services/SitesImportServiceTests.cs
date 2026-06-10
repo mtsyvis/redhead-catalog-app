@@ -238,13 +238,39 @@ public sealed class SitesImportServiceTests : IDisposable
     public async Task ImportAsync_MissingRequiredBaseHeader_ThrowsImportHeaderValidationException()
     {
         // Arrange
-        using var stream = Utf8Csv("Domain,DR,Traffic,Location,Niche,Categories,NumberDFLinks,SponsoredTag\n");
+        using var stream = Utf8Csv("Domain,DR,Traffic,Niche,Categories,NumberDFLinks,SponsoredTag\n");
 
         // Act
         var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
 
         // Assert
         Assert.StartsWith("CSV header is invalid.", exception.Message);
+    }
+
+    [Fact]
+    public async Task ImportAsync_WithOnlyRequiredBaseHeaders_InsertsSite()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain,DR,Traffic,Location\n" +
+            "minimal.com,55,12000,US\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.InsertedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("minimal.com");
+        Assert.Equal(55, site.DR);
+        Assert.Equal(12000, site.Traffic);
+        Assert.Equal("US", site.Location);
+        Assert.Null(site.Niche);
+        Assert.Null(site.Categories);
+        Assert.Null(site.NumberDFLinks);
+        Assert.Null(site.SponsoredTag);
+        Assert.Null(site.Language);
     }
 
     [Fact]
@@ -386,7 +412,7 @@ public sealed class SitesImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            string.Join(";", ImportConstants.SitesImportRequiredColumnOrder.Concat(["PriceUsd [1 year]"])) + "\n" +
+            string.Join(";", DefaultBaseHeaderColumns().Concat(["PriceUsd [1 year]"])) + "\n" +
             "semicolon.com;61;15000;DE;Finance;Blog;;;" + ";90\n");
 
         // Act
@@ -465,8 +491,11 @@ public sealed class SitesImportServiceTests : IDisposable
 
     private static string HeaderLine(params string[] extraHeaders)
     {
-        return string.Join(",", ImportConstants.SitesImportRequiredColumnOrder.Concat(extraHeaders)) + "\n";
+        return string.Join(",", DefaultBaseHeaderColumns().Concat(extraHeaders)) + "\n";
     }
+
+    private static IEnumerable<string> DefaultBaseHeaderColumns()
+        => ImportConstants.SitesImportRequiredColumns.Concat(ImportConstants.SitesImportOptionalColumns);
 
     private static string Row(
         string domain,

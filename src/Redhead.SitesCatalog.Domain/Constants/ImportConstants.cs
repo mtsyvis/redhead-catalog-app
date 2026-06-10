@@ -122,14 +122,21 @@ public static class ImportConstants
     }
 
     /// <summary>
-    /// Required base column names for insert sites import, in exact order.
+    /// Required base column names for insert sites import. Header order is flexible.
     /// </summary>
-    public static readonly string[] SitesImportRequiredColumnOrder =
+    public static readonly string[] SitesImportRequiredColumns =
     {
         SitesImportColumns.Domain,
         SitesImportColumns.DR,
         SitesImportColumns.Traffic,
         SitesImportColumns.Location,
+    };
+
+    /// <summary>
+    /// Optional non-pricing column names for insert sites import. Header order is flexible.
+    /// </summary>
+    public static readonly string[] SitesImportOptionalColumns =
+    {
         SitesImportColumns.Niche,
         SitesImportColumns.Categories,
         SitesImportColumns.NumberDFLinks,

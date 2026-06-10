@@ -554,17 +554,20 @@ General rules:
 
 Purpose: add new sites to the catalog.
 
-Required columns, in order:
+Required base columns:
 
 1. `Domain`
 2. `DR`
 3. `Traffic`
 4. `Location`
-5. `Niche`
-6. `Categories`
-7. `NumberDFLinks`
-8. `SponsoredTag`
-9. `Language`
+
+Optional base columns:
+
+* `Niche`
+* `Categories`
+* `NumberDFLinks`
+* `SponsoredTag`
+* `Language`
 
 Pricing columns are optional dynamic columns. Main prices use term-specific headers such as `PriceUsd [unknown term]`, `PriceUsd [1 year]`, `PriceUsd [2 years]`, and `PriceUsd [permanent]`. Optional service prices use the same term-specific format for `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, and `PriceDating`.
 

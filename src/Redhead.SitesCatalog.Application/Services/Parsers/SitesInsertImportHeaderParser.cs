@@ -48,9 +48,14 @@ internal static class SitesInsertImportHeaderParser
 
     public static SitesInsertImportHeaderInfo Parse(string[] actualHeader)
     {
-        CsvImportHelper.ValidateHeaderStrictOrThrow(actualHeader, ImportConstants.SitesImportRequiredColumnOrder);
+        actualHeader ??= Array.Empty<string>();
 
-        var seenHeaders = new HashSet<string>(StringComparer.Ordinal);
+        if (actualHeader.Length == 0)
+        {
+            throw new ImportHeaderValidationException("CSV header row is missing.");
+        }
+
+        var seenBaseHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenPriceTerms = new HashSet<(PriceType PriceType, string TermKey)>();
         var seenAvailabilityTypes = new HashSet<PriceType>();
         var priceColumns = new List<SitesInsertImportPriceColumn>();
@@ -62,42 +67,6 @@ internal static class SitesInsertImportHeaderParser
             if (string.IsNullOrEmpty(header))
             {
                 throw new ImportHeaderValidationException($"CSV header is invalid. Column {i + 1} is empty.");
-            }
-
-            if (!seenHeaders.Add(header))
-            {
-                throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate column: '{header}'.");
-            }
-
-            if (i < ImportConstants.SitesImportRequiredColumnOrder.Length)
-            {
-                continue;
-            }
-
-            if (ImportConstants.SitesImportRequiredColumnOrder.Contains(header, StringComparer.OrdinalIgnoreCase))
-            {
-                throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate column: '{header}'.");
-            }
-
-            if (ImportConstants.SitesImportLegacyPricingHeaders.Contains(header, StringComparer.OrdinalIgnoreCase))
-            {
-                throw new ImportHeaderValidationException($"CSV header is invalid. Legacy pricing column is not supported: '{header}'.");
-            }
-
-            if (AvailabilityHeaders.TryGetValue(header, out var availabilityServiceType))
-            {
-                if (!seenAvailabilityTypes.Add(availabilityServiceType))
-                {
-                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate availability column for {availabilityServiceType}.");
-                }
-
-                availabilityColumns.Add(new SitesInsertImportAvailabilityColumn(header, availabilityServiceType));
-                continue;
-            }
-
-            if (string.Equals(header, $"{ImportConstants.SitesImportColumns.PriceUsd}Availability", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ImportHeaderValidationException("CSV header is invalid. Main pricing must not include an availability column.");
             }
 
             if (TryParsePriceHeader(header, out var priceType, out var term, out var invalidTerm))
@@ -116,12 +85,53 @@ internal static class SitesInsertImportHeaderParser
                 throw new ImportHeaderValidationException($"CSV header is invalid. Invalid term header: '{header}'.");
             }
 
+            if (AvailabilityHeaders.TryGetValue(header, out var availabilityServiceType))
+            {
+                if (!seenAvailabilityTypes.Add(availabilityServiceType))
+                {
+                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate availability column for {availabilityServiceType}.");
+                }
+
+                availabilityColumns.Add(new SitesInsertImportAvailabilityColumn(header, availabilityServiceType));
+                continue;
+            }
+
+            if (string.Equals(header, $"{ImportConstants.SitesImportColumns.PriceUsd}Availability", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ImportHeaderValidationException("CSV header is invalid. Main pricing must not include an availability column.");
+            }
+
+            if (ImportConstants.SitesImportLegacyPricingHeaders.Contains(header, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new ImportHeaderValidationException($"CSV header is invalid. Legacy pricing column is not supported: '{header}'.");
+            }
+
             if (header.StartsWith("Price", StringComparison.OrdinalIgnoreCase))
             {
                 throw new ImportHeaderValidationException($"CSV header is invalid. Unknown pricing column: '{header}'.");
             }
 
+            if (ImportConstants.SitesImportRequiredColumns.Contains(header, StringComparer.OrdinalIgnoreCase)
+                || ImportConstants.SitesImportOptionalColumns.Contains(header, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!seenBaseHeaders.Add(header))
+                {
+                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate column: '{header}'.");
+                }
+
+                continue;
+            }
+
             throw new ImportHeaderValidationException($"CSV header is invalid. Unknown column: '{header}'.");
+        }
+
+        var missingRequiredHeaders = ImportConstants.SitesImportRequiredColumns
+            .Where(header => !seenBaseHeaders.Contains(header))
+            .ToArray();
+        if (missingRequiredHeaders.Length > 0)
+        {
+            throw new ImportHeaderValidationException(
+                $"CSV header is invalid. Missing required columns: {string.Join(", ", missingRequiredHeaders)}.");
         }
 
         return new SitesInsertImportHeaderInfo(priceColumns, availabilityColumns);

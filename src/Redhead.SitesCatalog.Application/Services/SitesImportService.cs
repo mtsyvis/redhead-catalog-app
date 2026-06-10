@@ -70,7 +70,7 @@ public sealed class SitesImportService : ISitesImportService
 
         await using (var session = await CsvImportSession.OpenAsync(
                          fileStream,
-                         expectedHeaderColumnsForDelimiterDetection: ImportConstants.SitesImportRequiredColumnOrder,
+                         expectedHeaderColumnsForDelimiterDetection: ImportConstants.SitesImportRequiredColumns,
                          validateHeader: SitesInsertImportHeaderParser.ValidateOrThrow,
                          ct: cancellationToken))
         {
