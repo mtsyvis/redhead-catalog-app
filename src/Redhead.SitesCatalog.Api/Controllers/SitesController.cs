@@ -127,6 +127,7 @@ public class SitesController : ControllerBase
     {
         var niches = await _sitesService.GetNicheOptionsAsync(cancellationToken);
         var locations = await _sitesService.GetLocationFilterOptionsAsync(cancellationToken);
+        var terms = await _sitesService.GetTermOptionsAsync(cancellationToken);
 
         return Ok(new FilterOptionsResponse
         {
@@ -171,7 +172,17 @@ public class SitesController : ControllerBase
                         DisplayName = locations.Special.Other.DisplayName
                     }
                 }
-            }
+            },
+            Terms = terms
+                .Select(term => new TermFilterOptionResponse
+                {
+                    TermKey = term.TermKey,
+                    Label = term.Label,
+                    TermType = term.TermType,
+                    TermValue = term.TermValue,
+                    TermUnit = term.TermUnit
+                })
+                .ToList()
         });
     }
 

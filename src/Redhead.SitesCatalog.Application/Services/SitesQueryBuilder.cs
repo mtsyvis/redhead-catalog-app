@@ -44,6 +44,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
     public IQueryable<Site> BuildQuery(IQueryable<Site> baseQuery, SitesQuery query)
     {
         var sitesQuery = baseQuery;
+        var selectedTermKey = NormalizeTermKey(query.TermKey);
 
         // Apply search filter (partial domain match)
         if (!string.IsNullOrWhiteSpace(query.Search))
@@ -65,7 +66,9 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         }
 
         // Apply range filters
-        sitesQuery = ApplyRangeFilters(sitesQuery, query);
+        sitesQuery = ApplySelectedTermFilter(sitesQuery, selectedTermKey);
+
+        sitesQuery = ApplyRangeFilters(sitesQuery, query, selectedTermKey);
 
         sitesQuery = ApplyLocationFilter(sitesQuery, query);
 
@@ -73,7 +76,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
 
         sitesQuery = ApplyTopicFitFilter(sitesQuery, query);
 
-        sitesQuery = ApplyAvailabilityFilters(sitesQuery, query);
+        sitesQuery = ApplyAvailabilityFilters(sitesQuery, query, selectedTermKey);
 
         // Apply quarantine filter
         sitesQuery = ApplyQuarantineFilter(sitesQuery, query.Quarantine);
@@ -82,7 +85,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         sitesQuery = ApplyLastPublishedDateFilter(sitesQuery, query);
 
         // Apply sorting
-        sitesQuery = ApplySorting(sitesQuery, query.SortBy, query.SortDir);
+        sitesQuery = ApplySorting(sitesQuery, query.SortBy, query.SortDir, selectedTermKey);
 
         return sitesQuery;
     }
@@ -388,7 +391,20 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         return body;
     }
 
-    private static IQueryable<Site> ApplyRangeFilters(IQueryable<Site> query, SitesQuery filters)
+    private IQueryable<Site> ApplySelectedTermFilter(IQueryable<Site> query, string? selectedTermKey)
+    {
+        if (selectedTermKey is null)
+        {
+            return query;
+        }
+
+        var priceOptions = GetRequiredContext().SitePriceOptions;
+        return query.Where(site => priceOptions.Any(priceOption =>
+            priceOption.SiteDomain == site.Domain &&
+            priceOption.TermKey == selectedTermKey));
+    }
+
+    private IQueryable<Site> ApplyRangeFilters(IQueryable<Site> query, SitesQuery filters, string? selectedTermKey)
     {
         if (filters.DrMin.HasValue)
         {
@@ -410,35 +426,35 @@ public class SitesQueryBuilder : ISitesQueryBuilder
 
         if (filters.PriceMin.HasValue || filters.PriceMax.HasValue)
         {
-            query = query.Where(s => s.PriceUsd != null);
-        }
-        if (filters.PriceMin.HasValue)
-        {
-            query = query.Where(s => s.PriceUsd >= filters.PriceMin.Value);
-        }
-        if (filters.PriceMax.HasValue)
-        {
-            query = query.Where(s => s.PriceUsd <= filters.PriceMax.Value);
+            var priceOptions = GetRequiredContext().SitePriceOptions;
+            query = query.Where(site => priceOptions.Any(priceOption =>
+                priceOption.SiteDomain == site.Domain &&
+                priceOption.PriceType == PriceType.Main &&
+                priceOption.AmountUsd > 0 &&
+                (selectedTermKey == null || priceOption.TermKey == selectedTermKey) &&
+                (!filters.PriceMin.HasValue || priceOption.AmountUsd >= filters.PriceMin.Value) &&
+                (!filters.PriceMax.HasValue || priceOption.AmountUsd <= filters.PriceMax.Value)));
         }
 
         return query;
     }
 
-    private static IQueryable<Site> ApplyAvailabilityFilters(IQueryable<Site> query, SitesQuery filters)
+    private IQueryable<Site> ApplyAvailabilityFilters(IQueryable<Site> query, SitesQuery filters, string? selectedTermKey)
     {
-        query = ApplyAvailabilityFilter(query, filters.CasinoAvailability, s => s.PriceCasinoStatus);
-        query = ApplyAvailabilityFilter(query, filters.CryptoAvailability, s => s.PriceCryptoStatus);
-        query = ApplyAvailabilityFilter(query, filters.LinkInsertAvailability, s => s.PriceLinkInsertStatus);
-        query = ApplyAvailabilityFilter(query, filters.LinkInsertCasinoAvailability, s => s.PriceLinkInsertCasinoStatus);
-        query = ApplyAvailabilityFilter(query, filters.DatingAvailability, s => s.PriceDatingStatus);
+        query = ApplyAvailabilityFilter(query, filters.CasinoAvailability, PriceType.Casino, selectedTermKey);
+        query = ApplyAvailabilityFilter(query, filters.CryptoAvailability, PriceType.Crypto, selectedTermKey);
+        query = ApplyAvailabilityFilter(query, filters.LinkInsertAvailability, PriceType.LinkInsertion, selectedTermKey);
+        query = ApplyAvailabilityFilter(query, filters.LinkInsertCasinoAvailability, PriceType.LinkInsertionCasino, selectedTermKey);
+        query = ApplyAvailabilityFilter(query, filters.DatingAvailability, PriceType.Dating, selectedTermKey);
 
         return query;
     }
 
-    private static IQueryable<Site> ApplyAvailabilityFilter(
+    private IQueryable<Site> ApplyAvailabilityFilter(
         IQueryable<Site> query,
         IReadOnlyCollection<ServiceAvailabilityStatus>? filters,
-        Expression<Func<Site, ServiceAvailabilityStatus>> statusSelector)
+        PriceType serviceType,
+        string? selectedTermKey)
     {
         if (filters is null || filters.Count == 0)
         {
@@ -454,14 +470,40 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             return query;
         }
 
-        var contains = Expression.Call(
-            typeof(Enumerable),
-            nameof(Enumerable.Contains),
-            [typeof(ServiceAvailabilityStatus)],
-            Expression.Constant(statuses),
-            statusSelector.Body);
+        var includeHasPrice = statuses.Contains(ServiceAvailabilityStatus.Available);
+        var includeYes = statuses.Contains(ServiceAvailabilityStatus.AvailableWithUnknownPrice);
+        var includeNo = statuses.Contains(ServiceAvailabilityStatus.NotAvailable);
+        var includeUnknown = statuses.Contains(ServiceAvailabilityStatus.Unknown);
+        var context = GetRequiredContext();
+        var priceOptions = context.SitePriceOptions;
+        var serviceAvailabilities = context.SiteServiceAvailabilities;
 
-        return query.Where(Expression.Lambda<Func<Site, bool>>(contains, statusSelector.Parameters));
+        return query.Where(site =>
+            (includeHasPrice && priceOptions.Any(priceOption =>
+                priceOption.SiteDomain == site.Domain &&
+                priceOption.PriceType == serviceType &&
+                priceOption.AmountUsd > 0 &&
+                (selectedTermKey == null || priceOption.TermKey == selectedTermKey))) ||
+            (includeYes && serviceAvailabilities.Any(availability =>
+                availability.SiteDomain == site.Domain &&
+                availability.ServiceType == serviceType &&
+                availability.Status == ServiceAvailabilityStatus.AvailableWithUnknownPrice)) ||
+            (includeNo && serviceAvailabilities.Any(availability =>
+                availability.SiteDomain == site.Domain &&
+                availability.ServiceType == serviceType &&
+                availability.Status == ServiceAvailabilityStatus.NotAvailable)) ||
+            (includeUnknown &&
+                !priceOptions.Any(priceOption =>
+                    priceOption.SiteDomain == site.Domain &&
+                    priceOption.PriceType == serviceType &&
+                    priceOption.AmountUsd > 0) &&
+                (!serviceAvailabilities.Any(availability =>
+                    availability.SiteDomain == site.Domain &&
+                    availability.ServiceType == serviceType) ||
+                 serviceAvailabilities.Any(availability =>
+                    availability.SiteDomain == site.Domain &&
+                    availability.ServiceType == serviceType &&
+                    availability.Status == ServiceAvailabilityStatus.Unknown))));
     }
 
     private static IQueryable<Site> ApplyLastPublishedDateFilter(IQueryable<Site> query, SitesQuery filters)
@@ -498,7 +540,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         };
     }
 
-    private static IQueryable<Site> ApplySorting(IQueryable<Site> query, string sortBy, string sortDir)
+    private IQueryable<Site> ApplySorting(IQueryable<Site> query, string sortBy, string sortDir, string? selectedTermKey)
     {
         var sort = sortBy?.ToLowerInvariant() ?? SortingDefaults.DefaultSortBy;
         var direction = sortDir?.ToLowerInvariant() ?? SortingDefaults.DefaultSortDirection;
@@ -518,26 +560,28 @@ public class SitesQueryBuilder : ISitesQueryBuilder
                 ? query.OrderByDescending(s => s.Location)
                 : query.OrderBy(s => s.Location),
             SortFields.PriceUsd => direction == SortingDefaults.Descending
-                ? query.OrderBy(s => s.PriceUsd == null ? 1 : 0).ThenByDescending(s => s.PriceUsd)
-                : query.OrderBy(s => s.PriceUsd == null ? 1 : 0).ThenBy(s => s.PriceUsd),
+                ? ApplyPriceOptionSorting(query, PriceType.Main, selectedTermKey, descending: true)
+                : ApplyPriceOptionSorting(query, PriceType.Main, selectedTermKey, descending: false),
             SortFields.PriceCasino => direction == SortingDefaults.Descending
-                ? ApplyServicePriceSorting(query, nameof(Site.PriceCasino), nameof(Site.PriceCasinoStatus), descending: true)
-                : ApplyServicePriceSorting(query, nameof(Site.PriceCasino), nameof(Site.PriceCasinoStatus), descending: false),
+                ? ApplyServicePriceSorting(query, PriceType.Casino, selectedTermKey, descending: true)
+                : ApplyServicePriceSorting(query, PriceType.Casino, selectedTermKey, descending: false),
             SortFields.PriceCrypto => direction == SortingDefaults.Descending
-                ? ApplyServicePriceSorting(query, nameof(Site.PriceCrypto), nameof(Site.PriceCryptoStatus), descending: true)
-                : ApplyServicePriceSorting(query, nameof(Site.PriceCrypto), nameof(Site.PriceCryptoStatus), descending: false),
+                ? ApplyServicePriceSorting(query, PriceType.Crypto, selectedTermKey, descending: true)
+                : ApplyServicePriceSorting(query, PriceType.Crypto, selectedTermKey, descending: false),
             SortFields.PriceLinkInsert => direction == SortingDefaults.Descending
-                ? ApplyServicePriceSorting(query, nameof(Site.PriceLinkInsert), nameof(Site.PriceLinkInsertStatus), descending: true)
-                : ApplyServicePriceSorting(query, nameof(Site.PriceLinkInsert), nameof(Site.PriceLinkInsertStatus), descending: false),
+                ? ApplyServicePriceSorting(query, PriceType.LinkInsertion, selectedTermKey, descending: true)
+                : ApplyServicePriceSorting(query, PriceType.LinkInsertion, selectedTermKey, descending: false),
             SortFields.PriceLinkInsertCasino => direction == SortingDefaults.Descending
-                ? ApplyServicePriceSorting(query, nameof(Site.PriceLinkInsertCasino), nameof(Site.PriceLinkInsertCasinoStatus), descending: true)
-                : ApplyServicePriceSorting(query, nameof(Site.PriceLinkInsertCasino), nameof(Site.PriceLinkInsertCasinoStatus), descending: false),
+                ? ApplyServicePriceSorting(query, PriceType.LinkInsertionCasino, selectedTermKey, descending: true)
+                : ApplyServicePriceSorting(query, PriceType.LinkInsertionCasino, selectedTermKey, descending: false),
             SortFields.PriceDating => direction == SortingDefaults.Descending
-                ? ApplyServicePriceSorting(query, nameof(Site.PriceDating), nameof(Site.PriceDatingStatus), descending: true)
-                : ApplyServicePriceSorting(query, nameof(Site.PriceDating), nameof(Site.PriceDatingStatus), descending: false),
+                ? ApplyServicePriceSorting(query, PriceType.Dating, selectedTermKey, descending: true)
+                : ApplyServicePriceSorting(query, PriceType.Dating, selectedTermKey, descending: false),
             SortFields.NumberDFLinks => direction == SortingDefaults.Descending
                 ? query.OrderBy(s => s.NumberDFLinks == null ? 1 : 0).ThenByDescending(s => s.NumberDFLinks).ThenBy(s => s.Domain)
                 : query.OrderBy(s => s.NumberDFLinks == null ? 1 : 0).ThenBy(s => s.NumberDFLinks).ThenBy(s => s.Domain),
+            // TODO(term-aware pricing): This remains legacy site-level term sorting for compatibility.
+            // It uses Site.TermType/TermValue/TermUnit and does not represent all SitePriceOptions terms.
             SortFields.Term => direction == SortingDefaults.Descending
                 ? query
                     .OrderBy(s => s.TermType == TermType.Permanent ? 0 : s.TermType == TermType.Finite && s.TermUnit == TermUnit.Year && s.TermValue != null ? 1 : 2)
@@ -568,24 +612,87 @@ public class SitesQueryBuilder : ISitesQueryBuilder
         };
     }
 
-    private static IOrderedQueryable<Site> ApplyServicePriceSorting(
+    private IQueryable<Site> ApplyPriceOptionSorting(
         IQueryable<Site> query,
-        string pricePropertyName,
-        string statusPropertyName,
+        PriceType priceType,
+        string? selectedTermKey,
         bool descending)
     {
-        var ordered = query.OrderBy(s =>
-            EF.Property<ServiceAvailabilityStatus>(s, statusPropertyName) == ServiceAvailabilityStatus.Available ? 0 :
-            EF.Property<ServiceAvailabilityStatus>(s, statusPropertyName) == ServiceAvailabilityStatus.AvailableWithUnknownPrice ? 1 :
-            EF.Property<ServiceAvailabilityStatus>(s, statusPropertyName) == ServiceAvailabilityStatus.NotAvailable ? 2 :
-            3);
+        var priceOptions = GetRequiredContext().SitePriceOptions;
+        var projected = query.Select(site => new
+        {
+            Site = site,
+            Amount = priceOptions
+                .Where(priceOption =>
+                    priceOption.SiteDomain == site.Domain &&
+                    priceOption.PriceType == priceType &&
+                    priceOption.AmountUsd > 0 &&
+                    (selectedTermKey == null || priceOption.TermKey == selectedTermKey))
+                .Select(priceOption => (decimal?)priceOption.AmountUsd)
+                .Min()
+        });
 
         return descending
-            ? ordered
-                .ThenByDescending(s => EF.Property<decimal?>(s, pricePropertyName))
-                .ThenBy(s => s.Domain)
-            : ordered
-                .ThenBy(s => EF.Property<decimal?>(s, pricePropertyName))
-                .ThenBy(s => s.Domain);
+            ? projected
+                .OrderBy(row => row.Amount == null ? 1 : 0)
+                .ThenByDescending(row => row.Amount)
+                .ThenBy(row => row.Site.Domain)
+                .Select(row => row.Site)
+            : projected
+                .OrderBy(row => row.Amount == null ? 1 : 0)
+                .ThenBy(row => row.Amount)
+                .ThenBy(row => row.Site.Domain)
+                .Select(row => row.Site);
     }
+
+    private IQueryable<Site> ApplyServicePriceSorting(
+        IQueryable<Site> query,
+        PriceType serviceType,
+        string? selectedTermKey,
+        bool descending)
+    {
+        var context = GetRequiredContext();
+        var priceOptions = context.SitePriceOptions;
+        var serviceAvailabilities = context.SiteServiceAvailabilities;
+        var projected = query.Select(site => new
+        {
+            Site = site,
+            Amount = priceOptions
+                .Where(priceOption =>
+                    priceOption.SiteDomain == site.Domain &&
+                    priceOption.PriceType == serviceType &&
+                    priceOption.AmountUsd > 0 &&
+                    (selectedTermKey == null || priceOption.TermKey == selectedTermKey))
+                .Select(priceOption => (decimal?)priceOption.AmountUsd)
+                .Min(),
+            StatusRank = serviceAvailabilities
+                .Where(availability =>
+                    availability.SiteDomain == site.Domain &&
+                    availability.ServiceType == serviceType)
+                .Select(availability => (int?)(
+                    availability.Status == ServiceAvailabilityStatus.AvailableWithUnknownPrice ? 1 :
+                    availability.Status == ServiceAvailabilityStatus.NotAvailable ? 2 :
+                    3))
+                .Min() ?? 3
+        });
+
+        return descending
+            ? projected
+                .OrderBy(row => row.Amount == null ? row.StatusRank : 0)
+                .ThenByDescending(row => row.Amount)
+                .ThenBy(row => row.Site.Domain)
+                .Select(row => row.Site)
+            : projected
+                .OrderBy(row => row.Amount == null ? row.StatusRank : 0)
+                .ThenBy(row => row.Amount)
+                .ThenBy(row => row.Site.Domain)
+                .Select(row => row.Site);
+    }
+
+    private static string? NormalizeTermKey(string? rawValue)
+        => string.IsNullOrWhiteSpace(rawValue) ? null : rawValue.Trim();
+
+    private ApplicationDbContext GetRequiredContext()
+        => _context ?? throw new InvalidOperationException(
+            $"{nameof(SitesQueryBuilder)} requires {nameof(ApplicationDbContext)} for term-aware pricing filters and sorting.");
 }

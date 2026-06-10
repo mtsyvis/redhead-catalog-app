@@ -38,6 +38,7 @@ public static class SitesMapper
             TrafficMax = request.TrafficMax,
             PriceMin = request.PriceMin,
             PriceMax = request.PriceMax,
+            TermKey = NormalizeTermKey(request.TermKey),
             Locations = request.Locations,
             LocationKeys = request.LocationKeys ?? request.Locations,
             LocationGroupKeys = request.LocationGroupKeys,
@@ -90,6 +91,16 @@ public static class SitesMapper
         }
 
         return normalizedValues.Count == 0 ? null : normalizedValues;
+    }
+
+    private static string? NormalizeTermKey(string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return null;
+        }
+
+        return rawValue.Trim();
     }
 
     private static string ParseTopicFitMode(string? rawValue)

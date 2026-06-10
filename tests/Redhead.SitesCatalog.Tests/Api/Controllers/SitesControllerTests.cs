@@ -35,6 +35,7 @@ public class SitesControllerTests
         Assert.Null(query.TrafficMax);
         Assert.Null(query.PriceMin);
         Assert.Null(query.PriceMax);
+        Assert.Null(query.TermKey);
         Assert.Null(query.Locations);
         Assert.Null(query.CategorySearchTerms);
         Assert.Null(query.CasinoAvailability);
@@ -43,6 +44,56 @@ public class SitesControllerTests
         Assert.Null(query.LinkInsertCasinoAvailability);
         Assert.Null(query.DatingAvailability);
         Assert.Null(query.StopListDomains);
+    }
+
+    [Fact]
+    public async Task GetFilterOptions_IncludesTermOptions()
+    {
+        // Arrange
+        var sitesService = new Mock<ISitesService>();
+        sitesService
+            .Setup(service => service.GetNicheOptionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        sitesService
+            .Setup(service => service.GetLocationFilterOptionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LocationFilterOptionsDto
+            {
+                Special = new LocationSpecialFilterOptionsDto
+                {
+                    Unknown = new LocationFilterOptionDto
+                    {
+                        Key = LocationConstants.UnknownLocationKey,
+                        DisplayName = "Unknown"
+                    }
+                }
+            });
+        sitesService
+            .Setup(service => service.GetTermOptionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new TermFilterOptionDto
+                {
+                    TermKey = "finite:1:year",
+                    Label = "1 year",
+                    TermType = TermType.Finite,
+                    TermValue = 1,
+                    TermUnit = TermUnit.Year
+                }
+            ]);
+        var controller = new SitesController(sitesService.Object);
+
+        // Act
+        var result = await controller.GetFilterOptions(CancellationToken.None);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<FilterOptionsResponse>(ok.Value);
+        var term = Assert.Single(response.Terms);
+        Assert.Equal("finite:1:year", term.TermKey);
+        Assert.Equal("1 year", term.Label);
+        Assert.Equal(TermType.Finite, term.TermType);
+        Assert.Equal(1, term.TermValue);
+        Assert.Equal(TermUnit.Year, term.TermUnit);
     }
 
     [Fact]

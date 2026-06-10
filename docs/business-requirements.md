@@ -259,6 +259,7 @@ Rules:
 * Empty `PriceUsd` must be stored as empty/null, not as `0`.
 * `PriceUsd` must be either empty/null or greater than `0`; `0` and negative values are invalid.
 * UI must display empty `PriceUsd` as `NO`.
+* Price filtering and sorting use `SitePriceOptions` as the backend source of truth once term-aware pricing is enabled. With no selected term, price logic considers all terms; with a selected `TermKey`, price logic considers only matching price options.
 * During sites import, price fields may all be empty or unavailable; valid rows are not rejected only because no numeric price is present.
 * During sites update import, a present empty `PriceUsd` clears the existing value; a missing `PriceUsd` column leaves the existing value unchanged.
 * During sites update import, price fields may be omitted, cleared, or set unavailable according to field-level rules; update rows are not rejected only because no numeric price remains.
@@ -389,7 +390,7 @@ Rules:
 * Long text values in the Sites table stay single-line with truncation and reveal the full value on hover when truncated.
 * Workflow/system columns such as row actions are not saved in table views.
 * If active filters target hidden columns, the UI should warn the user and offer to show those columns or clear only those hidden-column filters.
-* Sorting by service-specific price fields keeps available services first in both ascending and descending order. Known numeric prices sort first by price, available-with-unknown-price (`YES`) sorts after known prices, not-available sorts after `YES`, and unknown sorts last.
+* Sorting by service-specific price fields uses numeric `SitePriceOptions`, keeping known numeric prices first in both ascending and descending order. With no selected term, the lowest price across all terms is used; with a selected `TermKey`, only that term is used. Available-with-unknown-price (`YES`) sorts after known prices, not-available sorts after `YES`, and unknown sorts last. `YES`, `NO`, and unknown are not zero-price values.
 * Row edit actions are visible only to roles allowed to edit, and backend authorization must enforce the same rule.
 
 Main filters:
@@ -399,6 +400,7 @@ Main filters:
 * DR range
 * Traffic range
 * Price range
+* Term single-select: any term / unknown term / finite year terms / permanent
 * Location multi-select
 * Location group multi-select
 * Include Unknown location
@@ -424,6 +426,9 @@ Optional service availability filter rules:
 
 * Optional service filters use the existing `ServiceAvailabilityStatus` values: `unknown`, `available`, `notAvailable`, and `availableWithUnknownPrice`.
 * Empty or missing optional service filter values mean no filter.
+* `available` means the service has at least one numeric `SitePriceOption`. With no selected term, any term can match; with a selected `TermKey`, the service must have a price for that term.
+* `availableWithUnknownPrice`, `notAvailable`, and `unknown` use global `SiteServiceAvailabilities` and are not term-specific.
+* `unknown` must not match sites that have numeric prices for that service.
 * Multiple selected values for one optional service use OR semantics.
 * Filters across different optional services use AND semantics.
 * The `available` and `availableWithUnknownPrice` values are distinct filter states.

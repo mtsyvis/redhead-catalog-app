@@ -43,6 +43,7 @@ public class SitesQueryRequest
     public long? TrafficMax { get; set; }
     public decimal? PriceMin { get; set; }
     public decimal? PriceMax { get; set; }
+    public string? TermKey { get; set; }
 
     // Location multi-select (frontend sends "location")
     [JsonPropertyName("location")]

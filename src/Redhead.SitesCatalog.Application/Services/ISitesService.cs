@@ -28,6 +28,11 @@ public interface ISitesService
     Task<List<FilterOptionDto>> GetNicheOptionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get distinct pricing terms used by persisted site price options.
+    /// </summary>
+    Task<List<TermFilterOptionDto>> GetTermOptionsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Multi-search: exact match by normalized domains. Single DB query.
     /// </summary>
     /// <param name="normalizedDomains">Unique normalized domains to look up</param>

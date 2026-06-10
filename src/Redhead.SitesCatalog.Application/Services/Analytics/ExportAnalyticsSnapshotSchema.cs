@@ -7,6 +7,7 @@ internal static class ExportAnalyticsSnapshotSchema
         public const string Dr = "dr";
         public const string Traffic = "traffic";
         public const string PriceUsd = "priceUsd";
+        public const string TermKey = "termKey";
         public const string Location = "location";
         public const string LocationKey = "locationKey";
         public const string LocationGroup = "locationGroup";

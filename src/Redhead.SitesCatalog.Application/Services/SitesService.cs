@@ -198,6 +198,41 @@ public class SitesService : ISitesService
         return await _nicheFilterOptionsCache.GetOptionsAsync(cancellationToken);
     }
 
+    public async Task<List<TermFilterOptionDto>> GetTermOptionsAsync(CancellationToken cancellationToken = default)
+    {
+        var persistedTerms = await _context.SitePriceOptions
+            .AsNoTracking()
+            .Select(priceOption => new
+            {
+                priceOption.TermKey,
+                priceOption.TermType,
+                priceOption.TermValue,
+                priceOption.TermUnit
+            })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return persistedTerms
+            .Where(term => !string.IsNullOrWhiteSpace(term.TermKey))
+            .GroupBy(term => term.TermKey, StringComparer.Ordinal)
+            .Select(group =>
+            {
+                var term = group.First();
+                return new TermFilterOptionDto
+                {
+                    TermKey = group.Key,
+                    Label = PricingTerm.FormatLabel(group.Key, term.TermType, term.TermValue, term.TermUnit),
+                    TermType = term.TermType,
+                    TermValue = term.TermValue,
+                    TermUnit = term.TermUnit
+                };
+            })
+            .OrderBy(GetTermSortOrder)
+            .ThenBy(term => term.TermValue)
+            .ThenBy(term => term.Label, StringComparer.Ordinal)
+            .ToList();
+    }
+
     public async Task<MultiSearchSitesResult> MultiSearchSitesAsync(
         IReadOnlyList<string> normalizedDomains,
         IReadOnlyList<string> duplicates,
@@ -456,6 +491,15 @@ public class SitesService : ISitesService
         {
             PricingTerm.UnknownKey => 0,
             _ when priceOption.TermType == TermType.Finite => 1,
+            PricingTerm.PermanentKey => 2,
+            _ => 3
+        };
+
+    private static int GetTermSortOrder(TermFilterOptionDto term)
+        => term.TermKey switch
+        {
+            PricingTerm.UnknownKey => 0,
+            _ when term.TermType == TermType.Finite => 1,
             PricingTerm.PermanentKey => 2,
             _ => 3
         };
