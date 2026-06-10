@@ -71,12 +71,13 @@ public sealed class SitesImportService : ISitesImportService
         await using (var session = await CsvImportSession.OpenAsync(
                          fileStream,
                          expectedHeaderColumnsForDelimiterDetection: ImportConstants.SitesImportRequiredColumnOrder,
-                         requiredHeadersInStrictOrder: ImportConstants.SitesImportRequiredColumnOrder,
+                         validateHeader: SitesInsertImportHeaderParser.ValidateOrThrow,
                          ct: cancellationToken))
         {
             invalidRowsPayload.Headers = session.Header.ToArray();
+            var insertHeaderInfo = SitesInsertImportHeaderParser.Parse(session.Header);
 
-            await foreach (var (row, rawValues) in ReadRowsAsync(session.Csv, session.Header.Length, cancellationToken))
+            await foreach (var (row, rawValues) in ReadRowsAsync(session.Csv, session.Header.Length, insertHeaderInfo, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -209,6 +210,7 @@ public sealed class SitesImportService : ISitesImportService
     private static async IAsyncEnumerable<(SitesImportRowDto Row, List<string> RawValues)> ReadRowsAsync(
         CsvReader csv,
         int headerCount,
+        SitesInsertImportHeaderInfo insertHeaderInfo,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var columnIndexes = BuildColumnIndexes(csv.HeaderRecord ?? Array.Empty<string>());
@@ -230,7 +232,8 @@ public sealed class SitesImportService : ISitesImportService
 
             var mappedRow = SitesImportRowMapper.Map(
                 columnName => columnIndexes.TryGetValue(columnName, out var index) ? csv.GetField(index)?.Trim() : null,
-                rowNumber);
+                rowNumber,
+                insertHeaderInfo);
 
             yield return (mappedRow, rawValues);
         }
@@ -343,7 +346,7 @@ public sealed class SitesImportService : ISitesImportService
             sourceRowNumber,
             locationResult);
 
-        return new Site
+        var site = new Site
         {
             Domain = data.NormalizedDomain,
             DR = data.DR,
@@ -351,21 +354,7 @@ public sealed class SitesImportService : ISitesImportService
             Location = locationResult.RawValue ?? string.Empty,
             LocationKey = locationResult.LocationKey,
             ImportedLocationRaw = locationResult.RawValue,
-            PriceUsd = data.PriceUsd,
-            PriceCasino = data.PriceCasino,
-            PriceCasinoStatus = data.PriceCasinoStatus,
-            PriceCrypto = data.PriceCrypto,
-            PriceCryptoStatus = data.PriceCryptoStatus,
-            PriceLinkInsert = data.PriceLinkInsert,
-            PriceLinkInsertStatus = data.PriceLinkInsertStatus,
-            PriceLinkInsertCasino = data.PriceLinkInsertCasino,
-            PriceLinkInsertCasinoStatus = data.PriceLinkInsertCasinoStatus,
-            PriceDating = data.PriceDating,
-            PriceDatingStatus = data.PriceDatingStatus,
             NumberDFLinks = data.NumberDFLinks,
-            TermType = data.TermType,
-            TermValue = data.TermValue,
-            TermUnit = data.TermUnit,
             Language = data.Language,
             Niche = data.Niche,
             NicheTokens = NicheNormalizer.NormalizeTokens(data.Niche),
@@ -379,6 +368,36 @@ public sealed class SitesImportService : ISitesImportService
             CreatedBy = auditUser,
             UpdatedBy = auditUser
         };
+
+        foreach (var priceOption in data.PriceOptions)
+        {
+            site.PriceOptions.Add(new SitePriceOption
+            {
+                SiteDomain = data.NormalizedDomain,
+                PriceType = priceOption.PriceType,
+                TermKey = priceOption.TermKey,
+                TermType = priceOption.TermType,
+                TermValue = priceOption.TermValue,
+                TermUnit = priceOption.TermUnit,
+                AmountUsd = priceOption.AmountUsd,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        foreach (var availability in data.ServiceAvailabilities)
+        {
+            site.ServiceAvailabilities.Add(new SiteServiceAvailability
+            {
+                SiteDomain = data.NormalizedDomain,
+                ServiceType = availability.ServiceType,
+                Status = availability.Status,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        return site;
     }
 
     private static IEnumerable<List<T>> Chunk<T>(List<T> source, int size)

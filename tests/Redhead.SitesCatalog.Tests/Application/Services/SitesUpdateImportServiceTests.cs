@@ -1375,7 +1375,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
 
     private static string HeaderLine()
     {
-        return string.Join(",", ImportConstants.SitesImportRequiredColumnOrder) + "\n";
+        return string.Join(",", ImportConstants.SitesImportLegacyColumnOrder) + "\n";
     }
 
     #region PriceUsd nullable

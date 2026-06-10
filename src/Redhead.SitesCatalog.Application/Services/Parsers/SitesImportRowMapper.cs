@@ -15,12 +15,16 @@ namespace Redhead.SitesCatalog.Application.Services.Parsers;
 /// format. All members are static and thread safe.</remarks>
 public static class SitesImportRowMapper
 {
-    public static SitesImportRowDto Map(Func<string, string?> getValue, int rowNumber)
+    internal static SitesImportRowDto Map(
+        Func<string, string?> getValue,
+        int rowNumber,
+        SitesInsertImportHeaderInfo? insertHeaderInfo = null)
     {
         var domain = TryGetValue(getValue, ImportConstants.SitesImportColumns.Domain);
         var drRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.DR);
         var trafficRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.Traffic);
         var location = TryGetValue(getValue, ImportConstants.SitesImportColumns.Location);
+        // LEGACY_PRICING: flat pricing values are populated for legacy update import callers only.
         var priceUsdRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceUsd);
         var priceCasinoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceCasino);
         var priceCryptoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceCrypto);
@@ -34,7 +38,7 @@ public static class SitesImportRowMapper
         var categories = TryGetValue(getValue, ImportConstants.SitesImportColumns.Categories);
         var sponsoredTag = TryGetValue(getValue, ImportConstants.SitesImportColumns.SponsoredTag);
 
-        return new SitesImportRowDto
+        var row = new SitesImportRowDto
         {
             RowNumber = rowNumber,
             Domain = domain,
@@ -58,6 +62,33 @@ public static class SitesImportRowMapper
             Categories = categories,
             SponsoredTag = sponsoredTag
         };
+
+        if (insertHeaderInfo is null)
+        {
+            return row;
+        }
+
+        foreach (var priceColumn in insertHeaderInfo.PriceColumns)
+        {
+            row.PriceCells.Add(new SitesImportPriceCell(
+                priceColumn.Header,
+                priceColumn.PriceType,
+                priceColumn.Term.TermKey,
+                priceColumn.Term.TermType,
+                priceColumn.Term.TermValue,
+                priceColumn.Term.TermUnit,
+                TryGetValue(getValue, priceColumn.Header)));
+        }
+
+        foreach (var availabilityColumn in insertHeaderInfo.AvailabilityColumns)
+        {
+            row.AvailabilityCells.Add(new SitesImportAvailabilityCell(
+                availabilityColumn.Header,
+                availabilityColumn.ServiceType,
+                TryGetValue(getValue, availabilityColumn.Header)));
+        }
+
+        return row;
     }
 
     private static string? TryGetValue(Func<string, string?> getValue, string columnName)

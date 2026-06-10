@@ -560,24 +560,27 @@ Required columns, in order:
 2. `DR`
 3. `Traffic`
 4. `Location`
-5. `PriceUsd`
-6. `PriceCasino`
-7. `PriceCrypto`
-8. `PriceLinkInsert`
-9. `PriceLinkInsertCasino`
-10. `PriceDating`
-11. `Niche`
-12. `Categories`
-13. `NumberDFLinks`
-14. `SponsoredTag`
-15. `Term`
+5. `Niche`
+6. `Categories`
+7. `NumberDFLinks`
+8. `SponsoredTag`
+9. `Language`
 
-16. `Language`
+Pricing columns are optional dynamic columns. Main prices use term-specific headers such as `PriceUsd [unknown term]`, `PriceUsd [1 year]`, `PriceUsd [2 years]`, and `PriceUsd [permanent]`. Optional service prices use the same term-specific format for `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, and `PriceDating`.
+
+Optional service availability columns are `PriceCasinoAvailability`, `PriceCryptoAvailability`, `PriceLinkInsertAvailability`, `PriceLinkInsertCasinoAvailability`, and `PriceDatingAvailability`. Empty means `Unknown`, `YES` means `AvailableWithUnknownPrice`, and `NO` means `NotAvailable`.
 
 Rules:
 
 * Add-only import.
-* `Language` must be placed after `Term`; empty values are stored as empty/null, accepted values are normalized, and invalid values are row-level errors.
+* `Language` is part of the required base column order; empty values are stored as empty/null, accepted values are normalized, and invalid values are row-level errors.
+* New insert import writes prices to `SitePriceOptions` and optional service statuses to `SiteServiceAvailabilities`; it does not write imported pricing to legacy flat `Site` price fields.
+* Bare legacy pricing headers `PriceUsd`, `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, `PriceDating`, and `Term` are invalid for insert import.
+* Price columns are empty or positive numeric values only. Empty creates no price option; `0`, negative values, `YES`/`NO`, and non-numeric values are invalid.
+* Supported term labels in price headers are `unknown term`, `permanent`, and positive finite year labels such as `1 year` or `2 years`.
+* Duplicate price columns for the same price type and normalized term are invalid.
+* If an optional service has at least one numeric price option, its availability is saved as `Available`.
+* Service availability `YES` or `NO` cannot be combined with a numeric price for the same service in the same row.
 * Existing domains are skipped and reported.
 * New domains are inserted.
 * Domain is normalized before uniqueness checks.
@@ -596,7 +599,7 @@ Purpose: mass-update existing sites by domain.
 Rules:
 
 * Requires a `Domain` header and at least one supported update column.
-* Supports the same editable catalog columns as sites import, but the full standardized column set is not required.
+* Supports the legacy editable catalog columns until the term-aware update import step is implemented; the full standardized column set is not required.
 * Column order is flexible.
 * Unknown, duplicate, or blank headers are invalid.
 * `Domain` is the lookup key and must never be changed by the import.

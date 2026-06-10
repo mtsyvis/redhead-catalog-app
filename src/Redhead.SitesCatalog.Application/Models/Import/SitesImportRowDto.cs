@@ -1,4 +1,20 @@
+using Redhead.SitesCatalog.Domain.Enums;
+
 namespace Redhead.SitesCatalog.Application.Models.Import;
+
+public sealed record SitesImportPriceCell(
+    string Header,
+    PriceType PriceType,
+    string TermKey,
+    TermType? TermType,
+    int? TermValue,
+    TermUnit? TermUnit,
+    string? RawValue);
+
+public sealed record SitesImportAvailabilityCell(
+    string Header,
+    PriceType ServiceType,
+    string? RawValue);
 
 /// <summary>
 /// One row from a sites import file (CSV)
@@ -26,4 +42,6 @@ public class SitesImportRowDto
     public string? Niche { get; set; }
     public string? Categories { get; set; }
     public string? SponsoredTag { get; set; }
+    public List<SitesImportPriceCell> PriceCells { get; set; } = new();
+    public List<SitesImportAvailabilityCell> AvailabilityCells { get; set; } = new();
 }

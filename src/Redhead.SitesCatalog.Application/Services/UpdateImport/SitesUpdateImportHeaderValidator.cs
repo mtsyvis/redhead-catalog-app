@@ -15,7 +15,8 @@ internal static class SitesUpdateImportHeaderValidator
             throw new ImportHeaderValidationException("CSV header row is missing.");
         }
 
-        var allowedHeaders = ImportConstants.SitesImportRequiredColumnOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // LEGACY_PRICING: update import still accepts flat pricing headers until its term-aware migration step.
+        var allowedHeaders = ImportConstants.SitesImportLegacyColumnOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var seenHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var hasDomain = false;
         var updateColumnCount = 0;

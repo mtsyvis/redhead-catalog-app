@@ -93,7 +93,7 @@ public static class SiteWriteValidator
 
         if (input.Pricing is null)
         {
-            // Legacy flat pricing validation path.
+            // LEGACY_PRICING: legacy flat pricing validation path.
             // Kept temporarily while some callers still send old pricing fields.
             normalizedPriceUsd = input.PriceUsd;
             if (input.PriceUsd is decimal priceUsd && priceUsd <= 0)
