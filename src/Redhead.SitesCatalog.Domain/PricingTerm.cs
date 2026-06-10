@@ -43,6 +43,51 @@ public sealed record PricingTerm(
         return Unknown;
     }
 
+    public static bool TryCreate(
+        string? termKey,
+        TermKind? termType,
+        int? termValue,
+        TermUnitKind? termUnit,
+        out PricingTerm pricingTerm)
+    {
+        var normalizedTermKey = termKey?.Trim();
+        if (string.IsNullOrWhiteSpace(termKey))
+        {
+            pricingTerm = Unknown;
+            return false;
+        }
+
+        if (string.Equals(normalizedTermKey, UnknownKey, StringComparison.Ordinal)
+            && termType is null
+            && termValue is null
+            && termUnit is null)
+        {
+            pricingTerm = Unknown;
+            return true;
+        }
+
+        if (string.Equals(normalizedTermKey, PermanentKey, StringComparison.Ordinal)
+            && termType == TermKind.Permanent
+            && termValue is null
+            && termUnit is null)
+        {
+            pricingTerm = Permanent;
+            return true;
+        }
+
+        if (termType == TermKind.Finite
+            && termValue is > 0
+            && termUnit == TermUnitKind.Year
+            && string.Equals(normalizedTermKey, $"finite:{termValue.Value}:year", StringComparison.Ordinal))
+        {
+            pricingTerm = FiniteYears(termValue.Value);
+            return true;
+        }
+
+        pricingTerm = new PricingTerm(normalizedTermKey, termType, termValue, termUnit);
+        return false;
+    }
+
     public static string FormatLabel(
         string termKey,
         TermKind? termType,

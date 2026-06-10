@@ -571,6 +571,289 @@ public class SiteWriteValidatorTests
         Assert.Equal(TermUnit.Year, result.NormalizedRequest.TermUnit);
     }
 
+    [Fact]
+    public void ValidateAndNormalize_WithTermAwareMainPrices_NormalizesPricingPayload()
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        request.PriceUsd = null;
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                new UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Main,
+                    TermKey = " finite:1:year ",
+                    TermType = TermType.Finite,
+                    TermValue = 1,
+                    TermUnit = TermUnit.Year,
+                    AmountUsd = 200m
+                },
+                new UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Main,
+                    TermKey = "permanent",
+                    TermType = TermType.Permanent,
+                    AmountUsd = 500m
+                }
+            ]
+        };
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.True(result.IsValid);
+        var pricing = Assert.IsType<UpdateSiteRequest>(result.NormalizedRequest).Pricing;
+        Assert.NotNull(pricing);
+        Assert.Equal(["finite:1:year", "permanent"], pricing.Prices.Select(price => price.TermKey).ToArray());
+        Assert.Empty(pricing.ServiceAvailabilities);
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_WithDuplicateMainTermAwarePrice_ReturnsError()
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                new UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Main,
+                    TermKey = "finite:1:year",
+                    TermType = TermType.Finite,
+                    TermValue = 1,
+                    TermUnit = TermUnit.Year,
+                    AmountUsd = 200m
+                },
+                new UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Main,
+                    TermKey = "finite:1:year",
+                    TermType = TermType.Finite,
+                    TermValue = 1,
+                    TermUnit = TermUnit.Year,
+                    AmountUsd = 300m
+                }
+            ]
+        };
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        AssertError(result, "pricing.prices[1].termKey");
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_WithNonPositiveTermAwarePrice_ReturnsError()
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                new UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Main,
+                    TermKey = "unknown",
+                    AmountUsd = 0m
+                }
+            ]
+        };
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        AssertError(result, "pricing.prices[0].amountUsd");
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_WithServicePrice_InfersAvailableStatus()
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        request.PriceUsd = null;
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                new UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Casino,
+                    TermKey = "finite:1:year",
+                    TermType = TermType.Finite,
+                    TermValue = 1,
+                    TermUnit = TermUnit.Year,
+                    AmountUsd = 250m
+                }
+            ]
+        };
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.True(result.IsValid);
+        var pricing = Assert.IsType<UpdateSiteRequest>(result.NormalizedRequest).Pricing;
+        Assert.NotNull(pricing);
+        var availability = Assert.Single(pricing.ServiceAvailabilities);
+        Assert.Equal(PriceType.Casino, availability.ServiceType);
+        Assert.Equal(ServiceAvailabilityStatus.Available, availability.Status);
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_WithDuplicateServiceTermAwarePrice_ReturnsError()
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                new UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Casino,
+                    TermKey = "finite:1:year",
+                    TermType = TermType.Finite,
+                    TermValue = 1,
+                    TermUnit = TermUnit.Year,
+                    AmountUsd = 250m
+                },
+                new UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Casino,
+                    TermKey = "finite:1:year",
+                    TermType = TermType.Finite,
+                    TermValue = 1,
+                    TermUnit = TermUnit.Year,
+                    AmountUsd = 350m
+                }
+            ]
+        };
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        AssertError(result, "pricing.prices[1].termKey");
+    }
+
+    [Theory]
+    [InlineData(ServiceAvailabilityStatus.NotAvailable)]
+    [InlineData(ServiceAvailabilityStatus.AvailableWithUnknownPrice)]
+    [InlineData(ServiceAvailabilityStatus.Unknown)]
+    public void ValidateAndNormalize_WithNonAvailableServiceStatusAndPrices_ReturnsError(ServiceAvailabilityStatus status)
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                new UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Casino,
+                    TermKey = "finite:1:year",
+                    TermType = TermType.Finite,
+                    TermValue = 1,
+                    TermUnit = TermUnit.Year,
+                    AmountUsd = 250m
+                }
+            ],
+            ServiceAvailabilities =
+            [
+                new UpdateSiteServiceAvailabilityRequest
+                {
+                    ServiceType = PriceType.Casino,
+                    Status = status
+                }
+            ]
+        };
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        AssertError(result, "pricing.serviceAvailabilities[0].status");
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_WithMainServiceAvailabilityRow_ReturnsError()
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            ServiceAvailabilities =
+            [
+                new UpdateSiteServiceAvailabilityRequest
+                {
+                    ServiceType = PriceType.Main,
+                    Status = ServiceAvailabilityStatus.Unknown
+                }
+            ]
+        };
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        AssertError(result, "pricing.serviceAvailabilities[0].serviceType");
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_WithMismatchedTermKeyCombination_ReturnsError()
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                new UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Main,
+                    TermKey = "permanent",
+                    TermType = TermType.Finite,
+                    TermValue = 1,
+                    TermUnit = TermUnit.Year,
+                    AmountUsd = 200m
+                }
+            ]
+        };
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        AssertError(result, "pricing.prices[0].termKey");
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_WithEmptyTermAwarePricingPayload_AllowsClearingPricing()
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        request.PriceUsd = null;
+        request.Pricing = new UpdateSitePricingRequest();
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.True(result.IsValid);
+        var pricing = Assert.IsType<UpdateSiteRequest>(result.NormalizedRequest).Pricing;
+        Assert.NotNull(pricing);
+        Assert.Empty(pricing.Prices);
+        Assert.Empty(pricing.ServiceAvailabilities);
+    }
+
     [Theory]
     [InlineData("PriceCasino", ServiceAvailabilityStatus.Unknown)]
     [InlineData("PriceCrypto", ServiceAvailabilityStatus.NotAvailable)]

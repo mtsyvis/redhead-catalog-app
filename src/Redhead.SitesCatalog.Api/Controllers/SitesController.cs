@@ -218,6 +218,29 @@ public class SitesController : ControllerBase
             TermUnit = request.TermUnit,
             Niche = request.Niche,
             Categories = request.Categories,
+            Pricing = request.Pricing is null
+                ? null
+                : new Application.Models.UpdateSitePricingRequest
+                {
+                    Prices = request.Pricing.Prices
+                        .Select(price => new Application.Models.UpdateSitePriceOptionRequest
+                        {
+                            PriceType = price.PriceType,
+                            TermKey = price.TermKey,
+                            TermType = price.TermType,
+                            TermValue = price.TermValue,
+                            TermUnit = price.TermUnit,
+                            AmountUsd = price.AmountUsd
+                        })
+                        .ToList(),
+                    ServiceAvailabilities = request.Pricing.ServiceAvailabilities
+                        .Select(availability => new Application.Models.UpdateSiteServiceAvailabilityRequest
+                        {
+                            ServiceType = availability.ServiceType,
+                            Status = availability.Status
+                        })
+                        .ToList()
+                },
             IsQuarantined = request.IsQuarantined,
             QuarantineReason = request.QuarantineReason
         });

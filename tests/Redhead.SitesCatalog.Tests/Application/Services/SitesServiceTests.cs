@@ -2626,6 +2626,188 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateSiteAsync_WithTermAwareMainPricing_ReplacesPersistedPricing()
+    {
+        // Arrange
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                CreatePricingRequest(PriceType.Main, PricingTerm.FiniteYears(1), 200m),
+                CreatePricingRequest(PriceType.Main, PricingTerm.Permanent, 500m)
+            ]
+        };
+
+        // Act
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        Assert.Equal(
+            ["finite:1:year", "permanent"],
+            updated.Pricing.Prices.Where(price => price.PriceType == PriceType.Main).Select(price => price.TermKey).ToArray());
+        Assert.Empty(updated.Pricing.ServiceAvailabilities);
+
+        var dbSite = await _context.Sites
+            .Include(s => s.PriceOptions)
+            .Include(s => s.ServiceAvailabilities)
+            .SingleAsync(s => s.Domain == "example.com");
+        Assert.Equal(2, dbSite.PriceOptions.Count);
+        Assert.Equal(200m, dbSite.PriceUsd);
+        Assert.Equal(TermType.Finite, dbSite.TermType);
+        Assert.Equal(1, dbSite.TermValue);
+        Assert.Equal(TermUnit.Year, dbSite.TermUnit);
+        Assert.Empty(dbSite.ServiceAvailabilities);
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_WithCasinoPricing_PersistsAvailableStatus()
+    {
+        // Arrange
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                CreatePricingRequest(PriceType.Casino, PricingTerm.FiniteYears(1), 250m)
+            ]
+        };
+
+        // Act
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        var availability = Assert.Single(updated.Pricing.ServiceAvailabilities);
+        Assert.Equal(PriceType.Casino, availability.ServiceType);
+        Assert.Equal(ServiceAvailabilityStatus.Available, availability.Status);
+
+        var dbSite = await _context.Sites
+            .Include(s => s.PriceOptions)
+            .Include(s => s.ServiceAvailabilities)
+            .SingleAsync(s => s.Domain == "example.com");
+        Assert.Equal(250m, dbSite.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, dbSite.PriceCasinoStatus);
+        Assert.Single(dbSite.PriceOptions);
+        Assert.Single(dbSite.ServiceAvailabilities);
+    }
+
+    [Theory]
+    [InlineData(ServiceAvailabilityStatus.NotAvailable)]
+    [InlineData(ServiceAvailabilityStatus.AvailableWithUnknownPrice)]
+    [InlineData(ServiceAvailabilityStatus.Unknown)]
+    public async Task UpdateSiteAsync_WithClearingServiceStatus_RemovesServicePrices(ServiceAvailabilityStatus status)
+    {
+        // Arrange
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            ServiceAvailabilities =
+            [
+                new UpdateSiteServiceAvailabilityRequest
+                {
+                    ServiceType = PriceType.Casino,
+                    Status = status
+                }
+            ]
+        };
+
+        // Act
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        Assert.DoesNotContain(updated.Pricing.Prices, price => price.PriceType == PriceType.Casino);
+        var availability = Assert.Single(updated.Pricing.ServiceAvailabilities);
+        Assert.Equal(status, availability.Status);
+
+        var dbSite = await _context.Sites
+            .Include(s => s.PriceOptions)
+            .Include(s => s.ServiceAvailabilities)
+            .SingleAsync(s => s.Domain == "example.com");
+        Assert.DoesNotContain(dbSite.PriceOptions, price => price.PriceType == PriceType.Casino);
+        Assert.Equal(status, dbSite.PriceCasinoStatus);
+        Assert.Null(dbSite.PriceCasino);
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_WithoutPricingPayload_LeavesTermAwarePricingUnchanged()
+    {
+        // Arrange
+        AddTermAwarePricingRows("example.com");
+        var beforePrices = await _context.SitePriceOptions
+            .Where(price => price.SiteDomain == "example.com")
+            .OrderBy(price => price.PriceType)
+            .ThenBy(price => price.TermKey)
+            .Select(price => new { price.PriceType, price.TermKey, price.AmountUsd })
+            .ToListAsync();
+        var beforeAvailabilities = await _context.SiteServiceAvailabilities
+            .Where(availability => availability.SiteDomain == "example.com")
+            .OrderBy(availability => availability.ServiceType)
+            .Select(availability => new { availability.ServiceType, availability.Status })
+            .ToListAsync();
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Location = "FR";
+
+        // Act
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        Assert.Equal("France", updated.Location);
+
+        var afterPrices = await _context.SitePriceOptions
+            .Where(price => price.SiteDomain == "example.com")
+            .OrderBy(price => price.PriceType)
+            .ThenBy(price => price.TermKey)
+            .Select(price => new { price.PriceType, price.TermKey, price.AmountUsd })
+            .ToListAsync();
+        var afterAvailabilities = await _context.SiteServiceAvailabilities
+            .Where(availability => availability.SiteDomain == "example.com")
+            .OrderBy(availability => availability.ServiceType)
+            .Select(availability => new { availability.ServiceType, availability.Status })
+            .ToListAsync();
+
+        Assert.Equal(beforePrices, afterPrices);
+        Assert.Equal(beforeAvailabilities, afterAvailabilities);
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_WithEmptyPricingPayload_ClearsPersistedPricing()
+    {
+        // Arrange
+        AddTermAwarePricingRows("example.com");
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Pricing = new UpdateSitePricingRequest();
+
+        // Act
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        Assert.Empty(updated.Pricing.Prices);
+        Assert.Empty(updated.Pricing.ServiceAvailabilities);
+
+        var dbSite = await _context.Sites
+            .Include(s => s.PriceOptions)
+            .Include(s => s.ServiceAvailabilities)
+            .SingleAsync(s => s.Domain == "example.com");
+        Assert.Empty(dbSite.PriceOptions);
+        Assert.Empty(dbSite.ServiceAvailabilities);
+        Assert.Null(dbSite.PriceUsd);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, dbSite.PriceCasinoStatus);
+        Assert.Null(dbSite.TermType);
+        Assert.Null(dbSite.TermValue);
+        Assert.Null(dbSite.TermUnit);
+    }
+
+    [Fact]
     public async Task UpdateSiteAsync_WithUserEmail_SetsUpdatedBy()
     {
         // Arrange
@@ -3384,6 +3566,20 @@ public class SitesServiceTests : IDisposable
             AmountUsd = amountUsd,
             CreatedAtUtc = site.CreatedAtUtc,
             UpdatedAtUtc = site.UpdatedAtUtc
+        };
+
+    private static UpdateSitePriceOptionRequest CreatePricingRequest(
+        PriceType priceType,
+        PricingTerm term,
+        decimal amountUsd)
+        => new()
+        {
+            PriceType = priceType,
+            TermKey = term.TermKey,
+            TermType = term.TermType,
+            TermValue = term.TermValue,
+            TermUnit = term.TermUnit,
+            AmountUsd = amountUsd
         };
 
     private static SiteServiceAvailability CreateServiceAvailability(

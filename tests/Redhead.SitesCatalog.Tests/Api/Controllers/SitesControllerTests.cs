@@ -407,6 +407,60 @@ public class SitesControllerTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task UpdateSite_WithPricingPayload_MapsNormalizedTermAwarePricing()
+    {
+        // Arrange
+        var sitesService = new Mock<ISitesService>();
+        AppUpdateSiteRequest? capturedRequest = null;
+        sitesService
+            .Setup(service => service.UpdateSiteAsync(
+                "example.com",
+                It.IsAny<AppUpdateSiteRequest>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, AppUpdateSiteRequest, string?, CancellationToken>((_, request, _, _) => capturedRequest = request)
+            .ReturnsAsync(new SiteDto
+            {
+                Domain = "example.com",
+                DR = 50,
+                Traffic = 10000,
+                Location = "US",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+        var controller = new SitesController(sitesService.Object);
+        var request = BuildValidUpdateRequest();
+        request.PriceUsd = null;
+        request.Pricing = new Redhead.SitesCatalog.Api.Models.Sites.UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                new Redhead.SitesCatalog.Api.Models.Sites.UpdateSitePriceOptionRequest
+                {
+                    PriceType = PriceType.Casino,
+                    TermKey = " finite:1:year ",
+                    TermType = TermType.Finite,
+                    TermValue = 1,
+                    TermUnit = TermUnit.Year,
+                    AmountUsd = 250m
+                }
+            ]
+        };
+
+        // Act
+        await controller.UpdateSite("example.com", request, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(capturedRequest);
+        Assert.NotNull(capturedRequest.Pricing);
+        var price = Assert.Single(capturedRequest.Pricing.Prices);
+        Assert.Equal("finite:1:year", price.TermKey);
+        var availability = Assert.Single(capturedRequest.Pricing.ServiceAvailabilities);
+        Assert.Equal(PriceType.Casino, availability.ServiceType);
+        Assert.Equal(ServiceAvailabilityStatus.Available, availability.Status);
+    }
+
     private static void SetUser(SitesController controller, string role, string email)
     {
         controller.ControllerContext = new ControllerContext
