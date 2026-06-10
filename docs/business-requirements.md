@@ -252,6 +252,8 @@ Use the same normalization in:
 
 `PriceUsd` is nullable.
 
+Term-aware pricing is being introduced as an additive backend model. The backend stores term-specific price options in `SitePriceOptions` keyed by site, price type, and normalized term key, and optional service availability in `SiteServiceAvailabilities`. Existing flat site price columns remain temporarily for compatibility until imports, editing, filtering, sorting, exports, and frontend rendering are moved to the term-aware model.
+
 Rules:
 
 * Empty `PriceUsd` must be stored as empty/null, not as `0`.

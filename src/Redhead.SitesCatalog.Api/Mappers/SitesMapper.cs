@@ -167,7 +167,34 @@ public static class SitesMapper
             CreatedBy = includeInternalFields ? AuditUserFormatter.Format(dto.CreatedBy) : null,
             UpdatedBy = includeInternalFields ? AuditUserFormatter.Format(dto.UpdatedBy) : null,
             LastPublishedDate = dto.LastPublishedDate,
-            LastPublishedDateIsMonthOnly = dto.LastPublishedDateIsMonthOnly
+            LastPublishedDateIsMonthOnly = dto.LastPublishedDateIsMonthOnly,
+            Pricing = ToPricingResponse(dto.Pricing)
+        };
+    }
+
+    private static SitePricingResponse ToPricingResponse(SitePricingDto dto)
+    {
+        return new SitePricingResponse
+        {
+            Prices = dto.Prices
+                .Select(price => new SitePriceOptionResponse
+                {
+                    PriceType = price.PriceType,
+                    TermKey = price.TermKey,
+                    TermType = price.TermType,
+                    TermValue = price.TermValue,
+                    TermUnit = price.TermUnit,
+                    TermLabel = price.TermLabel,
+                    AmountUsd = price.AmountUsd
+                })
+                .ToList(),
+            ServiceAvailabilities = dto.ServiceAvailabilities
+                .Select(availability => new SiteServiceAvailabilityResponse
+                {
+                    ServiceType = availability.ServiceType,
+                    Status = availability.Status
+                })
+                .ToList()
         };
     }
 

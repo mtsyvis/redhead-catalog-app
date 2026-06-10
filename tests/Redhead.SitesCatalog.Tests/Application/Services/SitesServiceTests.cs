@@ -2033,6 +2033,32 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetSitesAsync_WithMultiplePriceOptions_KeepsPaginationAndIncludesPricing()
+    {
+        // Arrange
+        AddTermAwarePricingRows("crypto.com");
+        var query = new SitesQuery
+        {
+            Page = 1,
+            PageSize = 1,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(5, result.Total);
+        var site = Assert.Single(result.Items);
+        Assert.Equal("crypto.com", site.Domain);
+        Assert.Equal(2, site.Pricing.Prices.Count);
+        Assert.Contains(site.Pricing.Prices, price => price.PriceType == PriceType.Main && price.TermKey == "finite:1:year");
+        Assert.Contains(site.Pricing.Prices, price => price.PriceType == PriceType.Casino && price.TermKey == "permanent");
+    }
+
+    [Fact]
     public async Task GetSitesAsync_SecondPage_ReturnsCorrectSubset()
     {
         // Arrange
@@ -2316,7 +2342,7 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task MultiSearchSitesAsync_SingleQuery_ReturnsFullSiteDto()
+    public async Task MultiSearchSitesAsync_ReturnsFullSiteDto()
     {
         var normalizedDomains = new List<string> { "gambling.com" };
         var duplicates = new List<string>();
@@ -2331,6 +2357,33 @@ public class SitesServiceTests : IDisposable
         Assert.Equal("UNKNOWN", site.Language);
         Assert.True(site.IsQuarantined);
         Assert.Equal("Under review", site.QuarantineReason);
+    }
+
+    [Fact]
+    public async Task MultiSearchSitesAsync_FoundRowsIncludeTermAwarePricing()
+    {
+        // Arrange
+        AddTermAwarePricingRows("example.com");
+        var normalizedDomains = new List<string> { "example.com", "missing.com" };
+        var duplicates = new List<string>();
+
+        // Act
+        var result = await _service.MultiSearchSitesAsync(normalizedDomains, duplicates);
+
+        // Assert
+        var site = Assert.Single(result.Found);
+        Assert.Equal("example.com", site.Domain);
+        var price = Assert.Single(site.Pricing.Prices, price => price.PriceType == PriceType.Main);
+        Assert.Equal("finite:1:year", price.TermKey);
+        Assert.Equal(TermType.Finite, price.TermType);
+        Assert.Equal(1, price.TermValue);
+        Assert.Equal(TermUnit.Year, price.TermUnit);
+        Assert.Equal("1 year", price.TermLabel);
+        Assert.Equal(111m, price.AmountUsd);
+        Assert.Contains(
+            site.Pricing.ServiceAvailabilities,
+            availability => availability.ServiceType == PriceType.Casino && availability.Status == ServiceAvailabilityStatus.Available);
+        Assert.Equal(["missing.com"], result.NotFound);
     }
 
     [Fact]
@@ -2824,6 +2877,53 @@ public class SitesServiceTests : IDisposable
         CreatedAtUtc = DateTime.UtcNow,
         UpdatedAtUtc = DateTime.UtcNow
     };
+
+    private void AddTermAwarePricingRows(string domain)
+    {
+        var site = _context.Sites.Single(s => s.Domain == domain);
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(site, PriceType.Main, oneYear, 111m),
+            CreatePriceOption(site, PriceType.Casino, PricingTerm.Permanent, 222m));
+
+        _context.SiteServiceAvailabilities.AddRange(
+            CreateServiceAvailability(site, PriceType.Casino, ServiceAvailabilityStatus.Available),
+            CreateServiceAvailability(site, PriceType.Crypto, ServiceAvailabilityStatus.NotAvailable));
+
+        _context.SaveChanges();
+    }
+
+    private static SitePriceOption CreatePriceOption(
+        Site site,
+        PriceType priceType,
+        PricingTerm term,
+        decimal amountUsd)
+        => new()
+        {
+            SiteDomain = site.Domain,
+            PriceType = priceType,
+            TermKey = term.TermKey,
+            TermType = term.TermType,
+            TermValue = term.TermValue,
+            TermUnit = term.TermUnit,
+            AmountUsd = amountUsd,
+            CreatedAtUtc = site.CreatedAtUtc,
+            UpdatedAtUtc = site.UpdatedAtUtc
+        };
+
+    private static SiteServiceAvailability CreateServiceAvailability(
+        Site site,
+        PriceType serviceType,
+        ServiceAvailabilityStatus status)
+        => new()
+        {
+            SiteDomain = site.Domain,
+            ServiceType = serviceType,
+            Status = status,
+            CreatedAtUtc = site.CreatedAtUtc,
+            UpdatedAtUtc = site.UpdatedAtUtc
+        };
 
     private static Site SiteWithServiceState(
         string domain,
