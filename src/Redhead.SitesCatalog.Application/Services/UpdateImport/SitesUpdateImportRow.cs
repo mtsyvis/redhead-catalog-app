@@ -2,6 +2,22 @@ using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Application.Services.UpdateImport;
 
+internal sealed record SitesUpdatePriceOperation(
+    string Header,
+    PriceType PriceType,
+    string TermKey,
+    TermType? TermType,
+    int? TermValue,
+    TermUnit? TermUnit,
+    string? RawValue,
+    decimal? AmountUsd);
+
+internal sealed record SitesUpdateAvailabilityOperation(
+    string Header,
+    PriceType ServiceType,
+    string? RawValue,
+    ServiceAvailabilityStatus Status);
+
 internal sealed record SitesUpdateImportRow(string NormalizedDomain, IReadOnlySet<string> PresentColumns)
 {
     public int SourceRowNumber { get; init; }
@@ -12,21 +28,9 @@ internal sealed record SitesUpdateImportRow(string NormalizedDomain, IReadOnlySe
     public string? LocationKey { get; init; }
     public string? ImportedLocationRaw { get; init; }
     public string? LocationWarningDetails { get; init; }
-    public decimal? PriceUsd { get; init; }
-    public decimal? PriceCasino { get; init; }
-    public ServiceAvailabilityStatus PriceCasinoStatus { get; init; }
-    public decimal? PriceCrypto { get; init; }
-    public ServiceAvailabilityStatus PriceCryptoStatus { get; init; }
-    public decimal? PriceLinkInsert { get; init; }
-    public ServiceAvailabilityStatus PriceLinkInsertStatus { get; init; }
-    public decimal? PriceLinkInsertCasino { get; init; }
-    public ServiceAvailabilityStatus PriceLinkInsertCasinoStatus { get; init; }
-    public decimal? PriceDating { get; init; }
-    public ServiceAvailabilityStatus PriceDatingStatus { get; init; }
+    public IReadOnlyList<SitesUpdatePriceOperation> PriceOperations { get; init; } = [];
+    public IReadOnlyList<SitesUpdateAvailabilityOperation> AvailabilityOperations { get; init; } = [];
     public int? NumberDFLinks { get; init; }
-    public TermType? TermType { get; init; }
-    public int? TermValue { get; init; }
-    public TermUnit? TermUnit { get; init; }
     public string? Language { get; init; }
     public string? Niche { get; init; }
     public string? Categories { get; init; }

@@ -1,4 +1,3 @@
-using CsvHelper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Application.Models.Import;
@@ -77,7 +76,7 @@ public sealed class SitesImportService : ISitesImportService
             invalidRowsPayload.Headers = session.Header.ToArray();
             var insertHeaderInfo = SitesInsertImportHeaderParser.Parse(session.Header);
 
-            await foreach (var (row, rawValues) in ReadRowsAsync(session.Csv, session.Header.Length, insertHeaderInfo, cancellationToken))
+            await foreach (var (row, rawValues) in SitesImportCsvRowReader.ReadRowsAsync(session.Csv, session.Header.Length, insertHeaderInfo, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -87,12 +86,12 @@ public sealed class SitesImportService : ISitesImportService
                     continue;
                 }
 
-                TrackDuplicateDomain(row.Domain, duplicateDomainOccurrences, duplicateDomainsInOrder);
+                ImportRowTrackingHelper.TrackDuplicateDomain(row.Domain, duplicateDomainOccurrences, duplicateDomainsInOrder);
 
                 if (error is not null)
                 {
                     invalidRowsCount++;
-                    AddInvalidRow(invalidRowsPayload, row.RowNumber, rawValues, error.Message);
+                    ImportRowTrackingHelper.AddInvalidRow(invalidRowsPayload, row.RowNumber, rawValues, error.Message);
                     continue;
                 }
 
@@ -205,38 +204,6 @@ public sealed class SitesImportService : ISitesImportService
             skippedExistingCount,
             duplicateDomainsInOrder);
         return result;
-    }
-
-    private static async IAsyncEnumerable<(SitesImportRowDto Row, List<string> RawValues)> ReadRowsAsync(
-        CsvReader csv,
-        int headerCount,
-        SitesInsertImportHeaderInfo insertHeaderInfo,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        var columnIndexes = BuildColumnIndexes(csv.HeaderRecord ?? Array.Empty<string>());
-
-        // Row 1 = header
-        var rowNumber = 1;
-
-        while (await csv.ReadAsync().ConfigureAwait(false))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            rowNumber++;
-
-            var rawRecord = csv.Parser.Record ?? Array.Empty<string>();
-            var rawValues = new List<string>(headerCount);
-            for (var i = 0; i < headerCount; i++)
-            {
-                rawValues.Add(i < rawRecord.Length ? rawRecord[i] ?? string.Empty : string.Empty);
-            }
-
-            var mappedRow = SitesImportRowMapper.Map(
-                columnName => columnIndexes.TryGetValue(columnName, out var index) ? csv.GetField(index)?.Trim() : null,
-                rowNumber,
-                insertHeaderInfo);
-
-            yield return (mappedRow, rawValues);
-        }
     }
 
     private async Task<HashSet<string>> LoadExistingDomainsAsync(
@@ -408,46 +375,6 @@ public sealed class SitesImportService : ISitesImportService
         }
     }
 
-    private static void AddInvalidRow(
-        InvalidRowsImportArtifactPayload payload,
-        int sourceRowNumber,
-        IReadOnlyCollection<string> rawValues,
-        string errorMessage)
-    {
-        payload.Rows.Add(new InvalidImportRowRecord
-        {
-            SourceRowNumber = sourceRowNumber,
-            RawValues = rawValues.ToList(),
-            Errors = new List<string> { errorMessage }
-        });
-    }
-
-    private static void TrackDuplicateDomain(
-        string? rawDomain,
-        IDictionary<string, int> occurrences,
-        ICollection<string> duplicateDomainsInOrder)
-    {
-        var normalizedDomain = DomainNormalizer.Normalize(rawDomain);
-        if (string.IsNullOrEmpty(normalizedDomain))
-        {
-            return;
-        }
-
-        if (occurrences.TryGetValue(normalizedDomain, out var count))
-        {
-            var nextCount = count + 1;
-            occurrences[normalizedDomain] = nextCount;
-            if (nextCount == 2)
-            {
-                duplicateDomainsInOrder.Add(normalizedDomain);
-            }
-
-            return;
-        }
-
-        occurrences[normalizedDomain] = 1;
-    }
-
     private static WarningImportRowRecord? CreateLocationWarning(
         string normalizedDomain,
         string rawLocation,
@@ -462,25 +389,11 @@ public sealed class SitesImportService : ISitesImportService
         return new WarningImportRowRecord
         {
             Domain = normalizedDomain,
-            Location = rawLocation,
+            Field = ImportConstants.SitesImportColumns.Location,
+            RawValue = rawLocation,
             SourceRowNumber = sourceRowNumber,
-            WarningDetails = "Unmapped location. Site was saved with Location = Other."
+            Warning = "Location was saved as Other because the value could not be mapped."
         };
-    }
-
-    private static Dictionary<string, int> BuildColumnIndexes(IReadOnlyList<string> header)
-    {
-        var indexes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < header.Count; i++)
-        {
-            var normalized = CsvImportHelper.NormalizeHeader(header[i]);
-            if (!string.IsNullOrEmpty(normalized) && !indexes.ContainsKey(normalized))
-            {
-                indexes[normalized] = i;
-            }
-        }
-
-        return indexes;
     }
 
     private void AttachSummaryAndDownloads(

@@ -225,7 +225,7 @@ public static class SitesImportRowValidationHelper
                && string.IsNullOrWhiteSpace(row.DRRaw)
                && string.IsNullOrWhiteSpace(row.TrafficRaw)
                && string.IsNullOrWhiteSpace(row.Location)
-               // LEGACY_PRICING: legacy flat fields are included for update-import compatibility only.
+               // LEGACY_PRICING: legacy flat fields are included for temporary legacy compatibility only.
                && string.IsNullOrWhiteSpace(row.PriceUsdRaw)
                && string.IsNullOrWhiteSpace(row.PriceCasinoRaw)
                && string.IsNullOrWhiteSpace(row.PriceCryptoRaw)

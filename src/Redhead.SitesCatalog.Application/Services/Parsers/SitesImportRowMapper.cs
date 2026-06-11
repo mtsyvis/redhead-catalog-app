@@ -24,7 +24,7 @@ public static class SitesImportRowMapper
         var drRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.DR);
         var trafficRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.Traffic);
         var location = TryGetValue(getValue, ImportConstants.SitesImportColumns.Location);
-        // LEGACY_PRICING: flat pricing values are populated for legacy update import callers only.
+        // LEGACY_PRICING: flat pricing values are populated for temporary legacy compatibility only.
         var priceUsdRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceUsd);
         var priceCasinoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceCasino);
         var priceCryptoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceCrypto);

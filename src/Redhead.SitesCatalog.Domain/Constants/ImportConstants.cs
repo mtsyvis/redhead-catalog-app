@@ -95,17 +95,17 @@ public static class ImportConstants
         public const string DR = "DR";
         public const string Traffic = "Traffic";
         public const string Location = "Location";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert import and kept temporarily for legacy flows.
+        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceUsd = "PriceUsd";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert import and kept temporarily for legacy flows.
+        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceCasino = "PriceCasino";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert import and kept temporarily for legacy flows.
+        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceCrypto = "PriceCrypto";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert import and kept temporarily for legacy flows.
+        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceLinkInsert = "PriceLinkInsert";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert import and kept temporarily for legacy flows.
+        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceLinkInsertCasino = "PriceLinkInsertCasino";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert import and kept temporarily for legacy flows.
+        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceDating = "PriceDating";
         public const string PriceCasinoAvailability = "PriceCasinoAvailability";
         public const string PriceCryptoAvailability = "PriceCryptoAvailability";
@@ -116,7 +116,7 @@ public static class ImportConstants
         public const string Categories = "Categories";
         public const string NumberDFLinks = "NumberDFLinks";
         public const string SponsoredTag = "SponsoredTag";
-        // LEGACY_PRICING: the old site-level term column is rejected by insert import and kept temporarily for legacy flows.
+        // LEGACY_PRICING: the old site-level term column is rejected by insert/update imports and kept temporarily for legacy flows.
         public const string Term = "Term";
         public const string Language = "Language";
     }
@@ -145,7 +145,23 @@ public static class ImportConstants
     };
 
     /// <summary>
-    /// LEGACY_PRICING: legacy flat-pricing columns still used by update import until that flow is migrated.
+    /// Non-pricing columns accepted by sites update import. Dynamic term-aware pricing columns are parsed separately.
+    /// </summary>
+    public static readonly string[] SitesUpdateImportBaseColumns =
+    {
+        SitesImportColumns.Domain,
+        SitesImportColumns.DR,
+        SitesImportColumns.Traffic,
+        SitesImportColumns.Location,
+        SitesImportColumns.Niche,
+        SitesImportColumns.Categories,
+        SitesImportColumns.NumberDFLinks,
+        SitesImportColumns.SponsoredTag,
+        SitesImportColumns.Language,
+    };
+
+    /// <summary>
+    /// LEGACY_PRICING: legacy flat-pricing column order kept temporarily for old tests/migration references.
     /// </summary>
     public static readonly string[] SitesImportLegacyColumnOrder =
     {
@@ -168,7 +184,7 @@ public static class ImportConstants
     };
 
     /// <summary>
-    /// LEGACY_PRICING: bare flat pricing headers rejected by new insert import.
+    /// LEGACY_PRICING: bare flat pricing headers rejected by new insert/update imports.
     /// </summary>
     public static readonly string[] SitesImportLegacyPricingHeaders =
     {

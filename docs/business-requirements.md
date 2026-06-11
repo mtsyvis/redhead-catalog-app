@@ -261,9 +261,9 @@ Rules:
 * UI must display empty `PriceUsd` as `NO`.
 * Price filtering and sorting use `SitePriceOptions` as the backend source of truth once term-aware pricing is enabled. With no selected term, price logic considers all terms; with a selected `TermKey`, price logic considers only matching price options.
 * During sites import, price fields may all be empty or unavailable; valid rows are not rejected only because no numeric price is present.
-* During sites update import, a present empty `PriceUsd` clears the existing value; a missing `PriceUsd` column leaves the existing value unchanged.
-* During sites update import, price fields may be omitted, cleared, or set unavailable according to field-level rules; update rows are not rejected only because no numeric price remains.
-* During sites import and sites update import, if `PriceUsd` is provided, it must be greater than `0`.
+* During sites update import, a present empty term-specific main price column such as `PriceUsd [1 year]` clears that exact `SitePriceOption`; a missing price column leaves that exact pricing data unchanged.
+* During sites update import, service price and availability fields may be omitted, cleared, or set unavailable according to field-level rules; update rows are not rejected only because no numeric price remains.
+* During sites import and sites update import, if a term-specific `PriceUsd [...]` value is provided, it must be greater than `0`.
 * Invalid price data must create row-level validation errors.
 * Empty input in an import file means empty value, not implicit zero.
 
@@ -602,14 +602,19 @@ Purpose: mass-update existing sites by domain.
 Rules:
 
 * Requires a `Domain` header and at least one supported update column.
-* Supports the legacy editable catalog columns until the term-aware update import step is implemented; the full standardized column set is not required.
+* Supports editable non-pricing catalog columns plus dynamic term-aware pricing columns.
 * Column order is flexible.
 * Unknown, duplicate, or blank headers are invalid.
+* Bare legacy pricing headers `PriceUsd`, `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, `PriceDating`, and `Term` are invalid.
 * `Domain` is the lookup key and must never be changed by the import.
 * Updates existing sites only.
 * Only columns present in the CSV are updated.
 * Missing columns leave existing values unchanged.
 * Present empty values are explicit updates and follow field-specific rules.
+* Present empty term-specific price cells clear the exact price option for that price type and term.
+* Present numeric term-specific service price cells upsert the exact price option and set that service availability to `Available`.
+* Present service availability cells set that service to `Unknown`, `AvailableWithUnknownPrice`, or `NotAvailable` and remove all price options for that service.
+* A service availability cell cannot be combined with a numeric service price cell for the same service in the same row.
 * Empty `Language` values overwrite existing language with empty/null.
 * Present empty nullable fields clear existing values according to the field storage convention.
 * Present empty required fields such as `DR` and `Traffic` are row-level errors.

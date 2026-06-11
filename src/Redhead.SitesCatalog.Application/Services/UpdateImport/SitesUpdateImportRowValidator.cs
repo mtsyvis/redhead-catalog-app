@@ -4,6 +4,7 @@ using Redhead.SitesCatalog.Application.Services.Parsers;
 using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Application.Services.UpdateImport;
 
@@ -95,36 +96,85 @@ internal static class SitesUpdateImportRowValidator
             }, null);
         }
 
-        if (presentColumns.Contains(ImportConstants.SitesImportColumns.PriceUsd))
+        var priceOperations = new List<SitesUpdatePriceOperation>();
+        foreach (var priceCell in row.PriceCells)
         {
-            if (!string.IsNullOrWhiteSpace(row.PriceUsdRaw))
+            if (string.IsNullOrWhiteSpace(priceCell.RawValue))
             {
-                if (!DecimalParsingHelper.TryParseDecimalFlexible(row.PriceUsdRaw, out var priceUsd))
-                {
-                    return RowError(row, domain, ImportConstants.SitesImportColumns.PriceUsd, row.PriceUsdRaw, "Invalid PriceUsd value.");
-                }
-
-                if (priceUsd <= 0)
-                {
-                    return RowError(row, domain, ImportConstants.SitesImportColumns.PriceUsd, row.PriceUsdRaw, "Price USD must be greater than 0 or empty.");
-                }
-
-                update = update with { PriceUsd = priceUsd };
+                priceOperations.Add(new SitesUpdatePriceOperation(
+                    priceCell.Header,
+                    priceCell.PriceType,
+                    priceCell.TermKey,
+                    priceCell.TermType,
+                    priceCell.TermValue,
+                    priceCell.TermUnit,
+                    priceCell.RawValue,
+                    null));
+                continue;
             }
-            else
+
+            var rawValue = priceCell.RawValue.Trim();
+            if (!DecimalParsingHelper.TryParseDecimalFlexible(rawValue, out var amount))
             {
-                update = update with { PriceUsd = null };
+                return RowError(row, domain, priceCell.Header, priceCell.RawValue, $"Invalid {priceCell.Header} value.");
+            }
+
+            if (amount <= 0)
+            {
+                return RowError(row, domain, priceCell.Header, priceCell.RawValue, $"{priceCell.Header} must be greater than 0.");
+            }
+
+            priceOperations.Add(new SitesUpdatePriceOperation(
+                priceCell.Header,
+                priceCell.PriceType,
+                priceCell.TermKey,
+                priceCell.TermType,
+                priceCell.TermValue,
+                priceCell.TermUnit,
+                priceCell.RawValue,
+                amount));
+        }
+
+        var availabilityOperations = new List<SitesUpdateAvailabilityOperation>();
+        foreach (var availabilityCell in row.AvailabilityCells)
+        {
+            if (!TryParseAvailability(availabilityCell.RawValue, out var status))
+            {
+                return RowError(
+                    row,
+                    domain,
+                    availabilityCell.Header,
+                    availabilityCell.RawValue,
+                    $"{availabilityCell.Header} must be empty, YES, or NO.");
+            }
+
+            availabilityOperations.Add(new SitesUpdateAvailabilityOperation(
+                availabilityCell.Header,
+                availabilityCell.ServiceType,
+                availabilityCell.RawValue,
+                status));
+        }
+
+        foreach (var availabilityOperation in availabilityOperations)
+        {
+            if (priceOperations.Any(operation =>
+                    operation.PriceType == availabilityOperation.ServiceType
+                    && operation.AmountUsd.HasValue))
+            {
+                return (false, new SitesImportError
+                {
+                    RowNumber = row.RowNumber,
+                    Domain = domain,
+                    Message = $"{FormatPriceType(availabilityOperation.ServiceType)} availability cannot be empty, YES, or NO when a price is provided."
+                }, null);
             }
         }
 
-        if (!TryApplyOptionalService(row, domain, presentColumns, ImportConstants.SitesImportColumns.PriceCasino, row.PriceCasinoRaw, update, out update, out var optionalError)
-            || !TryApplyOptionalService(row, domain, presentColumns, ImportConstants.SitesImportColumns.PriceCrypto, row.PriceCryptoRaw, update, out update, out optionalError)
-            || !TryApplyOptionalService(row, domain, presentColumns, ImportConstants.SitesImportColumns.PriceLinkInsert, row.PriceLinkInsertRaw, update, out update, out optionalError)
-            || !TryApplyOptionalService(row, domain, presentColumns, ImportConstants.SitesImportColumns.PriceLinkInsertCasino, row.PriceLinkInsertCasinoRaw, update, out update, out optionalError)
-            || !TryApplyOptionalService(row, domain, presentColumns, ImportConstants.SitesImportColumns.PriceDating, row.PriceDatingRaw, update, out update, out optionalError))
+        update = update with
         {
-            return (false, optionalError, null);
-        }
+            PriceOperations = priceOperations,
+            AvailabilityOperations = availabilityOperations
+        };
 
         if (presentColumns.Contains(ImportConstants.SitesImportColumns.NumberDFLinks))
         {
@@ -146,22 +196,6 @@ internal static class SitesUpdateImportRowValidator
             {
                 update = update with { NumberDFLinks = null };
             }
-        }
-
-        if (presentColumns.Contains(ImportConstants.SitesImportColumns.Term))
-        {
-            var termParseResult = TermValueParser.Parse(row.TermRaw);
-            if (!termParseResult.IsValid)
-            {
-                return RowError(row, domain, ImportConstants.SitesImportColumns.Term, row.TermRaw, termParseResult.ErrorMessage ?? "Invalid Term value.");
-            }
-
-            update = update with
-            {
-                TermType = termParseResult.TermType,
-                TermValue = termParseResult.TermValue,
-                TermUnit = termParseResult.TermUnit
-            };
         }
 
         if (presentColumns.Contains(ImportConstants.SitesImportColumns.Language))
@@ -205,71 +239,6 @@ internal static class SitesUpdateImportRowValidator
         return (false, null, update);
     }
 
-    private static bool TryApplyOptionalService(
-        SitesImportRowDto row,
-        string domain,
-        IReadOnlySet<string> presentColumns,
-        string columnName,
-        string? rawValue,
-        SitesUpdateImportRow current,
-        out SitesUpdateImportRow updated,
-        out SitesImportError? error)
-    {
-        updated = current;
-        error = null;
-
-        if (!presentColumns.Contains(columnName))
-        {
-            return true;
-        }
-
-        var parseResult = OptionalServiceValueParser.Parse(rawValue);
-        if (!parseResult.IsValid)
-        {
-            error = new SitesImportError
-            {
-                RowNumber = row.RowNumber,
-                Domain = domain,
-                Field = columnName,
-                RawValue = rawValue,
-                Message = parseResult.ErrorMessage ?? $"Invalid {columnName} value."
-            };
-            return false;
-        }
-
-        updated = columnName switch
-        {
-            ImportConstants.SitesImportColumns.PriceCasino => current with
-            {
-                PriceCasino = parseResult.Price,
-                PriceCasinoStatus = parseResult.Status
-            },
-            ImportConstants.SitesImportColumns.PriceCrypto => current with
-            {
-                PriceCrypto = parseResult.Price,
-                PriceCryptoStatus = parseResult.Status
-            },
-            ImportConstants.SitesImportColumns.PriceLinkInsert => current with
-            {
-                PriceLinkInsert = parseResult.Price,
-                PriceLinkInsertStatus = parseResult.Status
-            },
-            ImportConstants.SitesImportColumns.PriceLinkInsertCasino => current with
-            {
-                PriceLinkInsertCasino = parseResult.Price,
-                PriceLinkInsertCasinoStatus = parseResult.Status
-            },
-            ImportConstants.SitesImportColumns.PriceDating => current with
-            {
-                PriceDating = parseResult.Price,
-                PriceDatingStatus = parseResult.Status
-            },
-            _ => current
-        };
-
-        return true;
-    }
-
     private static (bool IsEmpty, SitesImportError? Error, SitesUpdateImportRow? Update) RowError(
         SitesImportRowDto row,
         string domain,
@@ -297,18 +266,13 @@ internal static class SitesUpdateImportRowValidator
         return (!presentColumns.Contains(ImportConstants.SitesImportColumns.DR) || string.IsNullOrWhiteSpace(row.DRRaw))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Traffic) || string.IsNullOrWhiteSpace(row.TrafficRaw))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Location) || string.IsNullOrWhiteSpace(row.Location))
-               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.PriceUsd) || string.IsNullOrWhiteSpace(row.PriceUsdRaw))
-               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.PriceCasino) || string.IsNullOrWhiteSpace(row.PriceCasinoRaw))
-               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.PriceCrypto) || string.IsNullOrWhiteSpace(row.PriceCryptoRaw))
-               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.PriceLinkInsert) || string.IsNullOrWhiteSpace(row.PriceLinkInsertRaw))
-               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.PriceLinkInsertCasino) || string.IsNullOrWhiteSpace(row.PriceLinkInsertCasinoRaw))
-               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.PriceDating) || string.IsNullOrWhiteSpace(row.PriceDatingRaw))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.NumberDFLinks) || string.IsNullOrWhiteSpace(row.NumberDFLinksRaw))
-               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Term) || string.IsNullOrWhiteSpace(row.TermRaw))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Language) || string.IsNullOrWhiteSpace(row.Language))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Niche) || string.IsNullOrWhiteSpace(row.Niche))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Categories) || string.IsNullOrWhiteSpace(row.Categories))
-               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.SponsoredTag) || string.IsNullOrWhiteSpace(row.SponsoredTag));
+               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.SponsoredTag) || string.IsNullOrWhiteSpace(row.SponsoredTag))
+               && row.PriceCells.All(cell => string.IsNullOrWhiteSpace(cell.RawValue))
+               && row.AvailabilityCells.All(cell => string.IsNullOrWhiteSpace(cell.RawValue));
     }
 
     private static bool TryParseRequiredDouble(string? rawValue, out double value)
@@ -332,4 +296,39 @@ internal static class SitesUpdateImportRowValidator
 
     private static string? TrimToNull(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool TryParseAvailability(string? rawValue, out ServiceAvailabilityStatus status)
+    {
+        status = ServiceAvailabilityStatus.Unknown;
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return true;
+        }
+
+        var trimmed = rawValue.Trim();
+        if (string.Equals(trimmed, "YES", StringComparison.OrdinalIgnoreCase))
+        {
+            status = ServiceAvailabilityStatus.AvailableWithUnknownPrice;
+            return true;
+        }
+
+        if (string.Equals(trimmed, "NO", StringComparison.OrdinalIgnoreCase))
+        {
+            status = ServiceAvailabilityStatus.NotAvailable;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string FormatPriceType(PriceType priceType)
+        => priceType switch
+        {
+            PriceType.Casino => ImportConstants.SitesImportColumns.PriceCasino,
+            PriceType.Crypto => ImportConstants.SitesImportColumns.PriceCrypto,
+            PriceType.LinkInsertion => ImportConstants.SitesImportColumns.PriceLinkInsert,
+            PriceType.LinkInsertionCasino => ImportConstants.SitesImportColumns.PriceLinkInsertCasino,
+            PriceType.Dating => ImportConstants.SitesImportColumns.PriceDating,
+            _ => priceType.ToString()
+        };
 }

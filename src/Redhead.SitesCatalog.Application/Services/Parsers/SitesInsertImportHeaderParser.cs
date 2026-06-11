@@ -85,7 +85,7 @@ internal static class SitesInsertImportHeaderParser
                 throw new ImportHeaderValidationException($"CSV header is invalid. Invalid term header: '{header}'.");
             }
 
-            if (AvailabilityHeaders.TryGetValue(header, out var availabilityServiceType))
+            if (TryGetAvailabilityServiceType(header, out var availabilityServiceType))
             {
                 if (!seenAvailabilityTypes.Add(availabilityServiceType))
                 {
@@ -96,12 +96,12 @@ internal static class SitesInsertImportHeaderParser
                 continue;
             }
 
-            if (string.Equals(header, $"{ImportConstants.SitesImportColumns.PriceUsd}Availability", StringComparison.OrdinalIgnoreCase))
+            if (IsMainAvailabilityHeader(header))
             {
                 throw new ImportHeaderValidationException("CSV header is invalid. Main pricing must not include an availability column.");
             }
 
-            if (ImportConstants.SitesImportLegacyPricingHeaders.Contains(header, StringComparer.OrdinalIgnoreCase))
+            if (IsLegacyPricingHeader(header))
             {
                 throw new ImportHeaderValidationException($"CSV header is invalid. Legacy pricing column is not supported: '{header}'.");
             }
@@ -137,7 +137,7 @@ internal static class SitesInsertImportHeaderParser
         return new SitesInsertImportHeaderInfo(priceColumns, availabilityColumns);
     }
 
-    private static bool TryParsePriceHeader(
+    internal static bool TryParsePriceHeader(
         string header,
         out PriceType priceType,
         out PricingTerm term,
@@ -175,6 +175,15 @@ internal static class SitesInsertImportHeaderParser
 
         return true;
     }
+
+    internal static bool TryGetAvailabilityServiceType(string header, out PriceType serviceType)
+        => AvailabilityHeaders.TryGetValue(header, out serviceType);
+
+    internal static bool IsMainAvailabilityHeader(string header)
+        => string.Equals(header, $"{ImportConstants.SitesImportColumns.PriceUsd}Availability", StringComparison.OrdinalIgnoreCase);
+
+    internal static bool IsLegacyPricingHeader(string header)
+        => ImportConstants.SitesImportLegacyPricingHeaders.Contains(header, StringComparer.OrdinalIgnoreCase);
 
     private static bool TryParseTerm(string rawTerm, out PricingTerm term)
     {

@@ -162,15 +162,16 @@ public sealed class ImportArtifactStorageService : IImportArtifactStorageService
     private static byte[] BuildWarningRowsCsv(WarningRowsImportArtifactPayload payload)
     {
         var sb = new StringBuilder();
-        AppendCsvRow(sb, ["Domain", "Location", "Source Row Number", "Warning Details"]);
+        AppendCsvRow(sb, ["Domain", "Field", "Raw Value", "Source Row Number", "Warning"]);
 
         foreach (var row in payload.Rows)
         {
             AppendCsvRow(sb, [
                 row.Domain,
-                row.Location,
+                row.Field,
+                row.RawValue,
                 row.SourceRowNumber.ToString(),
-                row.WarningDetails
+                row.Warning
             ]);
         }
 

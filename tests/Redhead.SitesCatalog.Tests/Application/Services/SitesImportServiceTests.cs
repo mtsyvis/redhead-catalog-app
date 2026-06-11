@@ -369,8 +369,8 @@ public sealed class SitesImportServiceTests : IDisposable
         Assert.Equal("United Stetes", site.ImportedLocationRaw);
 
         var warningLines = GetDownloadLines(result.Downloads!.WarningRows!.Token);
-        Assert.Equal("Domain,Location,Source Row Number,Warning Details", warningLines[0]);
-        Assert.Equal("bad-location-warning.com,United Stetes,2,Unmapped location. Site was saved with Location = Other.", warningLines[1]);
+        Assert.Equal("Domain,Field,Raw Value,Source Row Number,Warning", warningLines[0]);
+        Assert.Equal("bad-location-warning.com,Location,United Stetes,2,Location was saved as Other because the value could not be mapped.", warningLines[1]);
     }
 
     [Fact]

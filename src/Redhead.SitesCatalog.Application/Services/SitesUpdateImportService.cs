@@ -1,4 +1,3 @@
-using CsvHelper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Application.Models.Import;
@@ -7,6 +6,7 @@ using Redhead.SitesCatalog.Application.Services.UpdateImport;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Locations;
 
@@ -69,15 +69,16 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
         await using (var session = await CsvImportSession.OpenAsync(
                          fileStream,
-                         expectedHeaderColumnsForDelimiterDetection: ImportConstants.SitesImportLegacyColumnOrder,
+                         expectedHeaderColumnsForDelimiterDetection: ImportConstants.SitesUpdateImportBaseColumns,
                          validateHeader: SitesUpdateImportHeaderValidator.ValidateOrThrow,
                          ct: cancellationToken))
         {
             invalidRowsPayload.Headers = session.Header.ToArray();
             unmatchedRowsPayload.Headers = session.Header.ToArray();
+            var updateHeaderInfo = SitesUpdateImportHeaderValidator.Parse(session.Header);
             var presentColumns = SitesUpdateImportHeaderValidator.BuildPresentColumnSet(session.Header);
 
-            await foreach (var (row, rawValues) in ReadRowsAsync(session.Csv, session.Header.Length, cancellationToken))
+            await foreach (var (row, rawValues) in SitesImportCsvRowReader.ReadRowsAsync(session.Csv, session.Header.Length, updateHeaderInfo, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -87,12 +88,12 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                     continue;
                 }
 
-                TrackDuplicateDomain(row.Domain, duplicateDomainOccurrences, duplicateDomainsInOrder);
+                ImportRowTrackingHelper.TrackDuplicateDomain(row.Domain, duplicateDomainOccurrences, duplicateDomainsInOrder);
 
                 if (error is not null)
                 {
                     invalidRowsCount++;
-                    AddInvalidRow(invalidRowsPayload, row.RowNumber, rawValues, error.Message);
+                    ImportRowTrackingHelper.AddInvalidRow(invalidRowsPayload, row.RowNumber, rawValues, error.Message);
                     continue;
                 }
 
@@ -137,7 +138,12 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                 continue;
             }
 
-            SitesUpdateImportApplier.Apply(site, update);
+            foreach (var pricingWarning in CreatePricingWarnings(site, update))
+            {
+                warningRowsPayload.Rows.Add(pricingWarning);
+            }
+
+            SitesUpdateImportApplier.Apply(site, update, now);
             site.UpdatedAtUtc = now;
             site.UpdatedBy = auditUser;
             result.UpdatedCount++;
@@ -204,6 +210,8 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         foreach (var chunk in Chunk(domains, BatchSize))
         {
             var sites = await _context.Sites
+                .Include(s => s.PriceOptions)
+                .Include(s => s.ServiceAvailabilities)
                 .Where(s => chunk.Contains(s.Domain))
                 .ToListAsync(cancellationToken);
 
@@ -225,34 +233,6 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         }
 
         return update;
-    }
-
-    private static async IAsyncEnumerable<(SitesImportRowDto Row, List<string> RawValues)> ReadRowsAsync(
-        CsvReader csv,
-        int headerCount,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        var columnIndexes = BuildColumnIndexes(csv.HeaderRecord ?? Array.Empty<string>());
-        var rowNumber = 1;
-
-        while (await csv.ReadAsync().ConfigureAwait(false))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            rowNumber++;
-
-            var rawRecord = csv.Parser.Record ?? Array.Empty<string>();
-            var rawValues = new List<string>(headerCount);
-            for (var i = 0; i < headerCount; i++)
-            {
-                rawValues.Add(i < rawRecord.Length ? rawRecord[i] ?? string.Empty : string.Empty);
-            }
-
-            var mappedRow = SitesImportRowMapper.Map(
-                columnName => columnIndexes.TryGetValue(columnName, out var index) ? csv.GetField(index)?.Trim() : null,
-                rowNumber);
-
-            yield return (mappedRow, rawValues);
-        }
     }
 
     private static void AddUpdateCandidate(
@@ -326,20 +306,6 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         _context.ImportLogs.Add(log);
     }
 
-    private static void AddInvalidRow(
-        InvalidRowsImportArtifactPayload payload,
-        int sourceRowNumber,
-        IReadOnlyCollection<string> rawValues,
-        string errorMessage)
-    {
-        payload.Rows.Add(new InvalidImportRowRecord
-        {
-            SourceRowNumber = sourceRowNumber,
-            RawValues = rawValues.ToList(),
-            Errors = new List<string> { errorMessage }
-        });
-    }
-
     private static WarningImportRowRecord? CreateLocationWarning(SitesUpdateImportRow update)
     {
         if (string.IsNullOrWhiteSpace(update.LocationWarningDetails))
@@ -350,52 +316,79 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         return new WarningImportRowRecord
         {
             Domain = update.NormalizedDomain,
-            Location = update.ImportedLocationRaw ?? string.Empty,
+            Field = ImportConstants.SitesImportColumns.Location,
+            RawValue = update.ImportedLocationRaw ?? string.Empty,
             SourceRowNumber = update.SourceRowNumber,
-            WarningDetails = update.LocationWarningDetails
+            Warning = update.LocationWarningDetails
         };
     }
 
-    private static void TrackDuplicateDomain(
-        string? rawDomain,
-        IDictionary<string, int> occurrences,
-        ICollection<string> duplicateDomainsInOrder)
+    private static IEnumerable<WarningImportRowRecord> CreatePricingWarnings(Site site, SitesUpdateImportRow update)
     {
-        var normalizedDomain = DomainNormalizer.Normalize(rawDomain);
-        if (string.IsNullOrEmpty(normalizedDomain))
-        {
-            return;
-        }
+        var serviceTypesClearedByAvailability = update.AvailabilityOperations
+            .Select(operation => operation.ServiceType)
+            .ToHashSet();
 
-        if (occurrences.TryGetValue(normalizedDomain, out var count))
+        foreach (var availabilityOperation in update.AvailabilityOperations)
         {
-            var nextCount = count + 1;
-            occurrences[normalizedDomain] = nextCount;
-            if (nextCount == 2)
+            if (site.PriceOptions.Any(price => price.PriceType == availabilityOperation.ServiceType))
             {
-                duplicateDomainsInOrder.Add(normalizedDomain);
-            }
-
-            return;
-        }
-
-        occurrences[normalizedDomain] = 1;
-    }
-
-    private static Dictionary<string, int> BuildColumnIndexes(IReadOnlyList<string> header)
-    {
-        var indexes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < header.Count; i++)
-        {
-            var normalized = CsvImportHelper.NormalizeHeader(header[i]);
-            if (!string.IsNullOrEmpty(normalized) && !indexes.ContainsKey(normalized))
-            {
-                indexes[normalized] = i;
+                yield return new WarningImportRowRecord
+                {
+                    Domain = update.NormalizedDomain,
+                    Field = availabilityOperation.Header,
+                    RawValue = availabilityOperation.RawValue ?? string.Empty,
+                    SourceRowNumber = update.SourceRowNumber,
+                    Warning = $"{FormatPriceTypeLabel(availabilityOperation.ServiceType)} status was set to {FormatAvailabilityStatus(availabilityOperation.Status)} and existing {FormatPriceTypeLabel(availabilityOperation.ServiceType)} prices were cleared."
+                };
             }
         }
 
-        return indexes;
+        foreach (var priceOperation in update.PriceOperations)
+        {
+            if (priceOperation.AmountUsd.HasValue
+                || serviceTypesClearedByAvailability.Contains(priceOperation.PriceType))
+            {
+                continue;
+            }
+
+            if (site.PriceOptions.Any(price =>
+                    price.PriceType == priceOperation.PriceType
+                    && string.Equals(price.TermKey, priceOperation.TermKey, StringComparison.Ordinal)))
+            {
+                yield return new WarningImportRowRecord
+                {
+                    Domain = update.NormalizedDomain,
+                    Field = priceOperation.Header,
+                    RawValue = priceOperation.RawValue ?? string.Empty,
+                    SourceRowNumber = update.SourceRowNumber,
+                    Warning = "Existing price was cleared because the imported cell was empty."
+                };
+            }
+        }
     }
+
+    private static string FormatAvailabilityStatus(ServiceAvailabilityStatus status)
+        => status switch
+        {
+            ServiceAvailabilityStatus.Unknown => "Unknown",
+            ServiceAvailabilityStatus.AvailableWithUnknownPrice => "AvailableWithUnknownPrice",
+            ServiceAvailabilityStatus.NotAvailable => "NotAvailable",
+            ServiceAvailabilityStatus.Available => "Available",
+            _ => status.ToString()
+        };
+
+    private static string FormatPriceTypeLabel(PriceType priceType)
+        => priceType switch
+        {
+            PriceType.Casino => "Casino",
+            PriceType.Crypto => "Crypto",
+            PriceType.LinkInsertion => "Link Insert",
+            PriceType.LinkInsertionCasino => "Link Insert Casino",
+            PriceType.Dating => "Dating",
+            PriceType.Main => "Main",
+            _ => priceType.ToString()
+        };
 
     private void AttachSummaryAndDownloads(
         SitesUpdateImportResult result,
