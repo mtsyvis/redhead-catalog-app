@@ -264,6 +264,7 @@ Rules:
 * During sites update import, a present empty term-specific main price column such as `PriceUsd [1 year]` clears that exact `SitePriceOption`; a missing price column leaves that exact pricing data unchanged.
 * During sites update import, service price and availability fields may be omitted, cleared, or set unavailable according to field-level rules; update rows are not rejected only because no numeric price remains.
 * During sites import and sites update import, if a term-specific `PriceUsd [...]` value is provided, it must be greater than `0`.
+* Site exports use `SitePriceOptions` as the source of truth for the `Price USD` column. The exported cell contains all known terms for that site in compact form, for example `1 year: $100; Permanent: $300`; if no main price exists, export `—`.
 * Invalid price data must create row-level validation errors.
 * Empty input in an import file means empty value, not implicit zero.
 
@@ -296,6 +297,7 @@ Rules:
 * Do not represent service availability only as nullable decimal; availability and price are separate concepts.
 * UI must not mislead users by showing unavailable services as zero-price services.
 * UI and exports show `YES` for `AvailableWithUnknownPrice`, `NO` for `NotAvailable`, and empty/placeholder values for `Unknown`.
+* Site exports use `SitePriceOptions` and `SiteServiceAvailabilities` as the source of truth for service price columns. If service prices exist, export all known term prices in compact form, for example `1 year: $350; Permanent: $700`; otherwise export `YES`, `NO`, or `—` from the service availability status.
 
 ### Additional site fields
 
