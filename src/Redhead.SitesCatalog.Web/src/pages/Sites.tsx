@@ -56,6 +56,7 @@ const INITIAL_FILTERS: FiltersType = {
   trafficMax: '',
   priceMin: '',
   priceMax: '',
+  termKey: null,
   stopListDomains: [],
   locationSelections: [],
   excludedLocationKeys: [],
@@ -89,6 +90,7 @@ function hasGridFiltersActive(filters: FiltersType): boolean {
     filters.trafficMax !== INITIAL_FILTERS.trafficMax ||
     filters.priceMin !== INITIAL_FILTERS.priceMin ||
     filters.priceMax !== INITIAL_FILTERS.priceMax ||
+    filters.termKey !== INITIAL_FILTERS.termKey ||
     filters.locationSelections.length > 0 ||
     filters.excludedLocationKeys.length > 0 ||
     filters.niches.length !== 0 ||
@@ -246,6 +248,7 @@ export function Sites() {
       trafficMax: filters.trafficMax ? Number(filters.trafficMax) : undefined,
       priceMin: filters.priceMin ? Number(filters.priceMin) : undefined,
       priceMax: filters.priceMax ? Number(filters.priceMax) : undefined,
+      termKey: filters.termKey ?? undefined,
       stopListDomains:
         !multiSearchMode && filters.stopListDomains.length > 0
           ? filters.stopListDomains
@@ -284,6 +287,7 @@ export function Sites() {
       filters.trafficMax,
       filters.priceMin,
       filters.priceMax,
+      filters.termKey,
       filters.stopListDomains,
       filters.locationSelections,
       filters.excludedLocationKeys,
@@ -517,6 +521,7 @@ export function Sites() {
     if (filters.drMin || filters.drMax) activeColumnIds.add('dr');
     if (filters.trafficMin || filters.trafficMax) activeColumnIds.add('traffic');
     if (filters.priceMin || filters.priceMax) activeColumnIds.add('priceUsd');
+    if (filters.termKey !== INITIAL_FILTERS.termKey) activeColumnIds.add('priceUsd');
     if (filters.locationSelections.length > 0 || filters.excludedLocationKeys.length > 0) {
       activeColumnIds.add('location');
     }
@@ -552,6 +557,7 @@ export function Sites() {
     filters.trafficMax,
     filters.priceMin,
     filters.priceMax,
+    filters.termKey,
     filters.locationSelections,
     filters.excludedLocationKeys,
     filters.niches,
@@ -619,6 +625,7 @@ export function Sites() {
       trafficMax: hidden.has('traffic') ? INITIAL_FILTERS.trafficMax : current.trafficMax,
       priceMin: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMin : current.priceMin,
       priceMax: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMax : current.priceMax,
+      termKey: hidden.has('priceUsd') ? INITIAL_FILTERS.termKey : current.termKey,
       locationSelections: hidden.has('location')
         ? INITIAL_FILTERS.locationSelections
         : current.locationSelections,

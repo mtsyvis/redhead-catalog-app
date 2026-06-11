@@ -1,11 +1,16 @@
 import { useMemo } from 'react';
-import { IconButton, Tooltip } from '@mui/material';
+import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { Site } from '../../../types/sites.types';
 import { formatLanguageTableValue } from '../../../utils/language';
-import { formatOptionalServicePrice } from '../../../utils/serviceAvailability';
 import { formatTerm } from '../../../utils/term';
+import {
+  PRICE_FIELD_TO_TYPE,
+  PRICE_TYPE,
+  formatMainPriceCell,
+  formatOptionalServicePriceCell,
+} from '../../../utils/pricing';
 import { StatusBadge } from '../feedback/StatusBadge';
 import { TruncatedTextCell } from '../cells/TruncatedTextCell';
 import type { GridRow } from './useSitesGridRows';
@@ -26,18 +31,6 @@ interface UseSitesColumnsOptions {
 
 function formatCell<T>(row: GridRow, value: T, format: (v: T) => string): string {
   return isNotFoundRow(row) ? '—' : format(value);
-}
-
-function formatPrice(row: GridRow, value: number | null): string {
-  return formatCell(row, value, (v) => (v == null ? 'NO' : `$${v}`));
-}
-
-function formatOptionalServiceCell(
-  row: GridRow,
-  price: number | null,
-  status: Site['priceCasinoStatus']
-): string {
-  return formatCell(row, price, (v) => formatOptionalServicePrice(status, v));
 }
 
 function formatNullableInteger(row: GridRow, value: number | null): string {
@@ -75,6 +68,23 @@ function formatLocationCell(row: GridRow, value: string | null): string {
 
 function renderTruncatedTextCell(value: string) {
   return <TruncatedTextCell value={value} />;
+}
+
+function renderPriceCell(summary: { primary: string; secondary: string | null; title: string }) {
+  return (
+    <Tooltip title={summary.title} disableInteractive>
+      <Box sx={{ minWidth: 0, overflow: 'hidden', lineHeight: 1.2 }}>
+        <Typography variant="body2" noWrap sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+          {summary.primary}
+        </Typography>
+        {summary.secondary && (
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+            {summary.secondary}
+          </Typography>
+        )}
+      </Box>
+    </Tooltip>
+  );
 }
 
 const columnMetadata: Record<string, SitesColumnMetadata> = Object.fromEntries(
@@ -146,50 +156,94 @@ export function useSitesColumns({
           ...gridColumnDefaults('priceUsd', columnWidths),
           field: 'priceUsd',
           type: 'number',
-          valueFormatter: (value, row) => formatPrice(row, value as number | null),
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row) ? '—' : formatMainPriceCell(row as Site).primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(formatMainPriceCell(params.row as Site)),
         },
         {
           ...gridColumnDefaults('priceCasino', columnWidths),
           field: 'priceCasino',
           type: 'number',
-          valueFormatter: (value, row) =>
-            formatOptionalServiceCell(row, value as number | null, (row as Site).priceCasinoStatus),
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row)
+              ? '—'
+              : formatOptionalServicePriceCell(row as Site, PRICE_FIELD_TO_TYPE.priceCasino)
+                  .primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatOptionalServicePriceCell(params.row as Site, PRICE_FIELD_TO_TYPE.priceCasino)
+                ),
         },
         {
           ...gridColumnDefaults('priceCrypto', columnWidths),
           field: 'priceCrypto',
           type: 'number',
-          valueFormatter: (value, row) =>
-            formatOptionalServiceCell(row, value as number | null, (row as Site).priceCryptoStatus),
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row)
+              ? '—'
+              : formatOptionalServicePriceCell(row as Site, PRICE_FIELD_TO_TYPE.priceCrypto)
+                  .primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatOptionalServicePriceCell(params.row as Site, PRICE_FIELD_TO_TYPE.priceCrypto)
+                ),
         },
         {
           ...gridColumnDefaults('priceLinkInsert', columnWidths),
           field: 'priceLinkInsert',
           type: 'number',
-          valueFormatter: (value, row) =>
-            formatOptionalServiceCell(
-              row,
-              value as number | null,
-              (row as Site).priceLinkInsertStatus
-            ),
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row)
+              ? '—'
+              : formatOptionalServicePriceCell(row as Site, PRICE_TYPE.LinkInsertion).primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatOptionalServicePriceCell(params.row as Site, PRICE_TYPE.LinkInsertion)
+                ),
         },
         {
           ...gridColumnDefaults('priceLinkInsertCasino', columnWidths),
           field: 'priceLinkInsertCasino',
           type: 'number',
-          valueFormatter: (value, row) =>
-            formatOptionalServiceCell(
-              row,
-              value as number | null,
-              (row as Site).priceLinkInsertCasinoStatus
-            ),
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row)
+              ? '—'
+              : formatOptionalServicePriceCell(row as Site, PRICE_TYPE.LinkInsertionCasino)
+                  .primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatOptionalServicePriceCell(
+                    params.row as Site,
+                    PRICE_TYPE.LinkInsertionCasino
+                  )
+                ),
         },
         {
           ...gridColumnDefaults('priceDating', columnWidths),
           field: 'priceDating',
           type: 'number',
-          valueFormatter: (value, row) =>
-            formatOptionalServiceCell(row, value as number | null, (row as Site).priceDatingStatus),
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row)
+              ? '—'
+              : formatOptionalServicePriceCell(row as Site, PRICE_FIELD_TO_TYPE.priceDating)
+                  .primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatOptionalServicePriceCell(params.row as Site, PRICE_FIELD_TO_TYPE.priceDating)
+                ),
         },
         {
           ...gridColumnDefaults('niche', columnWidths),

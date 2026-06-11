@@ -218,7 +218,8 @@ public sealed class UserSavedFilterSetsServiceTests
     private static SavedFilterSettingsDto CreateSettings(
         IReadOnlyCollection<string>? stopListDomains = null,
         IReadOnlyCollection<string>? niches = null,
-        string topicFitMode = TopicFitModeValues.Expand)
+        string topicFitMode = TopicFitModeValues.Expand,
+        string? termKey = null)
         => new()
         {
             SchemaVersion = SavedFilterSetConstants.SchemaVersion,
@@ -229,6 +230,7 @@ public sealed class UserSavedFilterSetsServiceTests
             TrafficMax = string.Empty,
             PriceMin = string.Empty,
             PriceMax = "500",
+            TermKey = termKey,
             LocationSelections = new List<SavedFilterLocationSelectionDto>(),
             ExcludedLocationKeys = new List<string>(),
             Niches = niches?.ToList() ?? new List<string>(),

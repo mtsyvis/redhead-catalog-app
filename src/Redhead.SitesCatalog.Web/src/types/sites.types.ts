@@ -35,6 +35,7 @@ export interface Site {
   updatedBy?: string | null;
   lastPublishedDate: string | null;
   lastPublishedDateIsMonthOnly: boolean;
+  pricing?: SitePricingDto | null;
 }
 
 /**
@@ -60,6 +61,7 @@ export interface SitesQueryParams {
   trafficMax?: number;
   priceMin?: number;
   priceMax?: number;
+  termKey?: string;
   stopListDomains?: string[];
   /** Legacy location display-name filter. Prefer canonical locationKeys/locationGroupKeys. */
   location?: string[];
@@ -125,6 +127,49 @@ export interface LocationFilterOptions {
 export interface FilterOptionsResponse {
   niches: FilterOption[];
   locations?: LocationFilterOptions | null;
+  terms?: TermFilterOptionDto[] | null;
+}
+
+export type PriceType =
+  | 'Main'
+  | 'Casino'
+  | 'Crypto'
+  | 'LinkInsertion'
+  | 'LinkInsertionCasino'
+  | 'Dating'
+  | 0
+  | 1
+  | 2
+  | 3
+  | 4
+  | 5;
+
+export interface SitePriceOptionDto {
+  priceType: PriceType;
+  termKey: string;
+  termType?: TermType | null;
+  termValue?: number | null;
+  termUnit?: TermUnit | null;
+  termLabel: string;
+  amountUsd: number;
+}
+
+export interface SiteServiceAvailabilityDto {
+  serviceType: PriceType;
+  status: ServiceAvailabilityStatus;
+}
+
+export interface SitePricingDto {
+  prices: SitePriceOptionDto[];
+  serviceAvailabilities: SiteServiceAvailabilityDto[];
+}
+
+export interface TermFilterOptionDto {
+  termKey: string;
+  label: string;
+  termType?: TermType | null;
+  termValue?: number | null;
+  termUnit?: TermUnit | null;
 }
 
 export type LocationFilterSelection =
@@ -169,6 +214,7 @@ export interface SitesFilters {
   trafficMax: string;
   priceMin: string;
   priceMax: string;
+  termKey: string | null;
   stopListDomains: string[];
   locationSelections: LocationFilterSelection[];
   excludedLocationKeys: string[];
