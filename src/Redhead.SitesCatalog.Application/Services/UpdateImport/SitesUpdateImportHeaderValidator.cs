@@ -72,11 +72,6 @@ internal static class SitesUpdateImportHeaderValidator
                 throw new ImportHeaderValidationException("CSV header is invalid. Main pricing must not include an availability column.");
             }
 
-            if (SitesInsertImportHeaderParser.IsLegacyPricingHeader(header))
-            {
-                throw new ImportHeaderValidationException($"CSV header is invalid. Legacy pricing column is not supported: '{header}'.");
-            }
-
             if (header.StartsWith("Price", StringComparison.OrdinalIgnoreCase))
             {
                 throw new ImportHeaderValidationException($"CSV header is invalid. Unknown pricing column: '{header}'.");

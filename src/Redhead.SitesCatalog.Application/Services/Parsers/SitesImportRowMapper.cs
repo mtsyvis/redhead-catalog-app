@@ -24,15 +24,7 @@ public static class SitesImportRowMapper
         var drRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.DR);
         var trafficRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.Traffic);
         var location = TryGetValue(getValue, ImportConstants.SitesImportColumns.Location);
-        // LEGACY_PRICING: flat pricing values are populated for temporary legacy compatibility only.
-        var priceUsdRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceUsd);
-        var priceCasinoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceCasino);
-        var priceCryptoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceCrypto);
-        var priceLinkInsertRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceLinkInsert);
-        var priceLinkInsertCasinoRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceLinkInsertCasino);
-        var priceDatingRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PriceDating);
         var numberDFLinksRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.NumberDFLinks);
-        var termRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.Term);
         var language = TryGetValue(getValue, ImportConstants.SitesImportColumns.Language);
         var niche = TryGetValue(getValue, ImportConstants.SitesImportColumns.Niche);
         var categories = TryGetValue(getValue, ImportConstants.SitesImportColumns.Categories);
@@ -47,16 +39,8 @@ public static class SitesImportRowMapper
             TrafficRaw = trafficRaw,
             Traffic = ParseNullableLong(trafficRaw),
             Location = location,
-            PriceUsdRaw = priceUsdRaw,
-            PriceUsd = ParseNullableDecimal(priceUsdRaw),
-            PriceCasinoRaw = priceCasinoRaw,
-            PriceCryptoRaw = priceCryptoRaw,
-            PriceLinkInsertRaw = priceLinkInsertRaw,
-            PriceLinkInsertCasinoRaw = priceLinkInsertCasinoRaw,
-            PriceDatingRaw = priceDatingRaw,
             NumberDFLinksRaw = numberDFLinksRaw,
             NumberDFLinks = ParseNullableIntStrict(numberDFLinksRaw),
-            TermRaw = termRaw,
             Language = language,
             Niche = niche,
             Categories = categories,

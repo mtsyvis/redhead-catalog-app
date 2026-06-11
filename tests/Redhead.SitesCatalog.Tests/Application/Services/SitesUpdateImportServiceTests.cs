@@ -192,21 +192,6 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData("PriceUsd")]
-    [InlineData("Term")]
-    public async Task ImportAsync_LegacyPricingHeader_ThrowsImportHeaderValidationException(string header)
-    {
-        // Arrange
-        using var stream = Utf8Csv($"Domain,{header}\nexisting.com,100\n");
-
-        // Act
-        var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
-
-        // Assert
-        Assert.Contains("Legacy pricing column is not supported", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
     [InlineData("NO")]
     [InlineData("YES")]
     [InlineData("")]

@@ -142,20 +142,6 @@ public sealed class SitesImportServiceTests : IDisposable
         AssertAvailability(site, PriceType.LinkInsertionCasino, ServiceAvailabilityStatus.Available);
     }
 
-    [Theory]
-    [InlineData("PriceUsd")]
-    [InlineData("Term")]
-    public async Task ImportAsync_WithLegacyPricingHeader_ThrowsImportHeaderValidationException(string legacyHeader)
-    {
-        // Arrange
-        using var stream = Utf8Csv(HeaderLine(legacyHeader) + Row("legacy.com"));
-
-        // Act
-        var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
-
-        // Assert
-        Assert.Contains("Legacy pricing column is not supported", exception.Message, StringComparison.Ordinal);
-    }
 
     [Theory]
     [InlineData("PriceUsd [1 month]")]

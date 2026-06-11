@@ -95,17 +95,11 @@ public static class ImportConstants
         public const string DR = "DR";
         public const string Traffic = "Traffic";
         public const string Location = "Location";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceUsd = "PriceUsd";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceCasino = "PriceCasino";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceCrypto = "PriceCrypto";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceLinkInsert = "PriceLinkInsert";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceLinkInsertCasino = "PriceLinkInsertCasino";
-        // LEGACY_PRICING: bare flat pricing headers are rejected by insert/update imports and kept temporarily for legacy flows.
         public const string PriceDating = "PriceDating";
         public const string PriceCasinoAvailability = "PriceCasinoAvailability";
         public const string PriceCryptoAvailability = "PriceCryptoAvailability";
@@ -116,7 +110,6 @@ public static class ImportConstants
         public const string Categories = "Categories";
         public const string NumberDFLinks = "NumberDFLinks";
         public const string SponsoredTag = "SponsoredTag";
-        // LEGACY_PRICING: the old site-level term column is rejected by insert/update imports and kept temporarily for legacy flows.
         public const string Term = "Term";
         public const string Language = "Language";
     }
@@ -160,40 +153,4 @@ public static class ImportConstants
         SitesImportColumns.Language,
     };
 
-    /// <summary>
-    /// LEGACY_PRICING: legacy flat-pricing column order kept temporarily for old tests/migration references.
-    /// </summary>
-    public static readonly string[] SitesImportLegacyColumnOrder =
-    {
-        SitesImportColumns.Domain,
-        SitesImportColumns.DR,
-        SitesImportColumns.Traffic,
-        SitesImportColumns.Location,
-        SitesImportColumns.PriceUsd,
-        SitesImportColumns.PriceCasino,
-        SitesImportColumns.PriceCrypto,
-        SitesImportColumns.PriceLinkInsert,
-        SitesImportColumns.PriceLinkInsertCasino,
-        SitesImportColumns.PriceDating,
-        SitesImportColumns.Niche,
-        SitesImportColumns.Categories,
-        SitesImportColumns.NumberDFLinks,
-        SitesImportColumns.SponsoredTag,
-        SitesImportColumns.Term,
-        SitesImportColumns.Language,
-    };
-
-    /// <summary>
-    /// LEGACY_PRICING: bare flat pricing headers rejected by new insert/update imports.
-    /// </summary>
-    public static readonly string[] SitesImportLegacyPricingHeaders =
-    {
-        SitesImportColumns.PriceUsd,
-        SitesImportColumns.PriceCasino,
-        SitesImportColumns.PriceCrypto,
-        SitesImportColumns.PriceLinkInsert,
-        SitesImportColumns.PriceLinkInsertCasino,
-        SitesImportColumns.PriceDating,
-        SitesImportColumns.Term,
-    };
 }
