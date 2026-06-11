@@ -1,0 +1,352 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Redhead.SitesCatalog.Application.Models.Import;
+using Redhead.SitesCatalog.Application.Services.Import.Artifacts;
+using Redhead.SitesCatalog.Application.Services.Import.Common;
+using Redhead.SitesCatalog.Application.Services.Import.Csv;
+using Redhead.SitesCatalog.Domain;
+using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Exceptions;
+using Redhead.SitesCatalog.Infrastructure.Data;
+
+namespace Redhead.SitesCatalog.Application.Services.Import.Quarantine;
+
+/// <summary>
+/// Imports availability updates from CSV with strict action-specific header order.
+/// Matching rule: exact match by normalized domain.
+/// Processing model:
+/// 1) Parse rows and build per-domain update map (last row wins)
+/// 2) Load Sites in batches
+/// 3) Apply updates and persist once
+/// </summary>
+public sealed class QuarantineImportService : IQuarantineImportService
+{
+    private const int BatchSize = 1000;
+
+    private const string HeaderDomain = "Domain";
+    private const string HeaderReason = "Reason";
+
+    private static readonly string[] MarkUnavailableRequiredHeaderOrder =
+    {
+        HeaderDomain,
+        HeaderReason
+    };
+
+    private static readonly string[] RestoreAvailableRequiredHeaderOrder =
+    {
+        HeaderDomain
+    };
+
+    private readonly ApplicationDbContext _context;
+    private readonly ILogger<QuarantineImportService> _logger;
+    private readonly IImportArtifactStorageService _importArtifactStorageService;
+
+    private sealed record ParsedUpdate(string? Reason);
+
+    public QuarantineImportService(
+        ApplicationDbContext context,
+        ILogger<QuarantineImportService> logger,
+        IImportArtifactStorageService importArtifactStorageService)
+    {
+        _context = context;
+        _logger = logger;
+        _importArtifactStorageService = importArtifactStorageService;
+    }
+
+    public async Task<SitesUpdateImportResult> ImportAsync(
+        Stream fileStream,
+        string fileName,
+        string? contentType,
+        string userId,
+        string userEmail,
+        SiteAvailabilityImportAction action,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Availability import started. FileName={FileName}, Action={Action}, UserId={UserId}, UserEmail={UserEmail}",
+            fileName,
+            action,
+            userId,
+            userEmail);
+
+        var requiredHeaderOrder = GetRequiredHeaderOrder(action);
+        var result = new SitesUpdateImportResult();
+        var invalidRowsCount = 0;
+        var duplicateRowsCount = 0;
+        var unmatchedDomainsCount = 0;
+        var now = DateTime.UtcNow;
+        var auditUser = AuditUserFormatter.Format(userEmail);
+        var invalidRowsPayload = new InvalidRowsImportArtifactPayload();
+        var unmatchedRowsPayload = new UnmatchedRowsImportArtifactPayload();
+        var validRowsByDomain = new Dictionary<string, List<UnmatchedImportRowRecord>>(StringComparer.Ordinal);
+        var duplicateDomainOccurrences = new Dictionary<string, int>(StringComparer.Ordinal);
+        var duplicateDomainsInOrder = new List<string>();
+
+        // Phase 1: parse CSV rows and build per-domain update map (last row wins)
+        var updates = new Dictionary<string, ParsedUpdate>(StringComparer.Ordinal);
+
+        await using (var session = await CsvImportSession.OpenAsync(
+                         fileStream,
+                         expectedHeaderColumnsForDelimiterDetection: requiredHeaderOrder,
+                         validateHeader: header => ValidateExactHeaderOrThrow(header, requiredHeaderOrder),
+                         ct: cancellationToken))
+        {
+            invalidRowsPayload.Headers = session.Header.ToArray();
+            unmatchedRowsPayload.Headers = session.Header.ToArray();
+
+            await foreach (var (rowNumber, domain, rawReason, rawValues) in ReadRowsAsync(
+                               session.Csv,
+                               session.Header.Length,
+                               action,
+                               cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var normalizedDomain = DomainNormalizer.Normalize(domain);
+                if (string.IsNullOrEmpty(normalizedDomain))
+                {
+                    invalidRowsCount++;
+                    ImportRowTrackingHelper.AddInvalidRow(invalidRowsPayload, rowNumber, rawValues, "Domain is required and cannot be empty after normalization.");
+                    continue;
+                }
+
+                ImportRowTrackingHelper.TrackDuplicateDomain(normalizedDomain, duplicateDomainOccurrences, duplicateDomainsInOrder);
+
+                var normalizedReason = string.IsNullOrWhiteSpace(rawReason)
+                    ? null
+                    : rawReason.Trim();
+
+                var update = new ParsedUpdate(normalizedReason);
+
+                if (updates.ContainsKey(normalizedDomain))
+                {
+                    duplicateRowsCount++;
+
+                    updates[normalizedDomain] = update;
+                }
+                else
+                {
+                    updates.Add(normalizedDomain, update);
+                }
+
+                if (!validRowsByDomain.TryGetValue(normalizedDomain, out var rows))
+                {
+                    rows = new List<UnmatchedImportRowRecord>();
+                    validRowsByDomain[normalizedDomain] = rows;
+                }
+
+                rows.Add(new UnmatchedImportRowRecord
+                {
+                    SourceRowNumber = rowNumber,
+                    RawValues = rawValues.ToList()
+                });
+            }
+        }
+
+        // Phase 2: load sites in batches
+        var domains = updates.Keys.ToList();
+        var sitesByDomain = new Dictionary<string, Site>(StringComparer.Ordinal);
+
+        foreach (var chunk in ImportBatchingHelper.Chunk(domains, BatchSize))
+        {
+            var sites = await _context.Sites
+                .Where(s => chunk.Contains(s.Domain))
+                .ToListAsync(cancellationToken);
+
+            foreach (var site in sites)
+            {
+                sitesByDomain[site.Domain] = site;
+            }
+        }
+
+        // Phase 3: apply updates and persist once
+        foreach (var (domain, update) in updates)
+        {
+            if (!sitesByDomain.TryGetValue(domain, out var site))
+            {
+                unmatchedDomainsCount++;
+                if (validRowsByDomain.TryGetValue(domain, out var unmatchedRowsForDomain))
+                {
+                    unmatchedRowsPayload.Rows.AddRange(unmatchedRowsForDomain);
+                }
+
+                continue;
+            }
+
+            if (action == SiteAvailabilityImportAction.MarkUnavailable)
+            {
+                site.IsQuarantined = true;
+                site.QuarantineReason = update.Reason;
+            }
+            else
+            {
+                site.IsQuarantined = false;
+                site.QuarantineReason = null;
+            }
+
+            site.QuarantineUpdatedAtUtc = now;
+            site.UpdatedAtUtc = now;
+            site.UpdatedBy = auditUser;
+
+            result.UpdatedCount++;
+        }
+
+        AddImportLog(result.UpdatedCount, unmatchedDomainsCount, invalidRowsCount, duplicateRowsCount, userId, userEmail);
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Availability import completed. Action={Action}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}, UserId={UserId}",
+            action,
+            result.UpdatedCount,
+            unmatchedDomainsCount,
+            invalidRowsCount,
+            duplicateRowsCount,
+            userId);
+
+        AttachSummaryAndDownloads(
+            result,
+            invalidRowsPayload,
+            unmatchedRowsPayload,
+            ImportConstants.ImportArtifactSlugQuarantine,
+            invalidRowsCount,
+            duplicateDomainsInOrder);
+        return result;
+    }
+
+    private static async IAsyncEnumerable<(int RowNumber, string Domain, string? RawReason, List<string> RawValues)> ReadRowsAsync(
+        CsvHelper.CsvReader csv,
+        int headerCount,
+        SiteAvailabilityImportAction action,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        // Row 1 = header
+        var rowNumber = 1;
+
+        while (await csv.ReadAsync().ConfigureAwait(false))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            rowNumber++;
+
+            var rawRecord = csv.Parser.Record ?? Array.Empty<string>();
+            var rawValues = new List<string>(headerCount);
+            for (var i = 0; i < headerCount; i++)
+            {
+                rawValues.Add(i < rawRecord.Length ? rawRecord[i] ?? string.Empty : string.Empty);
+            }
+
+            var domain = csv.GetField(0)?.Trim();
+            var rawReason = action == SiteAvailabilityImportAction.MarkUnavailable
+                ? csv.GetField(1)?.Trim()
+                : null;
+
+            // Skip fully empty rows
+            if (string.IsNullOrWhiteSpace(domain) && string.IsNullOrWhiteSpace(rawReason))
+            {
+                continue;
+            }
+
+            yield return (
+                rowNumber,
+                domain ?? string.Empty,
+                string.IsNullOrWhiteSpace(rawReason) ? null : rawReason,
+                rawValues);
+        }
+    }
+
+    private static string[] GetRequiredHeaderOrder(SiteAvailabilityImportAction action)
+    {
+        return action switch
+        {
+            SiteAvailabilityImportAction.MarkUnavailable => MarkUnavailableRequiredHeaderOrder,
+            SiteAvailabilityImportAction.RestoreAvailable => RestoreAvailableRequiredHeaderOrder,
+            _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unsupported availability import action.")
+        };
+    }
+
+    private static void ValidateExactHeaderOrThrow(string[] actualHeader, string[] requiredHeaderOrder)
+    {
+        CsvImportHelper.ValidateHeaderStrictOrThrow(actualHeader, requiredHeaderOrder);
+
+        if (actualHeader.Length == requiredHeaderOrder.Length)
+        {
+            return;
+        }
+
+        throw new ImportHeaderValidationException(
+            $"CSV header is invalid. Expected exactly: {string.Join(", ", requiredHeaderOrder)}. " +
+            $"Found: {string.Join(", ", actualHeader.Select(CsvImportHelper.NormalizeHeader))}.");
+    }
+
+    private void AddImportLog(
+        int updatedCount,
+        int unmatchedDomainsCount,
+        int invalidRowsCount,
+        int duplicateRowsCount,
+        string userId,
+        string userEmail)
+    {
+        var log = new ImportLog
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            UserEmail = userEmail,
+            Type = ImportConstants.ImportTypeQuarantine,
+            TimestampUtc = DateTime.UtcNow,
+            Inserted = 0,
+            Duplicates = duplicateRowsCount,
+            Matched = updatedCount,
+            Unmatched = unmatchedDomainsCount,
+            ErrorsCount = invalidRowsCount
+        };
+
+        _context.ImportLogs.Add(log);
+    }
+
+    private void AttachSummaryAndDownloads(
+        SitesUpdateImportResult result,
+        InvalidRowsImportArtifactPayload invalidRowsPayload,
+        UnmatchedRowsImportArtifactPayload unmatchedRowsPayload,
+        string importType,
+        int invalidRowsCount,
+        IReadOnlyCollection<string> duplicateDomainsInOrder)
+    {
+        result.InvalidRowsCount = invalidRowsCount;
+        result.UnmatchedRowsCount = unmatchedRowsPayload.Rows.Count;
+        result.DuplicateDomainsCount = duplicateDomainsInOrder.Count;
+        result.DuplicateDomainsPreview = duplicateDomainsInOrder
+            .Take(ImportConstants.DuplicateDomainsPreviewLimit)
+            .ToList();
+
+        ImportDownloadItem? invalidRowsDownload = null;
+        if (invalidRowsPayload.Rows.Count > 0)
+        {
+            var handle = _importArtifactStorageService.StoreInvalidRows(importType, invalidRowsPayload);
+            invalidRowsDownload = new ImportDownloadItem
+            {
+                Available = true,
+                Token = handle.Token,
+                FileName = handle.FileName
+            };
+        }
+
+        ImportDownloadItem? unmatchedRowsDownload = null;
+        if (unmatchedRowsPayload.Rows.Count > 0)
+        {
+            var handle = _importArtifactStorageService.StoreUnmatchedRows(importType, unmatchedRowsPayload);
+            unmatchedRowsDownload = new ImportDownloadItem
+            {
+                Available = true,
+                Token = handle.Token,
+                FileName = handle.FileName
+            };
+        }
+
+        result.Downloads = new ImportDownloadsInfo
+        {
+            InvalidRows = invalidRowsDownload,
+            UnmatchedRows = unmatchedRowsDownload
+        };
+    }
+}
