@@ -1,35 +1,42 @@
 import type {
   ServiceAvailabilityStatusValue,
   Site,
-  TermTypeValue,
   UpdateSitePayload,
 } from '../../../types/sites.types';
 import {
-  normalizeServiceAvailabilityStatus,
   SERVICE_AVAILABILITY_STATUS,
+  normalizeServiceAvailabilityStatus,
 } from '../../../utils/serviceAvailability';
 import { normalizeLanguageCode } from '../../../utils/language';
-import { normalizeTermType, TERM_TYPE, TERM_UNIT } from '../../../utils/term';
+import {
+  OPTIONAL_PRICE_TYPES,
+  PRICE_TYPE,
+  PRICE_TYPE_LABELS,
+  PRICING_SECTION_ORDER,
+  TERM_KEY_OPTIONS,
+  type PriceTypeValue,
+  buildTermPayloadFromKey,
+  getPrices,
+  getServiceStatus,
+} from '../../../utils/pricing';
+
+export type PricingPriceRow = {
+  id: string;
+  priceType: PriceTypeValue;
+  termKey: string;
+  amountUsd: string;
+};
+
+export type PricingStatusState = Partial<Record<PriceTypeValue, ServiceAvailabilityStatusValue>>;
 
 export type EditSiteFormState = {
   dr: string;
   traffic: string;
   location: string;
   language: string;
-  priceUsd: string;
-  priceCasino: string;
-  priceCasinoStatus: ServiceAvailabilityStatusValue;
-  priceCrypto: string;
-  priceCryptoStatus: ServiceAvailabilityStatusValue;
-  priceLinkInsert: string;
-  priceLinkInsertStatus: ServiceAvailabilityStatusValue;
-  priceLinkInsertCasino: string;
-  priceLinkInsertCasinoStatus: ServiceAvailabilityStatusValue;
-  priceDating: string;
-  priceDatingStatus: ServiceAvailabilityStatusValue;
+  pricingRows: PricingPriceRow[];
+  pricingStatuses: PricingStatusState;
   numberDFLinks: string;
-  termType: '' | TermTypeValue;
-  termValue: string;
   niche: string;
   categories: string;
   sponsoredTag: string;
@@ -37,19 +44,19 @@ export type EditSiteFormState = {
   quarantineReason: string;
 };
 
-export type OptionalServiceStatusField =
-  | 'priceCasinoStatus'
-  | 'priceCryptoStatus'
-  | 'priceLinkInsertStatus'
-  | 'priceLinkInsertCasinoStatus'
-  | 'priceDatingStatus';
+export const OPTIONAL_PRICING_SECTIONS = OPTIONAL_PRICE_TYPES.map((priceType) => ({
+  priceType,
+  label: PRICE_TYPE_LABELS[priceType],
+}));
 
-export type OptionalServicePriceField =
-  | 'priceCasino'
-  | 'priceCrypto'
-  | 'priceLinkInsert'
-  | 'priceLinkInsertCasino'
-  | 'priceDating';
+export const PRICING_SECTIONS = PRICING_SECTION_ORDER.map((priceType) => ({
+  priceType,
+  label: PRICE_TYPE_LABELS[priceType],
+  isOptional: priceType !== PRICE_TYPE.Main,
+}));
+
+export const CONFIRM_CLEAR_SERVICE_PRICES_MESSAGE =
+  'Changing this service status will remove all prices for this service. Continue?';
 
 export function parseNumberOrNull(input: string): number | null {
   const t = input.trim();
@@ -58,22 +65,17 @@ export function parseNumberOrNull(input: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function validatePriceUsdField(input: string): string | null {
-  const trimmed = input.trim();
-  if (trimmed === '') return null;
-
-  const parsed = parseNumberOrNull(input);
-  if (parsed === null) return 'Price USD must be a valid number.';
-  if (parsed <= 0) return 'Price USD must be greater than 0 or empty.';
-
-  return null;
+export function createPricingRowId(priceType: PriceTypeValue, termKey: string): string {
+  return `${priceType}:${termKey}:${Math.random().toString(36).slice(2)}`;
 }
 
-export function getServiceStateHint(status: ServiceAvailabilityStatusValue): string {
-  if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) return 'Will be shown as NO';
-  if (status === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice) return 'Will be shown as YES';
-  if (status === SERVICE_AVAILABILITY_STATUS.Unknown) return 'Will be shown as —';
-  return 'Enter a price greater than 0';
+export function createEmptyPricingRow(priceType: PriceTypeValue): PricingPriceRow {
+  return {
+    id: createPricingRowId(priceType, TERM_KEY_OPTIONS[0].termKey),
+    priceType,
+    termKey: TERM_KEY_OPTIONS[0].termKey,
+    amountUsd: '',
+  };
 }
 
 export function clearFieldError(
@@ -93,20 +95,11 @@ export const EMPTY_FORM_STATE: EditSiteFormState = {
   traffic: '',
   location: '',
   language: '',
-  priceUsd: '',
-  priceCasino: '',
-  priceCasinoStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
-  priceCrypto: '',
-  priceCryptoStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
-  priceLinkInsert: '',
-  priceLinkInsertStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
-  priceLinkInsertCasino: '',
-  priceLinkInsertCasinoStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
-  priceDating: '',
-  priceDatingStatus: SERVICE_AVAILABILITY_STATUS.Unknown,
+  pricingRows: [],
+  pricingStatuses: Object.fromEntries(
+    OPTIONAL_PRICE_TYPES.map((priceType) => [priceType, SERVICE_AVAILABILITY_STATUS.Unknown])
+  ) as PricingStatusState,
   numberDFLinks: '',
-  termType: '',
-  termValue: '',
   niche: '',
   categories: '',
   sponsoredTag: '',
@@ -115,49 +108,33 @@ export const EMPTY_FORM_STATE: EditSiteFormState = {
 };
 
 export function createInitialFormState(site: Site): EditSiteFormState {
-  const casinoStatus = normalizeServiceAvailabilityStatus(site.priceCasinoStatus);
-  const cryptoStatus = normalizeServiceAvailabilityStatus(site.priceCryptoStatus);
-  const linkInsertStatus = normalizeServiceAvailabilityStatus(site.priceLinkInsertStatus);
-  const linkInsertCasinoStatus = normalizeServiceAvailabilityStatus(site.priceLinkInsertCasinoStatus);
-  const datingStatus = normalizeServiceAvailabilityStatus(site.priceDatingStatus);
-  const termType = normalizeTermType(site.termType);
+  const pricingRows = PRICING_SECTION_ORDER.flatMap((priceType) =>
+    getPrices(site, priceType).map((price) => ({
+      id: createPricingRowId(priceType, price.termKey),
+      priceType,
+      termKey: price.termKey,
+      amountUsd: String(price.amountUsd),
+    }))
+  );
+
+  const pricingStatuses = Object.fromEntries(
+    OPTIONAL_PRICE_TYPES.map((priceType) => {
+      const hasPrices = pricingRows.some((row) => row.priceType === priceType);
+      const status = hasPrices
+        ? SERVICE_AVAILABILITY_STATUS.Available
+        : normalizeServiceAvailabilityStatus(getServiceStatus(site, priceType));
+      return [priceType, status];
+    })
+  ) as PricingStatusState;
+
   return {
     dr: String(site.dr ?? ''),
     traffic: String(site.traffic ?? ''),
     location: site.location ?? '',
     language: normalizeLanguageCode(site.language) ?? '',
-    priceUsd: site.priceUsd == null ? '' : String(site.priceUsd),
-    priceCasinoStatus: casinoStatus,
-    priceCasino:
-      casinoStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceCasino != null
-        ? String(site.priceCasino)
-        : '',
-    priceCryptoStatus: cryptoStatus,
-    priceCrypto:
-      cryptoStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceCrypto != null
-        ? String(site.priceCrypto)
-        : '',
-    priceLinkInsertStatus: linkInsertStatus,
-    priceLinkInsert:
-      linkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceLinkInsert != null
-        ? String(site.priceLinkInsert)
-        : '',
-    priceLinkInsertCasinoStatus: linkInsertCasinoStatus,
-    priceLinkInsertCasino:
-      linkInsertCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceLinkInsertCasino != null
-        ? String(site.priceLinkInsertCasino)
-        : '',
-    priceDatingStatus: datingStatus,
-    priceDating:
-      datingStatus === SERVICE_AVAILABILITY_STATUS.Available && site.priceDating != null
-        ? String(site.priceDating)
-        : '',
+    pricingRows,
+    pricingStatuses,
     numberDFLinks: site.numberDFLinks == null ? '' : String(site.numberDFLinks),
-    termType: termType ?? '',
-    termValue:
-      termType === TERM_TYPE.Finite && site.termValue != null
-        ? String(site.termValue)
-        : '',
     niche: site.niche ?? '',
     categories: site.categories ?? '',
     sponsoredTag: site.sponsoredTag ?? '',
@@ -166,16 +143,51 @@ export function createInitialFormState(site: Site): EditSiteFormState {
   };
 }
 
-function validateOptionalServicePrice(
-  price: string,
-  fieldKey: string,
+export function getPriceRowsForType(
+  form: EditSiteFormState,
+  priceType: PriceTypeValue
+): PricingPriceRow[] {
+  return form.pricingRows.filter((row) => row.priceType === priceType);
+}
+
+function validatePricingRows(
+  form: EditSiteFormState,
   errors: Record<string, string[]>
 ): void {
-  const parsed = parseNumberOrNull(price);
-  if (parsed === null) {
-    errors[fieldKey] = ['Required when status is Has price.'];
-  } else if (parsed <= 0) {
-    errors[fieldKey] = ['Must be greater than 0.'];
+  const seenTerms = new Set<string>();
+
+  for (const row of form.pricingRows) {
+    const amountKey = pricingAmountErrorKey(row.id);
+    const termKey = pricingTermErrorKey(row.id);
+    const amount = parseNumberOrNull(row.amountUsd);
+
+    if (row.amountUsd.trim() === '') {
+      errors[amountKey] = ['Amount is required.'];
+    } else if (amount === null) {
+      errors[amountKey] = ['Amount must be a valid number.'];
+    } else if (amount <= 0) {
+      errors[amountKey] = ['Amount must be greater than 0.'];
+    }
+
+    const duplicateKey = `${row.priceType}:${row.termKey}`;
+    if (seenTerms.has(duplicateKey)) {
+      errors[termKey] = [`Duplicate ${PRICE_TYPE_LABELS[row.priceType]} term.`];
+    }
+    seenTerms.add(duplicateKey);
+  }
+
+  for (const priceType of OPTIONAL_PRICE_TYPES) {
+    const status = form.pricingStatuses[priceType] ?? SERVICE_AVAILABILITY_STATUS.Unknown;
+    const rows = getPriceRowsForType(form, priceType);
+    const statusKey = pricingStatusErrorKey(priceType);
+
+    if (status === SERVICE_AVAILABILITY_STATUS.Available && rows.length === 0) {
+      errors[statusKey] = ['Add at least one price or choose YES, NO, or Unknown.'];
+    }
+
+    if (status !== SERVICE_AVAILABILITY_STATUS.Available && rows.length > 0) {
+      errors[statusKey] = ['Remove prices before saving this service status.'];
+    }
   }
 }
 
@@ -198,27 +210,7 @@ export function validateEditSiteForm(form: EditSiteFormState): Record<string, st
     errors.location = ['Location is required.'];
   }
 
-  const parsedPriceUsd = parseNumberOrNull(form.priceUsd);
-  const priceUsdError = validatePriceUsdField(form.priceUsd);
-  if (priceUsdError) {
-    errors.priceUsd = [priceUsdError];
-  }
-
-  if (form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-    validateOptionalServicePrice(form.priceCasino, 'priceCasino', errors);
-  }
-  if (form.priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-    validateOptionalServicePrice(form.priceCrypto, 'priceCrypto', errors);
-  }
-  if (form.priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-    validateOptionalServicePrice(form.priceLinkInsert, 'priceLinkInsert', errors);
-  }
-  if (form.priceLinkInsertCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-    validateOptionalServicePrice(form.priceLinkInsertCasino, 'priceLinkInsertCasino', errors);
-  }
-  if (form.priceDatingStatus === SERVICE_AVAILABILITY_STATUS.Available) {
-    validateOptionalServicePrice(form.priceDating, 'priceDating', errors);
-  }
+  validatePricingRows(form, errors);
 
   const parsedNumberDFLinks = parseNumberOrNull(form.numberDFLinks);
   if (form.numberDFLinks.trim() !== '') {
@@ -229,95 +221,51 @@ export function validateEditSiteForm(form: EditSiteFormState): Record<string, st
     }
   }
 
-  if (form.termType === TERM_TYPE.Finite) {
-    const parsedTermValue = parseNumberOrNull(form.termValue);
-    if (parsedTermValue === null || parsedTermValue <= 0) {
-      errors.termValue = ['Term value must be greater than 0.'];
-    } else if (!Number.isInteger(parsedTermValue)) {
-      errors.termValue = ['Term value must be a whole number.'];
-    }
-  }
-
-  const casinoNumericPrice =
-    form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available
-      ? parseNumberOrNull(form.priceCasino)
-      : null;
-  const cryptoNumericPrice =
-    form.priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available
-      ? parseNumberOrNull(form.priceCrypto)
-      : null;
-  const linkInsertNumericPrice =
-    form.priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available
-      ? parseNumberOrNull(form.priceLinkInsert)
-      : null;
-  const linkInsertCasinoNumericPrice =
-    form.priceLinkInsertCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available
-      ? parseNumberOrNull(form.priceLinkInsertCasino)
-      : null;
-  const datingNumericPrice =
-    form.priceDatingStatus === SERVICE_AVAILABILITY_STATUS.Available
-      ? parseNumberOrNull(form.priceDating)
-      : null;
-
-  if (
-    parsedPriceUsd === null &&
-    casinoNumericPrice === null &&
-    cryptoNumericPrice === null &&
-    linkInsertNumericPrice === null &&
-    linkInsertCasinoNumericPrice === null &&
-    datingNumericPrice === null
-  ) {
-    const errorText = 'At least one numeric price is required.';
-    errors.priceUsd ??= [errorText];
-    errors.priceCasino = [errorText];
-    errors.priceCrypto = [errorText];
-    errors.priceLinkInsert = [errorText];
-    errors.priceLinkInsertCasino = [errorText];
-    errors.priceDating = [errorText];
-  }
-
   return errors;
 }
 
+export function pricingAmountErrorKey(rowId: string): string {
+  return `pricing.rows.${rowId}.amountUsd`;
+}
+
+export function pricingTermErrorKey(rowId: string): string {
+  return `pricing.rows.${rowId}.termKey`;
+}
+
+export function pricingStatusErrorKey(priceType: PriceTypeValue): string {
+  return `pricing.status.${priceType}`;
+}
+
 export function buildUpdateSitePayload(form: EditSiteFormState): UpdateSitePayload {
+  const prices = form.pricingRows.map((row) => {
+    const term = buildTermPayloadFromKey(row.termKey);
+    return {
+      priceType: row.priceType,
+      ...term,
+      amountUsd: parseNumberOrNull(row.amountUsd)!,
+    };
+  });
+
+  const serviceAvailabilities = OPTIONAL_PRICE_TYPES.map((priceType) => ({
+    serviceType: priceType,
+    status: getPriceRowsForType(form, priceType).length > 0
+      ? SERVICE_AVAILABILITY_STATUS.Available
+      : form.pricingStatuses[priceType] ?? SERVICE_AVAILABILITY_STATUS.Unknown,
+  }));
+
   return {
     dr: parseNumberOrNull(form.dr)!,
     traffic: parseNumberOrNull(form.traffic)!,
     location: form.location.trim(),
     language: normalizeLanguageCode(form.language),
-    priceUsd: parseNumberOrNull(form.priceUsd),
-    priceCasino:
-      form.priceCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available
-        ? (parseNumberOrNull(form.priceCasino) ?? null)
-        : null,
-    priceCasinoStatus: form.priceCasinoStatus,
-    priceCrypto:
-      form.priceCryptoStatus === SERVICE_AVAILABILITY_STATUS.Available
-        ? (parseNumberOrNull(form.priceCrypto) ?? null)
-        : null,
-    priceCryptoStatus: form.priceCryptoStatus,
-    priceLinkInsert:
-      form.priceLinkInsertStatus === SERVICE_AVAILABILITY_STATUS.Available
-        ? (parseNumberOrNull(form.priceLinkInsert) ?? null)
-        : null,
-    priceLinkInsertStatus: form.priceLinkInsertStatus,
-    priceLinkInsertCasino:
-      form.priceLinkInsertCasinoStatus === SERVICE_AVAILABILITY_STATUS.Available
-        ? (parseNumberOrNull(form.priceLinkInsertCasino) ?? null)
-        : null,
-    priceLinkInsertCasinoStatus: form.priceLinkInsertCasinoStatus,
-    priceDating:
-      form.priceDatingStatus === SERVICE_AVAILABILITY_STATUS.Available
-        ? (parseNumberOrNull(form.priceDating) ?? null)
-        : null,
-    priceDatingStatus: form.priceDatingStatus,
+    pricing: {
+      prices,
+      serviceAvailabilities,
+    },
     numberDFLinks: parseNumberOrNull(form.numberDFLinks),
-    termType: form.termType === '' ? null : form.termType,
-    termValue:
-      form.termType === TERM_TYPE.Finite
-        ? (parseNumberOrNull(form.termValue) ?? null)
-        : null,
-    termUnit: form.termType === TERM_TYPE.Finite ? TERM_UNIT.Year : null,
+    termType: null,
+    termValue: null,
+    termUnit: null,
     niche: form.niche.trim() || null,
     categories: form.categories.trim() || null,
     SponsoredTag: form.sponsoredTag.trim() || null,

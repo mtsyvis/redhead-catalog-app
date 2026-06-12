@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { Site } from '../../../types/sites.types';
 import { formatLanguageTableValue } from '../../../utils/language';
@@ -27,6 +28,7 @@ interface UseSitesColumnsOptions {
   visibleColumnIds: string[];
   columnWidths: Record<string, number>;
   onEdit: (site: Site) => void;
+  onViewPricing: (site: Site) => void;
 }
 
 function formatCell<T>(row: GridRow, value: T, format: (v: T) => string): string {
@@ -117,6 +119,7 @@ export function useSitesColumns({
   visibleColumnIds,
   columnWidths,
   onEdit,
+  onViewPricing,
 }: UseSitesColumnsOptions) {
   return useMemo<GridColDef<GridRow>[]>(
     () => {
@@ -398,42 +401,59 @@ export function useSitesColumns({
               } as GridColDef<GridRow>,
             ]
           : []),
-        ...(isAdmin
-          ? [
-              {
-                ...gridColumnDefaults('actions', columnWidths),
-                field: 'actions',
-                headerName: '',
-                sortable: false,
-                width: 56,
-                minWidth: 56,
-                maxWidth: 56,
-                align: 'center',
-                headerAlign: 'center',
-                renderCell: (params: { row: GridRow }) => {
-                  if (isNotFoundRow(params.row)) return null;
-                  return (
-                    <Tooltip title="Edit site">
-                      <IconButton
-                        size="small"
-                        aria-label={`Edit ${params.row.domain}`}
-                        onClick={() => onEdit(params.row as Site)}
-                        sx={{
-                          color: 'text.secondary',
-                          '&:hover': {
-                            bgcolor: 'action.hover',
-                            color: 'text.primary',
-                          },
-                        }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  );
-                },
-              } as GridColDef<GridRow>,
-            ]
-          : []),
+        {
+          ...gridColumnDefaults('actions', columnWidths),
+          field: 'actions',
+          headerName: '',
+          sortable: false,
+          width: isAdmin ? 88 : 48,
+          minWidth: isAdmin ? 88 : 48,
+          maxWidth: isAdmin ? 88 : 48,
+          align: 'center',
+          headerAlign: 'center',
+          renderCell: (params: { row: GridRow }) => {
+            if (isNotFoundRow(params.row)) return null;
+            const site = params.row as Site;
+            return (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                <Tooltip title="View pricing">
+                  <IconButton
+                    size="small"
+                    aria-label={`View pricing for ${site.domain}`}
+                    onClick={() => onViewPricing(site)}
+                    sx={{
+                      color: 'text.secondary',
+                      '&:hover': {
+                        bgcolor: 'action.hover',
+                        color: 'text.primary',
+                      },
+                    }}
+                  >
+                    <InfoOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                {isAdmin && (
+                  <Tooltip title="Edit site">
+                    <IconButton
+                      size="small"
+                      aria-label={`Edit ${site.domain}`}
+                      onClick={() => onEdit(site)}
+                      sx={{
+                        color: 'text.secondary',
+                        '&:hover': {
+                          bgcolor: 'action.hover',
+                          color: 'text.primary',
+                        },
+                      }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
+            );
+          },
+        } as GridColDef<GridRow>,
       ];
 
       const columnsByField = new Map(allColumns.map((column) => [column.field, column]));
@@ -451,6 +471,6 @@ export function useSitesColumns({
         .map((field) => columnsByField.get(field))
         .filter((column): column is GridColDef<GridRow> => Boolean(column));
     },
-    [columnWidths, isAdmin, isClient, onEdit, visibleColumnIds]
+    [columnWidths, isAdmin, isClient, onEdit, onViewPricing, visibleColumnIds]
   );
 }

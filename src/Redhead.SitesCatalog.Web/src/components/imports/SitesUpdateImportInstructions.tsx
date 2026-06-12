@@ -1,23 +1,14 @@
-import {
-  Alert,
-  Box,
-  Chip,
-  Divider,
-  Paper,
-  Stack,
-  Typography,
-} from '@mui/material';
-import {
-  IMPORT_COMMON_INSTRUCTIONS,
-  SITES_UPDATE_IMPORT_INSTRUCTIONS,
-} from '../../constants/imports.constants';
+import { Alert, Stack } from '@mui/material';
+import { SITES_UPDATE_IMPORT_INSTRUCTIONS } from '../../constants/imports.constants';
+import { ImportInstructionsPanel } from './ImportInstructionsPanel';
 
 const RULES = [
   'Domain is required and is used to find the site.',
-  'Column order does not matter.',
+  'Include at least one update column besides Domain.',
   'Only included columns are updated.',
-  'Unknown column names are rejected.',
+  'Missing columns stay unchanged.',
   'Empty cells are treated as explicit values.',
+  'Unknown column names are rejected.',
   'Duplicate domains: last valid row wins.',
 ];
 
@@ -28,182 +19,59 @@ const EXAMPLES = [
     note: 'Only Language changes. Other site fields remain unchanged.',
   },
   {
-    title: 'Update price and term only',
-    csv: 'Domain,PriceUsd,Term\nexample.com,120,1 year\nanother-site.com,,permanent',
-    note:
-      'Only PriceUsd and Term change. Empty PriceUsd clears it if the field allows clearing.',
+    title: 'Update Main price',
+    csv: 'Domain,PriceUsd [1 year],PriceUsd [permanent]\nexample.com,120,350',
+    note: 'Only the included Main price terms change.',
+  },
+  {
+    title: 'Clear Main 1 year price',
+    csv: 'Domain,PriceUsd [1 year]\nexample.com,',
+    note: 'The empty included cell clears that exact Main 1-year price option.',
   },
   {
     title: 'Set service availability',
-    csv: 'Domain,PriceCasino\nexample.com,YES\nanother-site.com,NO',
+    csv: 'Domain,PriceCasinoAvailability\nexample.com,YES\nanother-site.com,NO\nunknown-site.com,',
     note:
-      'YES means available with unknown price. Empty cells in included service columns clear that service to Unknown.',
+      'YES means available with unknown price. Empty availability cells set the service to Unknown and clear service prices.',
+  },
+  {
+    title: 'Update service price',
+    csv: 'Domain,PriceCasino [1 year],PriceCasino [permanent]\nexample.com,250,600',
+    note: 'Known service prices set that service to Has price.',
+  },
+  {
+    title: 'Clear service price',
+    csv: 'Domain,PriceCasino [1 year]\nexample.com,',
+    note: 'The empty included cell clears that exact Casino 1-year price option.',
+  },
+  {
+    title: 'Invalid combination',
+    csv: 'Domain,PriceCasinoAvailability,PriceCasino [1 year]\nexample.com,NO,250',
+    note: 'Invalid: service cannot be NO and have a price in the same row.',
   },
 ];
 
-function CsvSnippet({ children }: { readonly children: string }) {
-  return (
-    <Box
-      component="pre"
-      sx={{
-        m: 0,
-        p: 1.5,
-        overflowX: 'auto',
-        bgcolor: 'action.hover',
-        borderRadius: 1,
-        fontFamily: 'monospace',
-        fontSize: '0.8125rem',
-        lineHeight: 1.6,
-        whiteSpace: 'pre',
-      }}
-    >
-      {children}
-    </Box>
-  );
-}
-
 export function SitesUpdateImportInstructions() {
   return (
-    <Box sx={{ mb: 3 }}>
-      <Paper sx={{ p: 3 }}>
-        <Stack spacing={2.5}>
-          <Stack spacing={0.75}>
-            <Typography variant="h6">
-              {SITES_UPDATE_IMPORT_INSTRUCTIONS.title}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {SITES_UPDATE_IMPORT_INSTRUCTIONS.description}
-            </Typography>
-          </Stack>
-
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
-              Rules
-            </Typography>
-            <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-              {RULES.map((rule) => (
-                <Typography
-                  key={rule}
-                  component="li"
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ mb: 0.5 }}
-                >
-                  {rule}
-                </Typography>
-              ))}
-            </Box>
-          </Box>
-
-          <Divider />
-
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Example CSV files
-            </Typography>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
-                gap: 2,
-              }}
-            >
-              {EXAMPLES.map((example) => (
-                <Stack key={example.title} spacing={1}>
-                  <Typography variant="body2" fontWeight={600}>
-                    {example.title}
-                  </Typography>
-                  <CsvSnippet>{example.csv}</CsvSnippet>
-                  <Typography variant="caption" color="text.secondary">
-                    {example.note}
-                  </Typography>
-                </Stack>
-              ))}
-            </Box>
-          </Box>
-
-          <Alert severity="info">
-            Domains not found in the catalog will be reported as unmatched.
-          </Alert>
-
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Required column
-            </Typography>
-            <Chip
-              label={SITES_UPDATE_IMPORT_INSTRUCTIONS.requiredColumn}
-              size="small"
-              sx={{ mr: 1, mb: 1 }}
-            />
-
-            <Typography variant="subtitle2" sx={{ mt: 1.5, mb: 1 }}>
-              Allowed update columns
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {SITES_UPDATE_IMPORT_INSTRUCTIONS.allowedUpdateColumns.map((column) => (
-                <Chip key={column} label={column} size="small" variant="outlined" />
-              ))}
-            </Box>
-          </Box>
-
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
-              Starter template
-            </Typography>
-            <CsvSnippet>{SITES_UPDATE_IMPORT_INSTRUCTIONS.starterTemplate}</CsvSnippet>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ display: 'block', mt: 0.75 }}
-            >
-              Remove any columns you do not want to update.
-            </Typography>
-          </Box>
-
-          <Alert severity="info">
-            Use short language codes in CSV files, e.g. EN, DE, UNKNOWN, MULTI.
-            Do not use full language names.
-          </Alert>
-
-          <Box
-            sx={{
-              px: 1.5,
-              py: 1.25,
-              bgcolor: 'action.hover',
-              borderLeft: (theme) => `3px solid ${theme.palette.text.primary}`,
-            }}
-          >
-            <Stack spacing={0.5}>
-              <Typography variant="subtitle2">
-                {IMPORT_COMMON_INSTRUCTIONS.importantTitle}
-              </Typography>
-              <Typography variant="body2">
-                {IMPORT_COMMON_INSTRUCTIONS.importantNote}
-              </Typography>
-            </Stack>
-          </Box>
-
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
-              {IMPORT_COMMON_INSTRUCTIONS.saveInstructionsTitle}
-            </Typography>
-            <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-              {IMPORT_COMMON_INSTRUCTIONS.saveInstructions.map((item) => (
-                <Typography
-                  key={item}
-                  component="li"
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ mb: 0.5 }}
-                >
-                  {item}
-                </Typography>
-              ))}
-            </Box>
-          </Box>
-        </Stack>
-      </Paper>
-    </Box>
+    <ImportInstructionsPanel
+      title={SITES_UPDATE_IMPORT_INSTRUCTIONS.title}
+      description={SITES_UPDATE_IMPORT_INSTRUCTIONS.description}
+      requiredColumns={SITES_UPDATE_IMPORT_INSTRUCTIONS.requiredColumns}
+      requiredColumnsNote="Domain is required. Add at least one supported update column to change data."
+      supportedColumnsTitle="Supported base update columns"
+      supportedColumns={SITES_UPDATE_IMPORT_INSTRUCTIONS.optionalColumns}
+      supportedColumnsNote="Only columns included in the file are updated."
+      pricingColumns={SITES_UPDATE_IMPORT_INSTRUCTIONS.pricingColumns}
+      pricingColumnsNote="Supported term labels: [unknown term], [1 year], [2 years], [n years], [permanent]."
+      availabilityColumns={SITES_UPDATE_IMPORT_INSTRUCTIONS.availabilityColumns}
+      availabilityColumnsNote="Availability columns accept empty, YES, or NO."
+      rules={RULES}
+      examples={EXAMPLES}
+      alerts={[
+        'Domains not found in the catalog will be reported as unmatched.',
+        'YES means available with unknown price. If you know the price, use a term-specific price column instead.',
+      ]}
+    />
   );
 }
 
@@ -211,9 +79,8 @@ export function SitesUpdateImportUploadNotes() {
   return (
     <Stack spacing={1}>
       <Alert severity="warning">
-        Empty cells in columns you include are treated as intentional updates. For
-        some fields this clears the value; for required fields it may create an
-        invalid row.
+        Empty cells in columns you include are treated as intentional updates. For some fields this
+        clears the value; for required fields it may create an invalid row.
       </Alert>
       <Alert severity="info">
         If the same domain appears more than once, the last valid row is applied.

@@ -143,6 +143,7 @@ export type PriceType =
   | 3
   | 4
   | 5;
+export type PriceTypeValue = 0 | 1 | 2 | 3 | 4 | 5;
 
 export interface SitePriceOptionDto {
   priceType: PriceType;
@@ -162,6 +163,25 @@ export interface SiteServiceAvailabilityDto {
 export interface SitePricingDto {
   prices: SitePriceOptionDto[];
   serviceAvailabilities: SiteServiceAvailabilityDto[];
+}
+
+export interface UpdateSitePriceOptionPayload {
+  priceType: PriceTypeValue;
+  termKey: string;
+  termType: TermTypeValue | null;
+  termValue: number | null;
+  termUnit: TermUnitValue | null;
+  amountUsd: number;
+}
+
+export interface UpdateSiteServiceAvailabilityPayload {
+  serviceType: PriceTypeValue;
+  status: ServiceAvailabilityStatusValue;
+}
+
+export interface UpdateSitePricingPayload {
+  prices: UpdateSitePriceOptionPayload[];
+  serviceAvailabilities: UpdateSiteServiceAvailabilityPayload[];
 }
 
 export interface TermFilterOptionDto {
@@ -291,25 +311,15 @@ export interface GoogleDriveExportResponse {
 }
 
 /**
- * Payload for PUT /api/sites/{domain} (Admin/SuperAdmin). priceUsd may be null; at least one
- * numeric price among priceUsd or service-specific prices is required by the backend.
+ * Payload for PUT /api/sites/{domain} (Admin/SuperAdmin). When pricing is present, it is the
+ * authoritative term-aware pricing payload.
  */
 export interface UpdateSitePayload {
   dr: number;
   traffic: number;
   location: string;
   language: string | null;
-  priceUsd: number | null;
-  priceCasino: number | null;
-  priceCasinoStatus: ServiceAvailabilityStatusValue;
-  priceCrypto: number | null;
-  priceCryptoStatus: ServiceAvailabilityStatusValue;
-  priceLinkInsert: number | null;
-  priceLinkInsertStatus: ServiceAvailabilityStatusValue;
-  priceLinkInsertCasino: number | null;
-  priceLinkInsertCasinoStatus: ServiceAvailabilityStatusValue;
-  priceDating: number | null;
-  priceDatingStatus: ServiceAvailabilityStatusValue;
+  pricing: UpdateSitePricingPayload;
   numberDFLinks: number | null;
   termType: TermTypeValue | null;
   termValue: number | null;

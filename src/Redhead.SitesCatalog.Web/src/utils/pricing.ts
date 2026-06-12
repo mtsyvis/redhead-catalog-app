@@ -4,6 +4,8 @@ import type {
   ServiceAvailabilityStatus,
   Site,
   SitePriceOptionDto,
+  TermTypeValue,
+  TermUnitValue,
   TermFilterOptionDto,
 } from '../types/sites.types';
 import {
@@ -25,6 +27,36 @@ export const PRICE_TYPE = {
 export type PriceTypeValue = (typeof PRICE_TYPE)[keyof typeof PRICE_TYPE];
 
 export const ANY_TERM_KEY = '';
+
+export const OPTIONAL_PRICE_TYPES = [
+  PRICE_TYPE.Casino,
+  PRICE_TYPE.Crypto,
+  PRICE_TYPE.LinkInsertion,
+  PRICE_TYPE.LinkInsertionCasino,
+  PRICE_TYPE.Dating,
+] as const;
+
+export const PRICING_SECTION_ORDER = [
+  PRICE_TYPE.Main,
+  ...OPTIONAL_PRICE_TYPES,
+] as const;
+
+export const PRICE_TYPE_LABELS: Record<PriceTypeValue, string> = {
+  [PRICE_TYPE.Main]: 'Main Price',
+  [PRICE_TYPE.Casino]: 'Casino',
+  [PRICE_TYPE.Crypto]: 'Crypto',
+  [PRICE_TYPE.LinkInsertion]: 'Link Insert',
+  [PRICE_TYPE.LinkInsertionCasino]: 'Link Insert Casino',
+  [PRICE_TYPE.Dating]: 'Dating',
+};
+
+export const TERM_KEY_OPTIONS = [
+  { termKey: 'unknown', label: 'Unknown term' },
+  { termKey: 'finite:1:year', label: '1 year' },
+  { termKey: 'finite:2:year', label: '2 years' },
+  { termKey: 'finite:3:year', label: '3 years' },
+  { termKey: 'permanent', label: 'Permanent' },
+] as const;
 
 export const PRICE_FIELD_TO_TYPE: Record<string, PriceTypeValue> = {
   priceUsd: PRICE_TYPE.Main,
@@ -107,7 +139,7 @@ function hasTermAwarePricing(site: Site): boolean {
   return site.pricing != null;
 }
 
-function getPrices(site: Site, priceType: PriceTypeValue): SitePriceOptionDto[] {
+export function getPrices(site: Site, priceType: PriceTypeValue): SitePriceOptionDto[] {
   if (hasTermAwarePricing(site)) {
     return (site.pricing?.prices ?? [])
       .filter((price) => normalizePriceType(price.priceType) === priceType && price.amountUsd > 0)
@@ -129,7 +161,7 @@ function getPrices(site: Site, priceType: PriceTypeValue): SitePriceOptionDto[] 
     : [];
 }
 
-function getServiceStatus(site: Site, serviceType: PriceTypeValue): ServiceAvailabilityStatus | null {
+export function getServiceStatus(site: Site, serviceType: PriceTypeValue): ServiceAvailabilityStatus | null {
   const availability = site.pricing?.serviceAvailabilities.find(
     (item) => normalizePriceType(item.serviceType) === serviceType
   );
@@ -281,7 +313,11 @@ function formatPriceSummary(
   return { primary: `From ${formatUsd(lowest)}`, secondary, title };
 }
 
-function getCompactTermLabel(price: SitePriceOptionDto): string {
+export function getPriceTypeLabel(priceType: PriceTypeValue): string {
+  return PRICE_TYPE_LABELS[priceType] ?? String(priceType);
+}
+
+export function getCompactTermLabel(price: SitePriceOptionDto): string {
   const termKey = price.termKey;
   if (termKey === 'unknown') return 'Unknown';
   if (termKey === 'permanent') return 'Perm';
@@ -300,7 +336,11 @@ function getCompactTermLabel(price: SitePriceOptionDto): string {
   return price.termLabel || formatTermFilterLabel(termKey);
 }
 
-function comparePriceTerms(left: SitePriceOptionDto, right: SitePriceOptionDto): number {
+export function getFullTermLabel(price: Pick<SitePriceOptionDto, 'termKey' | 'termLabel'>): string {
+  return price.termLabel || formatTermFilterLabel(price.termKey);
+}
+
+export function comparePriceTerms(left: SitePriceOptionDto, right: SitePriceOptionDto): number {
   const leftRank = getTermSortRank(left);
   const rightRank = getTermSortRank(right);
   if (leftRank.group !== rightRank.group) return leftRank.group - rightRank.group;
@@ -324,6 +364,39 @@ function getTermSortRank(price: SitePriceOptionDto): { group: number; value: num
   return finiteMatch ? { group: 1, value: Number(finiteMatch[1]) } : { group: 1, value: Number.MAX_SAFE_INTEGER };
 }
 
-function formatUsd(amount: number): string {
+export function buildTermPayloadFromKey(termKey: string): {
+  termKey: string;
+  termType: TermTypeValue | null;
+  termValue: number | null;
+  termUnit: TermUnitValue | null;
+} {
+  if (termKey === 'permanent') {
+    return {
+      termKey,
+      termType: TERM_TYPE.Permanent,
+      termValue: null,
+      termUnit: null,
+    };
+  }
+
+  const finiteMatch = /^finite:(\d+):year$/i.exec(termKey);
+  if (finiteMatch) {
+    return {
+      termKey: `finite:${Number(finiteMatch[1])}:year`,
+      termType: TERM_TYPE.Finite,
+      termValue: Number(finiteMatch[1]),
+      termUnit: TERM_UNIT.Year,
+    };
+  }
+
+  return {
+    termKey: 'unknown',
+    termType: null,
+    termValue: null,
+    termUnit: null,
+  };
+}
+
+export function formatUsd(amount: number): string {
   return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(amount)}`;
 }

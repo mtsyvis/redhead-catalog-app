@@ -20,6 +20,7 @@ import { PageShell } from '../components/layout/PageShell';
 import { SitesFilters } from '../components/sites/filters/SitesFilters';
 import { EditSiteDialog } from '../components/sites/dialogs/EditSiteDialog';
 import { GoogleDriveConnectionDialog } from '../components/sites/dialogs/GoogleDriveConnectionDialog';
+import { PricingDetailsDrawer } from '../components/sites/dialogs/PricingDetailsDrawer';
 import { SitesTableViewToolbar } from '../components/sites/table-view-toolbar/SitesTableViewToolbar';
 import { SitesSnackbar } from '../components/sites/feedback/SitesSnackbar';
 import type { SitesSnackbarState } from '../components/sites/feedback/SitesSnackbar';
@@ -167,6 +168,7 @@ export function Sites() {
   const [filterOptionsRefreshKey, setFilterOptionsRefreshKey] = useState(0);
   const [duplicatesAnchor, setDuplicatesAnchor] = useState<HTMLElement | null>(null);
   const [editSite, setEditSite] = useState<Site | null>(null);
+  const [pricingDetailsSite, setPricingDetailsSite] = useState<Site | null>(null);
   const [snackbar, setSnackbar] = useState<SitesSnackbarState>({
     open: false,
     message: '',
@@ -459,6 +461,10 @@ export function Sites() {
     setEditSite(site);
   }, []);
 
+  const handleOpenPricingDetails = useCallback((site: Site) => {
+    setPricingDetailsSite(site);
+  }, []);
+
   const handleCloseEdit = () => {
     setEditSite(null);
   };
@@ -467,6 +473,7 @@ export function Sites() {
     setEditSite(null);
     setFilterOptionsRefreshKey((key) => key + 1);
     setSnackbar({ open: true, message: 'Site updated', severity: 'success' });
+    setPricingDetailsSite((current) => (current?.domain === updated.domain ? updated : current));
     if (multiSearchResult) {
       const newFound = multiSearchResult.found.map((s) =>
         s.domain === updated.domain ? updated : s
@@ -506,6 +513,7 @@ export function Sites() {
     visibleColumnIds: tableViews.visibleColumnIds,
     columnWidths: tableViews.columnWidths,
     onEdit: handleOpenEdit,
+    onViewPricing: handleOpenPricingDetails,
   });
 
   const handleColumnWidthChange = useCallback(
@@ -884,6 +892,13 @@ export function Sites() {
           site={editSite}
           onClose={handleCloseEdit}
           onSaved={handleEditSaved}
+        />
+
+        <PricingDetailsDrawer
+          open={Boolean(pricingDetailsSite)}
+          site={pricingDetailsSite}
+          visibleColumnIds={tableViews.visibleColumnIds}
+          onClose={() => setPricingDetailsSite(null)}
         />
       </Box>
     </PageShell>

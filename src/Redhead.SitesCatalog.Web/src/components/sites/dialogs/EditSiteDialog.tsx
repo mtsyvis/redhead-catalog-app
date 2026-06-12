@@ -8,19 +8,24 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
+  IconButton,
   FormControlLabel,
   MenuItem,
+  Paper,
+  Stack,
   Switch,
   TextField,
   Typography,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import type {
   LocationFilterOption,
   ServiceAvailabilityStatusValue,
   Site,
-  TermTypeValue,
 } from '../../../types/sites.types';
 import { sitesService } from '../../../services/sites.service';
 import { ApiClientError } from '../../../services/api.client';
@@ -30,20 +35,27 @@ import {
   SERVICE_AVAILABILITY_STATUS_OPTIONS,
 } from '../../../utils/serviceAvailability';
 import { LANGUAGE_OPTIONS, getLanguageOption } from '../../../utils/language';
-import { TERM_TYPE } from '../../../utils/term';
+import {
+  PRICE_TYPE,
+  TERM_KEY_OPTIONS,
+  type PriceTypeValue,
+  formatTermFilterLabel,
+} from '../../../utils/pricing';
 import {
   buildUpdateSitePayload,
   clearFieldError,
+  CONFIRM_CLEAR_SERVICE_PRICES_MESSAGE,
+  createEmptyPricingRow,
   createInitialFormState,
   EMPTY_FORM_STATE,
-  getServiceStateHint,
+  getPriceRowsForType,
+  pricingAmountErrorKey,
+  pricingStatusErrorKey,
+  pricingTermErrorKey,
+  PRICING_SECTIONS,
   validateEditSiteForm,
 } from './EditSiteDialog.helpers';
-import type {
-  EditSiteFormState,
-  OptionalServicePriceField,
-  OptionalServiceStatusField,
-} from './EditSiteDialog.helpers';
+import type { EditSiteFormState, PricingPriceRow } from './EditSiteDialog.helpers';
 
 // --- Types ---
 
@@ -54,95 +66,29 @@ type Props = {
   onSaved: (updated: Site) => void;
 };
 
-type OptionalServiceSectionProps = {
-  label: string;
-  status: ServiceAvailabilityStatusValue;
-  price: string;
-  statusError?: string;
-  priceError?: string;
-  onStatusChange: (status: ServiceAvailabilityStatusValue) => void;
-  onPriceChange: (price: string) => void;
-};
-
-const PRICE_VALIDATION_FIELDS: ReadonlySet<keyof EditSiteFormState> = new Set([
-  'priceUsd',
-  'priceCasino',
-  'priceCasinoStatus',
-  'priceCrypto',
-  'priceCryptoStatus',
-  'priceLinkInsert',
-  'priceLinkInsertStatus',
-  'priceLinkInsertCasino',
-  'priceLinkInsertCasinoStatus',
-  'priceDating',
-  'priceDatingStatus',
-]);
 const OTHER_LOCATION_FORM_VALUE = '__OTHER__';
 
-function syncPriceUsdErrors(
-  errors: Record<string, string[]>,
-  form: EditSiteFormState
-): Record<string, string[]> {
-  const priceUsdErrors = validateEditSiteForm(form).priceUsd;
-
-  if (priceUsdErrors?.length) {
-    return { ...errors, priceUsd: priceUsdErrors };
-  }
-
-  if (!errors.priceUsd) return errors;
-
-  const next = { ...errors };
-  delete next.priceUsd;
-  return next;
+function clearPricingFieldErrors(errors: Record<string, string[]>): Record<string, string[]> {
+  const entries = Object.entries(errors).filter(([key]) => !key.startsWith('pricing.'));
+  return entries.length === Object.keys(errors).length ? errors : Object.fromEntries(entries);
 }
 
-// --- OptionalServiceSection sub-component ---
+function getTermOptionsForRow(row: PricingPriceRow) {
+  if (TERM_KEY_OPTIONS.some((option) => option.termKey === row.termKey)) {
+    return TERM_KEY_OPTIONS;
+  }
 
-function OptionalServiceSection({
-  label,
-  status,
-  price,
-  statusError,
-  priceError,
-  onStatusChange,
-  onPriceChange,
-}: Readonly<OptionalServiceSectionProps>) {
-  const isAvailable = status === SERVICE_AVAILABILITY_STATUS.Available;
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        <TextField
-          select
-          label={`${label} availability`}
-          value={status}
-          onChange={(e) => onStatusChange(Number(e.target.value) as ServiceAvailabilityStatusValue)}
-          size="small"
-          sx={{ minWidth: 220, flex: '1 1 220px' }}
-          error={Boolean(statusError)}
-          helperText={statusError}
-        >
-          {SERVICE_AVAILABILITY_STATUS_OPTIONS.map((option) => (
-            <MenuItem key={option.value} value={option.value}>
-              {option.label}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          label="Price"
-          type="number"
-          value={price}
-          onChange={(e) => onPriceChange(e.target.value)}
-          size="small"
-          placeholder={isAvailable ? 'Enter price' : ''}
-          sx={{ minWidth: 220, flex: '1 1 220px' }}
-          disabled={!isAvailable}
-          error={Boolean(priceError)}
-          helperText={priceError || getServiceStateHint(status)}
-        />
-      </Box>
-    </Box>
+  return [
+    ...TERM_KEY_OPTIONS,
+    { termKey: row.termKey, label: formatTermFilterLabel(row.termKey) },
+  ];
+}
+
+function getNextTermKey(rows: PricingPriceRow[], priceType: PriceTypeValue): string {
+  const usedTerms = new Set(
+    rows.filter((row) => row.priceType === priceType).map((row) => row.termKey)
   );
+  return TERM_KEY_OPTIONS.find((option) => !usedTerms.has(option.termKey))?.termKey ?? 'unknown';
 }
 
 // --- Main component ---
@@ -231,57 +177,86 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
   ) => {
     const nextForm = { ...form, [key]: value };
     setForm(nextForm);
-    setFieldErrors((prev) => {
-      const next = clearFieldError(prev, key);
-      return PRICE_VALIDATION_FIELDS.has(key) ? syncPriceUsdErrors(next, nextForm) : next;
-    });
+    setFieldErrors((prev) => clearFieldError(prev, key));
   };
 
-  const handleOptionalServiceStatusChange = (
-    statusKey: OptionalServiceStatusField,
-    priceKey: OptionalServicePriceField,
-    s: ServiceAvailabilityStatusValue
+  const handleAddPrice = (priceType: PriceTypeValue) => {
+    setForm((prev) => {
+      const termKey = getNextTermKey(prev.pricingRows, priceType);
+      const nextRow = { ...createEmptyPricingRow(priceType), termKey };
+      return {
+        ...prev,
+        pricingRows: [...prev.pricingRows, nextRow],
+        pricingStatuses:
+          priceType === PRICE_TYPE.Main
+            ? prev.pricingStatuses
+            : { ...prev.pricingStatuses, [priceType]: SERVICE_AVAILABILITY_STATUS.Available },
+      };
+    });
+    setFieldErrors(clearPricingFieldErrors);
+  };
+
+  const handleDeletePrice = (rowId: string) => {
+    setForm((prev) => {
+      const removedRow = prev.pricingRows.find((row) => row.id === rowId);
+      const pricingRows = prev.pricingRows.filter((row) => row.id !== rowId);
+      const shouldResetStatus =
+        removedRow &&
+        removedRow.priceType !== PRICE_TYPE.Main &&
+        !pricingRows.some((row) => row.priceType === removedRow.priceType);
+
+      return {
+        ...prev,
+        pricingRows,
+        pricingStatuses: shouldResetStatus
+          ? {
+              ...prev.pricingStatuses,
+              [removedRow.priceType]: SERVICE_AVAILABILITY_STATUS.Unknown,
+            }
+          : prev.pricingStatuses,
+      };
+    });
+    setFieldErrors(clearPricingFieldErrors);
+  };
+
+  const handlePriceRowChange = (
+    rowId: string,
+    key: 'termKey' | 'amountUsd',
+    value: string
   ) => {
-    const nextForm = {
-      ...form,
-      [statusKey]: s,
-      [priceKey]: s === SERVICE_AVAILABILITY_STATUS.Available ? form[priceKey] : '',
-    };
-    setForm(nextForm);
-    setFieldErrors((prev) => {
-      const next = clearFieldError(clearFieldError(prev, statusKey), priceKey);
-      return syncPriceUsdErrors(next, nextForm);
-    });
-  };
-
-  const handleCasinoStatusChange = (s: ServiceAvailabilityStatusValue) =>
-    handleOptionalServiceStatusChange('priceCasinoStatus', 'priceCasino', s);
-
-  const handleCryptoStatusChange = (s: ServiceAvailabilityStatusValue) =>
-    handleOptionalServiceStatusChange('priceCryptoStatus', 'priceCrypto', s);
-
-  const handleLinkInsertStatusChange = (s: ServiceAvailabilityStatusValue) =>
-    handleOptionalServiceStatusChange('priceLinkInsertStatus', 'priceLinkInsert', s);
-
-  const handleLinkInsertCasinoStatusChange = (s: ServiceAvailabilityStatusValue) =>
-    handleOptionalServiceStatusChange('priceLinkInsertCasinoStatus', 'priceLinkInsertCasino', s);
-
-  const handleDatingStatusChange = (s: ServiceAvailabilityStatusValue) =>
-    handleOptionalServiceStatusChange('priceDatingStatus', 'priceDating', s);
-
-  const handleTermTypeChange = (value: string) => {
-    const nextTermType = value === '' ? '' : (Number(value) as TermTypeValue);
     setForm((prev) => ({
       ...prev,
-      termType: nextTermType,
-      termValue: nextTermType === TERM_TYPE.Finite ? prev.termValue : '',
+      pricingRows: prev.pricingRows.map((row) =>
+        row.id === rowId ? { ...row, [key]: value } : row
+      ),
     }));
-    setFieldErrors((prev) =>
-      clearFieldError(
-        clearFieldError(clearFieldError(prev, 'termType'), 'termValue'),
-        'termUnit'
-      )
-    );
+    setFieldErrors(clearPricingFieldErrors);
+  };
+
+  const handleServiceStatusChange = (
+    priceType: PriceTypeValue,
+    status: ServiceAvailabilityStatusValue
+  ) => {
+    const existingRows = getPriceRowsForType(form, priceType);
+    if (
+      status !== SERVICE_AVAILABILITY_STATUS.Available &&
+      existingRows.length > 0 &&
+      !window.confirm(CONFIRM_CLEAR_SERVICE_PRICES_MESSAGE)
+    ) {
+      return;
+    }
+
+    setForm((prev) => {
+      return {
+        ...prev,
+        pricingRows:
+          status === SERVICE_AVAILABILITY_STATUS.Available
+            ? prev.pricingRows
+            : prev.pricingRows.filter((row) => row.priceType !== priceType),
+        pricingStatuses: { ...prev.pricingStatuses, [priceType]: status },
+      };
+    });
+    setFieldErrors(clearPricingFieldErrors);
   };
 
   const handleSave = async () => {
@@ -329,8 +304,7 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     !saving &&
     !locationOptionsLoading &&
     !locationOptionsError &&
-    hasValidLocation &&
-    !fieldErrors.priceUsd?.length;
+    hasValidLocation;
   const currentLanguageOption = getLanguageOption(form.language);
   const languageOptions =
     currentLanguageOption &&
@@ -468,85 +442,139 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
               ))}
             </TextField>
 
-            <TextField
-              label="Price USD"
-              type="number"
-              inputProps={{ min: 1, step: '1' }}
-              value={form.priceUsd}
-              onChange={(e) => updateField('priceUsd', e.target.value)}
-              size="small"
-              fullWidth
-              error={Boolean(fieldErrors.priceUsd?.length)}
-              helperText={fieldErrors.priceUsd?.[0] ?? 'Optional – leave empty if no USD price'}
-            />
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 1 }}>
+              <Stack spacing={1.5}>
+                <Typography variant="subtitle2">Pricing</Typography>
+                {PRICING_SECTIONS.map((section) => {
+                  const rows = getPriceRowsForType(form, section.priceType);
+                  const status =
+                    form.pricingStatuses[section.priceType] ??
+                    SERVICE_AVAILABILITY_STATUS.Unknown;
+                  const rowsVisible =
+                    section.priceType === PRICE_TYPE.Main ||
+                    status === SERVICE_AVAILABILITY_STATUS.Available;
 
-            <Box
-              sx={{
-                p: 2,
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 2,
-                backgroundColor: 'background.paper',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 1.5,
-              }}
-            >
-              <Typography variant="subtitle2">Optional Services</Typography>
-              <Typography variant="caption" color="text.secondary">
-                Has price = show price, YES = available with unknown price, NO = not available, Unknown = —.
-              </Typography>
+                  return (
+                    <Paper
+                      key={section.priceType}
+                      variant="outlined"
+                      sx={{ p: 1.5, borderRadius: 1, bgcolor: 'background.paper' }}
+                    >
+                      <Stack spacing={1.25}>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 1,
+                          }}
+                        >
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {section.label}
+                          </Typography>
+                        </Box>
 
-              <OptionalServiceSection
-                label="Casino"
-                status={form.priceCasinoStatus}
-                price={form.priceCasino}
-                statusError={fieldErrors.priceCasinoStatus?.[0]}
-                priceError={fieldErrors.priceCasino?.[0]}
-                onStatusChange={handleCasinoStatusChange}
-                onPriceChange={(p) => updateField('priceCasino', p)}
-              />
+                        {section.isOptional && (
+                          <TextField
+                            select
+                            label="Status"
+                            value={status}
+                            onChange={(e) =>
+                              handleServiceStatusChange(
+                                section.priceType,
+                                Number(e.target.value) as ServiceAvailabilityStatusValue
+                              )
+                            }
+                            size="small"
+                            sx={{ maxWidth: 260 }}
+                            error={Boolean(fieldErrors[pricingStatusErrorKey(section.priceType)]?.length)}
+                            helperText={fieldErrors[pricingStatusErrorKey(section.priceType)]?.[0]}
+                          >
+                            {SERVICE_AVAILABILITY_STATUS_OPTIONS.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        )}
 
-              <OptionalServiceSection
-                label="Crypto"
-                status={form.priceCryptoStatus}
-                price={form.priceCrypto}
-                statusError={fieldErrors.priceCryptoStatus?.[0]}
-                priceError={fieldErrors.priceCrypto?.[0]}
-                onStatusChange={handleCryptoStatusChange}
-                onPriceChange={(p) => updateField('priceCrypto', p)}
-              />
+                        {rowsVisible && (
+                          <>
+                            {rows.length > 0 && (
+                              <Stack divider={<Divider flexItem />} spacing={0}>
+                                {rows.map((row) => (
+                                  <Box
+                                    key={row.id}
+                                    sx={{
+                                      display: 'grid',
+                                      gridTemplateColumns: {
+                                        xs: '1fr',
+                                        sm: 'minmax(0, 1fr) minmax(140px, 180px) 36px',
+                                      },
+                                      gap: 1,
+                                      py: 0.75,
+                                      alignItems: 'flex-start',
+                                    }}
+                                  >
+                                    <TextField
+                                      select
+                                      label="Term"
+                                      value={row.termKey}
+                                      onChange={(e) =>
+                                        handlePriceRowChange(row.id, 'termKey', e.target.value)
+                                      }
+                                      size="small"
+                                      error={Boolean(fieldErrors[pricingTermErrorKey(row.id)]?.length)}
+                                      helperText={fieldErrors[pricingTermErrorKey(row.id)]?.[0]}
+                                    >
+                                      {getTermOptionsForRow(row).map((option) => (
+                                        <MenuItem key={option.termKey} value={option.termKey}>
+                                          {option.label}
+                                        </MenuItem>
+                                      ))}
+                                    </TextField>
+                                    <TextField
+                                      label="Amount USD"
+                                      type="number"
+                                      inputProps={{ min: 1, step: '1' }}
+                                      value={row.amountUsd}
+                                      onChange={(e) =>
+                                        handlePriceRowChange(row.id, 'amountUsd', e.target.value)
+                                      }
+                                      size="small"
+                                      error={Boolean(fieldErrors[pricingAmountErrorKey(row.id)]?.length)}
+                                      helperText={fieldErrors[pricingAmountErrorKey(row.id)]?.[0]}
+                                    />
+                                    <IconButton
+                                      aria-label={`Delete ${section.label} price`}
+                                      onClick={() => handleDeletePrice(row.id)}
+                                      size="small"
+                                      sx={{ mt: 0.25 }}
+                                    >
+                                      <DeleteOutlineIcon fontSize="small" />
+                                    </IconButton>
+                                  </Box>
+                                ))}
+                              </Stack>
+                            )}
 
-              <OptionalServiceSection
-                label="Link Insert"
-                status={form.priceLinkInsertStatus}
-                price={form.priceLinkInsert}
-                statusError={fieldErrors.priceLinkInsertStatus?.[0]}
-                priceError={fieldErrors.priceLinkInsert?.[0]}
-                onStatusChange={handleLinkInsertStatusChange}
-                onPriceChange={(p) => updateField('priceLinkInsert', p)}
-              />
-
-              <OptionalServiceSection
-                label="Link Insert Casino"
-                status={form.priceLinkInsertCasinoStatus}
-                price={form.priceLinkInsertCasino}
-                statusError={fieldErrors.priceLinkInsertCasinoStatus?.[0]}
-                priceError={fieldErrors.priceLinkInsertCasino?.[0]}
-                onStatusChange={handleLinkInsertCasinoStatusChange}
-                onPriceChange={(p) => updateField('priceLinkInsertCasino', p)}
-              />
-
-              <OptionalServiceSection
-                label="Dating"
-                status={form.priceDatingStatus}
-                price={form.priceDating}
-                statusError={fieldErrors.priceDatingStatus?.[0]}
-                priceError={fieldErrors.priceDating?.[0]}
-                onStatusChange={handleDatingStatusChange}
-                onPriceChange={(p) => updateField('priceDating', p)}
-              />
-            </Box>
+                            <Box>
+                              <BrandButton
+                                size="small"
+                                startIcon={<AddIcon fontSize="small" />}
+                                onClick={() => handleAddPrice(section.priceType)}
+                              >
+                                Add price
+                              </BrandButton>
+                            </Box>
+                          </>
+                        )}
+                      </Stack>
+                    </Paper>
+                  );
+                })}
+              </Stack>
+            </Paper>
 
             <TextField
               label="Niche"
@@ -581,48 +609,6 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
               error={Boolean(fieldErrors.numberDFLinks?.length)}
               helperText={fieldErrors.numberDFLinks?.[0] ?? 'Optional positive whole number'}
             />
-
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <TextField
-                select
-                label="Term"
-                value={form.termType}
-                onChange={(e) => handleTermTypeChange(e.target.value)}
-                size="small"
-                sx={{ minWidth: 220, flex: '1 1 220px' }}
-                error={Boolean(fieldErrors.termType?.length)}
-                helperText={fieldErrors.termType?.[0]}
-              >
-                <MenuItem value="">Empty</MenuItem>
-                <MenuItem value={TERM_TYPE.Permanent}>Permanent</MenuItem>
-                <MenuItem value={TERM_TYPE.Finite}>Finite</MenuItem>
-              </TextField>
-
-              {form.termType === TERM_TYPE.Finite && (
-                <>
-                  <TextField
-                    label="Term value"
-                    type="number"
-                    inputProps={{ min: 1, step: 1 }}
-                    value={form.termValue}
-                    onChange={(e) => updateField('termValue', e.target.value)}
-                    size="small"
-                    sx={{ minWidth: 160, flex: '1 1 160px' }}
-                    error={Boolean(fieldErrors.termValue?.length)}
-                    helperText={fieldErrors.termValue?.[0] ?? 'Positive whole number'}
-                  />
-                  <TextField
-                    label="Unit"
-                    value="Year"
-                    size="small"
-                    sx={{ minWidth: 120, flex: '0 1 120px' }}
-                    disabled
-                    error={Boolean(fieldErrors.termUnit?.length)}
-                    helperText={fieldErrors.termUnit?.[0]}
-                  />
-                </>
-              )}
-            </Box>
 
             <TextField
               label="Sponsored Tag"

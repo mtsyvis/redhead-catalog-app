@@ -1,4 +1,4 @@
-import { Box, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Box, Stack, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import type { MouseEvent } from 'react';
 import { useCallback, useState } from 'react';
 import {
@@ -11,7 +11,7 @@ import {
 } from '../../services/import.service';
 import { AVAILABILITY_IMPORT_INSTRUCTIONS } from '../../constants/imports.constants';
 import { useImportTab } from '../../hooks/useImportTab';
-import { ImportInstructionsCard } from './ImportInstructionsCard';
+import { ImportInstructionsPanel } from './ImportInstructionsPanel';
 import { ImportTabContent } from './ImportTabContent';
 import { ImportUploadSection } from './ImportUploadSection';
 import { UpdateImportResultCard } from './UpdateImportResultCard';
@@ -59,6 +59,22 @@ export function AvailabilityImportTab({ persistedStateKey }: AvailabilityImportT
   const selectedInstructions = AVAILABILITY_IMPORT_INSTRUCTIONS[action];
   const selectedActionLabel =
     ACTION_OPTIONS.find((option) => option.value === action)?.label ?? DEFAULT_ACTION_LABEL;
+  const examples =
+    action === 'markUnavailable'
+      ? [
+          {
+            title: 'Mark sites as unavailable',
+            csv: 'Domain,Reason\nexample.com,Out of stock\nanother-site.com,',
+            note: 'Reason may be empty.',
+          },
+        ]
+      : [
+          {
+            title: 'Restore sites as available',
+            csv: 'Domain\nexample.com\nanother-site.com',
+            note: 'Quarantine status and reason are cleared for matched sites.',
+          },
+        ];
 
   const handleActionChange = (_event: MouseEvent<HTMLElement>, nextAction: AvailabilityImportAction | null) => {
     if (nextAction === null || nextAction === action) {
@@ -79,9 +95,6 @@ export function AvailabilityImportTab({ persistedStateKey }: AvailabilityImportT
       instructions={
         <Stack spacing={2}>
           <Box>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Operation
-            </Typography>
             <ToggleButtonGroup
               exclusive
               size="small"
@@ -134,10 +147,18 @@ export function AvailabilityImportTab({ persistedStateKey }: AvailabilityImportT
             </ToggleButtonGroup>
           </Box>
 
-          <ImportInstructionsCard
+          <ImportInstructionsPanel
+            title={selectedActionLabel}
             description={selectedInstructions.description}
             requiredColumns={selectedInstructions.requiredColumns}
-            optionalNote={selectedInstructions.optionalNote}
+            requiredColumnsNote={selectedInstructions.optionalNote}
+            rules={[
+              'Columns must match the selected operation exactly.',
+              'Domains are matched by normalized domain.',
+              'Domains not found in the catalog will be reported as unmatched.',
+              'Duplicate domains: last valid row wins.',
+            ]}
+            examples={examples}
           />
         </Stack>
       }

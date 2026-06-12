@@ -10,10 +10,8 @@ import {
   FILE_TOO_LARGE_MESSAGE,
   ACCEPT_FILES,
 } from '../services/import.service';
-import { ImportInstructionsCard } from '../components/imports/ImportInstructionsCard';
 import {
   LAST_PUBLISHED_IMPORT_INSTRUCTIONS,
-  SITES_IMPORT_INSTRUCTIONS,
 } from '../constants/imports.constants';
 import { useImportTab } from '../hooks/useImportTab';
 import { ImportUploadSection } from '../components/imports/ImportUploadSection';
@@ -25,6 +23,7 @@ import {
   SitesUpdateImportInstructions,
   SitesUpdateImportUploadNotes,
 } from '../components/imports/SitesUpdateImportInstructions';
+import { SitesImportInstructions } from '../components/imports/SitesImportInstructions';
 import { useAuth } from '../contexts/AuthContext';
 
 const IMPORT_RESULT_STORAGE_PREFIX = 'redhead.importResults.v1';
@@ -76,13 +75,7 @@ function SitesImportTab({ persistedStateKey }: { readonly persistedStateKey: str
     persistedStateKey,
   });
 
-  const instructions = (
-    <ImportInstructionsCard
-      description={SITES_IMPORT_INSTRUCTIONS.description}
-      requiredColumns={SITES_IMPORT_INSTRUCTIONS.requiredColumns}
-      optionalNote={SITES_IMPORT_INSTRUCTIONS.optionalNote}
-    />
-  );
+  const instructions = <SitesImportInstructions />;
 
   const uploadSection = (
     <ImportUploadSection
@@ -150,9 +143,28 @@ function ImportRouteContent({
       runImport={importLastPublished}
       persistedStateKey={persistedStateKey}
       instructions={{
+        title: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.title,
         description: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.description,
         requiredColumns: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.requiredColumns,
-        optionalNote: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.optionalNote,
+        requiredColumnsNote: LAST_PUBLISHED_IMPORT_INSTRUCTIONS.optionalNote,
+        rules: [
+          'Columns must match exactly: Domain, LastPublishedDate.',
+          'LastPublishedDate is required for each updated row.',
+          'Domains are matched by normalized domain.',
+          'Duplicate domains: last valid row wins.',
+        ],
+        examples: [
+          {
+            title: 'Full dates',
+            csv: 'Domain,LastPublishedDate\nexample.com,15.01.2026\nanother-site.com,03.02.2026',
+            note: 'Use DD.MM.YYYY for exact publication dates.',
+          },
+          {
+            title: 'Month-only dates',
+            csv: 'Domain,LastPublishedDate\nexample.com,January 2026\nanother-site.com,Feb 2026',
+            note: 'Month and year values are saved as month-only dates.',
+          },
+        ],
       }}
     />
   );
