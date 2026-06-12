@@ -236,42 +236,6 @@ public sealed class ExportActivityAnalyticsServiceTests
     }
 
     [Fact]
-    public async Task GetExportActivityAsync_RecentExportSummaryIncludesSelectedTerm()
-    {
-        // Arrange
-        await using var db = CreateDbContext();
-        SeedClientRoleSettings(db);
-        AddClient(db, "client-1", "client-1@example.com");
-        AddExportLog(
-            db,
-            "client-1",
-            new DateTime(2026, 6, 1, 9, 0, 0, DateTimeKind.Utc),
-            requestedRows: 10,
-            exportedRows: 10,
-            filtersJson: """
-                {
-                  "schemaVersion": 1,
-                  "filters": [
-                    { "field": "locationKey", "kind": "multiSelect", "operator": "anyOf", "value": ["US"] },
-                    { "field": "dr", "kind": "numberRange", "operator": "gte", "value": { "min": 40 } },
-                    { "field": "traffic", "kind": "numberRange", "operator": "gte", "value": { "min": 1000 } },
-                    { "field": "priceUsd", "kind": "numberRange", "operator": "lte", "value": { "max": 300 } },
-                    { "field": "termKey", "kind": "term", "operator": "eq", "value": "permanent" }
-                  ]
-                }
-                """);
-        await db.SaveChangesAsync();
-        var sut = CreateService(db);
-
-        // Act
-        var result = await sut.GetExportActivityAsync(CreateQuery(), CancellationToken.None);
-
-        // Assert
-        var item = Assert.Single(result.RecentExports.Items);
-        Assert.Contains("Term Permanent", item.FiltersSummary, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task GetExportLogDetailsAsync_WhenLogExists_ReturnsReadableFilterAndSortDetails()
     {
         // Arrange
@@ -311,7 +275,6 @@ public sealed class ExportActivityAnalyticsServiceTests
                     { "field": "locationKey", "kind": "multiSelect", "operator": "anyOf", "value": ["ID", "US"] },
                     { "field": "dr", "kind": "numberRange", "operator": "between", "value": { "min": 10, "max": 70 } },
                     { "field": "priceUsd", "kind": "numberRange", "operator": "gte", "value": { "min": 100 } },
-                    { "field": "termKey", "kind": "term", "operator": "eq", "value": "permanent" },
                     { "field": "quarantine", "kind": "enum", "operator": "eq", "value": "exclude" },
                     { "field": "priceCasinoAvailability", "kind": "availability", "operator": "in", "value": ["available", "availableWithUnknownPrice"] },
                     { "field": "priceCryptoAvailability", "kind": "availability", "operator": "in", "value": ["notAvailable"] },
@@ -353,7 +316,6 @@ public sealed class ExportActivityAnalyticsServiceTests
         Assert.Equal("10-70", GetFilterValue(result, "Quality and price", "DR"));
         Assert.Equal("No filter", GetFilterValue(result, "Quality and price", "Traffic"));
         Assert.Equal("From $100", GetFilterValue(result, "Quality and price", "Price USD"));
-        Assert.Equal("Permanent", GetFilterValue(result, "Quality and price", "Term"));
         Assert.Equal("Available", GetFilterValue(result, "Status", "Status"));
         Assert.Equal("2026-01-2026-03", GetFilterValue(result, "Status", "Last published"));
         Assert.Equal("Has price, YES", GetFilterValue(result, "Optional services", "Casino"));

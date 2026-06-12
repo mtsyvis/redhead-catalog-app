@@ -4,7 +4,6 @@ import {
   normalizeServiceAvailabilityFilter,
 } from '../../../utils/serviceAvailability';
 import { pluralize } from '../../../utils/pluralize';
-import { formatTermFilterLabel } from '../../../utils/pricing';
 
 const FILTER_VALUE_SUMMARY_MAX_LENGTH = 22;
 const FILTER_VALUE_SUMMARY_LIMIT = 5;
@@ -90,12 +89,6 @@ export function buildAdvancedActiveFilterSummaries(
   if (drSummary) summaries.push(drSummary);
   if (trafficSummary) summaries.push(trafficSummary);
   if (priceSummary) summaries.push(priceSummary);
-  if (filters.termKey !== null) {
-    summaries.push({
-      label: 'Term',
-      value: formatTermFilterLabel(filters.termKey),
-    });
-  }
   if (!multiSearchMode && filters.stopListDomains.length > 0) {
     summaries.push({
       label: 'Stop list',

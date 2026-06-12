@@ -58,7 +58,6 @@ public static class ExportAnalyticsSnapshotBuilder
         AddNumberRange(filters, ExportAnalyticsSnapshotSchema.Filters.Dr, query.DrMin, query.DrMax);
         AddNumberRange(filters, ExportAnalyticsSnapshotSchema.Filters.Traffic, query.TrafficMin, query.TrafficMax);
         AddNumberRange(filters, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, query.PriceMin, query.PriceMax);
-        AddTermKey(filters, query.TermKey);
         AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.Location, query.Locations);
         AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.LocationKey, query.LocationKeys);
         AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.LocationGroup, query.LocationGroupKeys);
@@ -207,20 +206,6 @@ public static class ExportAnalyticsSnapshotBuilder
             Kind: "numberRange",
             Operator: CreateRangeOperator(min.HasValue, max.HasValue),
             Value: new NumberRangeValueDto(min, max)));
-    }
-
-    private static void AddTermKey(List<FilterSnapshotItemDto> filters, string? termKey)
-    {
-        if (string.IsNullOrWhiteSpace(termKey))
-        {
-            return;
-        }
-
-        filters.Add(new FilterSnapshotItemDto(
-            Field: ExportAnalyticsSnapshotSchema.Filters.TermKey,
-            Kind: "term",
-            Operator: "eq",
-            Value: termKey.Trim()));
     }
 
     private static void AddMultiSelect(

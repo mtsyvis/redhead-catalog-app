@@ -28,7 +28,6 @@ public class SitesMapperTests
             TrafficMax = 50000,
             PriceMin = 100m,
             PriceMax = 500m,
-            TermKey = " finite:1:year ",
             Locations = new List<string> { "US", "UK" },
             Languages = new List<string> { "english", "de", "en-US", "UNKNOWN" },
             Niches = new List<string> { "crypto", "finance" },
@@ -60,7 +59,6 @@ public class SitesMapperTests
         Assert.Equal(50000, query.TrafficMax);
         Assert.Equal(100m, query.PriceMin);
         Assert.Equal(500m, query.PriceMax);
-        Assert.Equal("finite:1:year", query.TermKey);
         Assert.Equal(2, query.Locations!.Count);
         Assert.Contains("US", query.Locations);
         Assert.Contains("UK", query.Locations);
@@ -102,31 +100,11 @@ public class SitesMapperTests
         Assert.Equal(string.Empty, query.SortDir);
         Assert.Null(query.Search);
         Assert.Null(query.StopListDomains);
-        Assert.Null(query.TermKey);
         Assert.Null(query.Locations);
         Assert.Null(query.CategorySearchTerms);
         Assert.Equal(TopicFitModeValues.Narrow, query.TopicFitMode);
         Assert.Null(query.ExcludedNiches);
         Assert.Null(query.ExcludedCategorySearchTerms);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void ToQuery_WithEmptyTermKey_MapsTermKeyToNull(string? termKey)
-    {
-        // Arrange
-        var request = new SitesQueryRequest
-        {
-            TermKey = termKey
-        };
-
-        // Act
-        var query = SitesMapper.ToQuery(request);
-
-        // Assert
-        Assert.Null(query.TermKey);
     }
 
     [Fact]
@@ -164,31 +142,7 @@ public class SitesMapperTests
             CreatedAtUtc = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             UpdatedAtUtc = new DateTime(2026, 1, 15, 10, 30, 0, DateTimeKind.Utc),
             CreatedBy = "creator@test.com",
-            UpdatedBy = "updater@test.com",
-            Pricing = new SitePricingDto
-            {
-                Prices =
-                [
-                    new SitePriceOptionDto
-                    {
-                        PriceType = PriceType.Main,
-                        TermKey = "finite:2:year",
-                        TermType = TermType.Finite,
-                        TermValue = 2,
-                        TermUnit = TermUnit.Year,
-                        TermLabel = "2 years",
-                        AmountUsd = 200m
-                    }
-                ],
-                ServiceAvailabilities =
-                [
-                    new SiteServiceAvailabilityDto
-                    {
-                        ServiceType = PriceType.Casino,
-                        Status = ServiceAvailabilityStatus.Available
-                    }
-                ]
-            }
+            UpdatedBy = "updater@test.com"
         };
 
         // Act
@@ -225,17 +179,6 @@ public class SitesMapperTests
         Assert.Equal(new DateTime(2026, 1, 15, 10, 30, 0, DateTimeKind.Utc), response.UpdatedAtUtc);
         Assert.Equal("creator@test.com", response.CreatedBy);
         Assert.Equal("updater@test.com", response.UpdatedBy);
-        var price = Assert.Single(response.Pricing.Prices);
-        Assert.Equal(PriceType.Main, price.PriceType);
-        Assert.Equal("finite:2:year", price.TermKey);
-        Assert.Equal(TermType.Finite, price.TermType);
-        Assert.Equal(2, price.TermValue);
-        Assert.Equal(TermUnit.Year, price.TermUnit);
-        Assert.Equal("2 years", price.TermLabel);
-        Assert.Equal(200m, price.AmountUsd);
-        var availability = Assert.Single(response.Pricing.ServiceAvailabilities);
-        Assert.Equal(PriceType.Casino, availability.ServiceType);
-        Assert.Equal(ServiceAvailabilityStatus.Available, availability.Status);
     }
 
     [Fact]

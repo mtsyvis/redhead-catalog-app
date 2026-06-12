@@ -26,6 +26,7 @@ export function ImportTabContent({
       {instructions}
       {uploadSection}
       <ImportErrorAlert error={error} onClose={onClearError} />
+      {result}
     </Box>
   );
 }

@@ -23,12 +23,12 @@ internal static class SitesExportColumnRegistry
         Exportable("dr", "DR", site => XlsxCell.Number(Convert.ToDecimal(site.DR, CultureInfo.InvariantCulture), XlsxCellStyle.Integer), 8),
         Exportable("traffic", "Traffic", site => XlsxCell.Number(site.Traffic, XlsxCellStyle.Integer), 14),
         Exportable("location", "Location", site => XlsxCell.Text(LocationDisplayFormatter.Format(site.LocationKey, site.CanonicalLocation?.DisplayName, site.Location)), 14),
-        Exportable("priceUsd", "Price USD", site => FormatMainPrice(site), 24),
-        Exportable("priceCasino", "Casino", site => FormatOptionalService(site, PriceType.Casino), 24),
-        Exportable("priceCrypto", "Crypto", site => FormatOptionalService(site, PriceType.Crypto), 24),
-        Exportable("priceLinkInsert", "Link Insert", site => FormatOptionalService(site, PriceType.LinkInsertion), 24),
-        Exportable("priceLinkInsertCasino", "Link Insert Casino", site => FormatOptionalService(site, PriceType.LinkInsertionCasino), 28),
-        Exportable("priceDating", "Dating", site => FormatOptionalService(site, PriceType.Dating), 24),
+        Exportable("priceUsd", "Price USD", site => XlsxCell.Number(site.PriceUsd, XlsxCellStyle.Decimal), 12),
+        Exportable("priceCasino", "Casino", site => FormatOptionalService(site.PriceCasino, site.PriceCasinoStatus), 16),
+        Exportable("priceCrypto", "Crypto", site => FormatOptionalService(site.PriceCrypto, site.PriceCryptoStatus), 16),
+        Exportable("priceLinkInsert", "Link Insert", site => FormatOptionalService(site.PriceLinkInsert, site.PriceLinkInsertStatus), 18),
+        Exportable("priceLinkInsertCasino", "Link Insert Casino", site => FormatOptionalService(site.PriceLinkInsertCasino, site.PriceLinkInsertCasinoStatus), 24),
+        Exportable("priceDating", "Dating", site => FormatOptionalService(site.PriceDating, site.PriceDatingStatus), 16),
         Exportable("niche", "Niche", site => XlsxCell.Text(site.Niche), 20),
         Exportable("categories", "Categories", site => XlsxCell.Text(site.Categories), 28),
         Exportable("numberDFLinks", "DF Links", site => XlsxCell.Number(site.NumberDFLinks, XlsxCellStyle.Integer), 16),
@@ -132,59 +132,16 @@ internal static class SitesExportColumnRegistry
             ? value.Value.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)
             : "—";
 
-    private static XlsxCell FormatMainPrice(Site site)
-        => XlsxCell.Text(FormatPriceOptions(site.PriceOptions.Where(price => price.PriceType == PriceType.Main)));
-
-    private static XlsxCell FormatOptionalService(Site site, PriceType serviceType)
+    private static XlsxCell FormatOptionalService(decimal? price, ServiceAvailabilityStatus status)
     {
-        var formattedPrices = FormatPriceOptions(site.PriceOptions.Where(price => price.PriceType == serviceType));
-        if (formattedPrices != EmptyPricingLabel)
-        {
-            return XlsxCell.Text(formattedPrices);
-        }
-
-        var status = site.ServiceAvailabilities
-            .FirstOrDefault(availability => availability.ServiceType == serviceType)
-            ?.Status ?? ServiceAvailabilityStatus.Unknown;
-
         return status switch
         {
+            ServiceAvailabilityStatus.Available when price.HasValue => XlsxCell.Number(price, XlsxCellStyle.Decimal),
             ServiceAvailabilityStatus.AvailableWithUnknownPrice => XlsxCell.Text("YES"),
             ServiceAvailabilityStatus.NotAvailable => XlsxCell.Text("NO"),
-            _ => XlsxCell.Text(EmptyPricingLabel)
+            _ => XlsxCell.Blank()
         };
     }
-
-    private const string EmptyPricingLabel = "—";
-
-    private static string FormatPriceOptions(IEnumerable<SitePriceOption> priceOptions)
-    {
-        var orderedPrices = priceOptions
-            .OrderBy(GetTermSortOrder)
-            .ThenBy(price => price.TermValue)
-            .ThenBy(price => price.AmountUsd)
-            .ToArray();
-
-        if (orderedPrices.Length == 0)
-        {
-            return EmptyPricingLabel;
-        }
-
-        return string.Join("; ", orderedPrices.Select(price =>
-            $"{PricingTerm.FormatLabel(price.TermKey, price.TermType, price.TermValue, price.TermUnit)}: {FormatUsd(price.AmountUsd)}"));
-    }
-
-    private static int GetTermSortOrder(SitePriceOption priceOption)
-        => priceOption.TermKey switch
-        {
-            PricingTerm.UnknownKey => 0,
-            _ when priceOption.TermType == TermType.Finite => 1,
-            PricingTerm.PermanentKey => 2,
-            _ => 3
-        };
-
-    private static string FormatUsd(decimal amount)
-        => "$" + amount.ToString("0.##", CultureInfo.InvariantCulture);
 
     private static string FormatTerm(TermType? termType, int? termValue, TermUnit? termUnit)
     {

@@ -28,9 +28,7 @@ public sealed record ServiceDemandDto(
 public sealed record QualityDemandDto(
     IReadOnlyList<BusinessDemandCountDto> DrRanges,
     IReadOnlyList<BusinessDemandCountDto> TrafficRanges,
-    IReadOnlyList<BusinessDemandCountDto> PriceRanges,
-    IReadOnlyList<BusinessDemandCountDto> TermDemand,
-    IReadOnlyList<BusinessDemandCountDto> PriceRangesByTerm);
+    IReadOnlyList<BusinessDemandCountDto> PriceRanges);
 
 public sealed record FilterStrictnessDto(
     int NoFilters,

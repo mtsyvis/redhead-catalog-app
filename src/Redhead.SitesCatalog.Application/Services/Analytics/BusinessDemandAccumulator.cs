@@ -16,8 +16,6 @@ internal sealed class BusinessDemandAccumulator
     private readonly Dictionary<string, int> _drRanges = CreateCounter();
     private readonly Dictionary<string, int> _trafficRanges = CreateCounter();
     private readonly Dictionary<string, int> _priceRanges = CreateCounter();
-    private readonly Dictionary<string, int> _termDemand = CreateCounter();
-    private readonly Dictionary<string, int> _priceRangesByTerm = CreateCounter();
     private readonly Dictionary<string, ServiceDemandCounter> _serviceCounters;
 
     private int _noFilters;
@@ -43,8 +41,6 @@ internal sealed class BusinessDemandAccumulator
         CountRangeDemand(snapshot, ExportAnalyticsSnapshotSchema.Filters.Dr, QualityRangeFormatter.FormatDrRange, _drRanges);
         CountRangeDemand(snapshot, ExportAnalyticsSnapshotSchema.Filters.Traffic, QualityRangeFormatter.FormatTrafficRange, _trafficRanges);
         CountRangeDemand(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, QualityRangeFormatter.FormatPriceRange, _priceRanges);
-        CountTermDemand(snapshot);
-        CountPriceRangeByTermDemand(snapshot);
         CountStrictness(row, snapshot);
     }
 
@@ -74,9 +70,7 @@ internal sealed class BusinessDemandAccumulator
             QualityDemand: new QualityDemandDto(
                 DrRanges: ToTopList(_drRanges),
                 TrafficRanges: ToTopList(_trafficRanges),
-                PriceRanges: ToTopList(_priceRanges),
-                TermDemand: ToTopList(_termDemand),
-                PriceRangesByTerm: ToTopList(_priceRangesByTerm)),
+                PriceRanges: ToTopList(_priceRanges)),
             FilterStrictness: new FilterStrictnessDto(
                 NoFilters: _noFilters,
                 BroadExports: _broadExports,
@@ -196,28 +190,6 @@ internal sealed class BusinessDemandAccumulator
             }
         }
     }
-
-    private void CountTermDemand(FiltersSnapshot snapshot)
-    {
-        Increment(_termDemand, GetTermLabel(snapshot));
-    }
-
-    private void CountPriceRangeByTermDemand(FiltersSnapshot snapshot)
-    {
-        var termLabel = GetTermLabel(snapshot);
-        foreach (var range in snapshot.GetRanges(ExportAnalyticsSnapshotSchema.Filters.PriceUsd))
-        {
-            var priceLabel = QualityRangeFormatter.FormatPriceRange(range);
-            if (!string.IsNullOrWhiteSpace(priceLabel))
-            {
-                Increment(_priceRangesByTerm, $"{priceLabel} — {termLabel}");
-            }
-        }
-    }
-
-    private static string GetTermLabel(FiltersSnapshot snapshot)
-        => AnalyticsTermLabelFormatter.FormatTermKey(
-            snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.TermKey).FirstOrDefault());
 
     private void CountStrictness(ExportAnalyticsLogRow row, FiltersSnapshot snapshot)
     {

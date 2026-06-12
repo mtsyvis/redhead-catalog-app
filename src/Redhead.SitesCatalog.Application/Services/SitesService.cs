@@ -2,8 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
-using Redhead.SitesCatalog.Domain.Entities;
-using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Locations;
 
@@ -93,8 +91,6 @@ public class SitesService : ISitesService
                 LastPublishedDateIsMonthOnly = s.LastPublishedDateIsMonthOnly
             })
             .ToListAsync(cancellationToken);
-
-        await AttachPricingAsync(sites, cancellationToken);
 
         return new SitesListResult
         {
@@ -198,41 +194,6 @@ public class SitesService : ISitesService
         return await _nicheFilterOptionsCache.GetOptionsAsync(cancellationToken);
     }
 
-    public async Task<List<TermFilterOptionDto>> GetTermOptionsAsync(CancellationToken cancellationToken = default)
-    {
-        var persistedTerms = await _context.SitePriceOptions
-            .AsNoTracking()
-            .Select(priceOption => new
-            {
-                priceOption.TermKey,
-                priceOption.TermType,
-                priceOption.TermValue,
-                priceOption.TermUnit
-            })
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        return persistedTerms
-            .Where(term => !string.IsNullOrWhiteSpace(term.TermKey))
-            .GroupBy(term => term.TermKey, StringComparer.Ordinal)
-            .Select(group =>
-            {
-                var term = group.First();
-                return new TermFilterOptionDto
-                {
-                    TermKey = group.Key,
-                    Label = PricingTerm.FormatLabel(group.Key, term.TermType, term.TermValue, term.TermUnit),
-                    TermType = term.TermType,
-                    TermValue = term.TermValue,
-                    TermUnit = term.TermUnit
-                };
-            })
-            .OrderBy(GetTermSortOrder)
-            .ThenBy(term => term.TermValue)
-            .ThenBy(term => term.Label, StringComparer.Ordinal)
-            .ToList();
-    }
-
     public async Task<MultiSearchSitesResult> MultiSearchSitesAsync(
         IReadOnlyList<string> normalizedDomains,
         IReadOnlyList<string> duplicates,
@@ -296,8 +257,6 @@ public class SitesService : ISitesService
             })
             .ToListAsync(cancellationToken);
 
-        await AttachPricingAsync(found, cancellationToken);
-
         var inputOrder = normalizedDomains
             .Select((domain, index) => new { domain, index })
             .ToDictionary(item => item.domain, item => item.index, StringComparer.Ordinal);
@@ -328,10 +287,7 @@ public class SitesService : ISitesService
             return null;
         }
 
-        var site = await _context.Sites
-            .Include(s => s.PriceOptions)
-            .Include(s => s.ServiceAvailabilities)
-            .FirstOrDefaultAsync(s => s.Domain == normalized, cancellationToken);
+        var site = await _context.Sites.FirstOrDefaultAsync(s => s.Domain == normalized, cancellationToken);
         if (site == null)
         {
             return null;
@@ -346,336 +302,68 @@ public class SitesService : ISitesService
         site.ImportedLocationRaw = location.RawValue;
         site.Language = request.Language;
         site.SponsoredTag = request.SponsoredTag;
+        site.PriceUsd = request.PriceUsd;
+        site.PriceCasino = request.PriceCasino;
+        site.PriceCasinoStatus = request.PriceCasinoStatus;
+        site.PriceCrypto = request.PriceCrypto;
+        site.PriceCryptoStatus = request.PriceCryptoStatus;
+        site.PriceLinkInsert = request.PriceLinkInsert;
+        site.PriceLinkInsertStatus = request.PriceLinkInsertStatus;
+        site.PriceLinkInsertCasino = request.PriceLinkInsertCasino;
+        site.PriceLinkInsertCasinoStatus = request.PriceLinkInsertCasinoStatus;
+        site.PriceDating = request.PriceDating;
+        site.PriceDatingStatus = request.PriceDatingStatus;
         site.NumberDFLinks = request.NumberDFLinks;
+        site.TermType = request.TermType;
+        site.TermValue = request.TermValue;
+        site.TermUnit = request.TermUnit;
         site.Niche = request.Niche;
         site.NicheTokens = NicheNormalizer.NormalizeTokens(request.Niche);
         site.Categories = request.Categories;
         site.IsQuarantined = request.IsQuarantined;
         site.QuarantineReason = request.IsQuarantined ? request.QuarantineReason : null;
         site.QuarantineUpdatedAtUtc = request.IsQuarantined ? now : null;
-
-        if (request.Pricing is null)
-        {
-            site.PriceUsd = request.PriceUsd;
-            site.PriceCasino = request.PriceCasino;
-            site.PriceCasinoStatus = request.PriceCasinoStatus;
-            site.PriceCrypto = request.PriceCrypto;
-            site.PriceCryptoStatus = request.PriceCryptoStatus;
-            site.PriceLinkInsert = request.PriceLinkInsert;
-            site.PriceLinkInsertStatus = request.PriceLinkInsertStatus;
-            site.PriceLinkInsertCasino = request.PriceLinkInsertCasino;
-            site.PriceLinkInsertCasinoStatus = request.PriceLinkInsertCasinoStatus;
-            site.PriceDating = request.PriceDating;
-            site.PriceDatingStatus = request.PriceDatingStatus;
-            site.TermType = request.TermType;
-            site.TermValue = request.TermValue;
-            site.TermUnit = request.TermUnit;
-        }
-        else
-        {
-            ReplacePricingCollections(site, request.Pricing, now);
-            ApplyLegacyPricingCompatibility(site, request.Pricing);
-        }
-
         site.UpdatedAtUtc = now;
         site.UpdatedBy = AuditUserFormatter.Format(userEmail);
         await _context.SaveChangesAsync(cancellationToken);
         _nicheFilterOptionsCache.Invalidate();
 
-        var dto = await _context.Sites
-            .AsNoTracking()
-            .Include(s => s.CanonicalLocation)
-            .Where(s => s.Domain == site.Domain)
-            .Select(s => new SiteDto
-            {
-                Domain = s.Domain,
-                DR = s.DR,
-                Traffic = s.Traffic,
-                Location = s.LocationKey == null
-                    ? LocationDisplayFormatter.OtherDisplayName
-                    : s.CanonicalLocation != null
-                        ? s.CanonicalLocation.DisplayName
-                        : s.LocationKey == LocationConstants.UnknownLocationKey
-                            ? LocationDisplayFormatter.UnknownDisplayName
-                            : s.Location,
-                ImportedLocationRaw = s.ImportedLocationRaw,
-                Language = s.Language,
-                SponsoredTag = s.SponsoredTag,
-                PriceUsd = s.PriceUsd,
-                PriceCasino = s.PriceCasino,
-                PriceCasinoStatus = s.PriceCasinoStatus,
-                PriceCrypto = s.PriceCrypto,
-                PriceCryptoStatus = s.PriceCryptoStatus,
-                PriceLinkInsert = s.PriceLinkInsert,
-                PriceLinkInsertStatus = s.PriceLinkInsertStatus,
-                PriceLinkInsertCasino = s.PriceLinkInsertCasino,
-                PriceLinkInsertCasinoStatus = s.PriceLinkInsertCasinoStatus,
-                PriceDating = s.PriceDating,
-                PriceDatingStatus = s.PriceDatingStatus,
-                NumberDFLinks = s.NumberDFLinks,
-                TermType = s.TermType,
-                TermValue = s.TermValue,
-                TermUnit = s.TermUnit,
-                Niche = s.Niche,
-                NicheTokens = s.NicheTokens,
-                Categories = s.Categories,
-                IsQuarantined = s.IsQuarantined,
-                QuarantineReason = s.QuarantineReason,
-                QuarantineUpdatedAtUtc = s.QuarantineUpdatedAtUtc,
-                CreatedAtUtc = s.CreatedAtUtc,
-                UpdatedAtUtc = s.UpdatedAtUtc,
-                CreatedBy = s.CreatedBy,
-                UpdatedBy = s.UpdatedBy,
-                LastPublishedDate = s.LastPublishedDate,
-                LastPublishedDateIsMonthOnly = s.LastPublishedDateIsMonthOnly
-            })
-            .SingleAsync(cancellationToken);
-
-        await AttachPricingAsync(new List<SiteDto> { dto }, cancellationToken);
-
-        return dto;
-    }
-
-    private void ReplacePricingCollections(Site site, UpdateSitePricingRequest pricing, DateTime now)
-    {
-        var existingPrices = site.PriceOptions.ToList();
-        var existingAvailabilities = site.ServiceAvailabilities.ToList();
-
-        if (existingPrices.Count > 0)
+        return new SiteDto
         {
-            _context.SitePriceOptions.RemoveRange(existingPrices);
-        }
-
-        if (existingAvailabilities.Count > 0)
-        {
-            _context.SiteServiceAvailabilities.RemoveRange(existingAvailabilities);
-        }
-
-        site.PriceOptions.Clear();
-        site.ServiceAvailabilities.Clear();
-
-        foreach (var price in pricing.Prices)
-        {
-            site.PriceOptions.Add(new SitePriceOption
-            {
-                SiteDomain = site.Domain,
-                Site = site,
-                PriceType = price.PriceType,
-                TermKey = price.TermKey,
-                TermType = price.TermType,
-                TermValue = price.TermValue,
-                TermUnit = price.TermUnit,
-                AmountUsd = price.AmountUsd,
-                CreatedAtUtc = now,
-                UpdatedAtUtc = now
-            });
-        }
-
-        foreach (var availability in GetEffectiveServiceAvailabilities(pricing))
-        {
-            site.ServiceAvailabilities.Add(new SiteServiceAvailability
-            {
-                SiteDomain = site.Domain,
-                Site = site,
-                ServiceType = availability.ServiceType,
-                Status = availability.Status,
-                CreatedAtUtc = now,
-                UpdatedAtUtc = now
-            });
-        }
-    }
-
-    private static void ApplyLegacyPricingCompatibility(Site site, UpdateSitePricingRequest pricing)
-    {
-        site.PriceUsd = GetRepresentativePriceAmount(pricing.Prices, PriceType.Main);
-        site.PriceCasino = GetRepresentativePriceAmount(pricing.Prices, PriceType.Casino);
-        site.PriceCrypto = GetRepresentativePriceAmount(pricing.Prices, PriceType.Crypto);
-        site.PriceLinkInsert = GetRepresentativePriceAmount(pricing.Prices, PriceType.LinkInsertion);
-        site.PriceLinkInsertCasino = GetRepresentativePriceAmount(pricing.Prices, PriceType.LinkInsertionCasino);
-        site.PriceDating = GetRepresentativePriceAmount(pricing.Prices, PriceType.Dating);
-
-        site.PriceCasinoStatus = GetServiceStatus(pricing, PriceType.Casino);
-        site.PriceCryptoStatus = GetServiceStatus(pricing, PriceType.Crypto);
-        site.PriceLinkInsertStatus = GetServiceStatus(pricing, PriceType.LinkInsertion);
-        site.PriceLinkInsertCasinoStatus = GetServiceStatus(pricing, PriceType.LinkInsertionCasino);
-        site.PriceDatingStatus = GetServiceStatus(pricing, PriceType.Dating);
-
-        var representativeTerm = GetRepresentativeLegacyTerm(pricing.Prices);
-        site.TermType = representativeTerm?.TermType;
-        site.TermValue = representativeTerm?.TermValue;
-        site.TermUnit = representativeTerm?.TermUnit;
-    }
-
-    private static decimal? GetRepresentativePriceAmount(
-        IReadOnlyList<UpdateSitePriceOptionRequest> prices,
-        PriceType priceType)
-        => GetRepresentativePrice(prices, priceType)?.AmountUsd;
-
-    private static UpdateSitePriceOptionRequest? GetRepresentativeLegacyTerm(IReadOnlyList<UpdateSitePriceOptionRequest> prices)
-    {
-        return GetRepresentativePrice(prices, PriceType.Main)
-            ?? GetRepresentativePrice(prices, PriceType.Casino)
-            ?? GetRepresentativePrice(prices, PriceType.Crypto)
-            ?? GetRepresentativePrice(prices, PriceType.Dating);
-    }
-
-    private static UpdateSitePriceOptionRequest? GetRepresentativePrice(
-        IReadOnlyList<UpdateSitePriceOptionRequest> prices,
-        PriceType priceType)
-    {
-        return prices
-            .Where(price => price.PriceType == priceType)
-            .OrderBy(price => price.AmountUsd)
-            .ThenBy(GetTermSortOrder)
-            .ThenBy(price => price.TermValue)
-            .FirstOrDefault();
-    }
-
-    private static ServiceAvailabilityStatus GetServiceStatus(UpdateSitePricingRequest pricing, PriceType serviceType)
-    {
-        var explicitStatus = pricing.ServiceAvailabilities
-            .FirstOrDefault(availability => availability.ServiceType == serviceType);
-
-        if (explicitStatus is not null)
-        {
-            return explicitStatus.Status;
-        }
-
-        return pricing.Prices.Any(price => price.PriceType == serviceType)
-            ? ServiceAvailabilityStatus.Available
-            : ServiceAvailabilityStatus.Unknown;
-    }
-
-    private static IReadOnlyList<UpdateSiteServiceAvailabilityRequest> GetEffectiveServiceAvailabilities(UpdateSitePricingRequest pricing)
-    {
-        var availabilities = pricing.ServiceAvailabilities.ToList();
-        foreach (var serviceType in new[]
-                 {
-                     PriceType.Casino,
-                     PriceType.Crypto,
-                     PriceType.LinkInsertion,
-                     PriceType.LinkInsertionCasino,
-                     PriceType.Dating
-                 })
-        {
-            if (availabilities.Any(availability => availability.ServiceType == serviceType))
-            {
-                continue;
-            }
-
-            if (!pricing.Prices.Any(price => price.PriceType == serviceType))
-            {
-                continue;
-            }
-
-            availabilities.Add(new UpdateSiteServiceAvailabilityRequest
-            {
-                ServiceType = serviceType,
-                Status = ServiceAvailabilityStatus.Available
-            });
-        }
-
-        return availabilities;
-    }
-
-    private async Task AttachPricingAsync(IReadOnlyList<SiteDto> sites, CancellationToken cancellationToken)
-    {
-        if (sites.Count == 0)
-        {
-            return;
-        }
-
-        var domains = sites
-            .Select(site => site.Domain)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
-        var priceOptions = await _context.SitePriceOptions
-            .AsNoTracking()
-            .Where(priceOption => domains.Contains(priceOption.SiteDomain))
-            .ToListAsync(cancellationToken);
-
-        var serviceAvailabilities = await _context.SiteServiceAvailabilities
-            .AsNoTracking()
-            .Where(availability => domains.Contains(availability.SiteDomain))
-            .ToListAsync(cancellationToken);
-
-        var priceOptionsByDomain = priceOptions
-            .OrderBy(priceOption => priceOption.PriceType)
-            .ThenBy(GetTermSortOrder)
-            .ThenBy(priceOption => priceOption.TermValue)
-            .ThenBy(priceOption => priceOption.AmountUsd)
-            .ToLookup(priceOption => priceOption.SiteDomain, StringComparer.Ordinal);
-
-        var serviceAvailabilitiesByDomain = serviceAvailabilities
-            .OrderBy(availability => availability.ServiceType)
-            .ToLookup(availability => availability.SiteDomain, StringComparer.Ordinal);
-
-        foreach (var site in sites)
-        {
-            site.Pricing = new SitePricingDto
-            {
-                Prices = priceOptionsByDomain[site.Domain]
-                    .Select(MapPriceOptionDto)
-                    .ToList(),
-                ServiceAvailabilities = serviceAvailabilitiesByDomain[site.Domain]
-                    .Select(MapServiceAvailabilityDto)
-                    .ToList()
-            };
-        }
-    }
-
-    private static SitePriceOptionDto MapPriceOptionDto(SitePriceOption priceOption)
-    {
-        return new SitePriceOptionDto
-        {
-            PriceType = priceOption.PriceType,
-            TermKey = priceOption.TermKey,
-            TermType = priceOption.TermType,
-            TermValue = priceOption.TermValue,
-            TermUnit = priceOption.TermUnit,
-            TermLabel = PricingTerm.FormatLabel(
-                priceOption.TermKey,
-                priceOption.TermType,
-                priceOption.TermValue,
-                priceOption.TermUnit),
-            AmountUsd = priceOption.AmountUsd
+            Domain = site.Domain,
+            DR = site.DR,
+            Traffic = site.Traffic,
+            Location = LocationDisplayFormatter.Format(site.LocationKey, site.CanonicalLocation?.DisplayName, site.Location),
+            ImportedLocationRaw = site.ImportedLocationRaw,
+            Language = site.Language,
+            SponsoredTag = site.SponsoredTag,
+            PriceUsd = site.PriceUsd,
+            PriceCasino = site.PriceCasino,
+            PriceCasinoStatus = site.PriceCasinoStatus,
+            PriceCrypto = site.PriceCrypto,
+            PriceCryptoStatus = site.PriceCryptoStatus,
+            PriceLinkInsert = site.PriceLinkInsert,
+            PriceLinkInsertStatus = site.PriceLinkInsertStatus,
+            PriceLinkInsertCasino = site.PriceLinkInsertCasino,
+            PriceLinkInsertCasinoStatus = site.PriceLinkInsertCasinoStatus,
+            PriceDating = site.PriceDating,
+            PriceDatingStatus = site.PriceDatingStatus,
+            NumberDFLinks = site.NumberDFLinks,
+            TermType = site.TermType,
+            TermValue = site.TermValue,
+            TermUnit = site.TermUnit,
+            Niche = site.Niche,
+            NicheTokens = site.NicheTokens,
+            Categories = site.Categories,
+            IsQuarantined = site.IsQuarantined,
+            QuarantineReason = site.QuarantineReason,
+            QuarantineUpdatedAtUtc = site.QuarantineUpdatedAtUtc,
+            CreatedAtUtc = site.CreatedAtUtc,
+            UpdatedAtUtc = site.UpdatedAtUtc,
+            CreatedBy = site.CreatedBy,
+            UpdatedBy = site.UpdatedBy,
+            LastPublishedDate = site.LastPublishedDate,
+            LastPublishedDateIsMonthOnly = site.LastPublishedDateIsMonthOnly
         };
     }
-
-    private static SiteServiceAvailabilityDto MapServiceAvailabilityDto(SiteServiceAvailability availability)
-    {
-        return new SiteServiceAvailabilityDto
-        {
-            ServiceType = availability.ServiceType,
-            Status = availability.Status
-        };
-    }
-
-    private static int GetTermSortOrder(SitePriceOption priceOption)
-        => priceOption.TermKey switch
-        {
-            PricingTerm.UnknownKey => 0,
-            _ when priceOption.TermType == TermType.Finite => 1,
-            PricingTerm.PermanentKey => 2,
-            _ => 3
-        };
-
-    private static int GetTermSortOrder(TermFilterOptionDto term)
-        => term.TermKey switch
-        {
-            PricingTerm.UnknownKey => 0,
-            _ when term.TermType == TermType.Finite => 1,
-            PricingTerm.PermanentKey => 2,
-            _ => 3
-        };
-
-    private static int GetTermSortOrder(UpdateSitePriceOptionRequest priceOption)
-        => priceOption.TermKey switch
-        {
-            PricingTerm.UnknownKey => 0,
-            _ when priceOption.TermType == TermType.Finite => 1,
-            PricingTerm.PermanentKey => 2,
-            _ => 3
-        };
 }

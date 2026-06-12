@@ -80,7 +80,6 @@ internal static class ExportActivitySnapshotSummaryFormatter
     {
         var labels = new List<string>();
 
-        AddTermLabel(labels, snapshot);
         AddLocationLabel(labels, snapshot, locationLookups);
         AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.Dr, QualityRangeFormatter.FormatDrRange);
         AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.Traffic, QualityRangeFormatter.FormatTrafficRange);
@@ -164,15 +163,6 @@ internal static class ExportActivitySnapshotSummaryFormatter
                      .Where(label => !string.IsNullOrWhiteSpace(label)))
         {
             labels.Add(rangeLabel!);
-        }
-    }
-
-    private static void AddTermLabel(List<string> labels, FiltersSnapshot snapshot)
-    {
-        var termKey = snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.TermKey).FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(termKey))
-        {
-            labels.Add($"Term {AnalyticsTermLabelFormatter.FormatTermKey(termKey)}");
         }
     }
 
