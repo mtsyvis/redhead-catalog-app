@@ -12,9 +12,6 @@ public class UpdateSiteRequest
     public string Location { get; set; } = string.Empty;
     public string? Language { get; set; }
     public string? SponsoredTag { get; set; }
-
-    // Legacy flat pricing fields kept temporarily for old callers and compatibility
-    // writes. New pricing work should use Pricing instead.
     public decimal? PriceUsd { get; set; }
     public decimal? PriceCasino { get; set; }
     public ServiceAvailabilityStatus PriceCasinoStatus { get; set; }
@@ -27,16 +24,11 @@ public class UpdateSiteRequest
     public decimal? PriceDating { get; set; }
     public ServiceAvailabilityStatus PriceDatingStatus { get; set; }
     public int? NumberDFLinks { get; set; }
-
-    // Legacy site-level term fields kept only for the old flat pricing contract.
     public TermType? TermType { get; set; }
     public int? TermValue { get; set; }
     public TermUnit? TermUnit { get; set; }
     public string? Niche { get; set; }
     public string? Categories { get; set; }
-
-    // New term-aware pricing contract.
-    public UpdateSitePricingRequest? Pricing { get; set; }
     public bool IsQuarantined { get; set; }
     public string? QuarantineReason { get; set; }
 }

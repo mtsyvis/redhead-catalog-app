@@ -35,7 +35,6 @@ export interface Site {
   updatedBy?: string | null;
   lastPublishedDate: string | null;
   lastPublishedDateIsMonthOnly: boolean;
-  pricing?: SitePricingDto | null;
 }
 
 /**
@@ -61,7 +60,6 @@ export interface SitesQueryParams {
   trafficMax?: number;
   priceMin?: number;
   priceMax?: number;
-  termKey?: string;
   stopListDomains?: string[];
   /** Legacy location display-name filter. Prefer canonical locationKeys/locationGroupKeys. */
   location?: string[];
@@ -127,69 +125,6 @@ export interface LocationFilterOptions {
 export interface FilterOptionsResponse {
   niches: FilterOption[];
   locations?: LocationFilterOptions | null;
-  terms?: TermFilterOptionDto[] | null;
-}
-
-export type PriceType =
-  | 'Main'
-  | 'Casino'
-  | 'Crypto'
-  | 'LinkInsertion'
-  | 'LinkInsertionCasino'
-  | 'Dating'
-  | 0
-  | 1
-  | 2
-  | 3
-  | 4
-  | 5;
-export type PriceTypeValue = 0 | 1 | 2 | 3 | 4 | 5;
-
-export interface SitePriceOptionDto {
-  priceType: PriceType;
-  termKey: string;
-  termType?: TermType | null;
-  termValue?: number | null;
-  termUnit?: TermUnit | null;
-  termLabel: string;
-  amountUsd: number;
-}
-
-export interface SiteServiceAvailabilityDto {
-  serviceType: PriceType;
-  status: ServiceAvailabilityStatus;
-}
-
-export interface SitePricingDto {
-  prices: SitePriceOptionDto[];
-  serviceAvailabilities: SiteServiceAvailabilityDto[];
-}
-
-export interface UpdateSitePriceOptionPayload {
-  priceType: PriceTypeValue;
-  termKey: string;
-  termType: TermTypeValue | null;
-  termValue: number | null;
-  termUnit: TermUnitValue | null;
-  amountUsd: number;
-}
-
-export interface UpdateSiteServiceAvailabilityPayload {
-  serviceType: PriceTypeValue;
-  status: ServiceAvailabilityStatusValue;
-}
-
-export interface UpdateSitePricingPayload {
-  prices: UpdateSitePriceOptionPayload[];
-  serviceAvailabilities: UpdateSiteServiceAvailabilityPayload[];
-}
-
-export interface TermFilterOptionDto {
-  termKey: string;
-  label: string;
-  termType?: TermType | null;
-  termValue?: number | null;
-  termUnit?: TermUnit | null;
 }
 
 export type LocationFilterSelection =
@@ -234,7 +169,6 @@ export interface SitesFilters {
   trafficMax: string;
   priceMin: string;
   priceMax: string;
-  termKey: string | null;
   stopListDomains: string[];
   locationSelections: LocationFilterSelection[];
   excludedLocationKeys: string[];
@@ -311,15 +245,25 @@ export interface GoogleDriveExportResponse {
 }
 
 /**
- * Payload for PUT /api/sites/{domain} (Admin/SuperAdmin). When pricing is present, it is the
- * authoritative term-aware pricing payload.
+ * Payload for PUT /api/sites/{domain} (Admin/SuperAdmin). priceUsd may be null; at least one
+ * numeric price among priceUsd or service-specific prices is required by the backend.
  */
 export interface UpdateSitePayload {
   dr: number;
   traffic: number;
   location: string;
   language: string | null;
-  pricing: UpdateSitePricingPayload;
+  priceUsd: number | null;
+  priceCasino: number | null;
+  priceCasinoStatus: ServiceAvailabilityStatusValue;
+  priceCrypto: number | null;
+  priceCryptoStatus: ServiceAvailabilityStatusValue;
+  priceLinkInsert: number | null;
+  priceLinkInsertStatus: ServiceAvailabilityStatusValue;
+  priceLinkInsertCasino: number | null;
+  priceLinkInsertCasinoStatus: ServiceAvailabilityStatusValue;
+  priceDating: number | null;
+  priceDatingStatus: ServiceAvailabilityStatusValue;
   numberDFLinks: number | null;
   termType: TermTypeValue | null;
   termValue: number | null;

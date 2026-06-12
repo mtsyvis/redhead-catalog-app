@@ -63,10 +63,9 @@ public sealed class UnmatchedRowsImportArtifactPayload
 public sealed class WarningImportRowRecord
 {
     public string Domain { get; set; } = string.Empty;
-    public string Field { get; set; } = string.Empty;
-    public string RawValue { get; set; } = string.Empty;
+    public string Location { get; set; } = string.Empty;
     public int SourceRowNumber { get; set; }
-    public string Warning { get; set; } = string.Empty;
+    public string WarningDetails { get; set; } = string.Empty;
 }
 
 public sealed class WarningRowsImportArtifactPayload

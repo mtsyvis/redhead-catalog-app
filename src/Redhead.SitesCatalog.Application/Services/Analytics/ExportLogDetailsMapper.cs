@@ -84,8 +84,7 @@ internal static class ExportLogDetailsMapper
             [
                 new ExportLogDetailsRowDto("DR", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.Dr, FormatPlainNumber)),
                 new ExportLogDetailsRowDto("Traffic", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.Traffic, FormatWholeNumber)),
-                new ExportLogDetailsRowDto("Price USD", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, FormatUsd)),
-                new ExportLogDetailsRowDto("Term", FormatTerm(snapshot))
+                new ExportLogDetailsRowDto("Price USD", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, FormatUsd))
             ]));
 
         sections.Add(new ExportLogDetailsSectionDto(
@@ -312,14 +311,6 @@ internal static class ExportLogDetailsMapper
             TopicFitModeValues.Narrow => "Narrow",
             _ => NoFilter
         };
-    }
-
-    private static string FormatTerm(FiltersSnapshot snapshot)
-    {
-        var value = snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.TermKey).FirstOrDefault();
-        return string.IsNullOrWhiteSpace(value)
-            ? NoFilter
-            : AnalyticsTermLabelFormatter.FormatTermKey(value);
     }
 
     private static string FormatAvailabilityValues(IReadOnlyList<string> values)

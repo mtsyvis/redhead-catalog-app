@@ -29,7 +29,6 @@ public class UpdateSiteRequest
     public TermUnit? TermUnit { get; set; }
     public string? Niche { get; set; }
     public string? Categories { get; set; }
-    public UpdateSitePricingRequest? Pricing { get; set; }
     public bool IsQuarantined { get; set; }
     public string? QuarantineReason { get; set; }
 }

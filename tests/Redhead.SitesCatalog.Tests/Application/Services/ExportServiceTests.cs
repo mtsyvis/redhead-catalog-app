@@ -1345,11 +1345,9 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_NotAvailableAndUnknown_AreExportedAsNoAndDash()
+    public async Task ExportSitesAsExcelAsync_NotAvailableAndUnknown_AreExportedAsNoAndEmpty()
     {
-        // Arrange
-        var now = DateTime.UtcNow;
-        var site = new Site
+        _context.Sites.Add(new Site
         {
             Domain = "status-export.com",
             DR = 10,
@@ -1371,17 +1369,9 @@ public class ExportServiceTests : IDisposable
             TermValue = 1,
             TermUnit = TermUnit.Year,
             IsQuarantined = false,
-            CreatedAtUtc = now,
-            UpdatedAtUtc = now
-        };
-        _context.Sites.Add(site);
-        _context.SitePriceOptions.Add(CreatePriceOption(site, PriceType.LinkInsertion, PricingTerm.Unknown, 12m));
-        _context.SiteServiceAvailabilities.AddRange(
-            CreateServiceAvailability(site, PriceType.Casino, ServiceAvailabilityStatus.NotAvailable),
-            CreateServiceAvailability(site, PriceType.Crypto, ServiceAvailabilityStatus.Unknown),
-            CreateServiceAvailability(site, PriceType.LinkInsertion, ServiceAvailabilityStatus.Available),
-            CreateServiceAvailability(site, PriceType.LinkInsertionCasino, ServiceAvailabilityStatus.NotAvailable),
-            CreateServiceAvailability(site, PriceType.Dating, ServiceAvailabilityStatus.Unknown));
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
         await _context.SaveChangesAsync();
 
         var query = new SitesQuery
@@ -1394,7 +1384,6 @@ public class ExportServiceTests : IDisposable
             Quarantine = QuarantineFilterValues.All
         };
 
-        // Act
         var result = await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
@@ -1402,14 +1391,13 @@ public class ExportServiceTests : IDisposable
             AppRoles.Admin,
             CancellationToken.None);
 
-        // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         Assert.Single(rows);
         Assert.Equal("NO", rows[0]["Casino"]);
-        Assert.Equal("—", rows[0]["Crypto"]);
-        Assert.Equal("Unknown term: $12", rows[0]["Link Insert"]);
+        Assert.Equal(string.Empty, rows[0]["Crypto"]);
+        Assert.Equal("12", rows[0]["Link Insert"]);
         Assert.Equal("NO", rows[0]["Link Insert Casino"]);
-        Assert.Equal("—", rows[0]["Dating"]);
+        Assert.Equal(string.Empty, rows[0]["Dating"]);
         Assert.Equal("4", rows[0]["DF Links"]);
         Assert.Equal("1 year", rows[0]["Term"]);
     }
@@ -1984,7 +1972,6 @@ public class ExportServiceTests : IDisposable
             DrMax = 80,
             TrafficMin = 1000,
             PriceMax = 250m,
-            TermKey = "finite:2:year",
             Locations = ["US"],
             Languages = ["EN", "UNKNOWN"],
             Niches = ["Casino", " crypto ", "casino"],
@@ -2030,11 +2017,6 @@ public class ExportServiceTests : IDisposable
             filter.GetProperty("field").GetString() == "priceUsd" &&
             filter.GetProperty("operator").GetString() == "lte" &&
             filter.GetProperty("value").GetProperty("max").GetDecimal() == 250m);
-        Assert.Contains(filters, filter =>
-            filter.GetProperty("field").GetString() == "termKey" &&
-            filter.GetProperty("kind").GetString() == "term" &&
-            filter.GetProperty("operator").GetString() == "eq" &&
-            filter.GetProperty("value").GetString() == "finite:2:year");
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "niche" &&
             filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["casino", "crypto"]));
@@ -2298,7 +2280,7 @@ public class ExportServiceTests : IDisposable
             Traffic = long.Parse(row["Traffic"], CultureInfo.InvariantCulture),
             Location = row["Location"],
             Language = row["Language"],
-            PriceUsd = row["Price USD"],
+            PriceUsd = string.IsNullOrEmpty(row["Price USD"]) ? 0 : decimal.Parse(row["Price USD"], CultureInfo.InvariantCulture),
             PriceCasino = row["Casino"],
             PriceCrypto = row["Crypto"],
             PriceLinkInsert = row["Link Insert"],
@@ -2337,7 +2319,7 @@ public class ExportServiceTests : IDisposable
         public long Traffic { get; set; }
         public string Location { get; set; } = string.Empty;
         public string Language { get; set; } = string.Empty;
-        public string PriceUsd { get; set; } = string.Empty;
+        public decimal PriceUsd { get; set; }
         public string PriceCasino { get; set; } = string.Empty;
         public string PriceCrypto { get; set; } = string.Empty;
         public string PriceLinkInsert { get; set; } = string.Empty;
@@ -2357,169 +2339,64 @@ public class ExportServiceTests : IDisposable
 
     #endregion
 
-    #region Term-aware export pricing
+    #region PriceUsd nullable
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_MainPrices_UsesTermAwarePricing()
+    public async Task ExportSitesAsExcelAsync_NullPriceUsd_WritesEmptyCell()
     {
-        // Arrange
-        var multiPriceSite = SiteWithNullPrice("term-main-multiple.com");
-        var noPriceSite = SiteWithNullPrice("term-main-empty.com");
-        var unknownTermSite = SiteWithNullPrice("term-main-unknown.com");
-        _context.Sites.AddRange(multiPriceSite, noPriceSite, unknownTermSite);
-        _context.SitePriceOptions.AddRange(
-            CreatePriceOption(multiPriceSite, PriceType.Main, PricingTerm.FiniteYears(1), 100m),
-            CreatePriceOption(multiPriceSite, PriceType.Main, PricingTerm.Permanent, 300m),
-            CreatePriceOption(unknownTermSite, PriceType.Main, PricingTerm.Unknown, 100m));
-        await _context.SaveChangesAsync();
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
 
-        var query = DefaultQuery();
-        query.Search = "term-main-";
-
-        // Act
         var result = await _service.ExportSitesAsExcelAsync(
-            query,
-            TestUserId,
-            TestUserEmail,
-            AppRoles.Admin,
-            ["domain", "priceUsd"],
-            CancellationToken.None);
+            DefaultQuery(), TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
 
-        // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
-        Assert.Equal("1 year: $100; Permanent: $300", rows.Single(row => row["Domain"] == "term-main-multiple.com")["Price USD"]);
-        Assert.Equal("—", rows.Single(row => row["Domain"] == "term-main-empty.com")["Price USD"]);
-        Assert.Equal("Unknown term: $100", rows.Single(row => row["Domain"] == "term-main-unknown.com")["Price USD"]);
+        var row = rows.Single(r => r["Domain"] == "null-price.com");
+        Assert.Equal(string.Empty, row["Price USD"]);
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_OptionalServiceStatuses_UseTermAwareAvailabilityLabels()
+    public async Task ExportSitesAsExcelAsync_NumericPriceUsd_WritesNumericValue()
     {
-        // Arrange
-        var unknownSite = SiteWithNullPrice("term-casino-unknown.com");
-        var noSite = SiteWithNullPrice("term-casino-no.com");
-        var yesSite = SiteWithNullPrice("term-casino-yes.com");
-        _context.Sites.AddRange(unknownSite, noSite, yesSite);
-        _context.SiteServiceAvailabilities.AddRange(
-            CreateServiceAvailability(unknownSite, PriceType.Casino, ServiceAvailabilityStatus.Unknown),
-            CreateServiceAvailability(noSite, PriceType.Casino, ServiceAvailabilityStatus.NotAvailable),
-            CreateServiceAvailability(yesSite, PriceType.Casino, ServiceAvailabilityStatus.AvailableWithUnknownPrice));
-        await _context.SaveChangesAsync();
-
-        var query = DefaultQuery();
-        query.Search = "term-casino-";
-
-        // Act
         var result = await _service.ExportSitesAsExcelAsync(
-            query,
-            TestUserId,
-            TestUserEmail,
-            AppRoles.Admin,
-            ["domain", "priceCasino"],
-            CancellationToken.None);
+            DefaultQuery(), TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
 
-        // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
-        Assert.Equal("—", rows.Single(row => row["Domain"] == "term-casino-unknown.com")["Casino"]);
-        Assert.Equal("NO", rows.Single(row => row["Domain"] == "term-casino-no.com")["Casino"]);
-        Assert.Equal("YES", rows.Single(row => row["Domain"] == "term-casino-yes.com")["Casino"]);
+        var row = rows.Single(r => r["Domain"] == "example.com");
+        Assert.Equal("100", row["Price USD"]);
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_OptionalServicePrices_UseTermAwarePricesInsteadOfLegacyFlatPrice()
+    public async Task ExportSitesAsExcelAsync_PriceMinFilter_ExcludesNullPriceUsd()
     {
-        // Arrange
-        var site = SiteWithNullPrice("term-casino-priced.com");
-        site.PriceCasino = 999m;
-        site.PriceCasinoStatus = ServiceAvailabilityStatus.Available;
-        _context.Sites.Add(site);
-        _context.SitePriceOptions.AddRange(
-            CreatePriceOption(site, PriceType.Casino, PricingTerm.FiniteYears(1), 350m),
-            CreatePriceOption(site, PriceType.Casino, PricingTerm.Permanent, 700m));
-        _context.SiteServiceAvailabilities.Add(CreateServiceAvailability(site, PriceType.Casino, ServiceAvailabilityStatus.Available));
-        await _context.SaveChangesAsync();
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
 
-        var query = DefaultQuery();
-        query.Search = "term-casino-priced.com";
+        var query = new SitesQuery
+        {
+            Page = 1, PageSize = 10, PriceMin = 50m,
+            SortBy = SortFields.Domain, SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
 
-        // Act
         var result = await _service.ExportSitesAsExcelAsync(
-            query,
-            TestUserId,
-            TestUserEmail,
-            AppRoles.Admin,
-            ["domain", "priceCasino"],
-            CancellationToken.None);
+            query, TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
 
-        // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
-        Assert.Equal("1 year: $350; Permanent: $700", rows.Single()["Casino"]);
-        Assert.DoesNotContain("999", rows.Single()["Casino"], StringComparison.Ordinal);
+        Assert.DoesNotContain(rows, r => r["Domain"] == "null-price.com");
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_LinkInsertUnknownTermPrices_ExportCorrectly()
+    public async Task ExportSitesAsExcelAsync_NoPriceFilter_IncludesNullPriceUsd()
     {
-        // Arrange
-        var site = SiteWithNullPrice("term-link-insert.com");
-        _context.Sites.Add(site);
-        _context.SitePriceOptions.AddRange(
-            CreatePriceOption(site, PriceType.LinkInsertion, PricingTerm.Unknown, 111m),
-            CreatePriceOption(site, PriceType.LinkInsertionCasino, PricingTerm.Unknown, 222m));
-        _context.SiteServiceAvailabilities.AddRange(
-            CreateServiceAvailability(site, PriceType.LinkInsertion, ServiceAvailabilityStatus.Available),
-            CreateServiceAvailability(site, PriceType.LinkInsertionCasino, ServiceAvailabilityStatus.Available));
-        await _context.SaveChangesAsync();
+        _context.Sites.Add(SiteWithNullPrice("null-price.com"));
+        _context.SaveChanges();
 
-        var query = DefaultQuery();
-        query.Search = "term-link-insert.com";
-
-        // Act
         var result = await _service.ExportSitesAsExcelAsync(
-            query,
-            TestUserId,
-            TestUserEmail,
-            AppRoles.Admin,
-            ["domain", "priceLinkInsert", "priceLinkInsertCasino"],
-            CancellationToken.None);
+            DefaultQuery(), TestUserId, TestUserEmail, AppRoles.Admin, CancellationToken.None);
 
-        // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
-        Assert.Equal("Unknown term: $111", rows.Single()["Link Insert"]);
-        Assert.Equal("Unknown term: $222", rows.Single()["Link Insert Casino"]);
-    }
-
-    [Fact]
-    public async Task ExportSitesAsExcelAsync_WithTermKey_FiltersSitesButExportsAllTermsInCell()
-    {
-        // Arrange
-        var permanentSite = SiteWithNullPrice("term-filter-permanent.com");
-        var oneYearOnlySite = SiteWithNullPrice("term-filter-one-year.com");
-        _context.Sites.AddRange(permanentSite, oneYearOnlySite);
-        _context.SitePriceOptions.AddRange(
-            CreatePriceOption(permanentSite, PriceType.Main, PricingTerm.FiniteYears(1), 100m),
-            CreatePriceOption(permanentSite, PriceType.Main, PricingTerm.Permanent, 300m),
-            CreatePriceOption(oneYearOnlySite, PriceType.Main, PricingTerm.FiniteYears(1), 90m));
-        await _context.SaveChangesAsync();
-
-        var query = DefaultQuery();
-        query.Search = "term-filter-";
-        query.TermKey = PricingTerm.PermanentKey;
-
-        // Act
-        var result = await _service.ExportSitesAsExcelAsync(
-            query,
-            TestUserId,
-            TestUserEmail,
-            AppRoles.Admin,
-            ["domain", "priceUsd"],
-            CancellationToken.None);
-
-        // Assert
-        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
-        var row = Assert.Single(rows);
-        Assert.Equal("term-filter-permanent.com", row["Domain"]);
-        Assert.Equal("1 year: $100; Permanent: $300", row["Price USD"]);
+        Assert.Contains(rows, r => r["Domain"] == "null-price.com");
     }
 
     #endregion
