@@ -56,7 +56,7 @@ export const PRICING_SECTIONS = PRICING_SECTION_ORDER.map((priceType) => ({
 }));
 
 export const CONFIRM_CLEAR_SERVICE_PRICES_MESSAGE =
-  'Changing this service status will remove all prices for this service. Continue?';
+  'Changing availability will remove all prices for this service. Continue?';
 
 export function parseNumberOrNull(input: string): number | null {
   const t = input.trim();

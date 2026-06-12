@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Autocomplete,
   Box,
+  Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   IconButton,
   FormControlLabel,
   MenuItem,
@@ -20,6 +24,7 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import type {
@@ -67,6 +72,7 @@ type Props = {
 };
 
 const OTHER_LOCATION_FORM_VALUE = '__OTHER__';
+type PricingExpansionState = Partial<Record<PriceTypeValue, boolean>>;
 
 function clearPricingFieldErrors(errors: Record<string, string[]>): Record<string, string[]> {
   const entries = Object.entries(errors).filter(([key]) => !key.startsWith('pricing.'));
@@ -91,6 +97,82 @@ function getNextTermKey(rows: PricingPriceRow[], priceType: PriceTypeValue): str
   return TERM_KEY_OPTIONS.find((option) => !usedTerms.has(option.termKey))?.termKey ?? 'unknown';
 }
 
+function getAvailabilityLabel(status: ServiceAvailabilityStatusValue): string {
+  return (
+    SERVICE_AVAILABILITY_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
+    'Unknown'
+  );
+}
+
+function getSectionErrorKeys(priceType: PriceTypeValue, rows: PricingPriceRow[]): string[] {
+  const rowKeys = rows.flatMap((row) => [
+    pricingAmountErrorKey(row.id),
+    pricingTermErrorKey(row.id),
+  ]);
+
+  return priceType === PRICE_TYPE.Main
+    ? rowKeys
+    : [pricingStatusErrorKey(priceType), ...rowKeys];
+}
+
+function hasPricingSectionErrors(
+  priceType: PriceTypeValue,
+  rows: PricingPriceRow[],
+  errors: Record<string, string[]>
+): boolean {
+  return getSectionErrorKeys(priceType, rows).some((key) => Boolean(errors[key]?.length));
+}
+
+function shouldExpandPricingSection(
+  form: EditSiteFormState,
+  priceType: PriceTypeValue,
+  errors: Record<string, string[]>
+): boolean {
+  const rows = getPriceRowsForType(form, priceType);
+  if (priceType === PRICE_TYPE.Main) return true;
+  if (hasPricingSectionErrors(priceType, rows, errors)) return true;
+
+  const status = form.pricingStatuses[priceType] ?? SERVICE_AVAILABILITY_STATUS.Unknown;
+  return rows.length > 0 || status === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice;
+}
+
+function createDefaultPricingExpansion(
+  form: EditSiteFormState,
+  errors: Record<string, string[]> = {}
+): PricingExpansionState {
+  return Object.fromEntries(
+    PRICING_SECTIONS.map((section) => [
+      section.priceType,
+      shouldExpandPricingSection(form, section.priceType, errors),
+    ])
+  ) as PricingExpansionState;
+}
+
+function getPricingHeaderSummary(
+  priceType: PriceTypeValue,
+  rows: PricingPriceRow[],
+  status: ServiceAvailabilityStatusValue
+): string {
+  const termLabel = rows.length === 1 ? '1 term' : `${rows.length} terms`;
+
+  if (priceType === PRICE_TYPE.Main) {
+    return rows.length === 1 ? '1 price' : `${rows.length} prices`;
+  }
+
+  if (rows.length > 0 || status === SERVICE_AVAILABILITY_STATUS.Available) {
+    return `Has price · ${termLabel}`;
+  }
+
+  return getAvailabilityLabel(status);
+}
+
+function getAvailabilityMessage(status: ServiceAvailabilityStatusValue): string | null {
+  if (status === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice) return 'Price unknown.';
+  if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) return 'Service is not available.';
+  if (status === SERVICE_AVAILABILITY_STATUS.Unknown) return 'No availability information.';
+  return null;
+}
+
 // --- Main component ---
 
 export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>) {
@@ -99,14 +181,19 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
   );
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [expandedPricingSections, setExpandedPricingSections] = useState<PricingExpansionState>(
+    () => createDefaultPricingExpansion(site ? createInitialFormState(site) : EMPTY_FORM_STATE)
+  );
   const [locationOptions, setLocationOptions] = useState<LocationFilterOption[]>([]);
   const [locationOptionsLoading, setLocationOptionsLoading] = useState(false);
   const [locationOptionsError, setLocationOptionsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !site) return;
-    setForm(createInitialFormState(site));
+    const nextForm = createInitialFormState(site);
+    setForm(nextForm);
     setFieldErrors({});
+    setExpandedPricingSections(createDefaultPricingExpansion(nextForm));
     setSaving(false);
   }, [open, site]);
 
@@ -193,6 +280,7 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
             : { ...prev.pricingStatuses, [priceType]: SERVICE_AVAILABILITY_STATUS.Available },
       };
     });
+    setExpandedPricingSections((prev) => ({ ...prev, [priceType]: true }));
     setFieldErrors(clearPricingFieldErrors);
   };
 
@@ -233,6 +321,10 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     setFieldErrors(clearPricingFieldErrors);
   };
 
+  const handlePricingSectionChange = (priceType: PriceTypeValue, expanded: boolean) => {
+    setExpandedPricingSections((prev) => ({ ...prev, [priceType]: expanded }));
+  };
+
   const handleServiceStatusChange = (
     priceType: PriceTypeValue,
     status: ServiceAvailabilityStatusValue
@@ -269,6 +361,10 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
 
     if (Object.keys(localErrors).length > 0) {
       setFieldErrors(localErrors);
+      setExpandedPricingSections((prev) => ({
+        ...prev,
+        ...createDefaultPricingExpansion(form, localErrors),
+      }));
       return;
     }
 
@@ -281,6 +377,10 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     } catch (err) {
       if (err instanceof ApiClientError && err.fieldErrors) {
         setFieldErrors(err.fieldErrors);
+        setExpandedPricingSections((prev) => ({
+          ...prev,
+          ...createDefaultPricingExpansion(form, err.fieldErrors),
+        }));
       } else {
         setFieldErrors({ _form: [err instanceof Error ? err.message : 'Update failed'] });
       }
@@ -443,7 +543,7 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
             </TextField>
 
             <Paper variant="outlined" sx={{ p: 2, borderRadius: 1 }}>
-              <Stack spacing={1.5}>
+              <Stack spacing={1}>
                 <Typography variant="subtitle2">Pricing</Typography>
                 {PRICING_SECTIONS.map((section) => {
                   const rows = getPriceRowsForType(form, section.priceType);
@@ -453,31 +553,83 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
                   const rowsVisible =
                     section.priceType === PRICE_TYPE.Main ||
                     status === SERVICE_AVAILABILITY_STATUS.Available;
+                  const hasSectionErrors = hasPricingSectionErrors(
+                    section.priceType,
+                    rows,
+                    fieldErrors
+                  );
+                  const availabilityMessage = getAvailabilityMessage(status);
+                  const isExpanded = Boolean(expandedPricingSections[section.priceType]);
 
                   return (
-                    <Paper
+                    <Accordion
                       key={section.priceType}
                       variant="outlined"
-                      sx={{ p: 1.5, borderRadius: 1, bgcolor: 'background.paper' }}
+                      disableGutters
+                      expanded={isExpanded}
+                      onChange={(_event, expanded) =>
+                        handlePricingSectionChange(section.priceType, expanded)
+                      }
+                      sx={{
+                        borderRadius: 1,
+                        bgcolor: 'background.paper',
+                        '&::before': { display: 'none' },
+                        '& + &': { mt: 1 },
+                      }}
                     >
-                      <Stack spacing={1.25}>
+                      <AccordionSummary
+                        expandIcon={<ExpandMoreIcon />}
+                        sx={{
+                          minHeight: 44,
+                          px: 1.5,
+                          '&.Mui-expanded': { minHeight: 44 },
+                          '& .MuiAccordionSummary-content': {
+                            my: 0.75,
+                            alignItems: 'center',
+                            minWidth: 0,
+                          },
+                        }}
+                      >
                         <Box
                           sx={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            gap: 1,
+                            gap: 1.5,
+                            width: '100%',
+                            minWidth: 0,
                           }}
                         >
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>
                             {section.label}
                           </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                            {hasSectionErrors && (
+                              <Chip
+                                label="Needs attention"
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                              />
+                            )}
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{ whiteSpace: 'nowrap' }}
+                            >
+                              {getPricingHeaderSummary(section.priceType, rows, status)}
+                            </Typography>
+                          </Box>
                         </Box>
+                      </AccordionSummary>
+
+                      <AccordionDetails sx={{ px: 1.5, pt: 0, pb: 1.25 }}>
+                        <Stack spacing={1}>
 
                         {section.isOptional && (
                           <TextField
                             select
-                            label="Status"
+                            label="Availability"
                             value={status}
                             onChange={(e) =>
                               handleServiceStatusChange(
@@ -486,7 +638,8 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
                               )
                             }
                             size="small"
-                            sx={{ maxWidth: 260 }}
+                            inputProps={{ 'aria-label': `${section.label} availability` }}
+                            sx={{ maxWidth: 240 }}
                             error={Boolean(fieldErrors[pricingStatusErrorKey(section.priceType)]?.length)}
                             helperText={fieldErrors[pricingStatusErrorKey(section.priceType)]?.[0]}
                           >
@@ -501,29 +654,45 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
                         {rowsVisible && (
                           <>
                             {rows.length > 0 && (
-                              <Stack divider={<Divider flexItem />} spacing={0}>
+                              <Stack spacing={0.5}>
+                                <Box
+                                  sx={{
+                                    display: { xs: 'none', sm: 'grid' },
+                                    gridTemplateColumns: 'minmax(180px, 260px) 150px 32px',
+                                    gap: 1,
+                                    alignItems: 'center',
+                                    px: 0.25,
+                                  }}
+                                >
+                                  <Typography variant="caption" color="text.secondary">
+                                    Term
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Amount USD
+                                  </Typography>
+                                </Box>
                                 {rows.map((row) => (
                                   <Box
                                     key={row.id}
                                     sx={{
                                       display: 'grid',
                                       gridTemplateColumns: {
-                                        xs: '1fr',
-                                        sm: 'minmax(0, 1fr) minmax(140px, 180px) 36px',
+                                        xs: 'minmax(0, 1fr) minmax(112px, 140px) 32px',
+                                        sm: 'minmax(180px, 260px) 150px 32px',
                                       },
-                                      gap: 1,
-                                      py: 0.75,
+                                      gap: 0.75,
+                                      py: 0.25,
                                       alignItems: 'flex-start',
                                     }}
                                   >
                                     <TextField
                                       select
-                                      label="Term"
                                       value={row.termKey}
                                       onChange={(e) =>
                                         handlePriceRowChange(row.id, 'termKey', e.target.value)
                                       }
                                       size="small"
+                                      inputProps={{ 'aria-label': `${section.label} term` }}
                                       error={Boolean(fieldErrors[pricingTermErrorKey(row.id)]?.length)}
                                       helperText={fieldErrors[pricingTermErrorKey(row.id)]?.[0]}
                                     >
@@ -534,9 +703,12 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
                                       ))}
                                     </TextField>
                                     <TextField
-                                      label="Amount USD"
                                       type="number"
-                                      inputProps={{ min: 1, step: '1' }}
+                                      inputProps={{
+                                        min: 1,
+                                        step: '1',
+                                        'aria-label': `${section.label} amount USD`,
+                                      }}
                                       value={row.amountUsd}
                                       onChange={(e) =>
                                         handlePriceRowChange(row.id, 'amountUsd', e.target.value)
@@ -549,7 +721,7 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
                                       aria-label={`Delete ${section.label} price`}
                                       onClick={() => handleDeletePrice(row.id)}
                                       size="small"
-                                      sx={{ mt: 0.25 }}
+                                      sx={{ mt: 0.25, width: 32, height: 32 }}
                                     >
                                       <DeleteOutlineIcon fontSize="small" />
                                     </IconButton>
@@ -557,20 +729,31 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
                                 ))}
                               </Stack>
                             )}
-
-                            <Box>
-                              <BrandButton
-                                size="small"
-                                startIcon={<AddIcon fontSize="small" />}
-                                onClick={() => handleAddPrice(section.priceType)}
-                              >
-                                Add price
-                              </BrandButton>
-                            </Box>
                           </>
                         )}
-                      </Stack>
-                    </Paper>
+
+                        {!rowsVisible && availabilityMessage && (
+                          <Typography variant="body2" color="text.secondary">
+                            {availabilityMessage}
+                          </Typography>
+                        )}
+
+                        <Box>
+                          <Button
+                            variant="text"
+                            color="primary"
+                            size="small"
+                            startIcon={<AddIcon fontSize="small" />}
+                            aria-label={`Add ${section.label} term price`}
+                            onClick={() => handleAddPrice(section.priceType)}
+                            sx={{ textTransform: 'none', px: 0.5 }}
+                          >
+                            Add term price
+                          </Button>
+                        </Box>
+                        </Stack>
+                      </AccordionDetails>
+                    </Accordion>
                   );
                 })}
               </Stack>
