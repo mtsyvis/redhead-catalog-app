@@ -512,6 +512,7 @@ export function Sites() {
     isClient,
     visibleColumnIds: tableViews.visibleColumnIds,
     columnWidths: tableViews.columnWidths,
+    density: tableViews.density,
     onEdit: handleOpenEdit,
     onViewPricing: handleOpenPricingDetails,
   });

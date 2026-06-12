@@ -51,7 +51,7 @@ export const PRICE_TYPE_LABELS: Record<PriceTypeValue, string> = {
 };
 
 export const TERM_KEY_OPTIONS = [
-  { termKey: 'unknown', label: 'Unknown term' },
+  { termKey: 'unknown', label: 'No term' },
   { termKey: 'finite:1:year', label: '1 year' },
   { termKey: 'finite:2:year', label: '2 years' },
   { termKey: 'finite:3:year', label: '3 years' },
@@ -74,6 +74,22 @@ export const OPTIONAL_SERVICE_FIELDS = new Set([
   'priceLinkInsertCasino',
   'priceDating',
 ]);
+
+export interface PricingTooltipRow {
+  termLabel: string;
+  amount: string;
+}
+
+export interface PricingCellSummary {
+  primary: string;
+  secondary: string | null;
+  snippets: string[];
+  tooltipRows: PricingTooltipRow[];
+  statusLabel?: string;
+  statusHelper?: string;
+  hiddenCount: number;
+  compactHiddenCount: number;
+}
 
 const LEGACY_PRICE_FIELDS: Partial<Record<PriceTypeValue, keyof Site>> = {
   [PRICE_TYPE.Main]: 'priceUsd',
@@ -114,7 +130,7 @@ export function normalizeSelectedTermKey(termKey: string | null | undefined): st
 export function formatTermFilterLabel(termKey: string | null | undefined): string {
   const normalized = normalizeSelectedTermKey(termKey);
   if (!normalized) return 'Any term';
-  if (normalized === 'unknown') return 'Unknown term';
+  if (normalized === 'unknown') return 'No term';
   if (normalized === 'permanent') return 'Permanent';
 
   const finiteMatch = /^finite:(\d+):year$/i.exec(normalized);
@@ -131,7 +147,12 @@ export function createTermFilterOptions(
 ): TermFilterOptionDto[] {
   return [
     { termKey: ANY_TERM_KEY, label: 'Any term' },
-    ...(terms ?? []).filter((term) => term.termKey.trim() !== ''),
+    ...(terms ?? [])
+      .filter((term) => term.termKey.trim() !== '')
+      .map((term) => ({
+        ...term,
+        label: formatTermFilterLabel(term.termKey),
+      })),
   ];
 }
 
@@ -259,7 +280,7 @@ export function getServiceSortRank(site: Site, serviceType: PriceTypeValue): num
   return 3;
 }
 
-export function formatMainPriceCell(site: Site): { primary: string; secondary: string | null; title: string } {
+export function formatMainPriceCell(site: Site): PricingCellSummary {
   const prices = getPrices(site, PRICE_TYPE.Main);
   return formatPriceSummary(prices, '—');
 }
@@ -267,7 +288,7 @@ export function formatMainPriceCell(site: Site): { primary: string; secondary: s
 export function formatOptionalServicePriceCell(
   site: Site,
   serviceType: PriceTypeValue
-): { primary: string; secondary: string | null; title: string } {
+): PricingCellSummary {
   const prices = getPrices(site, serviceType);
   if (prices.length > 0) {
     return formatPriceSummary(prices, '—');
@@ -275,42 +296,114 @@ export function formatOptionalServicePriceCell(
 
   const normalized = normalizeServiceAvailabilityStatus(getServiceStatus(site, serviceType));
   if (normalized === SERVICE_AVAILABILITY_STATUS.NotAvailable) {
-    return { primary: 'NO', secondary: null, title: 'NO' };
+    return {
+      primary: 'NO',
+      secondary: null,
+      snippets: [],
+      tooltipRows: [],
+      statusLabel: 'NO',
+      statusHelper: 'Not available',
+      hiddenCount: 0,
+      compactHiddenCount: 0,
+    };
   }
   if (normalized === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice) {
-    return { primary: 'YES', secondary: 'Price unknown', title: 'YES - Price unknown' };
+    return {
+      primary: 'YES',
+      secondary: 'Price unknown',
+      snippets: [],
+      tooltipRows: [],
+      statusLabel: 'YES',
+      statusHelper: 'Price unknown',
+      hiddenCount: 0,
+      compactHiddenCount: 0,
+    };
   }
-  return { primary: '—', secondary: null, title: '—' };
+  return {
+    primary: '—',
+    secondary: null,
+    snippets: [],
+    tooltipRows: [],
+    hiddenCount: 0,
+    compactHiddenCount: 0,
+  };
+}
+
+export function sortPriceOptionsByTerm(options: SitePriceOptionDto[]): SitePriceOptionDto[] {
+  return [...options].sort(comparePriceTerms);
+}
+
+export function buildCompactPriceSummary(
+  prices: SitePriceOptionDto[]
+): Pick<
+  PricingCellSummary,
+  'primary' | 'secondary' | 'snippets' | 'tooltipRows' | 'hiddenCount' | 'compactHiddenCount'
+> {
+  const sortedPrices = sortPriceOptionsByTerm(prices);
+
+  if (sortedPrices.length === 0) {
+    return {
+      primary: '—',
+      secondary: null,
+      snippets: [],
+      tooltipRows: [],
+      hiddenCount: 0,
+      compactHiddenCount: 0,
+    };
+  }
+
+  const tooltipRows = sortedPrices.map((price) => ({
+    termLabel: getFullTermLabel(price),
+    amount: formatUsd(price.amountUsd),
+  }));
+
+  if (sortedPrices.length === 1) {
+    const row = tooltipRows[0];
+    return {
+      primary: row.amount,
+      secondary: row.termLabel,
+      snippets: [],
+      tooltipRows,
+      hiddenCount: 0,
+      compactHiddenCount: 0,
+    };
+  }
+
+  const lowest = Math.min(...sortedPrices.map((price) => price.amountUsd));
+  const candidateSnippets = sortedPrices.map((price) => {
+    const termLabel = getCompactTermLabel(price);
+    return `${termLabel} ${formatUsd(price.amountUsd)}`;
+  });
+  const visibleCount = candidateSnippets[0].startsWith('No term ') ? 1 : 2;
+  const snippets = candidateSnippets.slice(0, visibleCount);
+  const hiddenCount = sortedPrices.length - snippets.length;
+
+  return {
+    primary: `From ${formatUsd(lowest)}`,
+    secondary: snippets.join(' · '),
+    snippets,
+    tooltipRows,
+    hiddenCount,
+    compactHiddenCount: sortedPrices.length - 1,
+  };
 }
 
 function formatPriceSummary(
   prices: SitePriceOptionDto[],
   emptyValue: string
-): { primary: string; secondary: string | null; title: string } {
+): PricingCellSummary {
   if (prices.length === 0) {
-    return { primary: emptyValue, secondary: null, title: emptyValue };
+    return {
+      primary: emptyValue,
+      secondary: null,
+      snippets: [],
+      tooltipRows: [],
+      hiddenCount: 0,
+      compactHiddenCount: 0,
+    };
   }
 
-  const sortedPrices = [...prices].sort(comparePriceTerms);
-  if (sortedPrices.length === 1) {
-    const price = sortedPrices[0];
-    const amount = formatUsd(price.amountUsd);
-    const termLabel = price.termLabel || formatTermFilterLabel(price.termKey);
-    return { primary: amount, secondary: termLabel, title: `${termLabel} ${amount}` };
-  }
-
-  const lowest = Math.min(...sortedPrices.map((price) => price.amountUsd));
-  const visible = sortedPrices.slice(0, 3).map((price) => {
-    const termLabel = getCompactTermLabel(price);
-    return `${termLabel} ${formatUsd(price.amountUsd)}`;
-  });
-  const hiddenCount = sortedPrices.length - visible.length;
-  const secondary = hiddenCount > 0 ? `${visible.join(' · ')} · +${hiddenCount}` : visible.join(' · ');
-  const title = sortedPrices
-    .map((price) => `${price.termLabel || formatTermFilterLabel(price.termKey)} ${formatUsd(price.amountUsd)}`)
-    .join(' · ');
-
-  return { primary: `From ${formatUsd(lowest)}`, secondary, title };
+  return buildCompactPriceSummary(prices);
 }
 
 export function getPriceTypeLabel(priceType: PriceTypeValue): string {
@@ -319,7 +412,7 @@ export function getPriceTypeLabel(priceType: PriceTypeValue): string {
 
 export function getCompactTermLabel(price: SitePriceOptionDto): string {
   const termKey = price.termKey;
-  if (termKey === 'unknown') return 'Unknown';
+  if (termKey === 'unknown') return 'No term';
   if (termKey === 'permanent') return 'Perm';
   if (
     normalizeTermType(price.termType) === TERM_TYPE.Finite &&
@@ -333,11 +426,13 @@ export function getCompactTermLabel(price: SitePriceOptionDto): string {
   const finiteMatch = /^finite:(\d+):year$/i.exec(termKey);
   if (finiteMatch) return `${finiteMatch[1]}y`;
 
-  return price.termLabel || formatTermFilterLabel(termKey);
+  return getFullTermLabel(price);
 }
 
 export function getFullTermLabel(price: Pick<SitePriceOptionDto, 'termKey' | 'termLabel'>): string {
-  return price.termLabel || formatTermFilterLabel(price.termKey);
+  if (price.termKey === 'unknown') return 'No term';
+  if (price.termLabel && price.termLabel !== 'Unknown term') return price.termLabel;
+  return formatTermFilterLabel(price.termKey);
 }
 
 export function comparePriceTerms(left: SitePriceOptionDto, right: SitePriceOptionDto): number {
