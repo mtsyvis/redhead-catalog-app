@@ -51,7 +51,7 @@ public sealed record PricingTerm(
         out PricingTerm pricingTerm)
     {
         var normalizedTermKey = termKey?.Trim();
-        if (string.IsNullOrWhiteSpace(termKey))
+        if (string.IsNullOrWhiteSpace(normalizedTermKey))
         {
             pricingTerm = Unknown;
             return false;
