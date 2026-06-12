@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Application.Models.Import;
