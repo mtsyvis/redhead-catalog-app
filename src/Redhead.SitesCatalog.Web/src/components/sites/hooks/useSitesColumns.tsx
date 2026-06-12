@@ -396,6 +396,7 @@ export function useSitesColumns({
           ...gridColumnDefaults('priceUsd', columnWidths),
           field: 'priceUsd',
           type: 'number',
+          headerAlign: 'left',
           valueFormatter: (_value, row) =>
             isNotFoundRow(row) ? '—' : formatMainPriceCell(row as Site).primary,
           renderCell: (params) =>
@@ -413,6 +414,8 @@ export function useSitesColumns({
           ...gridColumnDefaults('priceCasino', columnWidths),
           field: 'priceCasino',
           type: 'number',
+          align: 'left',
+          headerAlign: 'left',
           valueFormatter: (_value, row) =>
             isNotFoundRow(row)
               ? '—'
@@ -436,6 +439,8 @@ export function useSitesColumns({
           ...gridColumnDefaults('priceCrypto', columnWidths),
           field: 'priceCrypto',
           type: 'number',
+          align: 'left',
+          headerAlign: 'left',
           valueFormatter: (_value, row) =>
             isNotFoundRow(row)
               ? '—'
@@ -459,6 +464,8 @@ export function useSitesColumns({
           ...gridColumnDefaults('priceLinkInsert', columnWidths),
           field: 'priceLinkInsert',
           type: 'number',
+          align: 'left',
+          headerAlign: 'left',
           valueFormatter: (_value, row) =>
             isNotFoundRow(row)
               ? '—'
@@ -478,6 +485,8 @@ export function useSitesColumns({
           ...gridColumnDefaults('priceLinkInsertCasino', columnWidths),
           field: 'priceLinkInsertCasino',
           type: 'number',
+          align: 'left',
+          headerAlign: 'left',
           valueFormatter: (_value, row) =>
             isNotFoundRow(row)
               ? '—'
@@ -501,6 +510,8 @@ export function useSitesColumns({
           ...gridColumnDefaults('priceDating', columnWidths),
           field: 'priceDating',
           type: 'number',
+          align: 'left',
+          headerAlign: 'left',
           valueFormatter: (_value, row) =>
             isNotFoundRow(row)
               ? '—'
