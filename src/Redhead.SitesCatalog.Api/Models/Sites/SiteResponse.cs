@@ -45,28 +45,4 @@ public class SiteResponse
     public string? UpdatedBy { get; set; }
     public DateTime? LastPublishedDate { get; set; }
     public bool LastPublishedDateIsMonthOnly { get; set; }
-    public SitePricingResponse Pricing { get; set; } = new();
-}
-
-public sealed class SitePriceOptionResponse
-{
-    public PriceType PriceType { get; init; }
-    public string TermKey { get; init; } = string.Empty;
-    public TermType? TermType { get; init; }
-    public int? TermValue { get; init; }
-    public TermUnit? TermUnit { get; init; }
-    public string TermLabel { get; init; } = string.Empty;
-    public decimal AmountUsd { get; init; }
-}
-
-public sealed class SiteServiceAvailabilityResponse
-{
-    public PriceType ServiceType { get; init; }
-    public ServiceAvailabilityStatus Status { get; init; }
-}
-
-public sealed class SitePricingResponse
-{
-    public IReadOnlyList<SitePriceOptionResponse> Prices { get; init; } = [];
-    public IReadOnlyList<SiteServiceAvailabilityResponse> ServiceAvailabilities { get; init; } = [];
 }

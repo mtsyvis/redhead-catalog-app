@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Api.Models.Sites;
 
@@ -7,7 +6,6 @@ public sealed class FilterOptionsResponse
 {
     public List<FilterOptionResponse> Niches { get; set; } = [];
     public LocationFilterOptionsResponse? Locations { get; set; }
-    public List<TermFilterOptionResponse> Terms { get; set; } = [];
 }
 
 public sealed class FilterOptionResponse
@@ -44,13 +42,4 @@ public sealed class LocationSpecialFilterOptionsResponse
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LocationFilterOptionResponse? Other { get; set; }
-}
-
-public sealed class TermFilterOptionResponse
-{
-    public string TermKey { get; set; } = string.Empty;
-    public string Label { get; set; } = string.Empty;
-    public TermType? TermType { get; set; }
-    public int? TermValue { get; set; }
-    public TermUnit? TermUnit { get; set; }
 }

@@ -857,99 +857,6 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SitePriceOption", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<decimal>("AmountUsd")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<short>("PriceType")
-                        .HasColumnType("smallint");
-
-                    b.Property<string>("SiteDomain")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<string>("TermKey")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<short?>("TermType")
-                        .HasColumnType("smallint");
-
-                    b.Property<short?>("TermUnit")
-                        .HasColumnType("smallint");
-
-                    b.Property<int?>("TermValue")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SiteDomain", "PriceType");
-
-                    b.HasIndex("PriceType", "TermKey", "AmountUsd");
-
-                    b.HasIndex("SiteDomain", "PriceType", "TermKey")
-                        .IsUnique();
-
-                    b.ToTable("SitePriceOptions", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_SitePriceOptions_AmountUsd_Positive", "\"AmountUsd\" > 0");
-
-                            t.HasCheckConstraint("CK_SitePriceOptions_Term_Consistency", "(\"TermKey\" = 'unknown' AND \"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermKey\" = 'permanent' AND \"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1 AND \"TermKey\" = ('finite:' || \"TermValue\"::text || ':year'))");
-                        });
-                });
-
-            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SiteServiceAvailability", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<short>("ServiceType")
-                        .HasColumnType("smallint");
-
-                    b.Property<string>("SiteDomain")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<short>("Status")
-                        .HasColumnType("smallint");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SiteDomain", "ServiceType")
-                        .IsUnique();
-
-                    b.ToTable("SiteServiceAvailabilities", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_SiteServiceAvailabilities_ServiceType_NotMain", "\"ServiceType\" <> 0");
-                        });
-                });
-
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SystemJobArtifact", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1309,28 +1216,6 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Navigation("CanonicalLocation");
                 });
 
-            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SitePriceOption", b =>
-                {
-                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.Site", "Site")
-                        .WithMany("PriceOptions")
-                        .HasForeignKey("SiteDomain")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Site");
-                });
-
-            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SiteServiceAvailability", b =>
-                {
-                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.Site", "Site")
-                        .WithMany("ServiceAvailabilities")
-                        .HasForeignKey("SiteDomain")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Site");
-                });
-
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SystemJobArtifact", b =>
                 {
                     b.HasOne("Redhead.SitesCatalog.Domain.Entities.SystemJobRun", "SystemJobRun")
@@ -1386,13 +1271,6 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LocationGroup", b =>
                 {
                     b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.Site", b =>
-                {
-                    b.Navigation("PriceOptions");
-
-                    b.Navigation("ServiceAvailabilities");
                 });
 
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SystemJobRun", b =>

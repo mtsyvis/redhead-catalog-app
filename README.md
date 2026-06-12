@@ -173,18 +173,6 @@ dotnet ef database update \
 dotnet clean redhead-catalog-app.sln
 ```
 
-### Business Demand analytics load benchmark
-
-An opt-in local benchmark for `GET /api/admin/analytics/business-demand` is available in:
-
-```txt
-tools/Redhead.SitesCatalog.AnalyticsLoadTest
-```
-
-It can seed synthetic export analytics data, measure the protected endpoint with SuperAdmin credentials, and clean up seeded benchmark rows. It is intentionally not part of the main solution or normal test suite.
-
-See [tools/Redhead.SitesCatalog.AnalyticsLoadTest/README.md](tools/Redhead.SitesCatalog.AnalyticsLoadTest/README.md) for commands.
-
 ### Frontend
 
 ```bash

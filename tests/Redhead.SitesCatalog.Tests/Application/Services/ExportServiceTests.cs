@@ -170,7 +170,6 @@ public class ExportServiceTests : IDisposable
         }
 
         _context.Sites.AddRange(sites);
-        SeedTermAwarePricing(sites);
         _context.SaveChanges();
     }
 
@@ -659,7 +658,7 @@ public class ExportServiceTests : IDisposable
     [Fact]
     public async Task ExportSitesAsExcelAsync_WithCasinoAvailabilityNotAvailable_FiltersByStatus()
     {
-        var noCasinoSite = new Site
+        _context.Sites.Add(new Site
         {
             Domain = "no-casino.com",
             DR = 20,
@@ -675,9 +674,7 @@ public class ExportServiceTests : IDisposable
             IsQuarantined = false,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
-        };
-        _context.Sites.Add(noCasinoSite);
-        SeedTermAwarePricing([noCasinoSite]);
+        });
         await _context.SaveChangesAsync();
 
         var query = new SitesQuery
@@ -706,7 +703,7 @@ public class ExportServiceTests : IDisposable
     public async Task ExportSitesAsExcelAsync_AvailableWithUnknownPrice_WritesYes()
     {
         // Arrange
-        var yesCasinoSite = new Site
+        _context.Sites.Add(new Site
         {
             Domain = "yes-casino.com",
             DR = 20,
@@ -722,9 +719,7 @@ public class ExportServiceTests : IDisposable
             IsQuarantined = false,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
-        };
-        _context.Sites.Add(yesCasinoSite);
-        SeedTermAwarePricing([yesCasinoSite]);
+        });
         await _context.SaveChangesAsync();
 
         // Act
@@ -745,7 +740,7 @@ public class ExportServiceTests : IDisposable
     public async Task ExportSitesAsExcelAsync_WithCasinoAvailabilityAvailable_ExportsOnlyAvailableSites()
     {
         // Arrange
-        var yesCasinoSite = new Site
+        _context.Sites.Add(new Site
         {
             Domain = "yes-casino.com",
             DR = 20,
@@ -761,9 +756,7 @@ public class ExportServiceTests : IDisposable
             IsQuarantined = false,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
-        };
-        _context.Sites.Add(yesCasinoSite);
-        SeedTermAwarePricing([yesCasinoSite]);
+        });
         await _context.SaveChangesAsync();
 
         var query = DefaultQuery();
@@ -786,7 +779,7 @@ public class ExportServiceTests : IDisposable
     public async Task ExportSitesAsExcelAsync_WithCasinoAvailabilityAvailableWithUnknownPrice_ExportsOnlyMatchingSites()
     {
         // Arrange
-        var yesCasinoSite = new Site
+        _context.Sites.Add(new Site
         {
             Domain = "yes-casino.com",
             DR = 20,
@@ -802,9 +795,7 @@ public class ExportServiceTests : IDisposable
             IsQuarantined = false,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
-        };
-        _context.Sites.Add(yesCasinoSite);
-        SeedTermAwarePricing([yesCasinoSite]);
+        });
         await _context.SaveChangesAsync();
 
         var query = DefaultQuery();
@@ -2062,33 +2053,6 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public void ExportAnalyticsSnapshotBuilder_WithTermKey_StoresTermFilter()
-    {
-        // Arrange
-        var exportLog = new ExportLog
-        {
-            Id = Guid.NewGuid(),
-            TimestampUtc = DateTime.UtcNow
-        };
-        var query = new SitesQuery
-        {
-            TermKey = " permanent "
-        };
-
-        // Act
-        var snapshot = ExportAnalyticsSnapshotBuilder.Create(exportLog, query);
-
-        // Assert
-        using var document = JsonDocument.Parse(snapshot.FiltersSnapshotJson);
-        var filters = document.RootElement.GetProperty("filters").EnumerateArray().ToArray();
-        Assert.Contains(filters, filter =>
-            filter.GetProperty("field").GetString() == "termKey" &&
-            filter.GetProperty("kind").GetString() == "term" &&
-            filter.GetProperty("operator").GetString() == "eq" &&
-            filter.GetProperty("value").GetString() == "permanent");
-    }
-
-    [Fact]
     public async Task ExportSitesAsExcelAsync_ClientRole_StoresEmptyFiltersArrayWhenNoFiltersActive()
     {
         var query = new SitesQuery
@@ -2459,77 +2423,6 @@ public class ExportServiceTests : IDisposable
             UserId = TestUserId,
             Domain = domain,
             ExportedAtUtc = timestampUtc
-        };
-
-    private void SeedTermAwarePricing(IEnumerable<Site> sites)
-    {
-        foreach (var site in sites)
-        {
-            var siteTerm = PricingTerm.FromTerm(site.TermType, site.TermValue, site.TermUnit);
-
-            AddPriceOptionIfPresent(site, PriceType.Main, siteTerm, site.PriceUsd);
-            AddOptionalServicePricing(site, PriceType.Casino, siteTerm, site.PriceCasino, site.PriceCasinoStatus);
-            AddOptionalServicePricing(site, PriceType.Crypto, siteTerm, site.PriceCrypto, site.PriceCryptoStatus);
-            AddOptionalServicePricing(site, PriceType.LinkInsertion, PricingTerm.Unknown, site.PriceLinkInsert, site.PriceLinkInsertStatus);
-            AddOptionalServicePricing(site, PriceType.LinkInsertionCasino, PricingTerm.Unknown, site.PriceLinkInsertCasino, site.PriceLinkInsertCasinoStatus);
-            AddOptionalServicePricing(site, PriceType.Dating, siteTerm, site.PriceDating, site.PriceDatingStatus);
-        }
-    }
-
-    private void AddOptionalServicePricing(
-        Site site,
-        PriceType serviceType,
-        PricingTerm term,
-        decimal? amountUsd,
-        ServiceAvailabilityStatus status)
-    {
-        var effectiveStatus = amountUsd is > 0 && status == ServiceAvailabilityStatus.Unknown
-            ? ServiceAvailabilityStatus.Available
-            : status;
-
-        _context.SiteServiceAvailabilities.Add(CreateServiceAvailability(site, serviceType, effectiveStatus));
-        AddPriceOptionIfPresent(site, serviceType, term, amountUsd);
-    }
-
-    private void AddPriceOptionIfPresent(Site site, PriceType priceType, PricingTerm term, decimal? amountUsd)
-    {
-        if (amountUsd is not > 0)
-        {
-            return;
-        }
-
-        _context.SitePriceOptions.Add(CreatePriceOption(site, priceType, term, amountUsd.Value));
-    }
-
-    private static SitePriceOption CreatePriceOption(
-        Site site,
-        PriceType priceType,
-        PricingTerm term,
-        decimal amountUsd)
-        => new()
-        {
-            SiteDomain = site.Domain,
-            PriceType = priceType,
-            TermKey = term.TermKey,
-            TermType = term.TermType,
-            TermValue = term.TermValue,
-            TermUnit = term.TermUnit,
-            AmountUsd = amountUsd,
-            CreatedAtUtc = site.CreatedAtUtc,
-            UpdatedAtUtc = site.UpdatedAtUtc
-        };
-
-    private static SiteServiceAvailability CreateServiceAvailability(
-        Site site,
-        PriceType serviceType,
-        ServiceAvailabilityStatus status)
-        => new()
-        {
-            SiteDomain = site.Domain,
-            ServiceType = serviceType,
-            Status = status,
-            CreatedAtUtc = site.CreatedAtUtc,
-            UpdatedAtUtc = site.UpdatedAtUtc
         };
 
     private static Site SiteWithNullPrice(string domain) => new()

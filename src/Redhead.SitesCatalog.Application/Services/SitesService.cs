@@ -2,8 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
-using Redhead.SitesCatalog.Domain.Entities;
-using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Locations;
 
@@ -93,8 +91,6 @@ public class SitesService : ISitesService
                 LastPublishedDateIsMonthOnly = s.LastPublishedDateIsMonthOnly
             })
             .ToListAsync(cancellationToken);
-
-        await AttachPricingAsync(sites, cancellationToken);
 
         return new SitesListResult
         {
@@ -198,41 +194,6 @@ public class SitesService : ISitesService
         return await _nicheFilterOptionsCache.GetOptionsAsync(cancellationToken);
     }
 
-    public async Task<List<TermFilterOptionDto>> GetTermOptionsAsync(CancellationToken cancellationToken = default)
-    {
-        var persistedTerms = await _context.SitePriceOptions
-            .AsNoTracking()
-            .Select(priceOption => new
-            {
-                priceOption.TermKey,
-                priceOption.TermType,
-                priceOption.TermValue,
-                priceOption.TermUnit
-            })
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        return persistedTerms
-            .Where(term => !string.IsNullOrWhiteSpace(term.TermKey))
-            .GroupBy(term => term.TermKey, StringComparer.Ordinal)
-            .Select(group =>
-            {
-                var term = group.First();
-                return new TermFilterOptionDto
-                {
-                    TermKey = group.Key,
-                    Label = PricingTerm.FormatLabel(group.Key, term.TermType, term.TermValue, term.TermUnit),
-                    TermType = term.TermType,
-                    TermValue = term.TermValue,
-                    TermUnit = term.TermUnit
-                };
-            })
-            .OrderBy(GetTermSortOrder)
-            .ThenBy(term => term.TermValue)
-            .ThenBy(term => term.Label, StringComparer.Ordinal)
-            .ToList();
-    }
-
     public async Task<MultiSearchSitesResult> MultiSearchSitesAsync(
         IReadOnlyList<string> normalizedDomains,
         IReadOnlyList<string> duplicates,
@@ -295,8 +256,6 @@ public class SitesService : ISitesService
                 LastPublishedDateIsMonthOnly = s.LastPublishedDateIsMonthOnly
             })
             .ToListAsync(cancellationToken);
-
-        await AttachPricingAsync(found, cancellationToken);
 
         var inputOrder = normalizedDomains
             .Select((domain, index) => new { domain, index })
@@ -369,7 +328,7 @@ public class SitesService : ISitesService
         await _context.SaveChangesAsync(cancellationToken);
         _nicheFilterOptionsCache.Invalidate();
 
-        var dto = new SiteDto
+        return new SiteDto
         {
             Domain = site.Domain,
             DR = site.DR,
@@ -406,101 +365,5 @@ public class SitesService : ISitesService
             LastPublishedDate = site.LastPublishedDate,
             LastPublishedDateIsMonthOnly = site.LastPublishedDateIsMonthOnly
         };
-
-        await AttachPricingAsync(new List<SiteDto> { dto }, cancellationToken);
-
-        return dto;
     }
-
-    private async Task AttachPricingAsync(IReadOnlyList<SiteDto> sites, CancellationToken cancellationToken)
-    {
-        if (sites.Count == 0)
-        {
-            return;
-        }
-
-        var domains = sites
-            .Select(site => site.Domain)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
-        var priceOptions = await _context.SitePriceOptions
-            .AsNoTracking()
-            .Where(priceOption => domains.Contains(priceOption.SiteDomain))
-            .ToListAsync(cancellationToken);
-
-        var serviceAvailabilities = await _context.SiteServiceAvailabilities
-            .AsNoTracking()
-            .Where(availability => domains.Contains(availability.SiteDomain))
-            .ToListAsync(cancellationToken);
-
-        var priceOptionsByDomain = priceOptions
-            .OrderBy(priceOption => priceOption.PriceType)
-            .ThenBy(GetTermSortOrder)
-            .ThenBy(priceOption => priceOption.TermValue)
-            .ThenBy(priceOption => priceOption.AmountUsd)
-            .ToLookup(priceOption => priceOption.SiteDomain, StringComparer.Ordinal);
-
-        var serviceAvailabilitiesByDomain = serviceAvailabilities
-            .OrderBy(availability => availability.ServiceType)
-            .ToLookup(availability => availability.SiteDomain, StringComparer.Ordinal);
-
-        foreach (var site in sites)
-        {
-            site.Pricing = new SitePricingDto
-            {
-                Prices = priceOptionsByDomain[site.Domain]
-                    .Select(MapPriceOptionDto)
-                    .ToList(),
-                ServiceAvailabilities = serviceAvailabilitiesByDomain[site.Domain]
-                    .Select(MapServiceAvailabilityDto)
-                    .ToList()
-            };
-        }
-    }
-
-    private static SitePriceOptionDto MapPriceOptionDto(SitePriceOption priceOption)
-    {
-        return new SitePriceOptionDto
-        {
-            PriceType = priceOption.PriceType,
-            TermKey = priceOption.TermKey,
-            TermType = priceOption.TermType,
-            TermValue = priceOption.TermValue,
-            TermUnit = priceOption.TermUnit,
-            TermLabel = PricingTerm.FormatLabel(
-                priceOption.TermKey,
-                priceOption.TermType,
-                priceOption.TermValue,
-                priceOption.TermUnit),
-            AmountUsd = priceOption.AmountUsd
-        };
-    }
-
-    private static SiteServiceAvailabilityDto MapServiceAvailabilityDto(SiteServiceAvailability availability)
-    {
-        return new SiteServiceAvailabilityDto
-        {
-            ServiceType = availability.ServiceType,
-            Status = availability.Status
-        };
-    }
-
-    private static int GetTermSortOrder(SitePriceOption priceOption)
-        => priceOption.TermKey switch
-        {
-            PricingTerm.UnknownKey => 0,
-            _ when priceOption.TermType == TermType.Finite => 1,
-            PricingTerm.PermanentKey => 2,
-            _ => 3
-        };
-
-    private static int GetTermSortOrder(TermFilterOptionDto term)
-        => term.TermKey switch
-        {
-            PricingTerm.UnknownKey => 0,
-            _ when term.TermType == TermType.Finite => 1,
-            PricingTerm.PermanentKey => 2,
-            _ => 3
-        };
 }
