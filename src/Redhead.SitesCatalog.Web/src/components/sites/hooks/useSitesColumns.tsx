@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { IconButton, Tooltip } from '@mui/material';
+import { Box, IconButton, Tooltip } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { Site } from '../../../types/sites.types';
@@ -15,13 +16,16 @@ import {
   sitesColumnRegistry,
 } from '../table-views/sitesTableColumns';
 import type { SitesColumnMetadata } from '../table-views/sitesTableColumns';
+import type { CopyablePriceColumn } from '../priceColumnClipboard';
 
 interface UseSitesColumnsOptions {
   isAdmin: boolean;
   isClient: boolean;
+  isMultiSearchView: boolean;
   visibleColumnIds: string[];
   columnWidths: Record<string, number>;
   onEdit: (site: Site) => void;
+  onCopyPriceColumn?: (field: CopyablePriceColumn) => void;
 }
 
 function formatCell<T>(row: GridRow, value: T, format: (v: T) => string): string {
@@ -77,6 +81,54 @@ function renderTruncatedTextCell(value: string) {
   return <TruncatedTextCell value={value} />;
 }
 
+function renderPriceColumnHeader(
+  label: string,
+  field: CopyablePriceColumn,
+  onCopyPriceColumn: (field: CopyablePriceColumn) => void
+) {
+  return (
+    <Box
+      sx={{
+        alignItems: 'center',
+        display: 'flex',
+        gap: 0.5,
+        minWidth: 0,
+        width: '100%',
+      }}
+    >
+      <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {label}
+      </Box>
+      <Tooltip title={`Copy ${label} values`}>
+        <IconButton
+          size="small"
+          aria-label={`Copy ${label} values`}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onCopyPriceColumn(field);
+          }}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          sx={{
+            color: 'text.secondary',
+            flexShrink: 0,
+            p: 0.25,
+            '&:hover': {
+              bgcolor: 'action.hover',
+              color: 'text.primary',
+            },
+          }}
+        >
+          <ContentCopyIcon fontSize="inherit" />
+        </IconButton>
+      </Tooltip>
+    </Box>
+  );
+}
+
 const columnMetadata: Record<string, SitesColumnMetadata> = Object.fromEntries(
   sitesColumnRegistry.map((column) => [column.id, column])
 );
@@ -104,12 +156,27 @@ function gridColumnDefaults(
 export function useSitesColumns({
   isAdmin,
   isClient,
+  isMultiSearchView,
   visibleColumnIds,
   columnWidths,
   onEdit,
+  onCopyPriceColumn,
 }: UseSitesColumnsOptions) {
   return useMemo<GridColDef<GridRow>[]>(
     () => {
+      const canCopyPriceColumns = isMultiSearchView && !isClient && onCopyPriceColumn;
+      const priceColumnHeader = (field: CopyablePriceColumn) => {
+        if (!canCopyPriceColumns) return {};
+        return {
+          renderHeader: () =>
+            renderPriceColumnHeader(
+              columnMetadata[field]?.label ?? field,
+              field,
+              canCopyPriceColumns
+            ),
+        };
+      };
+
       const allColumns: GridColDef<GridRow>[] = [
         {
           ...gridColumnDefaults('domain', columnWidths),
@@ -144,12 +211,14 @@ export function useSitesColumns({
         },
         {
           ...gridColumnDefaults('priceUsd', columnWidths),
+          ...priceColumnHeader('priceUsd'),
           field: 'priceUsd',
           type: 'number',
           valueFormatter: (value, row) => formatPrice(row, value as number | null),
         },
         {
           ...gridColumnDefaults('priceCasino', columnWidths),
+          ...priceColumnHeader('priceCasino'),
           field: 'priceCasino',
           type: 'number',
           valueFormatter: (value, row) =>
@@ -157,6 +226,7 @@ export function useSitesColumns({
         },
         {
           ...gridColumnDefaults('priceCrypto', columnWidths),
+          ...priceColumnHeader('priceCrypto'),
           field: 'priceCrypto',
           type: 'number',
           valueFormatter: (value, row) =>
@@ -164,6 +234,7 @@ export function useSitesColumns({
         },
         {
           ...gridColumnDefaults('priceLinkInsert', columnWidths),
+          ...priceColumnHeader('priceLinkInsert'),
           field: 'priceLinkInsert',
           type: 'number',
           valueFormatter: (value, row) =>
@@ -175,6 +246,7 @@ export function useSitesColumns({
         },
         {
           ...gridColumnDefaults('priceLinkInsertCasino', columnWidths),
+          ...priceColumnHeader('priceLinkInsertCasino'),
           field: 'priceLinkInsertCasino',
           type: 'number',
           valueFormatter: (value, row) =>
@@ -186,6 +258,7 @@ export function useSitesColumns({
         },
         {
           ...gridColumnDefaults('priceDating', columnWidths),
+          ...priceColumnHeader('priceDating'),
           field: 'priceDating',
           type: 'number',
           valueFormatter: (value, row) =>
@@ -397,6 +470,14 @@ export function useSitesColumns({
         .map((field) => columnsByField.get(field))
         .filter((column): column is GridColDef<GridRow> => Boolean(column));
     },
-    [columnWidths, isAdmin, isClient, onEdit, visibleColumnIds]
+    [
+      columnWidths,
+      isAdmin,
+      isClient,
+      isMultiSearchView,
+      onCopyPriceColumn,
+      onEdit,
+      visibleColumnIds,
+    ]
   );
 }
