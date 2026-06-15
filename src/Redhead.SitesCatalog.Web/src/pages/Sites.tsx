@@ -29,6 +29,11 @@ import { isNotFoundRow, useSitesGridRows } from '../components/sites/hooks/useSi
 import { useSitesTableViews } from '../components/sites/table-views/useSitesTableViews';
 import { useSitesSavedFilters } from '../components/sites/saved-filters/useSitesSavedFilters';
 import {
+  COPYABLE_PRICE_COLUMN_LABELS,
+  buildPriceColumnClipboardText,
+} from '../components/sites/priceColumnClipboard';
+import type { CopyablePriceColumn } from '../components/sites/priceColumnClipboard';
+import {
   applySavedFilterSettings,
   areSavedFilterSettingsEqual,
   buildSavedFilterSettings,
@@ -162,6 +167,7 @@ export function Sites() {
   const [multiSearchResult, setMultiSearchResult] = useState<MultiSearchResponse | null>(null);
   const [multiSearchAppliedText, setMultiSearchAppliedText] = useState('');
   const [multiSearchLoading, setMultiSearchLoading] = useState(false);
+  const [multiSearchRunId, setMultiSearchRunId] = useState(0);
   const [filterOptionsRefreshKey, setFilterOptionsRefreshKey] = useState(0);
   const [duplicatesAnchor, setDuplicatesAnchor] = useState<HTMLElement | null>(null);
   const [editSite, setEditSite] = useState<Site | null>(null);
@@ -361,8 +367,10 @@ export function Sites() {
       sitesService
         .multiSearch(query)
         .then((res) => {
+          setPaginationModel((prev) => ({ ...prev, page: 0 }));
           setMultiSearchResult(res);
           setMultiSearchAppliedText(query);
+          setMultiSearchRunId((current) => current + 1);
         })
         .catch((err) => {
           console.error('Multi-search failed:', err);
@@ -440,10 +448,12 @@ export function Sites() {
 
   const handleMultiSearchModeChange = (enabled: boolean) => {
     setMultiSearchMode(enabled);
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
     if (!enabled) {
       setMultiSearchResult(null);
       setMultiSearchAppliedText('');
       setDebouncedSearch(filters.search);
+      setMultiSearchRunId(0);
     }
   };
 
@@ -496,12 +506,45 @@ export function Sites() {
     multiSearchResult !== null && gridFiltersActive ? multiSearchResult.notFound.length : 0;
   const gridSearchedRowCount = multiSearchResult?.results.length ?? 0;
 
+  const handleCopyPriceColumn = useCallback(
+    async (field: CopyablePriceColumn) => {
+      if (!isMultiSearchView || isClient) return;
+
+      const label = COPYABLE_PRICE_COLUMN_LABELS[field];
+      try {
+        if (multiSearchResult === null) return;
+
+        const text = buildPriceColumnClipboardText(multiSearchResult.results, field);
+        if (!navigator.clipboard?.writeText) {
+          throw new Error('Clipboard API is not available in this browser.');
+        }
+
+        await navigator.clipboard.writeText(text);
+        setSnackbar({
+          open: true,
+          message: `Copied ${label} values in Multi-search input order (${multiSearchResult.results.length} rows)`,
+          severity: 'success',
+        });
+      } catch (error) {
+        setSnackbar({
+          open: true,
+          message: `Could not copy ${label} values`,
+          detail: error instanceof Error ? error.message : undefined,
+          severity: 'error',
+        });
+      }
+    },
+    [isClient, isMultiSearchView, multiSearchResult]
+  );
+
   const columns = useSitesColumns({
     isAdmin,
     isClient,
+    isMultiSearchView,
     visibleColumnIds: tableViews.visibleColumnIds,
     columnWidths: tableViews.columnWidths,
     onEdit: handleOpenEdit,
+    onCopyPriceColumn: isMultiSearchView && !isClient ? handleCopyPriceColumn : undefined,
   });
 
   const handleColumnWidthChange = useCallback(
@@ -748,6 +791,7 @@ export function Sites() {
             }}
           >
             <DataGrid
+              key={isMultiSearchView ? `multi-search-${multiSearchRunId}` : 'sites'}
               rows={gridRows}
               columns={columns}
               getRowId={(row) => (isNotFoundRow(row) ? `notfound:${row.domain}` : row.domain)}

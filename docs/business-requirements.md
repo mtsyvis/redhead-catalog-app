@@ -509,8 +509,13 @@ Display rules:
 * Not found rows should be visually distinguishable from found rows, for example with a subtle warning row background.
 * When no filters are active, the Sites table result count shows unique searched domains, found domains, and not found domains.
 * Filters apply only to found site rows. When filters are active, not found rows are hidden from the grid and the result count shows visible rows out of unique searched domains plus how many not found domains are hidden by filters.
+* Applying a new Multi-search resets table pagination to the first page and updates the pagination count for the new result set.
 * Domain/default sorting in Multi-search means normalized input order.
 * Sorting by a non-domain column sorts found rows by that column and appends not found rows afterward in normalized input order.
+* Internal users can copy values from visible price-column headers in Multi-search. Client-role users must not see or access price-column copy actions.
+* Price-column copying uses all unique Multi-search result rows in normalized input order after duplicate removal.
+* Price-column copying is not affected by table sorting, filters, or pagination.
+* Copied price-column values are newline-separated for spreadsheet paste. Numeric prices are copied as plain numbers without currency symbols or display formatting, `YES` and `NO` are copied as text, and unknown or not-found values are copied as blank lines to preserve row alignment with the pasted Multi-search input.
 
 Export rules:
 
