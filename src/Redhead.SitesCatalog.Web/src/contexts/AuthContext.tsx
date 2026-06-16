@@ -1,12 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth.service';
 import type { UserInfo, LoginRequest } from '../types/auth.types';
 import { ApiClientError } from '../services/api.client';
+import { registerSessionExpiredHandler, type SessionExpiredRoute } from '../services/sessionExpired';
 
 interface AuthContextValue {
   user: UserInfo | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  sessionExpiredRedirect: SessionExpiredRoute | null;
   login: (credentials: LoginRequest) => Promise<UserInfo>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -19,8 +22,22 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
  * Manages authentication state and provides auth methods to the app
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpiredRedirect, setSessionExpiredRedirect] =
+    useState<SessionExpiredRoute | null>(null);
+
+  useEffect(() => {
+    return registerSessionExpiredHandler(({ from }) => {
+      setSessionExpiredRedirect(from);
+      setUser(null);
+      navigate('/login', {
+        replace: true,
+        state: { from, sessionExpired: true },
+      });
+    });
+  }, [navigate]);
 
   /**
    * Fetch current user on mount
@@ -52,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (credentials: LoginRequest): Promise<UserInfo> => {
     await authService.login(credentials);
     const userData = await authService.getCurrentUser();
+    setSessionExpiredRedirect(null);
     setUser(userData);
     return userData;
   }, []);
@@ -63,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await authService.logout();
     } finally {
+      setSessionExpiredRedirect(null);
       setUser(null);
     }
   }, []);
@@ -79,11 +98,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       isLoading,
       isAuthenticated: !!user,
+      sessionExpiredRedirect,
       login,
       logout,
       refreshUser,
     }),
-    [user, isLoading, login, logout, refreshUser]
+    [user, isLoading, sessionExpiredRedirect, login, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

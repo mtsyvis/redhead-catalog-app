@@ -1,4 +1,5 @@
 import type { ApiError } from '../types/auth.types';
+import { notifySessionExpired } from './sessionExpired';
 
 /**
  * Base API configuration.
@@ -34,6 +35,10 @@ export class ApiClientError extends Error {
  * API client for making authenticated requests
  */
 export class ApiClient {
+  private static shouldNotifySessionExpired(endpoint: string): boolean {
+    return endpoint !== '/api/auth/login' && endpoint !== '/api/auth/me';
+  }
+
   private static isFieldErrorMap(value: unknown): value is Record<string, string[]> {
     return (
       !!value &&
@@ -45,8 +50,12 @@ export class ApiClient {
     );
   }
 
-  private static async handleResponse<T>(response: Response): Promise<T> {
+  private static async handleResponse<T>(response: Response, endpoint: string): Promise<T> {
     if (!response.ok) {
+      if (response.status === 401 && this.shouldNotifySessionExpired(endpoint)) {
+        notifySessionExpired();
+      }
+
       let errorData: ApiError | null = null;
 
       try {
@@ -90,7 +99,7 @@ export class ApiClient {
       },
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, endpoint);
   }
 
   /**
@@ -106,7 +115,7 @@ export class ApiClient {
       body: data ? JSON.stringify(data) : undefined,
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, endpoint);
   }
 
   /**
@@ -122,7 +131,7 @@ export class ApiClient {
       body: JSON.stringify(data),
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, endpoint);
   }
 
   /**
@@ -137,7 +146,7 @@ export class ApiClient {
       },
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, endpoint);
   }
 }
 

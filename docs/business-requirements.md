@@ -39,6 +39,7 @@ General rules:
 * Display name is derived from `FirstName` + `LastName` when both are present; otherwise email is used as the fallback display value.
 * Users can update only their own profile names.
 * Disabled users cannot log in or access API endpoints.
+* When a user's authenticated session expires or becomes invalid during protected frontend workflows, the user is redirected to `/login`, shown a session-expired message, and returned to the original page after signing in again.
 * Users are soft-disabled with `IsActive = false`; physical deletion is not allowed.
 * Disabled users may be reactivated only by `SuperAdmin`.
 * Authorization must be enforced server-side. UI hiding is only a convenience layer.

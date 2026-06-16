@@ -13,7 +13,7 @@ export interface ProtectedRouteProps {
  * Shows loading state while checking auth
  */
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, sessionExpiredRedirect } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -32,6 +32,16 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   if (!isAuthenticated) {
+    if (sessionExpiredRedirect) {
+      return (
+        <Navigate
+          to="/login"
+          state={{ from: sessionExpiredRedirect, sessionExpired: true }}
+          replace
+        />
+      );
+    }
+
     // Redirect to login, preserving the location they tried to visit
     return <Navigate to="/login" state={{ from: location }} replace />;
   }

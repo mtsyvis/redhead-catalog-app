@@ -23,6 +23,15 @@ import { BrandButton } from '../components/common/BrandButton';
 
 import mark from '../assets/brand/redhead-lockup.svg';
 
+interface LoginRouteState {
+  from?: {
+    pathname?: string;
+    search?: string;
+    hash?: string;
+  };
+  sessionExpired?: boolean;
+}
+
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,7 +45,9 @@ export const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
+  const routeState = location.state as LoginRouteState | null;
+  const fromPathname = routeState?.from?.pathname || '/';
+  const from = `${fromPathname}${routeState?.from?.search ?? ''}${routeState?.from?.hash ?? ''}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +107,12 @@ export const Login: React.FC = () => {
           {error && (
             <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
               {error}
+            </Alert>
+          )}
+
+          {routeState?.sessionExpired && !error && (
+            <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+              Your session has expired. Please sign in again.
             </Alert>
           )}
 

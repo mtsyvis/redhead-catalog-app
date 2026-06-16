@@ -1,4 +1,5 @@
 import { apiClient } from './api.client';
+import { notifySessionExpired } from './sessionExpired';
 import type {
   Site,
   SitesListResponse,
@@ -82,6 +83,10 @@ class SitesService {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        notifySessionExpired();
+      }
+
       throw new Error(await readExportErrorMessage(response, 'Export failed'));
     }
 
@@ -115,6 +120,10 @@ class SitesService {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        notifySessionExpired();
+      }
+
       throw new Error(await readExportErrorMessage(response, 'Export failed'));
     }
 

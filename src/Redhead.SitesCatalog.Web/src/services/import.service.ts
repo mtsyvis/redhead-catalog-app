@@ -1,3 +1,5 @@
+import { notifySessionExpired } from './sessionExpired';
+
 export interface ImportDownloadInfo {
   available: boolean;
   token: string;
@@ -63,6 +65,10 @@ async function runImportRequest<T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
+
     const err = await response.json().catch(() => ({ message: 'Import failed' }));
     throw new Error(err.message || err.error || 'Import failed');
   }
@@ -106,6 +112,10 @@ export async function downloadImportArtifactCsv(token: string, fallbackFileName:
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
+
     const err = await response.json().catch(() => ({ message: 'Download failed' }));
     throw new Error(err.message || err.error || 'Download failed');
   }
