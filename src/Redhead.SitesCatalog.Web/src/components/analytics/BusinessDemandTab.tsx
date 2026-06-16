@@ -232,42 +232,73 @@ function ServiceDemandTable({ items }: { items: ServiceDemand[] }) {
 
 function QualityDemandTables({ qualityDemand }: { qualityDemand: QualityDemand }) {
   return (
-    <Box
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' },
-        gap: 3,
-      }}
-    >
-      <Box>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          DR ranges
-        </Typography>
-        <RankedDemandTable
-          items={qualityDemand.drRanges}
-          nameLabel="Range"
-          emptyText="No DR range data available for the selected period."
-        />
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' },
+          gap: 3,
+        }}
+      >
+        <Box>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            DR ranges
+          </Typography>
+          <RankedDemandTable
+            items={qualityDemand.drRanges}
+            nameLabel="Range"
+            emptyText="No DR range data available for the selected period."
+          />
+        </Box>
+        <Box>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Traffic ranges
+          </Typography>
+          <RankedDemandTable
+            items={qualityDemand.trafficRanges}
+            nameLabel="Range"
+            emptyText="No traffic range data available for the selected period."
+          />
+        </Box>
+        <Box>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Price ranges
+          </Typography>
+          <RankedDemandTable
+            items={qualityDemand.priceRanges}
+            nameLabel="Range"
+            emptyText="No price range data available for the selected period."
+          />
+        </Box>
       </Box>
-      <Box>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Traffic ranges
-        </Typography>
-        <RankedDemandTable
-          items={qualityDemand.trafficRanges}
-          nameLabel="Range"
-          emptyText="No traffic range data available for the selected period."
-        />
-      </Box>
-      <Box>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Price ranges
-        </Typography>
-        <RankedDemandTable
-          items={qualityDemand.priceRanges}
-          nameLabel="Range"
-          emptyText="No price range data available for the selected period."
-        />
+
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' },
+          gap: 3,
+        }}
+      >
+        <Box>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Term demand
+          </Typography>
+          <RankedDemandTable
+            items={qualityDemand.termDemand}
+            nameLabel="Term"
+            emptyText="No term filter data available for the selected period."
+          />
+        </Box>
+        <Box>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Price ranges by term
+          </Typography>
+          <RankedDemandTable
+            items={qualityDemand.priceRangesByTerm}
+            nameLabel="Range"
+            emptyText="No price-by-term filter data available for the selected period."
+          />
+        </Box>
       </Box>
     </Box>
   );

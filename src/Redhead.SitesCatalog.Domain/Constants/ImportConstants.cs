@@ -101,6 +101,11 @@ public static class ImportConstants
         public const string PriceLinkInsert = "PriceLinkInsert";
         public const string PriceLinkInsertCasino = "PriceLinkInsertCasino";
         public const string PriceDating = "PriceDating";
+        public const string PriceCasinoAvailability = "PriceCasinoAvailability";
+        public const string PriceCryptoAvailability = "PriceCryptoAvailability";
+        public const string PriceLinkInsertAvailability = "PriceLinkInsertAvailability";
+        public const string PriceLinkInsertCasinoAvailability = "PriceLinkInsertCasinoAvailability";
+        public const string PriceDatingAvailability = "PriceDatingAvailability";
         public const string Niche = "Niche";
         public const string Categories = "Categories";
         public const string NumberDFLinks = "NumberDFLinks";
@@ -110,25 +115,42 @@ public static class ImportConstants
     }
 
     /// <summary>
-    /// Required column names for sites import/update import, in exact order.
+    /// Required base column names for insert sites import. Header order is flexible.
     /// </summary>
-    public static readonly string[] SitesImportRequiredColumnOrder =
+    public static readonly string[] SitesImportRequiredColumns =
     {
         SitesImportColumns.Domain,
         SitesImportColumns.DR,
         SitesImportColumns.Traffic,
         SitesImportColumns.Location,
-        SitesImportColumns.PriceUsd,
-        SitesImportColumns.PriceCasino,
-        SitesImportColumns.PriceCrypto,
-        SitesImportColumns.PriceLinkInsert,
-        SitesImportColumns.PriceLinkInsertCasino,
-        SitesImportColumns.PriceDating,
+    };
+
+    /// <summary>
+    /// Optional non-pricing column names for insert sites import. Header order is flexible.
+    /// </summary>
+    public static readonly string[] SitesImportOptionalColumns =
+    {
         SitesImportColumns.Niche,
         SitesImportColumns.Categories,
         SitesImportColumns.NumberDFLinks,
         SitesImportColumns.SponsoredTag,
-        SitesImportColumns.Term,
         SitesImportColumns.Language,
     };
+
+    /// <summary>
+    /// Non-pricing columns accepted by sites update import. Dynamic term-aware pricing columns are parsed separately.
+    /// </summary>
+    public static readonly string[] SitesUpdateImportBaseColumns =
+    {
+        SitesImportColumns.Domain,
+        SitesImportColumns.DR,
+        SitesImportColumns.Traffic,
+        SitesImportColumns.Location,
+        SitesImportColumns.Niche,
+        SitesImportColumns.Categories,
+        SitesImportColumns.NumberDFLinks,
+        SitesImportColumns.SponsoredTag,
+        SitesImportColumns.Language,
+    };
+
 }

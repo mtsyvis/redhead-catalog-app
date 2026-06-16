@@ -3,8 +3,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Application.Models.Import;
-using Redhead.SitesCatalog.Application.Services;
-using Redhead.SitesCatalog.Application.Services.Parsers;
+using Redhead.SitesCatalog.Application.Services.Import.Artifacts;
+using Redhead.SitesCatalog.Application.Services.Import.Common;
+using Redhead.SitesCatalog.Application.Services.Import.LastPublished;
+using Redhead.SitesCatalog.Application.Services.Import.Quarantine;
+using Redhead.SitesCatalog.Application.Services.Import.Sites;
+using Redhead.SitesCatalog.Application.Services.Import.SitesUpdate;
 using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
@@ -340,7 +344,7 @@ public class ImportController : ControllerBase
     }
 
     private static bool IsCsvFile(string fileName, string? contentType)
-        => CsvImportHelper.IsCsvExtension(fileName) || CsvImportHelper.IsCsvContentType(contentType);
+        => ImportFileTypeValidator.IsCsvFile(fileName, contentType);
 
     private static bool TryParseAvailabilityImportAction(
         string? value,

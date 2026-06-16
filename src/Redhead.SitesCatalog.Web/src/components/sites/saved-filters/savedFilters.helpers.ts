@@ -27,6 +27,7 @@ export function buildSavedFilterSettings(
     trafficMax: filters.trafficMax,
     priceMin: filters.priceMin,
     priceMax: filters.priceMax,
+    termKey: filters.termKey,
     locationSelections: cloneLocationSelections(filters.locationSelections),
     excludedLocationKeys: [...filters.excludedLocationKeys],
     niches: [...filters.niches],
@@ -63,6 +64,7 @@ export function applySavedFilterSettings(
     trafficMax: normalizeString(settings.trafficMax),
     priceMin: normalizeString(settings.priceMin),
     priceMax: normalizeString(settings.priceMax),
+    termKey: normalizeNullableString(settings.termKey),
     locationSelections: cloneLocationSelections(settings.locationSelections),
     excludedLocationKeys: normalizeStringArray(settings.excludedLocationKeys),
     niches: normalizeStringArray(settings.niches),
@@ -96,6 +98,10 @@ export function areSavedFilterSettingsEqual(
 
 function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function normalizeNullableString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 
 function normalizeStringArray(value: unknown): string[] {

@@ -252,15 +252,19 @@ Use the same normalization in:
 
 `PriceUsd` is nullable.
 
+Term-aware pricing is being introduced as an additive backend model. The backend stores term-specific price options in `SitePriceOptions` keyed by site, price type, and normalized term key, and optional service availability in `SiteServiceAvailabilities`. Existing flat site price columns remain temporarily for compatibility until imports, editing, filtering, sorting, exports, and frontend rendering are moved to the term-aware model.
+
 Rules:
 
 * Empty `PriceUsd` must be stored as empty/null, not as `0`.
 * `PriceUsd` must be either empty/null or greater than `0`; `0` and negative values are invalid.
 * UI must display empty `PriceUsd` as `NO`.
+* Price filtering and sorting use `SitePriceOptions` as the backend source of truth once term-aware pricing is enabled. With no selected term, price logic considers all terms; with a selected `TermKey`, price logic considers only matching price options.
 * During sites import, price fields may all be empty or unavailable; valid rows are not rejected only because no numeric price is present.
-* During sites update import, a present empty `PriceUsd` clears the existing value; a missing `PriceUsd` column leaves the existing value unchanged.
-* During sites update import, price fields may be omitted, cleared, or set unavailable according to field-level rules; update rows are not rejected only because no numeric price remains.
-* During sites import and sites update import, if `PriceUsd` is provided, it must be greater than `0`.
+* During sites update import, a present empty term-specific main price column such as `PriceUsd [1 year]` clears that exact `SitePriceOption`; a missing price column leaves that exact pricing data unchanged.
+* During sites update import, service price and availability fields may be omitted, cleared, or set unavailable according to field-level rules; update rows are not rejected only because no numeric price remains.
+* During sites import and sites update import, if a term-specific `PriceUsd [...]` value is provided, it must be greater than `0`.
+* Site exports use `SitePriceOptions` as the source of truth for the `Price USD` column. The exported cell contains all known terms for that site in compact form, for example `1 year: $100; Permanent: $300`; if no main price exists, export `—`.
 * Invalid price data must create row-level validation errors.
 * Empty input in an import file means empty value, not implicit zero.
 
@@ -293,6 +297,7 @@ Rules:
 * Do not represent service availability only as nullable decimal; availability and price are separate concepts.
 * UI must not mislead users by showing unavailable services as zero-price services.
 * UI and exports show `YES` for `AvailableWithUnknownPrice`, `NO` for `NotAvailable`, and empty/placeholder values for `Unknown`.
+* Site exports use `SitePriceOptions` and `SiteServiceAvailabilities` as the source of truth for service price columns. If service prices exist, export all known term prices in compact form, for example `1 year: $350; Permanent: $700`; otherwise export `YES`, `NO`, or `—` from the service availability status.
 
 ### Additional site fields
 
@@ -387,7 +392,7 @@ Rules:
 * Long text values in the Sites table stay single-line with truncation and reveal the full value on hover when truncated.
 * Workflow/system columns such as row actions are not saved in table views.
 * If active filters target hidden columns, the UI should warn the user and offer to show those columns or clear only those hidden-column filters.
-* Sorting by service-specific price fields keeps available services first in both ascending and descending order. Known numeric prices sort first by price, available-with-unknown-price (`YES`) sorts after known prices, not-available sorts after `YES`, and unknown sorts last.
+* Sorting by service-specific price fields uses numeric `SitePriceOptions`, keeping known numeric prices first in both ascending and descending order. With no selected term, the lowest price across all terms is used; with a selected `TermKey`, only that term is used. Available-with-unknown-price (`YES`) sorts after known prices, not-available sorts after `YES`, and unknown sorts last. `YES`, `NO`, and unknown are not zero-price values.
 * Row edit actions are visible only to roles allowed to edit, and backend authorization must enforce the same rule.
 
 Main filters:
@@ -397,6 +402,7 @@ Main filters:
 * DR range
 * Traffic range
 * Price range
+* Term single-select: any term / unknown term / finite year terms / permanent
 * Location multi-select
 * Location group multi-select
 * Include Unknown location
@@ -422,6 +428,9 @@ Optional service availability filter rules:
 
 * Optional service filters use the existing `ServiceAvailabilityStatus` values: `unknown`, `available`, `notAvailable`, and `availableWithUnknownPrice`.
 * Empty or missing optional service filter values mean no filter.
+* `available` means the service has at least one numeric `SitePriceOption`. With no selected term, any term can match; with a selected `TermKey`, the service must have a price for that term.
+* `availableWithUnknownPrice`, `notAvailable`, and `unknown` use global `SiteServiceAvailabilities` and are not term-specific.
+* `unknown` must not match sites that have numeric prices for that service.
 * Multiple selected values for one optional service use OR semantics.
 * Filters across different optional services use AND semantics.
 * The `available` and `availableWithUnknownPrice` values are distinct filter states.
@@ -552,30 +561,36 @@ General rules:
 
 Purpose: add new sites to the catalog.
 
-Required columns, in order:
+Required base columns:
 
 1. `Domain`
 2. `DR`
 3. `Traffic`
 4. `Location`
-5. `PriceUsd`
-6. `PriceCasino`
-7. `PriceCrypto`
-8. `PriceLinkInsert`
-9. `PriceLinkInsertCasino`
-10. `PriceDating`
-11. `Niche`
-12. `Categories`
-13. `NumberDFLinks`
-14. `SponsoredTag`
-15. `Term`
 
-16. `Language`
+Optional base columns:
+
+* `Niche`
+* `Categories`
+* `NumberDFLinks`
+* `SponsoredTag`
+* `Language`
+
+Pricing columns are optional dynamic columns. Main prices use term-specific headers such as `PriceUsd [unknown term]`, `PriceUsd [1 year]`, `PriceUsd [2 years]`, and `PriceUsd [permanent]`. Optional service prices use the same term-specific format for `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, and `PriceDating`.
+
+Optional service availability columns are `PriceCasinoAvailability`, `PriceCryptoAvailability`, `PriceLinkInsertAvailability`, `PriceLinkInsertCasinoAvailability`, and `PriceDatingAvailability`. Empty means `Unknown`, `YES` means `AvailableWithUnknownPrice`, and `NO` means `NotAvailable`.
 
 Rules:
 
 * Add-only import.
-* `Language` must be placed after `Term`; empty values are stored as empty/null, accepted values are normalized, and invalid values are row-level errors.
+* `Language` is part of the required base column order; empty values are stored as empty/null, accepted values are normalized, and invalid values are row-level errors.
+* New insert import writes prices to `SitePriceOptions` and optional service statuses to `SiteServiceAvailabilities`; it does not write imported pricing to legacy flat `Site` price fields.
+* Bare legacy pricing headers `PriceUsd`, `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, `PriceDating`, and `Term` are invalid for insert import.
+* Price columns are empty or positive numeric values only. Empty creates no price option; `0`, negative values, `YES`/`NO`, and non-numeric values are invalid.
+* Supported term labels in price headers are `unknown term`, `permanent`, and positive finite year labels such as `1 year` or `2 years`.
+* Duplicate price columns for the same price type and normalized term are invalid.
+* If an optional service has at least one numeric price option, its availability is saved as `Available`.
+* Service availability `YES` or `NO` cannot be combined with a numeric price for the same service in the same row.
 * Existing domains are skipped and reported.
 * New domains are inserted.
 * Domain is normalized before uniqueness checks.
@@ -594,14 +609,19 @@ Purpose: mass-update existing sites by domain.
 Rules:
 
 * Requires a `Domain` header and at least one supported update column.
-* Supports the same editable catalog columns as sites import, but the full standardized column set is not required.
+* Supports editable non-pricing catalog columns plus dynamic term-aware pricing columns.
 * Column order is flexible.
 * Unknown, duplicate, or blank headers are invalid.
+* Bare legacy pricing headers `PriceUsd`, `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, `PriceDating`, and `Term` are invalid.
 * `Domain` is the lookup key and must never be changed by the import.
 * Updates existing sites only.
 * Only columns present in the CSV are updated.
 * Missing columns leave existing values unchanged.
 * Present empty values are explicit updates and follow field-specific rules.
+* Present empty term-specific price cells clear the exact price option for that price type and term.
+* Present numeric term-specific service price cells upsert the exact price option and set that service availability to `Available`.
+* Present service availability cells set that service to `Unknown`, `AvailableWithUnknownPrice`, or `NotAvailable` and remove all price options for that service.
+* A service availability cell cannot be combined with a numeric service price cell for the same service in the same row.
 * Empty `Language` values overwrite existing language with empty/null.
 * Present empty nullable fields clear existing values according to the field storage convention.
 * Present empty required fields such as `DR` and `Traffic` are row-level errors.
@@ -743,6 +763,7 @@ Rules:
 * `SuperAdmin` export settings are shown as unlimited and not editable.
 * `SuperAdmin` can access an Analytics page for Business Demand based on Client export requests.
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
+* Business Demand price range analytics are based on the `priceUsd` main-price filter stored in export analytics snapshots. Term-aware pricing adds selected term demand and price-range-by-term demand; export logs without `termKey` are counted as `Any term`.
 * Business Demand analytics are based on export requests, not all UI searches, and must not expose raw export logs or raw filter/sort/search snapshot JSON in the page.
 * `SuperAdmin` can access an Export Activity analytics tab based on Client export logs and exported-domain access records.
 * Export Activity analytics summarize completed, partial, and blocked exports; unique exported domains; requested versus exported rows; daily export activity; per-client export results inside the selected period; and paginated recent export logs.

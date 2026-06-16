@@ -1,12 +1,19 @@
 import { useMemo } from 'react';
-import { Box, IconButton, Tooltip } from '@mui/material';
+import { Box, Chip, IconButton, Tooltip, Typography } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { Site } from '../../../types/sites.types';
+import type { TableViewDensity } from '../../../types/tableViews.types';
 import { formatLanguageTableValue } from '../../../utils/language';
-import { formatOptionalServicePrice } from '../../../utils/serviceAvailability';
 import { formatTerm } from '../../../utils/term';
+import {
+  PRICE_FIELD_TO_TYPE,
+  PRICE_TYPE,
+  type PricingCellSummary,
+  formatMainPriceCell,
+  formatOptionalServicePriceCell,
+} from '../../../utils/pricing';
 import { StatusBadge } from '../feedback/StatusBadge';
 import { TruncatedTextCell } from '../cells/TruncatedTextCell';
 import type { GridRow } from './useSitesGridRows';
@@ -24,24 +31,14 @@ interface UseSitesColumnsOptions {
   isMultiSearchView: boolean;
   visibleColumnIds: string[];
   columnWidths: Record<string, number>;
+  density: TableViewDensity;
   onEdit: (site: Site) => void;
   onCopyPriceColumn?: (field: CopyablePriceColumn) => void;
+  onViewPricing: (site: Site) => void;
 }
 
 function formatCell<T>(row: GridRow, value: T, format: (v: T) => string): string {
   return isNotFoundRow(row) ? '—' : format(value);
-}
-
-function formatPrice(row: GridRow, value: number | null): string {
-  return formatCell(row, value, (v) => (v == null ? 'NO' : `$${v}`));
-}
-
-function formatOptionalServiceCell(
-  row: GridRow,
-  price: number | null,
-  status: Site['priceCasinoStatus']
-): string {
-  return formatCell(row, price, (v) => formatOptionalServicePrice(status, v));
 }
 
 function formatNullableInteger(row: GridRow, value: number | null): string {
@@ -129,6 +126,257 @@ function renderPriceColumnHeader(
   );
 }
 
+function renderPricingTooltipContent(label: string, summary: PricingCellSummary) {
+  if (
+    summary.tooltipRows.length === 0 &&
+    !summary.statusLabel &&
+    summary.primary === '—'
+  ) {
+    return '';
+  }
+
+  return (
+    <Box sx={{ minWidth: 180 }}>
+      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
+        {label}
+      </Typography>
+      {summary.tooltipRows.length > 0 ? (
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 1.5 }}>
+          {summary.tooltipRows.map((row) => (
+            <Box
+              key={`${row.termLabel}:${row.amount}`}
+              sx={{
+                display: 'contents',
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                {row.termLabel}
+              </Typography>
+              <Typography variant="body2" sx={{ justifySelf: 'end', fontWeight: 600 }}>
+                {row.amount}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      ) : (
+        <Box>
+          {summary.statusLabel && (
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              {summary.statusLabel}
+            </Typography>
+          )}
+          {summary.statusHelper && (
+            <Typography variant="body2" color="text.secondary">
+              {summary.statusHelper}
+            </Typography>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+function renderHiddenCountChip(count: number) {
+  if (count <= 0) return null;
+
+  return (
+    <Chip
+      component="span"
+      label={`+${count}`}
+      size="small"
+      variant="outlined"
+      sx={{
+        height: 18,
+        minWidth: 0,
+        flexShrink: 0,
+        borderColor: 'divider',
+        bgcolor: 'action.hover',
+        color: 'text.secondary',
+        fontSize: '0.6875rem',
+        fontWeight: 600,
+        '& .MuiChip-label': {
+          px: 0.75,
+        },
+      }}
+    />
+  );
+}
+
+function renderStandardPriceDetails(summary: PricingCellSummary) {
+  if (summary.snippets.length > 0) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
+          minWidth: 0,
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          lineHeight: 1.25,
+        }}
+      >
+        {summary.snippets.map((snippet, index) => (
+          <Box
+            key={snippet}
+            component="span"
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.5,
+              minWidth: 0,
+              flexShrink: index === summary.snippets.length - 1 ? 1 : 0,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {index > 0 && (
+              <Box component="span" sx={{ color: 'text.disabled', flexShrink: 0 }}>
+                ·
+              </Box>
+            )}
+            <Typography
+              component="span"
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                display: 'inline',
+                minWidth: 0,
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                lineHeight: 1.25,
+              }}
+            >
+              {snippet}
+            </Typography>
+          </Box>
+        ))}
+        {summary.hiddenCount > 0 && (
+          <>
+            <Box component="span" sx={{ color: 'text.disabled', flexShrink: 0 }}>
+              ·
+            </Box>
+            {renderHiddenCountChip(summary.hiddenCount)}
+          </>
+        )}
+      </Box>
+    );
+  }
+
+  if (!summary.secondary) return null;
+
+  return (
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      noWrap
+      sx={{
+        display: 'block',
+        lineHeight: 1.25,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {summary.secondary}
+    </Typography>
+  );
+}
+
+function renderCompactPriceLine(summary: PricingCellSummary) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+      <Typography
+        component="span"
+        variant="body2"
+        noWrap
+        sx={{ minWidth: 0, fontWeight: 600, lineHeight: 1.2 }}
+      >
+        {summary.primary}
+      </Typography>
+      {renderHiddenCountChip(summary.compactHiddenCount)}
+    </Box>
+  );
+}
+
+function renderPriceCell(
+  summary: PricingCellSummary,
+  label: string,
+  site: Site,
+  onViewPricing: (site: Site) => void,
+  density: TableViewDensity
+) {
+  const isCompact = density === 'compact';
+
+  return (
+    <Tooltip
+      title={renderPricingTooltipContent(label, summary)}
+      arrow
+      slotProps={{
+        tooltip: {
+          sx: {
+            bgcolor: 'background.paper',
+            color: 'text.primary',
+            boxShadow: 3,
+            border: 1,
+            borderColor: 'divider',
+            p: 1.25,
+            maxWidth: 360,
+          },
+        },
+        arrow: {
+          sx: {
+            color: 'background.paper',
+          },
+        },
+      }}
+    >
+      <Box
+        component="button"
+        type="button"
+        aria-label={`Open ${label} pricing details for ${site.domain}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onViewPricing(site);
+        }}
+        sx={{
+          minWidth: 0,
+          width: '100%',
+          overflow: 'hidden',
+          lineHeight: 1.2,
+          p: 0,
+          m: 0,
+          border: 0,
+          bgcolor: 'transparent',
+          color: 'inherit',
+          textAlign: 'left',
+          cursor: 'pointer',
+          font: 'inherit',
+          display: 'block',
+          '&:focus-visible': {
+            outline: '2px solid',
+            outlineColor: 'primary.main',
+            outlineOffset: 2,
+            borderRadius: 0.5,
+          },
+        }}
+      >
+        {isCompact ? (
+          renderCompactPriceLine(summary)
+        ) : (
+          <>
+            <Typography
+              variant="body2"
+              noWrap
+              sx={{ display: 'block', fontWeight: 600, lineHeight: 1.2 }}
+            >
+              {summary.primary}
+            </Typography>
+            {renderStandardPriceDetails(summary)}
+          </>
+        )}
+      </Box>
+    </Tooltip>
+  );
+}
+
 const columnMetadata: Record<string, SitesColumnMetadata> = Object.fromEntries(
   sitesColumnRegistry.map((column) => [column.id, column])
 );
@@ -159,8 +407,10 @@ export function useSitesColumns({
   isMultiSearchView,
   visibleColumnIds,
   columnWidths,
+  density,
   onEdit,
   onCopyPriceColumn,
+  onViewPricing,
 }: UseSitesColumnsOptions) {
   return useMemo<GridColDef<GridRow>[]>(
     () => {
@@ -214,55 +464,145 @@ export function useSitesColumns({
           ...priceColumnHeader('priceUsd'),
           field: 'priceUsd',
           type: 'number',
-          valueFormatter: (value, row) => formatPrice(row, value as number | null),
+          headerAlign: 'left',
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row) ? '—' : formatMainPriceCell(row as Site).primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatMainPriceCell(params.row as Site),
+                  'Price USD',
+                  params.row as Site,
+                  onViewPricing,
+                  density
+                ),
         },
         {
           ...gridColumnDefaults('priceCasino', columnWidths),
           ...priceColumnHeader('priceCasino'),
           field: 'priceCasino',
           type: 'number',
-          valueFormatter: (value, row) =>
-            formatOptionalServiceCell(row, value as number | null, (row as Site).priceCasinoStatus),
+          align: 'left',
+          headerAlign: 'left',
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row)
+              ? '—'
+              : formatOptionalServicePriceCell(row as Site, PRICE_FIELD_TO_TYPE.priceCasino)
+                  .primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatOptionalServicePriceCell(
+                    params.row as Site,
+                    PRICE_FIELD_TO_TYPE.priceCasino
+                  ),
+                  'Casino',
+                  params.row as Site,
+                  onViewPricing,
+                  density
+                ),
         },
         {
           ...gridColumnDefaults('priceCrypto', columnWidths),
           ...priceColumnHeader('priceCrypto'),
           field: 'priceCrypto',
           type: 'number',
-          valueFormatter: (value, row) =>
-            formatOptionalServiceCell(row, value as number | null, (row as Site).priceCryptoStatus),
+          align: 'left',
+          headerAlign: 'left',
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row)
+              ? '—'
+              : formatOptionalServicePriceCell(row as Site, PRICE_FIELD_TO_TYPE.priceCrypto)
+                  .primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatOptionalServicePriceCell(
+                    params.row as Site,
+                    PRICE_FIELD_TO_TYPE.priceCrypto
+                  ),
+                  'Crypto',
+                  params.row as Site,
+                  onViewPricing,
+                  density
+                ),
         },
         {
           ...gridColumnDefaults('priceLinkInsert', columnWidths),
           ...priceColumnHeader('priceLinkInsert'),
           field: 'priceLinkInsert',
           type: 'number',
-          valueFormatter: (value, row) =>
-            formatOptionalServiceCell(
-              row,
-              value as number | null,
-              (row as Site).priceLinkInsertStatus
-            ),
+          align: 'left',
+          headerAlign: 'left',
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row)
+              ? '—'
+              : formatOptionalServicePriceCell(row as Site, PRICE_TYPE.LinkInsertion).primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatOptionalServicePriceCell(params.row as Site, PRICE_TYPE.LinkInsertion),
+                  'Link Insert',
+                  params.row as Site,
+                  onViewPricing,
+                  density
+                ),
         },
         {
           ...gridColumnDefaults('priceLinkInsertCasino', columnWidths),
           ...priceColumnHeader('priceLinkInsertCasino'),
           field: 'priceLinkInsertCasino',
           type: 'number',
-          valueFormatter: (value, row) =>
-            formatOptionalServiceCell(
-              row,
-              value as number | null,
-              (row as Site).priceLinkInsertCasinoStatus
-            ),
+          align: 'left',
+          headerAlign: 'left',
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row)
+              ? '—'
+              : formatOptionalServicePriceCell(row as Site, PRICE_TYPE.LinkInsertionCasino)
+                  .primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatOptionalServicePriceCell(
+                    params.row as Site,
+                    PRICE_TYPE.LinkInsertionCasino
+                  ),
+                  'Link Insert Casino',
+                  params.row as Site,
+                  onViewPricing,
+                  density
+                ),
         },
         {
           ...gridColumnDefaults('priceDating', columnWidths),
           ...priceColumnHeader('priceDating'),
           field: 'priceDating',
           type: 'number',
-          valueFormatter: (value, row) =>
-            formatOptionalServiceCell(row, value as number | null, (row as Site).priceDatingStatus),
+          align: 'left',
+          headerAlign: 'left',
+          valueFormatter: (_value, row) =>
+            isNotFoundRow(row)
+              ? '—'
+              : formatOptionalServicePriceCell(row as Site, PRICE_FIELD_TO_TYPE.priceDating)
+                  .primary,
+          renderCell: (params) =>
+            isNotFoundRow(params.row)
+              ? renderTruncatedTextCell('—')
+              : renderPriceCell(
+                  formatOptionalServicePriceCell(
+                    params.row as Site,
+                    PRICE_FIELD_TO_TYPE.priceDating
+                  ),
+                  'Dating',
+                  params.row as Site,
+                  onViewPricing,
+                  density
+                ),
         },
         {
           ...gridColumnDefaults('niche', columnWidths),
@@ -417,42 +757,43 @@ export function useSitesColumns({
               } as GridColDef<GridRow>,
             ]
           : []),
-        ...(isAdmin
-          ? [
-              {
-                ...gridColumnDefaults('actions', columnWidths),
-                field: 'actions',
-                headerName: '',
-                sortable: false,
-                width: 56,
-                minWidth: 56,
-                maxWidth: 56,
-                align: 'center',
-                headerAlign: 'center',
-                renderCell: (params: { row: GridRow }) => {
-                  if (isNotFoundRow(params.row)) return null;
-                  return (
-                    <Tooltip title="Edit site">
-                      <IconButton
-                        size="small"
-                        aria-label={`Edit ${params.row.domain}`}
-                        onClick={() => onEdit(params.row as Site)}
-                        sx={{
-                          color: 'text.secondary',
-                          '&:hover': {
-                            bgcolor: 'action.hover',
-                            color: 'text.primary',
-                          },
-                        }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  );
-                },
-              } as GridColDef<GridRow>,
-            ]
-          : []),
+        {
+          ...gridColumnDefaults('actions', columnWidths),
+          field: 'actions',
+          headerName: '',
+          sortable: false,
+          width: 48,
+          minWidth: 48,
+          maxWidth: 48,
+          align: 'center',
+          headerAlign: 'center',
+          renderCell: (params: { row: GridRow }) => {
+            if (isNotFoundRow(params.row)) return null;
+            const site = params.row as Site;
+            return (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                {isAdmin && (
+                  <Tooltip title="Edit site">
+                    <IconButton
+                      size="small"
+                      aria-label={`Edit ${site.domain}`}
+                      onClick={() => onEdit(site)}
+                      sx={{
+                        color: 'text.secondary',
+                        '&:hover': {
+                          bgcolor: 'action.hover',
+                          color: 'text.primary',
+                        },
+                      }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
+            );
+          },
+        } as GridColDef<GridRow>,
       ];
 
       const columnsByField = new Map(allColumns.map((column) => [column.field, column]));
@@ -463,7 +804,7 @@ export function useSitesColumns({
       const orderedFields = [
         ...visibleColumnIds.filter((field) => columnsByField.has(field)),
         ...registryOrderedFields.filter((field) => !visibleColumnSet.has(field)),
-        ...(columnsByField.has('actions') ? ['actions'] : []),
+        ...(isAdmin && columnsByField.has('actions') ? ['actions'] : []),
       ];
 
       return orderedFields
@@ -472,11 +813,13 @@ export function useSitesColumns({
     },
     [
       columnWidths,
+      density,
       isAdmin,
       isClient,
       isMultiSearchView,
       onCopyPriceColumn,
       onEdit,
+      onViewPricing,
       visibleColumnIds,
     ]
   );

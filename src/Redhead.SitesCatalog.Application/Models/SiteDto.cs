@@ -41,4 +41,5 @@ public class SiteDto
     public string? UpdatedBy { get; set; }
     public DateTime? LastPublishedDate { get; set; }
     public bool LastPublishedDateIsMonthOnly { get; set; }
+    public SitePricingDto Pricing { get; set; } = new();
 }

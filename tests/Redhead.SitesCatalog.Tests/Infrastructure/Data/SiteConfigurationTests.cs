@@ -35,6 +35,78 @@ public class SiteConfigurationTests
             constraint.Sql);
     }
 
+    [Fact]
+    public void SitePriceOptionConfiguration_ConfiguresRequiredTablesConstraintsAndIndexes()
+    {
+        // Arrange
+        using var context = CreateContext();
+        var model = context.GetService<IDesignTimeModel>().Model;
+
+        // Act
+        var entityType = model.FindEntityType(typeof(SitePriceOption));
+
+        // Assert
+        Assert.NotNull(entityType);
+        Assert.Equal("SitePriceOptions", entityType.GetTableName());
+        Assert.False(entityType.FindProperty(nameof(SitePriceOption.TermKey))!.IsNullable);
+
+        var uniqueIndex = Assert.Single(
+            entityType.GetIndexes(),
+            index => index.Properties.Select(property => property.Name).SequenceEqual([
+                nameof(SitePriceOption.SiteDomain),
+                nameof(SitePriceOption.PriceType),
+                nameof(SitePriceOption.TermKey)
+            ]));
+        Assert.True(uniqueIndex.IsUnique);
+
+        Assert.Contains(
+            entityType.GetIndexes(),
+            index => index.Properties.Select(property => property.Name).SequenceEqual([
+                nameof(SitePriceOption.PriceType),
+                nameof(SitePriceOption.TermKey),
+                nameof(SitePriceOption.AmountUsd)
+            ]));
+        Assert.Contains(
+            entityType.GetIndexes(),
+            index => index.Properties.Select(property => property.Name).SequenceEqual([
+                nameof(SitePriceOption.SiteDomain),
+                nameof(SitePriceOption.PriceType)
+            ]));
+
+        var amountConstraint = Assert.Single(
+            entityType.GetCheckConstraints(),
+            constraint => constraint.Name == "CK_SitePriceOptions_AmountUsd_Positive");
+        Assert.Equal("\"AmountUsd\" > 0", amountConstraint.Sql);
+    }
+
+    [Fact]
+    public void SiteServiceAvailabilityConfiguration_ConfiguresOptionalServiceTableAndUniqueIndex()
+    {
+        // Arrange
+        using var context = CreateContext();
+        var model = context.GetService<IDesignTimeModel>().Model;
+
+        // Act
+        var entityType = model.FindEntityType(typeof(SiteServiceAvailability));
+
+        // Assert
+        Assert.NotNull(entityType);
+        Assert.Equal("SiteServiceAvailabilities", entityType.GetTableName());
+
+        var uniqueIndex = Assert.Single(
+            entityType.GetIndexes(),
+            index => index.Properties.Select(property => property.Name).SequenceEqual([
+                nameof(SiteServiceAvailability.SiteDomain),
+                nameof(SiteServiceAvailability.ServiceType)
+            ]));
+        Assert.True(uniqueIndex.IsUnique);
+
+        var notMainConstraint = Assert.Single(
+            entityType.GetCheckConstraints(),
+            constraint => constraint.Name == "CK_SiteServiceAvailabilities_ServiceType_NotMain");
+        Assert.Equal("\"ServiceType\" <> 0", notMainConstraint.Sql);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

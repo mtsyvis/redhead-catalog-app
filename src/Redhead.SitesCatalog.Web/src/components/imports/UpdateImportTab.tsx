@@ -1,18 +1,25 @@
-import type React from "react";
-import type { UpdateImportResult } from "../../services/import.service";
-import { useImportTab } from "../../hooks/useImportTab";
-import { ImportTabContent } from "./ImportTabContent";
-import { ImportInstructionsCard } from "./ImportInstructionsCard";
-import { ImportUploadSection } from "./ImportUploadSection";
-import { UpdateImportResultCard } from "./UpdateImportResultCard";
-import { MAX_IMPORT_FILE_SIZE_BYTES, FILE_TOO_LARGE_MESSAGE, ACCEPT_FILES } from "../../services/import.service";
+import type React from 'react';
+import type { UpdateImportResult } from '../../services/import.service';
+import { useImportTab } from '../../hooks/useImportTab';
+import { ImportTabContent } from './ImportTabContent';
+import { ImportInstructionsPanel } from './ImportInstructionsPanel';
+import { ImportUploadSection } from './ImportUploadSection';
+import { UpdateImportResultCard } from './UpdateImportResultCard';
+import {
+  MAX_IMPORT_FILE_SIZE_BYTES,
+  FILE_TOO_LARGE_MESSAGE,
+  ACCEPT_FILES,
+} from '../../services/import.service';
 
 type UpdateImportTabProps = {
   readonly runImport: (file: File) => Promise<UpdateImportResult>;
   readonly instructions?: {
+    readonly title: React.ReactNode;
     readonly description: React.ReactNode;
     readonly requiredColumns: readonly string[];
-    readonly optionalNote?: React.ReactNode;
+    readonly requiredColumnsNote?: React.ReactNode;
+    readonly rules?: readonly React.ReactNode[];
+    readonly examples?: readonly { title: string; csv: string; note?: React.ReactNode }[];
   };
   readonly instructionsContent?: React.ReactNode;
   readonly uploadHelper?: React.ReactNode;
@@ -49,10 +56,13 @@ export function UpdateImportTab({
     <ImportTabContent
       instructions={
         instructionsContent ?? (instructions ? (
-          <ImportInstructionsCard
+          <ImportInstructionsPanel
+            title={instructions.title}
             description={instructions.description}
             requiredColumns={instructions.requiredColumns}
-            optionalNote={instructions.optionalNote}
+            requiredColumnsNote={instructions.requiredColumnsNote}
+            rules={instructions.rules}
+            examples={instructions.examples}
           />
         ) : null)
       }

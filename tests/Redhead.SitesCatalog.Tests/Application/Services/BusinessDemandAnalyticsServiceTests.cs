@@ -155,6 +155,42 @@ public sealed class BusinessDemandAnalyticsServiceTests
     }
 
     [Fact]
+    public async Task GetBusinessDemandAsync_TermAwarePriceDemandKeepsAnyTermAndSelectedTermContext()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        var timestamp = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc);
+        AddExportLog(
+            db,
+            "client-1",
+            timestamp,
+            requestedRows: 10,
+            exportedRows: 10,
+            filtersJson: FiltersJson(RangeFilter("priceUsd", min: null, max: 300m)));
+        AddExportLog(
+            db,
+            "client-2",
+            timestamp,
+            requestedRows: 10,
+            exportedRows: 10,
+            filtersJson: FiltersJson(
+                RangeFilter("priceUsd", min: null, max: 300m),
+                TermFilter("permanent")));
+        await db.SaveChangesAsync();
+        var sut = CreateService(db);
+
+        // Act
+        var result = await sut.GetBusinessDemandAsync(CreateQuery(), CancellationToken.None);
+
+        // Assert
+        Assert.Contains(result.QualityDemand.PriceRanges, item => item.Name == "Price up to $300" && item.ExportRequests == 2);
+        Assert.Contains(result.QualityDemand.TermDemand, item => item.Name == "Any term" && item.ExportRequests == 1);
+        Assert.Contains(result.QualityDemand.TermDemand, item => item.Name == "Permanent" && item.ExportRequests == 1);
+        Assert.Contains(result.QualityDemand.PriceRangesByTerm, item => item.Name == "Price up to $300 — Any term" && item.ExportRequests == 1);
+        Assert.Contains(result.QualityDemand.PriceRangesByTerm, item => item.Name == "Price up to $300 — Permanent" && item.ExportRequests == 1);
+    }
+
+    [Fact]
     public async Task GetBusinessDemandAsync_FilterStrictnessClassifiesFiltersAndBroadThreshold()
     {
         // Arrange
@@ -311,6 +347,9 @@ public sealed class BusinessDemandAnalyticsServiceTests
 
     private static Dictionary<string, object?> EnumFilter(string field, string value)
         => Filter(field, "enum", "eq", value);
+
+    private static Dictionary<string, object?> TermFilter(string value)
+        => Filter("termKey", "term", "eq", value);
 
     private static Dictionary<string, object?> BooleanFilter(string field, bool value)
         => Filter(field, "boolean", "eq", value);

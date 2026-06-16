@@ -206,6 +206,7 @@ public sealed class UserSavedFilterSetsService : IUserSavedFilterSetsService
         ValidateScalar(settings.TrafficMax, "Traffic maximum");
         ValidateScalar(settings.PriceMin, "Price minimum");
         ValidateScalar(settings.PriceMax, "Price maximum");
+        ValidateOptionalScalar(settings.TermKey, "Term key");
         ValidateScalar(settings.TopicFitMode, "Topic fit mode");
         ValidateScalar(settings.Quarantine, "Quarantine");
         ValidateOptionalMonth(settings.LastPublishedFromMonth, "Last publication from");
@@ -261,6 +262,7 @@ public sealed class UserSavedFilterSetsService : IUserSavedFilterSetsService
             TrafficMax = settings.TrafficMax,
             PriceMin = settings.PriceMin,
             PriceMax = settings.PriceMax,
+            TermKey = NormalizeOptionalScalar(settings.TermKey),
             LocationSelections = settings.LocationSelections,
             ExcludedLocationKeys = settings.ExcludedLocationKeys,
             Niches = settings.Niches,
@@ -290,6 +292,29 @@ public sealed class UserSavedFilterSetsService : IUserSavedFilterSetsService
         {
             throw new RequestValidationException($"{label} is too long.");
         }
+    }
+
+    private static void ValidateOptionalScalar(string? value, string label)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        if (value.Length > MaxScalarLength)
+        {
+            throw new RequestValidationException($"{label} is too long.");
+        }
+    }
+
+    private static string? NormalizeOptionalScalar(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim();
     }
 
     private static void ValidateOptionalScalar(string? value, string label, int maxLength)

@@ -192,6 +192,7 @@ public class SitesServiceTests : IDisposable
         }
 
         _context.Sites.AddRange(sites);
+        SeedTermAwarePricing(sites);
         _context.SaveChanges();
     }
 
@@ -1265,7 +1266,7 @@ public class SitesServiceTests : IDisposable
     public async Task GetSitesAsync_WithCasinoAvailabilityAvailable_ReturnsOnlyAvailableSites()
     {
         // Arrange
-        _context.Sites.Add(new Site
+        var yesCasinoSite = new Site
         {
             Domain = "yes-casino.com",
             DR = 40,
@@ -1281,7 +1282,9 @@ public class SitesServiceTests : IDisposable
             IsQuarantined = false,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
-        });
+        };
+        _context.Sites.Add(yesCasinoSite);
+        SeedTermAwarePricing([yesCasinoSite]);
         await _context.SaveChangesAsync();
 
         var query = new SitesQuery
@@ -1305,7 +1308,7 @@ public class SitesServiceTests : IDisposable
     public async Task GetSitesAsync_WithCasinoAvailabilityAvailableWithUnknownPrice_ReturnsOnlyAvailableWithUnknownPriceSites()
     {
         // Arrange
-        _context.Sites.Add(new Site
+        var yesCasinoSite = new Site
         {
             Domain = "yes-casino.com",
             DR = 40,
@@ -1321,7 +1324,9 @@ public class SitesServiceTests : IDisposable
             IsQuarantined = false,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
-        });
+        };
+        _context.Sites.Add(yesCasinoSite);
+        SeedTermAwarePricing([yesCasinoSite]);
         await _context.SaveChangesAsync();
 
         var query = new SitesQuery
@@ -1879,13 +1884,17 @@ public class SitesServiceTests : IDisposable
         string[] expectedDomains)
     {
         // Arrange
-        _context.Sites.RemoveRange(_context.Sites);
-        _context.Sites.AddRange(
+        await ClearCatalogAsync();
+        var sites = new[]
+        {
             SiteWithServiceState("known-expensive.com", 200m, ServiceAvailabilityStatus.Available),
             SiteWithServiceState("known-cheap.com", 100m, ServiceAvailabilityStatus.Available),
             SiteWithServiceState("yes-price.com", null, ServiceAvailabilityStatus.AvailableWithUnknownPrice),
             SiteWithServiceState("no-price.com", null, ServiceAvailabilityStatus.NotAvailable),
-            SiteWithServiceState("unknown-price.com", null, ServiceAvailabilityStatus.Unknown));
+            SiteWithServiceState("unknown-price.com", null, ServiceAvailabilityStatus.Unknown)
+        };
+        _context.Sites.AddRange(sites);
+        SeedTermAwarePricing(sites);
         await _context.SaveChangesAsync();
 
         // Act
@@ -2030,6 +2039,31 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(5, result.Total);
         Assert.Equal("crypto.com", result.Items[0].Domain);
         Assert.Equal("example.com", result.Items[1].Domain);
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultiplePriceOptions_KeepsPaginationAndIncludesPricing()
+    {
+        // Arrange
+        AddTermAwarePricingRows("crypto.com");
+        var query = new SitesQuery
+        {
+            Page = 1,
+            PageSize = 1,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        };
+
+        // Act
+        var result = await _service.GetSitesAsync(query);
+
+        // Assert
+        Assert.Equal(5, result.Total);
+        var site = Assert.Single(result.Items);
+        Assert.Equal("crypto.com", site.Domain);
+        Assert.Contains(site.Pricing.Prices, price => price.PriceType == PriceType.Main && price.TermKey == "finite:1:year");
+        Assert.Contains(site.Pricing.Prices, price => price.PriceType == PriceType.Casino && price.TermKey == "permanent");
     }
 
     [Fact]
@@ -2220,6 +2254,36 @@ public class SitesServiceTests : IDisposable
         Assert.DoesNotContain(result.Locations, location => location.Key == LocationDisplayFormatter.OtherPseudoKey);
     }
 
+    [Fact]
+    public async Task GetTermOptionsAsync_ReturnsUniqueTermsInExpectedOrder()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var unknownSite = SiteWithNullPrice("unknown-term.com");
+        var oneYearSite = SiteWithNullPrice("one-year.com");
+        var duplicateOneYearSite = SiteWithNullPrice("duplicate-one-year.com");
+        var twoYearSite = SiteWithNullPrice("two-year.com");
+        var permanentSite = SiteWithNullPrice("permanent.com");
+
+        _context.Sites.AddRange(unknownSite, oneYearSite, duplicateOneYearSite, twoYearSite, permanentSite);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(unknownSite, PriceType.Main, PricingTerm.Unknown, 50m),
+            CreatePriceOption(oneYearSite, PriceType.Main, PricingTerm.FiniteYears(1), 100m),
+            CreatePriceOption(duplicateOneYearSite, PriceType.Casino, PricingTerm.FiniteYears(1), 110m),
+            CreatePriceOption(twoYearSite, PriceType.Main, PricingTerm.FiniteYears(2), 200m),
+            CreatePriceOption(permanentSite, PriceType.Main, PricingTerm.Permanent, 300m));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetTermOptionsAsync();
+
+        // Assert
+        Assert.Equal(
+            [PricingTerm.UnknownKey, "finite:1:year", "finite:2:year", PricingTerm.PermanentKey],
+            result.Select(term => term.TermKey).ToArray());
+        Assert.Equal(["Unknown term", "1 year", "2 years", "Permanent"], result.Select(term => term.Label).ToArray());
+    }
+
     #endregion
 
     #region MultiSearch Tests
@@ -2316,7 +2380,7 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task MultiSearchSitesAsync_SingleQuery_ReturnsFullSiteDto()
+    public async Task MultiSearchSitesAsync_ReturnsFullSiteDto()
     {
         var normalizedDomains = new List<string> { "gambling.com" };
         var duplicates = new List<string>();
@@ -2331,6 +2395,35 @@ public class SitesServiceTests : IDisposable
         Assert.Equal("UNKNOWN", site.Language);
         Assert.True(site.IsQuarantined);
         Assert.Equal("Under review", site.QuarantineReason);
+    }
+
+    [Fact]
+    public async Task MultiSearchSitesAsync_FoundRowsIncludeTermAwarePricing()
+    {
+        // Arrange
+        AddTermAwarePricingRows("example.com");
+        var normalizedDomains = new List<string> { "example.com", "missing.com" };
+        var duplicates = new List<string>();
+
+        // Act
+        var result = await _service.MultiSearchSitesAsync(normalizedDomains, duplicates);
+
+        // Assert
+        var site = Assert.Single(result.Found);
+        Assert.Equal("example.com", site.Domain);
+        var price = Assert.Single(
+            site.Pricing.Prices,
+            price => price.PriceType == PriceType.Main && price.TermKey == "finite:1:year");
+        Assert.Equal("finite:1:year", price.TermKey);
+        Assert.Equal(TermType.Finite, price.TermType);
+        Assert.Equal(1, price.TermValue);
+        Assert.Equal(TermUnit.Year, price.TermUnit);
+        Assert.Equal("1 year", price.TermLabel);
+        Assert.Equal(111m, price.AmountUsd);
+        Assert.Contains(
+            site.Pricing.ServiceAvailabilities,
+            availability => availability.ServiceType == PriceType.Casino && availability.Status == ServiceAvailabilityStatus.Available);
+        Assert.Equal(["missing.com"], result.NotFound);
     }
 
     [Fact]
@@ -2533,6 +2626,188 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateSiteAsync_WithTermAwareMainPricing_ReplacesPersistedPricing()
+    {
+        // Arrange
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                CreatePricingRequest(PriceType.Main, PricingTerm.FiniteYears(1), 200m),
+                CreatePricingRequest(PriceType.Main, PricingTerm.Permanent, 500m)
+            ]
+        };
+
+        // Act
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        Assert.Equal(
+            ["finite:1:year", "permanent"],
+            updated.Pricing.Prices.Where(price => price.PriceType == PriceType.Main).Select(price => price.TermKey).ToArray());
+        Assert.Empty(updated.Pricing.ServiceAvailabilities);
+
+        var dbSite = await _context.Sites
+            .Include(s => s.PriceOptions)
+            .Include(s => s.ServiceAvailabilities)
+            .SingleAsync(s => s.Domain == "example.com");
+        Assert.Equal(2, dbSite.PriceOptions.Count);
+        Assert.Equal(200m, dbSite.PriceUsd);
+        Assert.Equal(TermType.Finite, dbSite.TermType);
+        Assert.Equal(1, dbSite.TermValue);
+        Assert.Equal(TermUnit.Year, dbSite.TermUnit);
+        Assert.Empty(dbSite.ServiceAvailabilities);
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_WithCasinoPricing_PersistsAvailableStatus()
+    {
+        // Arrange
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices =
+            [
+                CreatePricingRequest(PriceType.Casino, PricingTerm.FiniteYears(1), 250m)
+            ]
+        };
+
+        // Act
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        var availability = Assert.Single(updated.Pricing.ServiceAvailabilities);
+        Assert.Equal(PriceType.Casino, availability.ServiceType);
+        Assert.Equal(ServiceAvailabilityStatus.Available, availability.Status);
+
+        var dbSite = await _context.Sites
+            .Include(s => s.PriceOptions)
+            .Include(s => s.ServiceAvailabilities)
+            .SingleAsync(s => s.Domain == "example.com");
+        Assert.Equal(250m, dbSite.PriceCasino);
+        Assert.Equal(ServiceAvailabilityStatus.Available, dbSite.PriceCasinoStatus);
+        Assert.Single(dbSite.PriceOptions);
+        Assert.Single(dbSite.ServiceAvailabilities);
+    }
+
+    [Theory]
+    [InlineData(ServiceAvailabilityStatus.NotAvailable)]
+    [InlineData(ServiceAvailabilityStatus.AvailableWithUnknownPrice)]
+    [InlineData(ServiceAvailabilityStatus.Unknown)]
+    public async Task UpdateSiteAsync_WithClearingServiceStatus_RemovesServicePrices(ServiceAvailabilityStatus status)
+    {
+        // Arrange
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            ServiceAvailabilities =
+            [
+                new UpdateSiteServiceAvailabilityRequest
+                {
+                    ServiceType = PriceType.Casino,
+                    Status = status
+                }
+            ]
+        };
+
+        // Act
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        Assert.DoesNotContain(updated.Pricing.Prices, price => price.PriceType == PriceType.Casino);
+        var availability = Assert.Single(updated.Pricing.ServiceAvailabilities);
+        Assert.Equal(status, availability.Status);
+
+        var dbSite = await _context.Sites
+            .Include(s => s.PriceOptions)
+            .Include(s => s.ServiceAvailabilities)
+            .SingleAsync(s => s.Domain == "example.com");
+        Assert.DoesNotContain(dbSite.PriceOptions, price => price.PriceType == PriceType.Casino);
+        Assert.Equal(status, dbSite.PriceCasinoStatus);
+        Assert.Null(dbSite.PriceCasino);
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_WithoutPricingPayload_LeavesTermAwarePricingUnchanged()
+    {
+        // Arrange
+        AddTermAwarePricingRows("example.com");
+        var beforePrices = await _context.SitePriceOptions
+            .Where(price => price.SiteDomain == "example.com")
+            .OrderBy(price => price.PriceType)
+            .ThenBy(price => price.TermKey)
+            .Select(price => new { price.PriceType, price.TermKey, price.AmountUsd })
+            .ToListAsync();
+        var beforeAvailabilities = await _context.SiteServiceAvailabilities
+            .Where(availability => availability.SiteDomain == "example.com")
+            .OrderBy(availability => availability.ServiceType)
+            .Select(availability => new { availability.ServiceType, availability.Status })
+            .ToListAsync();
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Location = "FR";
+
+        // Act
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        Assert.Equal("France", updated.Location);
+
+        var afterPrices = await _context.SitePriceOptions
+            .Where(price => price.SiteDomain == "example.com")
+            .OrderBy(price => price.PriceType)
+            .ThenBy(price => price.TermKey)
+            .Select(price => new { price.PriceType, price.TermKey, price.AmountUsd })
+            .ToListAsync();
+        var afterAvailabilities = await _context.SiteServiceAvailabilities
+            .Where(availability => availability.SiteDomain == "example.com")
+            .OrderBy(availability => availability.ServiceType)
+            .Select(availability => new { availability.ServiceType, availability.Status })
+            .ToListAsync();
+
+        Assert.Equal(beforePrices, afterPrices);
+        Assert.Equal(beforeAvailabilities, afterAvailabilities);
+    }
+
+    [Fact]
+    public async Task UpdateSiteAsync_WithEmptyPricingPayload_ClearsPersistedPricing()
+    {
+        // Arrange
+        AddTermAwarePricingRows("example.com");
+        var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
+        var request = RequestFrom(site);
+        request.Pricing = new UpdateSitePricingRequest();
+
+        // Act
+        var updated = await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(updated);
+        Assert.Empty(updated.Pricing.Prices);
+        Assert.Empty(updated.Pricing.ServiceAvailabilities);
+
+        var dbSite = await _context.Sites
+            .Include(s => s.PriceOptions)
+            .Include(s => s.ServiceAvailabilities)
+            .SingleAsync(s => s.Domain == "example.com");
+        Assert.Empty(dbSite.PriceOptions);
+        Assert.Empty(dbSite.ServiceAvailabilities);
+        Assert.Null(dbSite.PriceUsd);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, dbSite.PriceCasinoStatus);
+        Assert.Null(dbSite.TermType);
+        Assert.Null(dbSite.TermValue);
+        Assert.Null(dbSite.TermUnit);
+    }
+
+    [Fact]
     public async Task UpdateSiteAsync_WithUserEmail_SetsUpdatedBy()
     {
         // Arrange
@@ -2720,6 +2995,392 @@ public class SitesServiceTests : IDisposable
         Assert.Equal("null-price.com", result.Items.Last().Domain);
     }
 
+    [Fact]
+    public async Task GetSitesAsync_PriceMaxWithAnyTerm_UsesAnyMainPriceTerm()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var anyTermMatch = SiteWithNullPrice("any-term-match.com");
+        var tooExpensive = SiteWithNullPrice("too-expensive.com");
+        var noMainPrice = SiteWithNullPrice("no-main-price.com");
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.Sites.AddRange(anyTermMatch, tooExpensive, noMainPrice);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(anyTermMatch, PriceType.Main, oneYear, 500m),
+            CreatePriceOption(anyTermMatch, PriceType.Main, PricingTerm.Permanent, 250m),
+            CreatePriceOption(tooExpensive, PriceType.Main, oneYear, 400m),
+            CreatePriceOption(noMainPrice, PriceType.Casino, PricingTerm.Permanent, 100m));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            PriceMax = 300m,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(["any-term-match.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_PriceMaxWithTermKey_UsesOnlySelectedMainPriceTerm()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var oneYearMatch = SiteWithNullPrice("one-year-match.com");
+        var permanentOnly = SiteWithNullPrice("permanent-only.com");
+        var wrongTermLowPrice = SiteWithNullPrice("wrong-term-low-price.com");
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.Sites.AddRange(oneYearMatch, permanentOnly, wrongTermLowPrice);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(oneYearMatch, PriceType.Main, oneYear, 250m),
+            CreatePriceOption(permanentOnly, PriceType.Main, PricingTerm.Permanent, 250m),
+            CreatePriceOption(wrongTermLowPrice, PriceType.Main, oneYear, 500m),
+            CreatePriceOption(wrongTermLowPrice, PriceType.Main, PricingTerm.Permanent, 200m));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            PriceMax = 300m,
+            TermKey = oneYear.TermKey,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(["one-year-match.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_CasinoHasPriceWithAnyTerm_UsesAnyCasinoPriceTerm()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var permanentPrice = SiteWithNullPrice("casino-permanent-price.com");
+        var oneYearPrice = SiteWithNullPrice("casino-one-year-price.com");
+        var yesWithoutPrice = SiteWithNullPrice("casino-yes-without-price.com");
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.Sites.AddRange(permanentPrice, oneYearPrice, yesWithoutPrice);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(permanentPrice, PriceType.Casino, PricingTerm.Permanent, 400m),
+            CreatePriceOption(oneYearPrice, PriceType.Casino, oneYear, 200m));
+        _context.SiteServiceAvailabilities.Add(CreateServiceAvailability(
+            yesWithoutPrice,
+            PriceType.Casino,
+            ServiceAvailabilityStatus.AvailableWithUnknownPrice));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            CasinoAvailability = [ServiceAvailabilityStatus.Available],
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(
+            ["casino-one-year-price.com", "casino-permanent-price.com"],
+            result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_CasinoHasPriceWithTermKey_UsesSelectedCasinoPriceTerm()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var permanentPrice = SiteWithNullPrice("casino-permanent-price.com");
+        var oneYearPrice = SiteWithNullPrice("casino-one-year-price.com");
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.Sites.AddRange(permanentPrice, oneYearPrice);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(permanentPrice, PriceType.Casino, PricingTerm.Permanent, 400m),
+            CreatePriceOption(oneYearPrice, PriceType.Casino, oneYear, 200m));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            TermKey = PricingTerm.Permanent.TermKey,
+            CasinoAvailability = [ServiceAvailabilityStatus.Available],
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(["casino-permanent-price.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_CasinoYesWithTermKey_UsesGlobalAvailabilityAndStandaloneTermFilter()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var yesWithPermanent = SiteWithNullPrice("yes-with-permanent.com");
+        var yesWithoutPermanent = SiteWithNullPrice("yes-without-permanent.com");
+        var hasPriceWithPermanent = SiteWithNullPrice("has-price-with-permanent.com");
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.Sites.AddRange(yesWithPermanent, yesWithoutPermanent, hasPriceWithPermanent);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(yesWithPermanent, PriceType.Main, PricingTerm.Permanent, 100m),
+            CreatePriceOption(yesWithoutPermanent, PriceType.Main, oneYear, 100m),
+            CreatePriceOption(hasPriceWithPermanent, PriceType.Casino, PricingTerm.Permanent, 100m));
+        _context.SiteServiceAvailabilities.AddRange(
+            CreateServiceAvailability(yesWithPermanent, PriceType.Casino, ServiceAvailabilityStatus.AvailableWithUnknownPrice),
+            CreateServiceAvailability(yesWithoutPermanent, PriceType.Casino, ServiceAvailabilityStatus.AvailableWithUnknownPrice),
+            CreateServiceAvailability(hasPriceWithPermanent, PriceType.Casino, ServiceAvailabilityStatus.Available));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            TermKey = PricingTerm.Permanent.TermKey,
+            CasinoAvailability = [ServiceAvailabilityStatus.AvailableWithUnknownPrice],
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(["yes-with-permanent.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_CasinoNoWithTermKey_UsesGlobalAvailabilityAndStandaloneTermFilter()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var noWithPermanent = SiteWithNullPrice("no-with-permanent.com");
+        var noWithoutPermanent = SiteWithNullPrice("no-without-permanent.com");
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.Sites.AddRange(noWithPermanent, noWithoutPermanent);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(noWithPermanent, PriceType.Main, PricingTerm.Permanent, 100m),
+            CreatePriceOption(noWithoutPermanent, PriceType.Main, oneYear, 100m));
+        _context.SiteServiceAvailabilities.AddRange(
+            CreateServiceAvailability(noWithPermanent, PriceType.Casino, ServiceAvailabilityStatus.NotAvailable),
+            CreateServiceAvailability(noWithoutPermanent, PriceType.Casino, ServiceAvailabilityStatus.NotAvailable));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            TermKey = PricingTerm.Permanent.TermKey,
+            CasinoAvailability = [ServiceAvailabilityStatus.NotAvailable],
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(["no-with-permanent.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_CasinoUnknown_DoesNotMatchSitesWithCasinoPrices()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var unknownWithoutRow = SiteWithNullPrice("unknown-without-row.com");
+        var unknownWithRow = SiteWithNullPrice("unknown-with-row.com");
+        var unknownWithPrice = SiteWithNullPrice("unknown-with-price.com");
+
+        _context.Sites.AddRange(unknownWithoutRow, unknownWithRow, unknownWithPrice);
+        _context.SiteServiceAvailabilities.AddRange(
+            CreateServiceAvailability(unknownWithRow, PriceType.Casino, ServiceAvailabilityStatus.Unknown),
+            CreateServiceAvailability(unknownWithPrice, PriceType.Casino, ServiceAvailabilityStatus.Unknown));
+        _context.SitePriceOptions.Add(CreatePriceOption(unknownWithPrice, PriceType.Casino, PricingTerm.Permanent, 100m));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            CasinoAvailability = [ServiceAvailabilityStatus.Unknown],
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(
+            ["unknown-with-row.com", "unknown-without-row.com"],
+            result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_SortByPriceUsdAscendingWithAnyTerm_UsesLowestMainPriceAcrossTerms()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var lowestPermanent = SiteWithNullPrice("lowest-permanent.com");
+        var oneYearMiddle = SiteWithNullPrice("one-year-middle.com");
+        var noMainPrice = SiteWithNullPrice("no-main-price.com");
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.Sites.AddRange(lowestPermanent, oneYearMiddle, noMainPrice);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(lowestPermanent, PriceType.Main, oneYear, 300m),
+            CreatePriceOption(lowestPermanent, PriceType.Main, PricingTerm.Permanent, 100m),
+            CreatePriceOption(oneYearMiddle, PriceType.Main, oneYear, 200m));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.PriceUsd,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(
+            ["lowest-permanent.com", "one-year-middle.com", "no-main-price.com"],
+            result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_SortByPriceUsdAscendingWithTermKey_UsesOnlySelectedMainPriceTerm()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var oneYearMiddle = SiteWithNullPrice("one-year-middle.com");
+        var oneYearHigher = SiteWithNullPrice("one-year-higher.com");
+        var serviceOnlyOneYear = SiteWithNullPrice("service-only-one-year.com");
+        var permanentOnly = SiteWithNullPrice("permanent-only.com");
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.Sites.AddRange(oneYearMiddle, oneYearHigher, serviceOnlyOneYear, permanentOnly);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(oneYearMiddle, PriceType.Main, oneYear, 200m),
+            CreatePriceOption(oneYearHigher, PriceType.Main, oneYear, 300m),
+            CreatePriceOption(oneYearHigher, PriceType.Main, PricingTerm.Permanent, 100m),
+            CreatePriceOption(serviceOnlyOneYear, PriceType.Casino, oneYear, 50m),
+            CreatePriceOption(permanentOnly, PriceType.Main, PricingTerm.Permanent, 25m));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            TermKey = oneYear.TermKey,
+            SortBy = SortFields.PriceUsd,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(
+            ["one-year-middle.com", "one-year-higher.com", "service-only-one-year.com"],
+            result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_SortByPriceCasinoAscending_UsesLowestCasinoPriceAndDoesNotTreatStatusesAsZero()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var lowestPermanent = SiteWithNullPrice("casino-lowest-permanent.com");
+        var oneYearMiddle = SiteWithNullPrice("casino-one-year-middle.com");
+        var yesWithoutPrice = SiteWithNullPrice("casino-yes-without-price.com");
+        var noWithoutPrice = SiteWithNullPrice("casino-no-without-price.com");
+        var unknownWithoutPrice = SiteWithNullPrice("casino-unknown-without-price.com");
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.Sites.AddRange(lowestPermanent, oneYearMiddle, yesWithoutPrice, noWithoutPrice, unknownWithoutPrice);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(lowestPermanent, PriceType.Casino, oneYear, 300m),
+            CreatePriceOption(lowestPermanent, PriceType.Casino, PricingTerm.Permanent, 100m),
+            CreatePriceOption(oneYearMiddle, PriceType.Casino, oneYear, 200m));
+        _context.SiteServiceAvailabilities.AddRange(
+            CreateServiceAvailability(yesWithoutPrice, PriceType.Casino, ServiceAvailabilityStatus.AvailableWithUnknownPrice),
+            CreateServiceAvailability(noWithoutPrice, PriceType.Casino, ServiceAvailabilityStatus.NotAvailable),
+            CreateServiceAvailability(unknownWithoutPrice, PriceType.Casino, ServiceAvailabilityStatus.Unknown));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            SortBy = SortFields.PriceCasino,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(
+            [
+                "casino-lowest-permanent.com",
+                "casino-one-year-middle.com",
+                "casino-yes-without-price.com",
+                "casino-no-without-price.com",
+                "casino-unknown-without-price.com"
+            ],
+            result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_WithMultiplePriceOptions_KeepsTotalCountAndPagesDistinctSites()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var multiPriceSite = SiteWithNullPrice("multi-price.com");
+        var singlePriceSite = SiteWithNullPrice("single-price.com");
+
+        _context.Sites.AddRange(multiPriceSite, singlePriceSite);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(multiPriceSite, PriceType.Main, PricingTerm.Unknown, 100m),
+            CreatePriceOption(multiPriceSite, PriceType.Main, PricingTerm.FiniteYears(1), 200m),
+            CreatePriceOption(multiPriceSite, PriceType.Casino, PricingTerm.Permanent, 300m),
+            CreatePriceOption(singlePriceSite, PriceType.Main, PricingTerm.Unknown, 400m));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 1,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(2, result.Total);
+        var site = Assert.Single(result.Items);
+        Assert.Equal("multi-price.com", site.Domain);
+    }
+
     #endregion
 
     private async Task<List<string>> GetSortedDomainsAsync(string sortBy, string sortDir)
@@ -2733,6 +3394,54 @@ public class SitesServiceTests : IDisposable
         });
 
         return result.Items.Select(s => s.Domain).ToList();
+    }
+
+    private void SeedTermAwarePricing(IEnumerable<Site> sites)
+    {
+        foreach (var site in sites)
+        {
+            var siteTerm = PricingTerm.FromTerm(site.TermType, site.TermValue, site.TermUnit);
+
+            AddPriceOptionIfPresent(site, PriceType.Main, siteTerm, site.PriceUsd);
+            AddOptionalServicePricing(site, PriceType.Casino, siteTerm, site.PriceCasino, site.PriceCasinoStatus);
+            AddOptionalServicePricing(site, PriceType.Crypto, siteTerm, site.PriceCrypto, site.PriceCryptoStatus);
+            AddOptionalServicePricing(site, PriceType.LinkInsertion, PricingTerm.Unknown, site.PriceLinkInsert, site.PriceLinkInsertStatus);
+            AddOptionalServicePricing(site, PriceType.LinkInsertionCasino, PricingTerm.Unknown, site.PriceLinkInsertCasino, site.PriceLinkInsertCasinoStatus);
+            AddOptionalServicePricing(site, PriceType.Dating, siteTerm, site.PriceDating, site.PriceDatingStatus);
+        }
+    }
+
+    private void AddOptionalServicePricing(
+        Site site,
+        PriceType serviceType,
+        PricingTerm term,
+        decimal? amountUsd,
+        ServiceAvailabilityStatus status)
+    {
+        var effectiveStatus = amountUsd is > 0 && status == ServiceAvailabilityStatus.Unknown
+            ? ServiceAvailabilityStatus.Available
+            : status;
+
+        _context.SiteServiceAvailabilities.Add(CreateServiceAvailability(site, serviceType, effectiveStatus));
+        AddPriceOptionIfPresent(site, serviceType, term, amountUsd);
+    }
+
+    private void AddPriceOptionIfPresent(Site site, PriceType priceType, PricingTerm term, decimal? amountUsd)
+    {
+        if (amountUsd is not > 0)
+        {
+            return;
+        }
+
+        _context.SitePriceOptions.Add(CreatePriceOption(site, priceType, term, amountUsd.Value));
+    }
+
+    private async Task ClearCatalogAsync()
+    {
+        _context.SitePriceOptions.RemoveRange(_context.SitePriceOptions);
+        _context.SiteServiceAvailabilities.RemoveRange(_context.SiteServiceAvailabilities);
+        _context.Sites.RemoveRange(_context.Sites);
+        await _context.SaveChangesAsync();
     }
 
     private void SetNumberDFLinks()
@@ -2824,6 +3533,67 @@ public class SitesServiceTests : IDisposable
         CreatedAtUtc = DateTime.UtcNow,
         UpdatedAtUtc = DateTime.UtcNow
     };
+
+    private void AddTermAwarePricingRows(string domain)
+    {
+        var site = _context.Sites.Single(s => s.Domain == domain);
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(site, PriceType.Main, oneYear, 111m),
+            CreatePriceOption(site, PriceType.Casino, PricingTerm.Permanent, 222m));
+
+        _context.SiteServiceAvailabilities.AddRange(
+            CreateServiceAvailability(site, PriceType.Casino, ServiceAvailabilityStatus.Available),
+            CreateServiceAvailability(site, PriceType.Crypto, ServiceAvailabilityStatus.NotAvailable));
+
+        _context.SaveChanges();
+    }
+
+    private static SitePriceOption CreatePriceOption(
+        Site site,
+        PriceType priceType,
+        PricingTerm term,
+        decimal amountUsd)
+        => new()
+        {
+            SiteDomain = site.Domain,
+            PriceType = priceType,
+            TermKey = term.TermKey,
+            TermType = term.TermType,
+            TermValue = term.TermValue,
+            TermUnit = term.TermUnit,
+            AmountUsd = amountUsd,
+            CreatedAtUtc = site.CreatedAtUtc,
+            UpdatedAtUtc = site.UpdatedAtUtc
+        };
+
+    private static UpdateSitePriceOptionRequest CreatePricingRequest(
+        PriceType priceType,
+        PricingTerm term,
+        decimal amountUsd)
+        => new()
+        {
+            PriceType = priceType,
+            TermKey = term.TermKey,
+            TermType = term.TermType,
+            TermValue = term.TermValue,
+            TermUnit = term.TermUnit,
+            AmountUsd = amountUsd
+        };
+
+    private static SiteServiceAvailability CreateServiceAvailability(
+        Site site,
+        PriceType serviceType,
+        ServiceAvailabilityStatus status)
+        => new()
+        {
+            SiteDomain = site.Domain,
+            ServiceType = serviceType,
+            Status = status,
+            CreatedAtUtc = site.CreatedAtUtc,
+            UpdatedAtUtc = site.UpdatedAtUtc
+        };
 
     private static Site SiteWithServiceState(
         string domain,

@@ -36,6 +36,7 @@ import type {
   LocationFilterOptions,
   ServiceAvailabilityFilter,
   SitesFilters,
+  TermFilterOptionDto,
   TopicFitMode,
 } from '../../../types/sites.types';
 import type { SavedFilterSet, SavedFilterSettings } from '../../../types/savedFilters.types';
@@ -46,6 +47,11 @@ import {
   normalizeServiceAvailabilityFilter,
 } from '../../../utils/serviceAvailability';
 import { LANGUAGE_OPTIONS, getLanguageOption } from '../../../utils/language';
+import {
+  ANY_TERM_KEY,
+  createTermFilterOptions,
+  formatTermFilterLabel,
+} from '../../../utils/pricing';
 import { LastPublishedRangeFilter } from './LastPublishedRangeFilter';
 import { StopListDialog } from '../dialogs/StopListDialog';
 import { pluralize } from '../../../utils/pluralize';
@@ -88,6 +94,7 @@ const INITIAL_FILTERS: SitesFilters = {
   trafficMax: '',
   priceMin: '',
   priceMax: '',
+  termKey: null,
   stopListDomains: [],
   locationSelections: [],
   excludedLocationKeys: [],
@@ -211,6 +218,9 @@ export function SitesFilters({
   const [locationOptionsLoading, setLocationOptionsLoading] = useState(false);
   const [locationOptionsError, setLocationOptionsError] = useState<string | null>(null);
   const [nicheOptions, setNicheOptions] = useState<FilterOption[]>([]);
+  const [termOptions, setTermOptions] = useState<TermFilterOptionDto[]>([
+    { termKey: ANY_TERM_KEY, label: 'Any term' },
+  ]);
   const [expanded, setExpanded] = useState(false);
   const [stopListDialogOpen, setStopListDialogOpen] = useState(false);
   const [savedFiltersAnchor, setSavedFiltersAnchor] = useState<HTMLElement | null>(null);
@@ -234,9 +244,11 @@ export function SitesFilters({
         const data = await sitesService.getFilterOptions();
         setNicheOptions(data.niches);
         setLocationOptions(data.locations ?? null);
+        setTermOptions(createTermFilterOptions(data.terms));
       } catch (error) {
         console.error('Failed to load filter options:', error);
         setLocationOptions(null);
+        setTermOptions(createTermFilterOptions(null));
         setLocationOptionsError('Location options could not be loaded.');
       } finally {
         setLocationOptionsLoading(false);
@@ -262,6 +274,7 @@ export function SitesFilters({
       trafficMax: INITIAL_FILTERS.trafficMax,
       priceMin: INITIAL_FILTERS.priceMin,
       priceMax: INITIAL_FILTERS.priceMax,
+      termKey: INITIAL_FILTERS.termKey,
       stopListDomains: multiSearchMode ? filters.stopListDomains : INITIAL_FILTERS.stopListDomains,
       locationSelections: INITIAL_FILTERS.locationSelections,
       excludedLocationKeys: INITIAL_FILTERS.excludedLocationKeys,
@@ -314,6 +327,7 @@ export function SitesFilters({
     if (filters.drMin !== '' || filters.drMax !== '') count += 1;
     if (filters.trafficMin !== '' || filters.trafficMax !== '') count += 1;
     if (filters.priceMin !== '' || filters.priceMax !== '') count += 1;
+    if (filters.termKey !== INITIAL_FILTERS.termKey) count += 1;
     if (!multiSearchMode && filters.stopListDomains.length > 0) count += 1;
     if (filters.locationSelections.length > 0 || filters.excludedLocationKeys.length > 0) count += 1;
     if (filters.niches.length > 0) count += 1;
@@ -351,6 +365,10 @@ export function SitesFilters({
   const selectedLanguageOptions = filters.languages.map(
     (value) => getLanguageOption(value) ?? { value, label: value }
   );
+  const selectedTermKey = filters.termKey ?? ANY_TERM_KEY;
+  const selectedTermLabel =
+    termOptions.find((option) => option.termKey === selectedTermKey)?.label ??
+    formatTermFilterLabel(selectedTermKey);
 
   const stopListCount = filters.stopListDomains.length;
   const stopListPaused = multiSearchMode && stopListCount > 0;
@@ -944,6 +962,38 @@ export function SitesFilters({
                     sx={{ flex: 1 }}
                   />
                 </Box>
+              </Box>
+
+              {/* Term Filter */}
+              <Box sx={{ flex: '0 0 auto', minWidth: '185px' }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Term
+                </Typography>
+                <TextField
+                  select
+                  size="small"
+                  value={selectedTermKey}
+                  onChange={(event) =>
+                    handleChange(
+                      'termKey',
+                      event.target.value === ANY_TERM_KEY ? null : event.target.value
+                    )
+                  }
+                  sx={{ width: 185 }}
+                  slotProps={{
+                    select: {
+                      displayEmpty: true,
+                      inputProps: { 'aria-label': 'Term' },
+                      renderValue: () => selectedTermLabel,
+                    },
+                  }}
+                >
+                  {termOptions.map((option) => (
+                    <MenuItem key={option.termKey || 'any'} value={option.termKey}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
               </Box>
 
               <LocationFilter

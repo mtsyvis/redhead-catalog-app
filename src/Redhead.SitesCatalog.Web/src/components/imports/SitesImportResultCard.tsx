@@ -125,7 +125,7 @@ export function SitesImportResultCard({
 
         {savedWithWarningsCount > 0 && (
           <Alert severity="warning">
-            Some rows were imported, but their Location could not be mapped and was saved as Other.
+            Some rows were saved with warnings. Download the warning file to review affected fields and how they were handled.
           </Alert>
         )}
 

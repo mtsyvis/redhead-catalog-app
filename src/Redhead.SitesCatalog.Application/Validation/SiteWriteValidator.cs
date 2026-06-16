@@ -10,6 +10,15 @@ public static class SiteWriteValidator
     public const double DrMin = 0;
     public const double DrMax = 100;
 
+    private static readonly PriceType[] OptionalServiceTypes =
+    [
+        PriceType.Casino,
+        PriceType.Crypto,
+        PriceType.LinkInsertion,
+        PriceType.LinkInsertionCasino,
+        PriceType.Dating
+    ];
+
     public static SiteWriteValidationResult ValidateAndNormalize(
         SiteWriteInput? input,
         SiteWriteValidationContext context = SiteWriteValidationContext.ManualForm)
@@ -74,65 +83,88 @@ public static class SiteWriteValidator
             Add(errors, "sponsoredTag", $"Sponsored tag must be at most {SiteFieldLimits.SponsoredTagMaxLength} characters.");
         }
 
-        if (input.PriceUsd is decimal priceUsd)
+        decimal? normalizedPriceUsd;
+        (decimal? Price, ServiceAvailabilityStatus Status) normalizedCasino;
+        (decimal? Price, ServiceAvailabilityStatus Status) normalizedCrypto;
+        (decimal? Price, ServiceAvailabilityStatus Status) normalizedLinkInsert;
+        (decimal? Price, ServiceAvailabilityStatus Status) normalizedLinkInsertCasino;
+        (decimal? Price, ServiceAvailabilityStatus Status) normalizedDating;
+        UpdateSitePricingRequest? normalizedPricing = null;
+
+        if (input.Pricing is null)
         {
-            if (priceUsd <= 0)
+            // LEGACY_PRICING: legacy flat pricing validation path.
+            // Kept temporarily while some callers still send old pricing fields.
+            normalizedPriceUsd = input.PriceUsd;
+            if (input.PriceUsd is decimal priceUsd && priceUsd <= 0)
             {
                 Add(errors, "priceUsd", "Price USD must be greater than 0 or empty.");
             }
+
+            normalizedCasino = NormalizeOptionalServicePair(
+                errors,
+                "priceCasino",
+                "priceCasinoStatus",
+                input.PriceCasino,
+                input.PriceCasinoStatus,
+                "Price Casino");
+            normalizedCrypto = NormalizeOptionalServicePair(
+                errors,
+                "priceCrypto",
+                "priceCryptoStatus",
+                input.PriceCrypto,
+                input.PriceCryptoStatus,
+                "Price Crypto");
+            normalizedLinkInsert = NormalizeOptionalServicePair(
+                errors,
+                "priceLinkInsert",
+                "priceLinkInsertStatus",
+                input.PriceLinkInsert,
+                input.PriceLinkInsertStatus,
+                "Price Link Insert");
+            normalizedLinkInsertCasino = NormalizeOptionalServicePair(
+                errors,
+                "priceLinkInsertCasino",
+                "priceLinkInsertCasinoStatus",
+                input.PriceLinkInsertCasino,
+                input.PriceLinkInsertCasinoStatus,
+                "Price Link Insert Casino");
+            normalizedDating = NormalizeOptionalServicePair(
+                errors,
+                "priceDating",
+                "priceDatingStatus",
+                input.PriceDating,
+                input.PriceDatingStatus,
+                "Price Dating");
+
+            if (context == SiteWriteValidationContext.ManualForm
+                && !SitePriceValidationHelper.HasAnyNumericPrice(new SitePriceState(
+                        normalizedPriceUsd,
+                        normalizedCasino.Price,
+                        normalizedCasino.Status,
+                        normalizedCrypto.Price,
+                        normalizedCrypto.Status,
+                        normalizedLinkInsert.Price,
+                        normalizedLinkInsert.Status,
+                        normalizedLinkInsertCasino.Price,
+                        normalizedLinkInsertCasino.Status,
+                        normalizedDating.Price,
+                        normalizedDating.Status)))
+            {
+                Add(errors, string.Empty, "At least one numeric price is required.");
+            }
         }
-
-        var normalizedCasino = NormalizeOptionalServicePair(
-            errors,
-            "priceCasino",
-            "priceCasinoStatus",
-            input.PriceCasino,
-            input.PriceCasinoStatus,
-            "Price Casino");
-        var normalizedCrypto = NormalizeOptionalServicePair(
-            errors,
-            "priceCrypto",
-            "priceCryptoStatus",
-            input.PriceCrypto,
-            input.PriceCryptoStatus,
-            "Price Crypto");
-        var normalizedLinkInsert = NormalizeOptionalServicePair(
-            errors,
-            "priceLinkInsert",
-            "priceLinkInsertStatus",
-            input.PriceLinkInsert,
-            input.PriceLinkInsertStatus,
-            "Price Link Insert");
-        var normalizedLinkInsertCasino = NormalizeOptionalServicePair(
-            errors,
-            "priceLinkInsertCasino",
-            "priceLinkInsertCasinoStatus",
-            input.PriceLinkInsertCasino,
-            input.PriceLinkInsertCasinoStatus,
-            "Price Link Insert Casino");
-        var normalizedDating = NormalizeOptionalServicePair(
-            errors,
-            "priceDating",
-            "priceDatingStatus",
-            input.PriceDating,
-            input.PriceDatingStatus,
-            "Price Dating");
-
-        if (context == SiteWriteValidationContext.ManualForm
-            && !SitePriceValidationHelper.HasAnyNumericPrice(new SitePriceState(
-                    input.PriceUsd,
-                    normalizedCasino.Price,
-                    normalizedCasino.Status,
-                    normalizedCrypto.Price,
-                    normalizedCrypto.Status,
-                    normalizedLinkInsert.Price,
-                    normalizedLinkInsert.Status,
-                    normalizedLinkInsertCasino.Price,
-                    normalizedLinkInsertCasino.Status,
-                    normalizedDating.Price,
-                    normalizedDating.Status)))
+        else
         {
-            Add(errors, string.Empty, "At least one numeric price is required.");
+            // New term-aware pricing validation path.
+            // When Pricing is present, it becomes the authoritative pricing payload.
+            normalizedPriceUsd = input.PriceUsd;
+            normalizedCasino = (input.PriceCasino, input.PriceCasinoStatus ?? ServiceAvailabilityStatus.Unknown);
+            normalizedCrypto = (input.PriceCrypto, input.PriceCryptoStatus ?? ServiceAvailabilityStatus.Unknown);
+            normalizedLinkInsert = (input.PriceLinkInsert, input.PriceLinkInsertStatus ?? ServiceAvailabilityStatus.Unknown);
+            normalizedLinkInsertCasino = (input.PriceLinkInsertCasino, input.PriceLinkInsertCasinoStatus ?? ServiceAvailabilityStatus.Unknown);
+            normalizedDating = (input.PriceDating, input.PriceDatingStatus ?? ServiceAvailabilityStatus.Unknown);
+            normalizedPricing = NormalizePricing(errors, input.Pricing);
         }
 
         if (input.NumberDFLinks is <= 0)
@@ -170,7 +202,7 @@ public static class SiteWriteValidator
                 Location = location,
                 Language = language,
                 SponsoredTag = sponsoredTag,
-                PriceUsd = input.PriceUsd,
+                PriceUsd = normalizedPriceUsd,
                 PriceCasino = normalizedCasino.Price,
                 PriceCasinoStatus = normalizedCasino.Status,
                 PriceCrypto = normalizedCrypto.Price,
@@ -187,9 +219,156 @@ public static class SiteWriteValidator
                 TermUnit = input.TermUnit,
                 Niche = niche,
                 Categories = categories,
+                Pricing = normalizedPricing,
                 IsQuarantined = input.IsQuarantined,
                 QuarantineReason = quarantineReason
             }
+        };
+    }
+
+    private static UpdateSitePricingRequest NormalizePricing(
+        Dictionary<string, List<string>> errors,
+        UpdateSitePricingRequest pricing)
+    {
+        var normalizedPrices = new List<UpdateSitePriceOptionRequest>();
+        var seenPriceTerms = new HashSet<(PriceType PriceType, string TermKey)>();
+
+        var rawPrices = pricing.Prices ?? [];
+        for (var index = 0; index < rawPrices.Count; index++)
+        {
+            var price = rawPrices[index];
+            var prefix = $"pricing.prices[{index}]";
+
+            if (!IsSupportedPriceType(price.PriceType))
+            {
+                Add(errors, $"{prefix}.priceType", "Invalid price type value.");
+                continue;
+            }
+
+            if (!PricingTerm.TryCreate(
+                    price.TermKey,
+                    price.TermType,
+                    price.TermValue,
+                    price.TermUnit,
+                    out var term))
+            {
+                Add(errors, $"{prefix}.termKey", "Term key must match term type, term value, and term unit.");
+                continue;
+            }
+
+            if (price.AmountUsd <= 0)
+            {
+                Add(errors, $"{prefix}.amountUsd", "Price amount must be greater than 0.");
+            }
+
+            if (!seenPriceTerms.Add((price.PriceType, term.TermKey)))
+            {
+                Add(errors, $"{prefix}.termKey", "Duplicate price type and term key combination is not allowed.");
+            }
+
+            normalizedPrices.Add(new UpdateSitePriceOptionRequest
+            {
+                PriceType = price.PriceType,
+                TermKey = term.TermKey,
+                TermType = term.TermType,
+                TermValue = term.TermValue,
+                TermUnit = term.TermUnit,
+                AmountUsd = price.AmountUsd
+            });
+        }
+
+        var explicitStatuses = new Dictionary<PriceType, (ServiceAvailabilityStatus Status, string StatusField)>();
+        var rawAvailabilities = pricing.ServiceAvailabilities ?? [];
+        for (var index = 0; index < rawAvailabilities.Count; index++)
+        {
+            var availability = rawAvailabilities[index];
+            var prefix = $"pricing.serviceAvailabilities[{index}]";
+
+            if (availability.ServiceType == PriceType.Main)
+            {
+                Add(errors, $"{prefix}.serviceType", "Main pricing must not include a service availability row.");
+                continue;
+            }
+
+            if (!IsOptionalServiceType(availability.ServiceType))
+            {
+                Add(errors, $"{prefix}.serviceType", "Invalid service type value.");
+                continue;
+            }
+
+            if (!Enum.IsDefined(availability.Status))
+            {
+                Add(errors, $"{prefix}.status", "Invalid availability status value.");
+                continue;
+            }
+
+            if (!explicitStatuses.TryAdd(availability.ServiceType, (availability.Status, $"{prefix}.status")))
+            {
+                Add(errors, $"{prefix}.serviceType", "Duplicate service availability rows are not allowed.");
+            }
+        }
+
+        foreach (var serviceType in OptionalServiceTypes)
+        {
+            var hasPrices = normalizedPrices.Any(price => price.PriceType == serviceType);
+            if (!explicitStatuses.TryGetValue(serviceType, out var explicitStatus))
+            {
+                continue;
+            }
+
+            switch (explicitStatus.Status)
+            {
+                case ServiceAvailabilityStatus.Available:
+                    if (!hasPrices)
+                    {
+                        Add(errors, explicitStatus.StatusField, "Available status requires at least one price for that service.");
+                    }
+
+                    break;
+                case ServiceAvailabilityStatus.Unknown:
+                case ServiceAvailabilityStatus.NotAvailable:
+                case ServiceAvailabilityStatus.AvailableWithUnknownPrice:
+                    if (hasPrices)
+                    {
+                        Add(errors, explicitStatus.StatusField, $"Status {explicitStatus.Status} cannot be submitted with prices for the same service.");
+                    }
+
+                    break;
+                default:
+                    Add(errors, explicitStatus.StatusField, "Invalid availability status value.");
+                    break;
+            }
+        }
+
+        var normalizedAvailabilities = new List<UpdateSiteServiceAvailabilityRequest>();
+        foreach (var serviceType in OptionalServiceTypes)
+        {
+            var hasPrices = normalizedPrices.Any(price => price.PriceType == serviceType);
+            if (hasPrices)
+            {
+                normalizedAvailabilities.Add(new UpdateSiteServiceAvailabilityRequest
+                {
+                    ServiceType = serviceType,
+                    Status = ServiceAvailabilityStatus.Available
+                });
+
+                continue;
+            }
+
+            if (explicitStatuses.TryGetValue(serviceType, out var explicitStatus))
+            {
+                normalizedAvailabilities.Add(new UpdateSiteServiceAvailabilityRequest
+                {
+                    ServiceType = serviceType,
+                    Status = explicitStatus.Status
+                });
+            }
+        }
+
+        return new UpdateSitePricingRequest
+        {
+            Prices = normalizedPrices,
+            ServiceAvailabilities = normalizedAvailabilities
         };
     }
 
@@ -254,6 +433,12 @@ public static class SiteWriteValidator
             ? ServiceAvailabilityStatus.Available
             : ServiceAvailabilityStatus.Unknown;
     }
+
+    private static bool IsSupportedPriceType(PriceType priceType)
+        => priceType == PriceType.Main || IsOptionalServiceType(priceType);
+
+    private static bool IsOptionalServiceType(PriceType priceType)
+        => Array.IndexOf(OptionalServiceTypes, priceType) >= 0;
 
     private static void ValidateTerm(
         Dictionary<string, List<string>> errors,

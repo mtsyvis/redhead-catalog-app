@@ -10,6 +10,7 @@ public sealed class SavedFilterSettingsDto
     public string TrafficMax { get; init; } = string.Empty;
     public string PriceMin { get; init; } = string.Empty;
     public string PriceMax { get; init; } = string.Empty;
+    public string? TermKey { get; init; }
     public List<SavedFilterLocationSelectionDto> LocationSelections { get; init; } = new();
     public List<string> ExcludedLocationKeys { get; init; } = new();
     public List<string> Niches { get; init; } = new();

@@ -2,15 +2,24 @@ import { useMemo } from 'react';
 import type { GridSortModel } from '@mui/x-data-grid';
 import type {
   MultiSearchResponse,
-  ServiceAvailabilityStatus,
   Site,
   SitesFilters as FiltersType,
 } from '../../../types/sites.types';
 import { formatLanguageCode } from '../../../utils/language';
 import {
-  getOptionalServiceSortRank,
-  matchesAvailabilityFilter,
+  normalizeServiceAvailabilityFilter,
 } from '../../../utils/serviceAvailability';
+import {
+  OPTIONAL_SERVICE_FIELDS,
+  PRICE_FIELD_TO_TYPE,
+  PRICE_TYPE,
+  type PriceTypeValue,
+  getPriceSortAmount,
+  getServiceSortRank,
+  hasAnyPriceForTerm,
+  matchesMainPriceRange,
+  matchesOptionalServiceFilter,
+} from '../../../utils/pricing';
 
 export type NotFoundRow = { domain: string; _isNotFound: true };
 export type GridRow = Site | NotFoundRow;
@@ -30,8 +39,28 @@ export function isNotFoundRow(row: GridRow): row is NotFoundRow {
   return '_isNotFound' in row && row._isNotFound === true;
 }
 
+function matchesAnyGlobalAvailabilityStatusFilter(site: Site, f: FiltersType): boolean {
+  const serviceFilters: Array<[PriceTypeValue, FiltersType['casinoAvailability']]> = [
+    [PRICE_TYPE.Casino, f.casinoAvailability],
+    [PRICE_TYPE.Crypto, f.cryptoAvailability],
+    [PRICE_TYPE.LinkInsertion, f.linkInsertAvailability],
+    [PRICE_TYPE.LinkInsertionCasino, f.linkInsertCasinoAvailability],
+    [PRICE_TYPE.Dating, f.datingAvailability],
+  ];
+
+  return serviceFilters.some(([serviceType, filter]) => {
+    const globalStatusFilter = normalizeServiceAvailabilityFilter(filter).filter(
+      (value) => value !== 'available'
+    );
+    return (
+      globalStatusFilter.length > 0 &&
+      matchesOptionalServiceFilter(site, serviceType, globalStatusFilter, f.termKey)
+    );
+  });
+}
+
 /** Client-side filter for multi-search found rows (same logic as server filters, excluding search). */
-function filterSites(sites: Site[], f: FiltersType): Site[] {
+export function filterSites(sites: Site[], f: FiltersType): Site[] {
   const excludedLocationKeys = new Set(f.excludedLocationKeys);
   const selectedGroupLocations = f.locationSelections
     .filter((selection) => selection.kind === 'group')
@@ -72,8 +101,10 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
     if (f.drMax !== '' && s.dr > Number(f.drMax)) return false;
     if (f.trafficMin !== '' && s.traffic < Number(f.trafficMin)) return false;
     if (f.trafficMax !== '' && s.traffic > Number(f.trafficMax)) return false;
-    if (f.priceMin !== '' && (s.priceUsd ?? 0) < Number(f.priceMin)) return false;
-    if (f.priceMax !== '' && (s.priceUsd ?? 0) > Number(f.priceMax)) return false;
+    if (!hasAnyPriceForTerm(s, f.termKey) && !matchesAnyGlobalAvailabilityStatusFilter(s, f)) {
+      return false;
+    }
+    if (!matchesMainPriceRange(s, f)) return false;
     if (
       selectedLocationNames.size > 0 &&
       !hasSelectedGroupWithoutMembers &&
@@ -106,11 +137,35 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
       return false;
     }
     if (f.languages.length > 0 && !f.languages.includes(formatLanguageCode(s.language))) return false;
-    if (!matchesAvailabilityFilter(s.priceCasinoStatus, f.casinoAvailability)) return false;
-    if (!matchesAvailabilityFilter(s.priceCryptoStatus, f.cryptoAvailability)) return false;
-    if (!matchesAvailabilityFilter(s.priceLinkInsertStatus, f.linkInsertAvailability)) return false;
-    if (!matchesAvailabilityFilter(s.priceLinkInsertCasinoStatus, f.linkInsertCasinoAvailability)) return false;
-    if (!matchesAvailabilityFilter(s.priceDatingStatus, f.datingAvailability)) return false;
+    if (!matchesOptionalServiceFilter(s, PRICE_TYPE.Casino, f.casinoAvailability, f.termKey)) {
+      return false;
+    }
+    if (!matchesOptionalServiceFilter(s, PRICE_TYPE.Crypto, f.cryptoAvailability, f.termKey)) {
+      return false;
+    }
+    if (
+      !matchesOptionalServiceFilter(
+        s,
+        PRICE_TYPE.LinkInsertion,
+        f.linkInsertAvailability,
+        f.termKey
+      )
+    ) {
+      return false;
+    }
+    if (
+      !matchesOptionalServiceFilter(
+        s,
+        PRICE_TYPE.LinkInsertionCasino,
+        f.linkInsertCasinoAvailability,
+        f.termKey
+      )
+    ) {
+      return false;
+    }
+    if (!matchesOptionalServiceFilter(s, PRICE_TYPE.Dating, f.datingAvailability, f.termKey)) {
+      return false;
+    }
     if (f.quarantine === 'only' && !s.isQuarantined) return false;
     if (f.quarantine === 'exclude' && s.isQuarantined) return false;
     if (f.lastPublishedFromMonth) {
@@ -125,35 +180,36 @@ function filterSites(sites: Site[], f: FiltersType): Site[] {
   });
 }
 
-const OPTIONAL_SERVICE_STATUS_FIELDS: Record<string, keyof Site> = {
-  priceCasino: 'priceCasinoStatus',
-  priceCrypto: 'priceCryptoStatus',
-  priceLinkInsert: 'priceLinkInsertStatus',
-  priceLinkInsertCasino: 'priceLinkInsertCasinoStatus',
-  priceDating: 'priceDatingStatus',
-};
+function getSortValue(site: Site, field: string): Site[keyof Site] | undefined {
+  if (field === 'createdAt') return site.createdAtUtc;
+  if (field === 'updatedAt') return site.updatedAtUtc;
+  return site[field as keyof Site];
+}
 
-function compareOptionalServicePrice(a: Site, b: Site, field: keyof Site, dir: 'asc' | 'desc'): number {
-  const statusField = OPTIONAL_SERVICE_STATUS_FIELDS[field as string];
-  const leftStatus = a[statusField] as ServiceAvailabilityStatus;
-  const rightStatus = b[statusField] as ServiceAvailabilityStatus;
-  const rankDiff = getOptionalServiceSortRank(leftStatus) - getOptionalServiceSortRank(rightStatus);
-  if (rankDiff !== 0) return rankDiff;
+export function compareTermAwarePrice(
+  a: Site,
+  b: Site,
+  field: string,
+  dir: 'asc' | 'desc',
+  selectedTermKey: string | null | undefined
+): number {
+  const priceType = PRICE_FIELD_TO_TYPE[field];
+  if (priceType == null) return 0;
 
-  const av = a[field] as number | null;
-  const bv = b[field] as number | null;
+  const av = getPriceSortAmount(a, priceType, selectedTermKey);
+  const bv = getPriceSortAmount(b, priceType, selectedTermKey);
+
+  if (av == null && bv == null && OPTIONAL_SERVICE_FIELDS.has(field)) {
+    const rankDiff = getServiceSortRank(a, priceType) - getServiceSortRank(b, priceType);
+    return rankDiff === 0 ? a.domain.localeCompare(b.domain) : rankDiff;
+  }
+
   if (av == null && bv == null) return a.domain.localeCompare(b.domain);
   if (av == null) return 1;
   if (bv == null) return -1;
 
   const priceDiff = dir === 'asc' ? av - bv : bv - av;
   return priceDiff === 0 ? a.domain.localeCompare(b.domain) : priceDiff;
-}
-
-function getSortValue(site: Site, field: string): Site[keyof Site] | undefined {
-  if (field === 'createdAt') return site.createdAtUtc;
-  if (field === 'updatedAt') return site.updatedAtUtc;
-  return site[field as keyof Site];
 }
 
 function isMultiSearchInputOrderSort(sortModel: GridSortModel): boolean {
@@ -181,6 +237,7 @@ export function useSitesGridRows({
       trafficMax: filters.trafficMax,
       priceMin: filters.priceMin,
       priceMax: filters.priceMax,
+      termKey: filters.termKey,
       stopListDomains: [],
       locationSelections: filters.locationSelections,
       excludedLocationKeys: filters.excludedLocationKeys,
@@ -206,6 +263,7 @@ export function useSitesGridRows({
       filters.trafficMax,
       filters.priceMin,
       filters.priceMax,
+      filters.termKey,
       filters.locationSelections,
       filters.excludedLocationKeys,
       filters.niches,
@@ -253,8 +311,8 @@ export function useSitesGridRows({
     const field = sortModel[0]?.field ?? 'domain';
     const dir = sortModel[0]?.sort ?? 'asc';
     const sorted = [...filtered].sort((a, b) => {
-      if (field in OPTIONAL_SERVICE_STATUS_FIELDS) {
-        return compareOptionalServicePrice(a, b, field as keyof Site, dir);
+      if (field in PRICE_FIELD_TO_TYPE) {
+        return compareTermAwarePrice(a, b, field, dir, multiSearchGridFilters.termKey);
       }
 
       const av = getSortValue(a, field);

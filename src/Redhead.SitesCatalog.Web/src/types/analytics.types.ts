@@ -36,6 +36,8 @@ export interface QualityDemand {
   drRanges: BusinessDemandCount[];
   trafficRanges: BusinessDemandCount[];
   priceRanges: BusinessDemandCount[];
+  termDemand: BusinessDemandCount[];
+  priceRangesByTerm: BusinessDemandCount[];
 }
 
 export interface FilterStrictness {

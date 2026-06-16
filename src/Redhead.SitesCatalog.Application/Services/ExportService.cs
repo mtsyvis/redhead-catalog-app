@@ -101,6 +101,8 @@ public class ExportService : IExportService
             cancellationToken: cancellationToken);
 
         var sites = ApplyAllowedDomains(candidateSites, usageEvaluation);
+        await AttachExportPricingAsync(sites, cancellationToken);
+
         return CreatePreparedExportResult(
             sites: sites,
             notFoundDomains: [],
@@ -237,6 +239,8 @@ public class ExportService : IExportService
             cancellationToken: cancellationToken);
 
         var sites = ApplyAllowedDomains(candidateSites, usageEvaluation);
+        await AttachExportPricingAsync(sites, cancellationToken);
+
         return CreatePreparedExportResult(
             sites: sites,
             notFoundDomains: notFound,
@@ -520,6 +524,44 @@ public class ExportService : IExportService
         return candidateSites
             .Where(site => allowedDomains.Contains(site.Domain))
             .ToList();
+    }
+
+    private async Task AttachExportPricingAsync(
+        IReadOnlyList<Site> sites,
+        CancellationToken cancellationToken)
+    {
+        if (sites.Count == 0)
+        {
+            return;
+        }
+
+        var domains = sites
+            .Select(site => site.Domain)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        var priceOptions = await _context.SitePriceOptions
+            .AsNoTracking()
+            .Where(priceOption => domains.Contains(priceOption.SiteDomain))
+            .ToListAsync(cancellationToken);
+
+        var serviceAvailabilities = await _context.SiteServiceAvailabilities
+            .AsNoTracking()
+            .Where(availability => domains.Contains(availability.SiteDomain))
+            .ToListAsync(cancellationToken);
+
+        var priceOptionsByDomain = priceOptions.ToLookup(
+            priceOption => priceOption.SiteDomain,
+            StringComparer.Ordinal);
+        var serviceAvailabilitiesByDomain = serviceAvailabilities.ToLookup(
+            availability => availability.SiteDomain,
+            StringComparer.Ordinal);
+
+        foreach (var site in sites)
+        {
+            site.PriceOptions = priceOptionsByDomain[site.Domain].ToList();
+            site.ServiceAvailabilities = serviceAvailabilitiesByDomain[site.Domain].ToList();
+        }
     }
 
     private async Task LogBlockedExportAsync(
