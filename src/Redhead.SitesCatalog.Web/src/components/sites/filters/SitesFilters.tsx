@@ -114,6 +114,12 @@ const INITIAL_FILTERS: SitesFilters = {
   lastPublishedToMonth: null,
 };
 
+const MULTI_SEARCH_DEFAULT_QUARANTINE: SitesFilters['quarantine'] = 'all';
+
+function getDefaultQuarantineFilter(multiSearchMode: boolean): SitesFilters['quarantine'] {
+  return multiSearchMode ? MULTI_SEARCH_DEFAULT_QUARANTINE : INITIAL_FILTERS.quarantine;
+}
+
 const FILTER_GROUP_GAP = 2.5;
 
 type SavedFilterDialogMode = 'create' | 'update' | 'rename';
@@ -307,7 +313,7 @@ export function SitesFilters({
       linkInsertAvailability: INITIAL_FILTERS.linkInsertAvailability,
       linkInsertCasinoAvailability: INITIAL_FILTERS.linkInsertCasinoAvailability,
       datingAvailability: INITIAL_FILTERS.datingAvailability,
-      quarantine: INITIAL_FILTERS.quarantine,
+      quarantine: getDefaultQuarantineFilter(multiSearchMode),
       lastPublishedFromMonth: INITIAL_FILTERS.lastPublishedFromMonth,
       lastPublishedToMonth: INITIAL_FILTERS.lastPublishedToMonth,
     });
@@ -359,7 +365,7 @@ export function SitesFilters({
     if (hasAvailabilityFilter(filters.linkInsertAvailability)) count += 1;
     if (hasAvailabilityFilter(filters.linkInsertCasinoAvailability)) count += 1;
     if (hasAvailabilityFilter(filters.datingAvailability)) count += 1;
-    if (filters.quarantine !== INITIAL_FILTERS.quarantine) count += 1;
+    if (filters.quarantine !== getDefaultQuarantineFilter(multiSearchMode)) count += 1;
     if (filters.lastPublishedFromMonth !== null || filters.lastPublishedToMonth !== null) {
       count += 1;
     }

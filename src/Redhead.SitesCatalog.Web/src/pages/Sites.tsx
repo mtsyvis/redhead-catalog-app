@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Alert,
   Box,
@@ -82,13 +82,19 @@ const INITIAL_FILTERS: FiltersType = {
   lastPublishedToMonth: null,
 };
 
+const MULTI_SEARCH_DEFAULT_QUARANTINE: FiltersType['quarantine'] = 'all';
+
 const LEGACY_STOP_LIST_STORAGE_KEY = 'redhead.sitesCatalog.stopListDomains';
 
 function hasAvailabilityFilter(filter: FiltersType['casinoAvailability']): boolean {
   return normalizeServiceAvailabilityFilter(filter).length > 0;
 }
 
-function hasGridFiltersActive(filters: FiltersType): boolean {
+function getDefaultQuarantineFilter(multiSearchMode: boolean): FiltersType['quarantine'] {
+  return multiSearchMode ? MULTI_SEARCH_DEFAULT_QUARANTINE : INITIAL_FILTERS.quarantine;
+}
+
+function hasGridFiltersActive(filters: FiltersType, multiSearchMode: boolean): boolean {
   return (
     filters.drMin !== INITIAL_FILTERS.drMin ||
     filters.drMax !== INITIAL_FILTERS.drMax ||
@@ -109,7 +115,7 @@ function hasGridFiltersActive(filters: FiltersType): boolean {
     hasAvailabilityFilter(filters.linkInsertAvailability) ||
     hasAvailabilityFilter(filters.linkInsertCasinoAvailability) ||
     hasAvailabilityFilter(filters.datingAvailability) ||
-    filters.quarantine !== INITIAL_FILTERS.quarantine ||
+    filters.quarantine !== getDefaultQuarantineFilter(multiSearchMode) ||
     filters.lastPublishedFromMonth !== null ||
     filters.lastPublishedToMonth !== null
   );
@@ -175,6 +181,7 @@ export function Sites() {
   const [duplicatesAnchor, setDuplicatesAnchor] = useState<HTMLElement | null>(null);
   const [editSite, setEditSite] = useState<Site | null>(null);
   const [pricingDetailsSite, setPricingDetailsSite] = useState<Site | null>(null);
+  const quarantineBeforeMultiSearchRef = useRef<FiltersType['quarantine'] | null>(null);
   const [snackbar, setSnackbar] = useState<SitesSnackbarState>({
     open: false,
     message: '',
@@ -241,7 +248,10 @@ export function Sites() {
   }, [filters.search, multiSearchMode]);
 
   const effectiveSearch = debouncedSearch;
-  const gridFiltersActive = useMemo(() => hasGridFiltersActive(filters), [filters]);
+  const gridFiltersActive = useMemo(
+    () => hasGridFiltersActive(filters, multiSearchMode),
+    [filters, multiSearchMode]
+  );
 
   const buildSitesQueryParams = useCallback(
     (page: number, pageSize: number): SitesQueryParams => ({
@@ -455,6 +465,35 @@ export function Sites() {
   const handleMultiSearchModeChange = (enabled: boolean) => {
     setMultiSearchMode(enabled);
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
+    if (enabled) {
+      quarantineBeforeMultiSearchRef.current = filters.quarantine;
+      if (filters.quarantine === INITIAL_FILTERS.quarantine) {
+        setFilters((current) => ({
+          ...current,
+          quarantine:
+            current.quarantine === INITIAL_FILTERS.quarantine
+              ? MULTI_SEARCH_DEFAULT_QUARANTINE
+              : current.quarantine,
+        }));
+      }
+      return;
+    }
+
+    const previousQuarantine = quarantineBeforeMultiSearchRef.current;
+    quarantineBeforeMultiSearchRef.current = null;
+    if (
+      previousQuarantine !== null &&
+      previousQuarantine !== MULTI_SEARCH_DEFAULT_QUARANTINE &&
+      filters.quarantine === MULTI_SEARCH_DEFAULT_QUARANTINE
+    ) {
+      setFilters((current) => ({
+        ...current,
+        quarantine:
+          current.quarantine === MULTI_SEARCH_DEFAULT_QUARANTINE
+            ? previousQuarantine
+            : current.quarantine,
+      }));
+    }
     if (!enabled) {
       setMultiSearchResult(null);
       setMultiSearchAppliedText('');
@@ -592,7 +631,9 @@ export function Sites() {
     }
     if (hasAvailabilityFilter(filters.datingAvailability))
       activeColumnIds.add('priceDating');
-    if (filters.quarantine !== INITIAL_FILTERS.quarantine) activeColumnIds.add('isQuarantined');
+    if (filters.quarantine !== getDefaultQuarantineFilter(multiSearchMode)) {
+      activeColumnIds.add('isQuarantined');
+    }
     if (filters.lastPublishedFromMonth !== null || filters.lastPublishedToMonth !== null) {
       activeColumnIds.add('lastPublishedDate');
     }
@@ -627,6 +668,7 @@ export function Sites() {
     filters.lastPublishedToMonth,
     tableViews.allowedViewColumns,
     tableViews.visibleColumnIds,
+    multiSearchMode,
   ]);
 
   const hiddenFilteredColumns = useMemo(
@@ -710,7 +752,9 @@ export function Sites() {
       datingAvailability: hidden.has('priceDating')
         ? INITIAL_FILTERS.datingAvailability
         : current.datingAvailability,
-      quarantine: hidden.has('isQuarantined') ? INITIAL_FILTERS.quarantine : current.quarantine,
+      quarantine: hidden.has('isQuarantined')
+        ? getDefaultQuarantineFilter(multiSearchMode)
+        : current.quarantine,
       lastPublishedFromMonth: hidden.has('lastPublishedDate')
         ? INITIAL_FILTERS.lastPublishedFromMonth
         : current.lastPublishedFromMonth,
@@ -811,9 +855,10 @@ export function Sites() {
               rows={gridRows}
               columns={columns}
               getRowId={(row) => (isNotFoundRow(row) ? `notfound:${row.domain}` : row.domain)}
-              getRowClassName={(params) =>
-                isNotFoundRow(params.row) ? 'SitesGrid-notFoundRow' : ''
-              }
+              getRowClassName={(params) => {
+                if (isNotFoundRow(params.row)) return 'SitesGrid-notFoundRow';
+                return params.row.isQuarantined ? 'SitesGrid-unavailableRow' : '';
+              }}
               rowCount={gridRowCount}
               loading={gridLoading}
               pageSizeOptions={[10, 25, 50, 100]}
@@ -888,6 +933,22 @@ export function Sites() {
                 },
                 '& .MuiDataGrid-row.Mui-selected:hover .SitesGrid-domainCell': {
                   backgroundColor: 'grey.100',
+                },
+                '& .SitesGrid-unavailableRow .MuiDataGrid-cell': {
+                  bgcolor: '#fffaf2',
+                },
+                '& .SitesGrid-unavailableRow .SitesGrid-domainCell': {
+                  bgcolor: '#fffaf2',
+                  backgroundImage: 'linear-gradient(to right, #f59e0b 0 3px, transparent 3px)',
+                  backgroundRepeat: 'no-repeat',
+                },
+                '& .SitesGrid-unavailableRow:hover .MuiDataGrid-cell': {
+                  bgcolor: '#fff4e5',
+                },
+                '& .SitesGrid-unavailableRow:hover .SitesGrid-domainCell': {
+                  bgcolor: '#fff4e5',
+                  backgroundImage: 'linear-gradient(to right, #f59e0b 0 3px, transparent 3px)',
+                  backgroundRepeat: 'no-repeat',
                 },
                 '& .SitesGrid-notFoundRow .MuiDataGrid-cell': {
                   bgcolor: '#fff4e5',

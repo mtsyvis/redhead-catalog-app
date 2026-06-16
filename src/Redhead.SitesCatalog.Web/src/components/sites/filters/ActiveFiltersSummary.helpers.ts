@@ -15,6 +15,12 @@ const QUARANTINE_FILTER_LABELS: Record<SitesFilters['quarantine'], string> = {
   only: 'Unavailable Only',
 };
 
+const MULTI_SEARCH_DEFAULT_QUARANTINE: SitesFilters['quarantine'] = 'all';
+
+function getDefaultQuarantineFilter(multiSearchMode: boolean): SitesFilters['quarantine'] {
+  return multiSearchMode ? MULTI_SEARCH_DEFAULT_QUARANTINE : 'exclude';
+}
+
 const TOPIC_FIT_MODE_LABELS: Record<SitesFilters['topicFitMode'], string> = {
   expand: 'Niche OR Categories',
   narrow: 'Niche AND Categories',
@@ -152,7 +158,7 @@ export function buildAdvancedActiveFilterSummaries(
     if (serviceSummary) summaries.push(serviceSummary);
   }
 
-  if (filters.quarantine !== 'exclude') {
+  if (filters.quarantine !== getDefaultQuarantineFilter(multiSearchMode)) {
     summaries.push({
       label: 'Quarantine',
       value: QUARANTINE_FILTER_LABELS[filters.quarantine],
