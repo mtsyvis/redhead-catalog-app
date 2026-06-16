@@ -171,7 +171,16 @@ function OptionalServiceAvailabilitySelect({
       disableCloseOnSelect
       clearOnBlur={false}
       renderTags={(selected) => (
-        <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>
+        <Typography
+          variant="body2"
+          noWrap
+          sx={{
+            minWidth: 0,
+            flex: '1 1 auto',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
           {renderAvailabilityValue(selected)}
         </Typography>
       )}
@@ -191,7 +200,16 @@ function OptionalServiceAvailabilitySelect({
           placeholder={normalizedValue.length === 0 ? 'All' : ''}
         />
       )}
-      sx={{ width: 185 }}
+      sx={{
+        width: 185,
+        '& .MuiAutocomplete-inputRoot': {
+          flexWrap: 'nowrap',
+          overflow: 'hidden',
+        },
+        '& .MuiAutocomplete-input': {
+          minWidth: '0 !important',
+        },
+      }}
     />
   );
 }
@@ -369,6 +387,14 @@ export function SitesFilters({
   const selectedTermLabel =
     termOptions.find((option) => option.termKey === selectedTermKey)?.label ??
     formatTermFilterLabel(selectedTermKey);
+  const optionalServiceAvailabilityFilterActive =
+    hasAvailabilityFilter(filters.casinoAvailability) ||
+    hasAvailabilityFilter(filters.cryptoAvailability) ||
+    hasAvailabilityFilter(filters.linkInsertAvailability) ||
+    hasAvailabilityFilter(filters.linkInsertCasinoAvailability) ||
+    hasAvailabilityFilter(filters.datingAvailability);
+  const showOptionalServiceTermHelper =
+    selectedTermKey !== ANY_TERM_KEY && optionalServiceAvailabilityFilterActive;
 
   const stopListCount = filters.stopListDomains.length;
   const stopListPaused = multiSearchMode && stopListCount > 0;
@@ -1202,7 +1228,7 @@ export function SitesFilters({
                 <Typography variant="subtitle2" gutterBottom>
                   Optional Service Availability
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
                   <OptionalServiceAvailabilitySelect
                     label="Casino"
                     value={filters.casinoAvailability}
@@ -1229,6 +1255,15 @@ export function SitesFilters({
                     onChange={(value) => handleChange('datingAvailability', value)}
                   />
                 </Box>
+                {showOptionalServiceTermHelper && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: 'block', maxWidth: 720, mt: 1, lineHeight: 1.35 }}
+                  >
+                    Term is active: service filters use only {selectedTermLabel} prices.
+                  </Typography>
+                )}
               </Box>
             </Box>
 

@@ -41,6 +41,7 @@ public sealed class EmergencySitesExportService : IEmergencySitesExportService
             sites,
             [],
             SitesExportColumnRegistry.GetDefaultColumnKeysForRole(AppRoles.SuperAdmin),
+            null,
             AppRoles.SuperAdmin,
             GeneratedBy,
             RoleLabel,

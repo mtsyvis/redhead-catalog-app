@@ -1,5 +1,6 @@
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.Analytics;
 
 namespace Redhead.SitesCatalog.Application.Exports;
 
@@ -16,7 +17,7 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
             new(
                 "Sites",
                 siteColumns.Select(column => column.Header).ToArray(),
-                request.Sites.Select(site => CreateSiteRow(site, siteColumns)).ToList(),
+                request.Sites.Select(site => CreateSiteRow(site, siteColumns, request.SelectedTermKey)).ToList(),
                 siteColumns.Select(column => column.Width).ToArray())
         };
 
@@ -40,6 +41,7 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
                     request.ExportedRows,
                     request.Truncated,
                     request.LimitRows,
+                    request.SelectedTermKey,
                     request.NotFoundDomains.Count,
                     request.NotFoundIncluded,
                     request.TruncationReason),
@@ -52,8 +54,9 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
 
     private static IReadOnlyList<XlsxCell> CreateSiteRow(
         Site site,
-        IReadOnlyList<SitesExportColumnDefinition> siteColumns)
-        => siteColumns.Select(column => column.CreateCell(site)).ToList();
+        IReadOnlyList<SitesExportColumnDefinition> siteColumns,
+        string? selectedTermKey)
+        => siteColumns.Select(column => column.CreateCell(site, selectedTermKey)).ToList();
 
     private static IReadOnlyList<IReadOnlyList<XlsxCell>> CreateExportInfoRows(
         string generatedBy,
@@ -62,6 +65,7 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
         int exportedRows,
         bool truncated,
         int? limitRows,
+        string? selectedTermKey,
         int notFoundRows,
         bool notFoundIncluded,
         string? truncationReason)
@@ -76,7 +80,8 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
             InfoRow("Export truncated by limit", XlsxCell.Boolean(truncated)),
             InfoRow("Export limit rows", limitRows.HasValue
                 ? XlsxCell.Number(limitRows.Value, XlsxCellStyle.Integer)
-                : XlsxCell.Text("Unlimited"))
+                : XlsxCell.Text("Unlimited")),
+            InfoRow("Term pricing", XlsxCell.Text(FormatTermPricingNote(selectedTermKey)))
         };
 
         if (notFoundRows > 0)
@@ -95,4 +100,15 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
 
     private static IReadOnlyList<XlsxCell> InfoRow(string label, XlsxCell value)
         => [XlsxCell.InfoLabel(label), value];
+
+    private static string FormatTermPricingNote(string? selectedTermKey)
+    {
+        if (string.IsNullOrWhiteSpace(selectedTermKey))
+        {
+            return "Term is not applied. Selected minimum available price for each price column.";
+        }
+
+        var label = AnalyticsTermLabelFormatter.FormatTermKey(selectedTermKey);
+        return $"Term applied: {label}. Selected prices for {label} only.";
+    }
 }

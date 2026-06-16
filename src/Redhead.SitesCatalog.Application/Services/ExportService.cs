@@ -285,6 +285,7 @@ public class ExportService : IExportService
             sites,
             notFoundDomains,
             visibleColumnKeys,
+            NormalizeExportTermKey(query.TermKey),
             userEmail,
             userRole,
             requestedRows,
@@ -327,6 +328,7 @@ public class ExportService : IExportService
         IReadOnlyList<Site> sites,
         IReadOnlyList<string> notFoundDomains,
         IReadOnlyList<string> visibleColumnKeys,
+        string? selectedTermKey,
         string userEmail,
         string userRole,
         int requestedRows,
@@ -339,6 +341,7 @@ public class ExportService : IExportService
             sites,
             notFoundDomains,
             visibleColumnKeys,
+            selectedTermKey,
             userRole,
             userEmail,
             userRole,
@@ -451,6 +454,9 @@ public class ExportService : IExportService
 
     private static int? GetRowsPerExportLimit(EffectiveExportPolicy policy)
         => policy.Mode == ExportLimitMode.Limited ? policy.Rows : null;
+
+    private static string? NormalizeExportTermKey(string? termKey)
+        => string.IsNullOrWhiteSpace(termKey) ? null : termKey.Trim();
 
     private static async Task<List<Site>> GetMultiSearchExportSitesAsync(
         IQueryable<Site> filteredQuery,

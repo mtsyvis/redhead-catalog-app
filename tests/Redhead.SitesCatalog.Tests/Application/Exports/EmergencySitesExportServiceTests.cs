@@ -48,9 +48,14 @@ public sealed class EmergencySitesExportServiceTests
         Assert.True(result.FileSizeBytes > 0);
 
         var rows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
+        var infoRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Export info")
+            .ToDictionary(row => row["Property"], row => row["Value"]);
         Assert.Equal(2, rows.Count);
         Assert.Equal("first.example", rows[0]["Domain"]);
         Assert.Equal("second.example", rows[1]["Domain"]);
+        Assert.Equal(
+            "Term is not applied. Selected minimum available price for each price column.",
+            infoRows["Term pricing"]);
         Assert.Empty(db.ExportLogs);
     }
 
