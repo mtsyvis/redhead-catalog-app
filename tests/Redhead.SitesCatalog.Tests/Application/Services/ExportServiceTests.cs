@@ -214,8 +214,13 @@ public class ExportServiceTests : IDisposable
             CancellationToken.None);
 
         var sheetNames = XlsxTestWorkbook.GetSheetNames(result.FileStream);
+        var infoRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Export info")
+            .ToDictionary(row => row["Property"], row => row["Value"]);
 
         Assert.Equal(["Sites", "Export info"], sheetNames);
+        Assert.Equal(
+            "Term is not applied. Selected minimum available price for each price column.",
+            infoRows["Term pricing"]);
     }
 
     [Fact]
@@ -236,9 +241,14 @@ public class ExportServiceTests : IDisposable
         // Assert
         var siteRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Sites");
         var notFoundRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Not found");
+        var infoRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Export info")
+            .ToDictionary(row => row["Property"], row => row["Value"]);
 
         Assert.Equal(["test.com", "example.com"], siteRows.Select(row => row["Domain"]).ToList());
         Assert.Equal(["missing-b.com", "missing-a.com"], notFoundRows.Select(row => row["Domain"]).ToList());
+        Assert.Equal(
+            "Term is not applied. Selected minimum available price for each price column.",
+            infoRows["Term pricing"]);
     }
 
     [Fact]
@@ -1407,7 +1417,7 @@ public class ExportServiceTests : IDisposable
         Assert.Single(rows);
         Assert.Equal("NO", rows[0]["Casino"]);
         Assert.Equal("—", rows[0]["Crypto"]);
-        Assert.Equal("Unknown term: $12", rows[0]["Link Insert"]);
+        Assert.Equal("12", rows[0]["Link Insert"]);
         Assert.Equal("NO", rows[0]["Link Insert Casino"]);
         Assert.Equal("—", rows[0]["Dating"]);
         Assert.Equal("4", rows[0]["DF Links"]);
@@ -2360,7 +2370,7 @@ public class ExportServiceTests : IDisposable
     #region Term-aware export pricing
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_MainPrices_UsesTermAwarePricing()
+    public async Task ExportSitesAsExcelAsync_MainPrices_ExportsLowestTermAwarePriceForAnyTerm()
     {
         // Arrange
         var multiPriceSite = SiteWithNullPrice("term-main-multiple.com");
@@ -2387,9 +2397,9 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
-        Assert.Equal("1 year: $100; Permanent: $300", rows.Single(row => row["Domain"] == "term-main-multiple.com")["Price USD"]);
+        Assert.Equal("100", rows.Single(row => row["Domain"] == "term-main-multiple.com")["Price USD"]);
         Assert.Equal("—", rows.Single(row => row["Domain"] == "term-main-empty.com")["Price USD"]);
-        Assert.Equal("Unknown term: $100", rows.Single(row => row["Domain"] == "term-main-unknown.com")["Price USD"]);
+        Assert.Equal("100", rows.Single(row => row["Domain"] == "term-main-unknown.com")["Price USD"]);
     }
 
     [Fact]
@@ -2426,7 +2436,7 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_OptionalServicePrices_UseTermAwarePricesInsteadOfLegacyFlatPrice()
+    public async Task ExportSitesAsExcelAsync_OptionalServicePrices_ExportLowestTermAwarePriceForAnyTerm()
     {
         // Arrange
         var site = SiteWithNullPrice("term-casino-priced.com");
@@ -2453,7 +2463,7 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
-        Assert.Equal("1 year: $350; Permanent: $700", rows.Single()["Casino"]);
+        Assert.Equal("350", rows.Single()["Casino"]);
         Assert.DoesNotContain("999", rows.Single()["Casino"], StringComparison.Ordinal);
     }
 
@@ -2485,12 +2495,12 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
-        Assert.Equal("Unknown term: $111", rows.Single()["Link Insert"]);
-        Assert.Equal("Unknown term: $222", rows.Single()["Link Insert Casino"]);
+        Assert.Equal("111", rows.Single()["Link Insert"]);
+        Assert.Equal("222", rows.Single()["Link Insert Casino"]);
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_WithTermKey_FiltersSitesButExportsAllTermsInCell()
+    public async Task ExportSitesAsExcelAsync_WithTermKey_ExportsOnlySelectedTermPrice()
     {
         // Arrange
         var permanentSite = SiteWithNullPrice("term-filter-permanent.com");
@@ -2517,9 +2527,80 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        var infoRows = XlsxTestWorkbook.ReadRows(result.FileStream, "Export info")
+            .ToDictionary(row => row["Property"], row => row["Value"]);
         var row = Assert.Single(rows);
         Assert.Equal("term-filter-permanent.com", row["Domain"]);
-        Assert.Equal("1 year: $100; Permanent: $300", row["Price USD"]);
+        Assert.Equal("300", row["Price USD"]);
+        Assert.Equal(
+            "Term applied: Permanent. Selected prices for Permanent only.",
+            infoRows["Term pricing"]);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithTermKeyAndMissingServiceTermPrice_ExportsDash()
+    {
+        // Arrange
+        var site = SiteWithNullPrice("term-filter-service-mismatch.com");
+        _context.Sites.Add(site);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(site, PriceType.Main, PricingTerm.Permanent, 300m),
+            CreatePriceOption(site, PriceType.Casino, PricingTerm.FiniteYears(1), 100m));
+        _context.SiteServiceAvailabilities.Add(CreateServiceAvailability(
+            site,
+            PriceType.Casino,
+            ServiceAvailabilityStatus.Available));
+        await _context.SaveChangesAsync();
+
+        var query = DefaultQuery();
+        query.Search = "term-filter-service-mismatch.com";
+        query.TermKey = PricingTerm.PermanentKey;
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            ["domain", "priceUsd", "priceCasino"],
+            CancellationToken.None);
+
+        // Assert
+        var row = Assert.Single(await ReadSitesSheetRowsFromStream(result.FileStream));
+        Assert.Equal("term-filter-service-mismatch.com", row["Domain"]);
+        Assert.Equal("300", row["Price USD"]);
+        Assert.Equal("—", row["Casino"]);
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithTermKeyAndServiceStatusWithoutTermPrice_ExportsDash()
+    {
+        // Arrange
+        var site = SiteWithNullPrice("term-filter-service-status.com");
+        _context.Sites.Add(site);
+        _context.SitePriceOptions.Add(CreatePriceOption(site, PriceType.Main, PricingTerm.Permanent, 300m));
+        _context.SiteServiceAvailabilities.Add(CreateServiceAvailability(
+            site,
+            PriceType.Casino,
+            ServiceAvailabilityStatus.AvailableWithUnknownPrice));
+        await _context.SaveChangesAsync();
+
+        var query = DefaultQuery();
+        query.Search = "term-filter-service-status.com";
+        query.TermKey = PricingTerm.PermanentKey;
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            ["domain", "priceCasino"],
+            CancellationToken.None);
+
+        // Assert
+        var row = Assert.Single(await ReadSitesSheetRowsFromStream(result.FileStream));
+        Assert.Equal("—", row["Casino"]);
     }
 
     #endregion

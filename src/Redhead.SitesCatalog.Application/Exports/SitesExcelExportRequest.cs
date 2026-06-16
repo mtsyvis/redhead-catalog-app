@@ -6,6 +6,7 @@ public sealed record SitesExcelExportRequest(
     IReadOnlyList<Site> Sites,
     IReadOnlyList<string> NotFoundDomains,
     IReadOnlyList<string> VisibleColumnKeys,
+    string? SelectedTermKey,
     string ExportColumnRole,
     string GeneratedBy,
     string RoleLabel,

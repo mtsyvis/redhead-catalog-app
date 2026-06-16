@@ -264,7 +264,7 @@ Rules:
 * During sites update import, a present empty term-specific main price column such as `PriceUsd [1 year]` clears that exact `SitePriceOption`; a missing price column leaves that exact pricing data unchanged.
 * During sites update import, service price and availability fields may be omitted, cleared, or set unavailable according to field-level rules; update rows are not rejected only because no numeric price remains.
 * During sites import and sites update import, if a term-specific `PriceUsd [...]` value is provided, it must be greater than `0`.
-* Site exports use `SitePriceOptions` as the source of truth for the `Price USD` column. The exported cell contains all known terms for that site in compact form, for example `1 year: $100; Permanent: $300`; if no main price exists, export `—`.
+* Site exports use `SitePriceOptions` as the source of truth for the `Price USD` column. With no selected term, the exported cell contains the lowest known main price across all terms as a raw numeric Excel value. With a selected `TermKey`, the exported cell contains only that term's main price as a raw numeric Excel value. If no matching main price exists, export `—`.
 * Invalid price data must create row-level validation errors.
 * Empty input in an import file means empty value, not implicit zero.
 
@@ -297,7 +297,7 @@ Rules:
 * Do not represent service availability only as nullable decimal; availability and price are separate concepts.
 * UI must not mislead users by showing unavailable services as zero-price services.
 * UI and exports show `YES` for `AvailableWithUnknownPrice`, `NO` for `NotAvailable`, and empty/placeholder values for `Unknown`.
-* Site exports use `SitePriceOptions` and `SiteServiceAvailabilities` as the source of truth for service price columns. If service prices exist, export all known term prices in compact form, for example `1 year: $350; Permanent: $700`; otherwise export `YES`, `NO`, or `—` from the service availability status.
+* Site exports use `SitePriceOptions` and `SiteServiceAvailabilities` as the source of truth for service price columns. With no selected term, if service prices exist, export the lowest known service price across all terms as a raw numeric Excel value; otherwise export `YES`, `NO`, or `—` from the service availability status. With a selected `TermKey`, export only that term's service price as a raw numeric Excel value; if that service has no price for the selected term, export `—` without falling back to another term or global service availability status.
 
 ### Additional site fields
 
@@ -692,12 +692,13 @@ Rules:
 * Export includes only the Sites table columns currently visible in the UI, including unsaved column visibility/order changes.
 * Export column order must match the current Sites table visible column order.
 * Export column names should match the Sites UI table where a matching UI column exists.
-* Export values should match Sites UI display formatting where practical, except UI-only empty-state placeholders such as `Last Published` `-`.
+* Export values should match Sites UI display formatting where practical, except UI-only empty-state placeholders such as `Last Published` `-` and term-aware price cells, which export contextual raw numeric values instead of the UI's multi-term display.
 * The backend must validate requested export column keys and reject unknown, blank, UI-only/action, non-exportable, or role-forbidden columns.
 * Duplicate requested export column keys are normalized to the first occurrence.
 * Client-role users must not be able to export internal-only columns by manually editing export requests.
 * Export workbooks should remain editable to the right of exported site columns in spreadsheet tools.
 * Export workbooks include a `Sites` sheet and an `Export info` sheet.
+* The `Export info` sheet explains term-aware price selection. With no selected term, it states that no term was applied and the minimum available price was selected for each price column. With a selected term, it states the selected term label and that only prices for that term were selected.
 * Export workbooks include a `Not found` sheet only for multi-search exports that have not-found domains included by the export rules.
 * Export must enforce the user's effective export policy.
 * Export actions should be logged.
