@@ -514,6 +514,7 @@ Display rules:
 
 * Found rows are shown in the same sites grid as normal search results.
 * By default, found and not found rows are shown together in normalized input order after duplicate removal.
+* Multi-search uses `All Sites` as the default quarantine filter so found unavailable sites remain visible unless the user explicitly filters them out.
 * Not found rows contain only `Domain`; all other columns show placeholders.
 * Not found rows should be visually distinguishable from found rows, for example with a subtle warning row background.
 * When no filters are active, the Sites table result count shows unique searched domains, found domains, and not found domains.
