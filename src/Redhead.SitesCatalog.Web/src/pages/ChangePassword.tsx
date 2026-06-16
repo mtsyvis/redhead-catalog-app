@@ -12,7 +12,8 @@ import {
   ListItemIcon,
   ListItemText,
 } from '@mui/material';
-import { Check, Close } from '@mui/icons-material';
+import Check from '@mui/icons-material/Check';
+import Close from '@mui/icons-material/Close';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { BrandButton } from '../components/common/BrandButton';

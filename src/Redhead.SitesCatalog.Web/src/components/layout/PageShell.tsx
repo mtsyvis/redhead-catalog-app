@@ -13,7 +13,8 @@ import {
   Tabs,
   Tab,
 } from '@mui/material';
-import { AccountCircle, ArrowDropDown } from '@mui/icons-material';
+import AccountCircle from '@mui/icons-material/AccountCircle';
+import ArrowDropDown from '@mui/icons-material/ArrowDropDown';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logoLockup from '../../assets/brand/redhead-lockup.svg';
