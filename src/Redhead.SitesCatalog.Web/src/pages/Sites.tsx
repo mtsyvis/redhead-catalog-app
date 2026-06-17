@@ -85,6 +85,7 @@ const INITIAL_FILTERS: FiltersType = {
 const MULTI_SEARCH_DEFAULT_QUARANTINE: FiltersType['quarantine'] = 'all';
 
 const LEGACY_STOP_LIST_STORAGE_KEY = 'redhead.sitesCatalog.stopListDomains';
+const FILTER_REQUEST_DEBOUNCE_MS = 300;
 
 function hasAvailabilityFilter(filter: FiltersType['casinoAvailability']): boolean {
   return normalizeServiceAvailabilityFilter(filter).length > 0;
@@ -171,7 +172,7 @@ export function Sites() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState<FiltersType>(INITIAL_FILTERS);
-  const [debouncedSearch, setDebouncedSearch] = useState(INITIAL_FILTERS.search);
+  const [debouncedFilters, setDebouncedFilters] = useState<FiltersType>(INITIAL_FILTERS);
   const [multiSearchMode, setMultiSearchMode] = useState(false);
   const [multiSearchResult, setMultiSearchResult] = useState<MultiSearchResponse | null>(null);
   const [multiSearchAppliedText, setMultiSearchAppliedText] = useState('');
@@ -182,6 +183,8 @@ export function Sites() {
   const [editSite, setEditSite] = useState<Site | null>(null);
   const [pricingDetailsSite, setPricingDetailsSite] = useState<Site | null>(null);
   const quarantineBeforeMultiSearchRef = useRef<FiltersType['quarantine'] | null>(null);
+  const loadSitesRequestIdRef = useRef(0);
+  const hasInitializedNormalFilterDebounceRef = useRef(false);
   const [snackbar, setSnackbar] = useState<SitesSnackbarState>({
     open: false,
     message: '',
@@ -237,21 +240,29 @@ export function Sites() {
 
   useEffect(() => {
     if (multiSearchMode) {
+      setDebouncedFilters(filters);
+      return;
+    }
+
+    if (!hasInitializedNormalFilterDebounceRef.current) {
+      hasInitializedNormalFilterDebounceRef.current = true;
+      setDebouncedFilters(filters);
       return;
     }
 
     const timeoutId = globalThis.setTimeout(() => {
-      setDebouncedSearch(filters.search);
-    }, 500);
+      setDebouncedFilters(filters);
+    }, FILTER_REQUEST_DEBOUNCE_MS);
 
     return () => globalThis.clearTimeout(timeoutId);
-  }, [filters.search, multiSearchMode]);
+  }, [filters, multiSearchMode]);
 
-  const effectiveSearch = debouncedSearch;
   const gridFiltersActive = useMemo(
     () => hasGridFiltersActive(filters, multiSearchMode),
     [filters, multiSearchMode]
   );
+  const filtersDebouncePending = !multiSearchMode && filters !== debouncedFilters;
+  const appliedQueryFilters = multiSearchMode ? filters : debouncedFilters;
 
   const buildSitesQueryParams = useCallback(
     (page: number, pageSize: number): SitesQueryParams => ({
@@ -259,70 +270,59 @@ export function Sites() {
       pageSize,
       sortBy: sortModel[0]?.field || 'domain',
       sortDir: sortModel[0]?.sort || 'asc',
-      search: !multiSearchMode && effectiveSearch ? effectiveSearch : undefined,
-      drMin: filters.drMin ? Number(filters.drMin) : undefined,
-      drMax: filters.drMax ? Number(filters.drMax) : undefined,
-      trafficMin: filters.trafficMin ? Number(filters.trafficMin) : undefined,
-      trafficMax: filters.trafficMax ? Number(filters.trafficMax) : undefined,
-      priceMin: filters.priceMin ? Number(filters.priceMin) : undefined,
-      priceMax: filters.priceMax ? Number(filters.priceMax) : undefined,
-      termKey: filters.termKey ?? undefined,
+      search:
+        !multiSearchMode && appliedQueryFilters.search ? appliedQueryFilters.search : undefined,
+      drMin: appliedQueryFilters.drMin ? Number(appliedQueryFilters.drMin) : undefined,
+      drMax: appliedQueryFilters.drMax ? Number(appliedQueryFilters.drMax) : undefined,
+      trafficMin: appliedQueryFilters.trafficMin
+        ? Number(appliedQueryFilters.trafficMin)
+        : undefined,
+      trafficMax: appliedQueryFilters.trafficMax
+        ? Number(appliedQueryFilters.trafficMax)
+        : undefined,
+      priceMin: appliedQueryFilters.priceMin ? Number(appliedQueryFilters.priceMin) : undefined,
+      priceMax: appliedQueryFilters.priceMax ? Number(appliedQueryFilters.priceMax) : undefined,
+      termKey: appliedQueryFilters.termKey ?? undefined,
       stopListDomains:
-        !multiSearchMode && filters.stopListDomains.length > 0
-          ? filters.stopListDomains
+        !multiSearchMode && appliedQueryFilters.stopListDomains.length > 0
+          ? appliedQueryFilters.stopListDomains
           : undefined,
       ...buildLocationFilterRequestFields(
-        filters.locationSelections,
-        filters.excludedLocationKeys
+        appliedQueryFilters.locationSelections,
+        appliedQueryFilters.excludedLocationKeys
       ),
-      niches: filters.niches.length > 0 ? filters.niches : undefined,
+      niches: appliedQueryFilters.niches.length > 0 ? appliedQueryFilters.niches : undefined,
       categorySearchTerms:
-        filters.categorySearchTerms.length > 0 ? filters.categorySearchTerms : undefined,
-      topicFitMode: filters.topicFitMode,
-      excludedNiches: filters.excludedNiches.length > 0 ? filters.excludedNiches : undefined,
-      excludedCategorySearchTerms:
-        filters.excludedCategorySearchTerms.length > 0
-          ? filters.excludedCategorySearchTerms
+        appliedQueryFilters.categorySearchTerms.length > 0
+          ? appliedQueryFilters.categorySearchTerms
           : undefined,
-      languages: filters.languages.length > 0 ? filters.languages : undefined,
-      casinoAvailability: buildAvailabilityRequestField(filters.casinoAvailability),
-      cryptoAvailability: buildAvailabilityRequestField(filters.cryptoAvailability),
-      linkInsertAvailability: buildAvailabilityRequestField(filters.linkInsertAvailability),
-      linkInsertCasinoAvailability: buildAvailabilityRequestField(
-        filters.linkInsertCasinoAvailability
+      topicFitMode: appliedQueryFilters.topicFitMode,
+      excludedNiches:
+        appliedQueryFilters.excludedNiches.length > 0
+          ? appliedQueryFilters.excludedNiches
+          : undefined,
+      excludedCategorySearchTerms:
+        appliedQueryFilters.excludedCategorySearchTerms.length > 0
+          ? appliedQueryFilters.excludedCategorySearchTerms
+          : undefined,
+      languages:
+        appliedQueryFilters.languages.length > 0 ? appliedQueryFilters.languages : undefined,
+      casinoAvailability: buildAvailabilityRequestField(appliedQueryFilters.casinoAvailability),
+      cryptoAvailability: buildAvailabilityRequestField(appliedQueryFilters.cryptoAvailability),
+      linkInsertAvailability: buildAvailabilityRequestField(
+        appliedQueryFilters.linkInsertAvailability
       ),
-      datingAvailability: buildAvailabilityRequestField(filters.datingAvailability),
-      quarantine: filters.quarantine,
-      lastPublishedFromMonth: filters.lastPublishedFromMonth ?? undefined,
-      lastPublishedToMonth: filters.lastPublishedToMonth ?? undefined,
+      linkInsertCasinoAvailability: buildAvailabilityRequestField(
+        appliedQueryFilters.linkInsertCasinoAvailability
+      ),
+      datingAvailability: buildAvailabilityRequestField(appliedQueryFilters.datingAvailability),
+      quarantine: appliedQueryFilters.quarantine,
+      lastPublishedFromMonth: appliedQueryFilters.lastPublishedFromMonth ?? undefined,
+      lastPublishedToMonth: appliedQueryFilters.lastPublishedToMonth ?? undefined,
     }),
     [
       sortModel,
-      effectiveSearch,
-      filters.drMin,
-      filters.drMax,
-      filters.trafficMin,
-      filters.trafficMax,
-      filters.priceMin,
-      filters.priceMax,
-      filters.termKey,
-      filters.stopListDomains,
-      filters.locationSelections,
-      filters.excludedLocationKeys,
-      filters.niches,
-      filters.categorySearchTerms,
-      filters.topicFitMode,
-      filters.excludedNiches,
-      filters.excludedCategorySearchTerms,
-      filters.languages,
-      filters.casinoAvailability,
-      filters.cryptoAvailability,
-      filters.linkInsertAvailability,
-      filters.linkInsertCasinoAvailability,
-      filters.datingAvailability,
-      filters.quarantine,
-      filters.lastPublishedFromMonth,
-      filters.lastPublishedToMonth,
+      appliedQueryFilters,
       multiSearchMode,
     ]
   );
@@ -347,6 +347,8 @@ export function Sites() {
   });
 
   const loadSites = useCallback(async () => {
+    const requestId = loadSitesRequestIdRef.current + 1;
+    loadSitesRequestIdRef.current = requestId;
     setLoading(true);
     try {
       const params = buildSitesQueryParams(
@@ -355,26 +357,36 @@ export function Sites() {
       );
 
       const response = await sitesService.getSites(params);
+      if (requestId !== loadSitesRequestIdRef.current) {
+        return;
+      }
+
       setSites(response.items);
       setTotal(response.total);
     } catch (error) {
+      if (requestId !== loadSitesRequestIdRef.current) {
+        return;
+      }
+
       console.error('Failed to load sites:', error);
       setSites([]);
       setTotal(0);
     } finally {
-      setLoading(false);
+      if (requestId === loadSitesRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [paginationModel, buildSitesQueryParams]);
 
   useEffect(() => {
-    if (multiSearchMode) return;
+    if (multiSearchMode || filtersDebouncePending) return;
     loadSites();
-  }, [loadSites, multiSearchMode]);
+  }, [filtersDebouncePending, loadSites, multiSearchMode]);
 
   const handleFiltersApply = (appliedFilters: FiltersType = filters) => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
     if (!multiSearchMode) {
-      setDebouncedSearch(appliedFilters.search);
+      setDebouncedFilters(appliedFilters);
     }
     if (multiSearchMode) {
       const query = appliedFilters.search.trim();
@@ -497,7 +509,7 @@ export function Sites() {
     if (!enabled) {
       setMultiSearchResult(null);
       setMultiSearchAppliedText('');
-      setDebouncedSearch(filters.search);
+      setDebouncedFilters(filters);
       setMultiSearchRunId(0);
     }
   };
@@ -711,57 +723,62 @@ export function Sites() {
     const hidden = new Set(hiddenFilteredColumnIds);
     if (hidden.size === 0) return;
 
-    setFilters((current) => ({
-      ...current,
-      drMin: hidden.has('dr') ? INITIAL_FILTERS.drMin : current.drMin,
-      drMax: hidden.has('dr') ? INITIAL_FILTERS.drMax : current.drMax,
-      trafficMin: hidden.has('traffic') ? INITIAL_FILTERS.trafficMin : current.trafficMin,
-      trafficMax: hidden.has('traffic') ? INITIAL_FILTERS.trafficMax : current.trafficMax,
-      priceMin: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMin : current.priceMin,
-      priceMax: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMax : current.priceMax,
-      termKey: hidden.has('priceUsd') ? INITIAL_FILTERS.termKey : current.termKey,
+    const nextFilters = {
+      ...filters,
+      drMin: hidden.has('dr') ? INITIAL_FILTERS.drMin : filters.drMin,
+      drMax: hidden.has('dr') ? INITIAL_FILTERS.drMax : filters.drMax,
+      trafficMin: hidden.has('traffic') ? INITIAL_FILTERS.trafficMin : filters.trafficMin,
+      trafficMax: hidden.has('traffic') ? INITIAL_FILTERS.trafficMax : filters.trafficMax,
+      priceMin: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMin : filters.priceMin,
+      priceMax: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMax : filters.priceMax,
+      termKey: hidden.has('priceUsd') ? INITIAL_FILTERS.termKey : filters.termKey,
       locationSelections: hidden.has('location')
         ? INITIAL_FILTERS.locationSelections
-        : current.locationSelections,
+        : filters.locationSelections,
       excludedLocationKeys: hidden.has('location')
         ? INITIAL_FILTERS.excludedLocationKeys
-        : current.excludedLocationKeys,
-      niches: hidden.has('niche') ? INITIAL_FILTERS.niches : current.niches,
+        : filters.excludedLocationKeys,
+      niches: hidden.has('niche') ? INITIAL_FILTERS.niches : filters.niches,
       excludedNiches: hidden.has('niche')
         ? INITIAL_FILTERS.excludedNiches
-        : current.excludedNiches,
+        : filters.excludedNiches,
       categorySearchTerms: hidden.has('categories')
         ? INITIAL_FILTERS.categorySearchTerms
-        : current.categorySearchTerms,
+        : filters.categorySearchTerms,
       excludedCategorySearchTerms: hidden.has('categories')
         ? INITIAL_FILTERS.excludedCategorySearchTerms
-        : current.excludedCategorySearchTerms,
-      languages: hidden.has('language') ? INITIAL_FILTERS.languages : current.languages,
+        : filters.excludedCategorySearchTerms,
+      languages: hidden.has('language') ? INITIAL_FILTERS.languages : filters.languages,
       casinoAvailability: hidden.has('priceCasino')
         ? INITIAL_FILTERS.casinoAvailability
-        : current.casinoAvailability,
+        : filters.casinoAvailability,
       cryptoAvailability: hidden.has('priceCrypto')
         ? INITIAL_FILTERS.cryptoAvailability
-        : current.cryptoAvailability,
+        : filters.cryptoAvailability,
       linkInsertAvailability: hidden.has('priceLinkInsert')
         ? INITIAL_FILTERS.linkInsertAvailability
-        : current.linkInsertAvailability,
+        : filters.linkInsertAvailability,
       linkInsertCasinoAvailability: hidden.has('priceLinkInsertCasino')
         ? INITIAL_FILTERS.linkInsertCasinoAvailability
-        : current.linkInsertCasinoAvailability,
+        : filters.linkInsertCasinoAvailability,
       datingAvailability: hidden.has('priceDating')
         ? INITIAL_FILTERS.datingAvailability
-        : current.datingAvailability,
+        : filters.datingAvailability,
       quarantine: hidden.has('isQuarantined')
         ? getDefaultQuarantineFilter(multiSearchMode)
-        : current.quarantine,
+        : filters.quarantine,
       lastPublishedFromMonth: hidden.has('lastPublishedDate')
         ? INITIAL_FILTERS.lastPublishedFromMonth
-        : current.lastPublishedFromMonth,
+        : filters.lastPublishedFromMonth,
       lastPublishedToMonth: hidden.has('lastPublishedDate')
         ? INITIAL_FILTERS.lastPublishedToMonth
-        : current.lastPublishedToMonth,
-    }));
+        : filters.lastPublishedToMonth,
+    };
+
+    setFilters(nextFilters);
+    if (!multiSearchMode) {
+      setDebouncedFilters(nextFilters);
+    }
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
   };
 

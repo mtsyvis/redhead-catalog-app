@@ -16,18 +16,18 @@ public class SitesService : ISitesService
 {
     private readonly ApplicationDbContext _context;
     private readonly ISitesQueryBuilder _queryBuilder;
-    private readonly INicheFilterOptionsCache _nicheFilterOptionsCache;
+    private readonly ISitesCatalogCache _sitesCatalogCache;
     private readonly ILocationNormalizer _locationNormalizer;
 
     public SitesService(
         ApplicationDbContext context,
         ISitesQueryBuilder queryBuilder,
-        INicheFilterOptionsCache nicheFilterOptionsCache,
+        ISitesCatalogCache sitesCatalogCache,
         ILocationNormalizer locationNormalizer)
     {
         _context = context;
         _queryBuilder = queryBuilder;
-        _nicheFilterOptionsCache = nicheFilterOptionsCache;
+        _sitesCatalogCache = sitesCatalogCache;
         _locationNormalizer = locationNormalizer;
     }
 
@@ -116,6 +116,13 @@ public class SitesService : ISitesService
 
     public async Task<LocationFilterOptionsDto> GetLocationFilterOptionsAsync(CancellationToken cancellationToken = default)
     {
+        return await _sitesCatalogCache.GetLocationOptionsAsync(
+            LoadLocationFilterOptionsAsync,
+            cancellationToken);
+    }
+
+    private async Task<LocationFilterOptionsDto> LoadLocationFilterOptionsAsync(CancellationToken cancellationToken)
+    {
         var groupEntities = await _context.LocationGroups
             .AsNoTracking()
             .Include(group => group.Items)
@@ -195,10 +202,69 @@ public class SitesService : ISitesService
 
     public async Task<List<FilterOptionDto>> GetNicheOptionsAsync(CancellationToken cancellationToken = default)
     {
-        return await _nicheFilterOptionsCache.GetOptionsAsync(cancellationToken);
+        return await _sitesCatalogCache.GetNicheOptionsAsync(
+            LoadNicheOptionsAsync,
+            cancellationToken);
+    }
+
+    private async Task<List<FilterOptionDto>> LoadNicheOptionsAsync(CancellationToken cancellationToken)
+    {
+        // Kept an EF InMemory fallback for tests.
+        if (IsInMemoryProvider())
+        {
+            return await LoadNicheOptionsWithInMemoryProviderAsync(cancellationToken);
+        }
+
+        return await _context.Database.SqlQueryRaw<FilterOptionDto>(
+                """
+                SELECT token AS "Value", initcap(token) AS "Label"
+                FROM (
+                    SELECT DISTINCT unnest("NicheTokens") AS token
+                    FROM "Sites"
+                ) AS tokens
+                WHERE token <> ''
+                ORDER BY initcap(token), token
+                """)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<List<FilterOptionDto>> LoadNicheOptionsWithInMemoryProviderAsync(CancellationToken cancellationToken)
+    {
+        var tokenArrays = await _context.Sites
+            .AsNoTracking()
+            .Select(s => s.NicheTokens)
+            .ToListAsync(cancellationToken);
+
+        return tokenArrays
+            .SelectMany(tokens => tokens)
+            .Where(token => token != string.Empty)
+            .Distinct(StringComparer.Ordinal)
+            .Select(token => new FilterOptionDto
+            {
+                Value = token,
+                Label = System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(token)
+            })
+            .OrderBy(option => option.Label, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(option => option.Value, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private bool IsInMemoryProvider()
+    {
+        return string.Equals(
+            _context.Database.ProviderName,
+            "Microsoft.EntityFrameworkCore.InMemory",
+            StringComparison.Ordinal);
     }
 
     public async Task<List<TermFilterOptionDto>> GetTermOptionsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _sitesCatalogCache.GetTermOptionsAsync(
+            LoadTermOptionsAsync,
+            cancellationToken);
+    }
+
+    private async Task<List<TermFilterOptionDto>> LoadTermOptionsAsync(CancellationToken cancellationToken)
     {
         var persistedTerms = await _context.SitePriceOptions
             .AsNoTracking()
@@ -231,6 +297,16 @@ public class SitesService : ISitesService
             .ThenBy(term => term.TermValue)
             .ThenBy(term => term.Label, StringComparer.Ordinal)
             .ToList();
+    }
+
+    public async Task<SitesFilterOptionsDto> GetFilterOptionsAsync(CancellationToken cancellationToken = default)
+    {
+        return new SitesFilterOptionsDto
+        {
+            Niches = await GetNicheOptionsAsync(cancellationToken),
+            Locations = await GetLocationFilterOptionsAsync(cancellationToken),
+            Terms = await GetTermOptionsAsync(cancellationToken)
+        };
     }
 
     public async Task<MultiSearchSitesResult> MultiSearchSitesAsync(
@@ -337,8 +413,11 @@ public class SitesService : ISitesService
             return null;
         }
 
+        var previousCacheSnapshot = SiteUpdateCacheSnapshot.FromSite(site);
         var now = DateTime.UtcNow;
         var location = _locationNormalizer.Normalize(request.Location);
+        var nextNicheTokens = NicheNormalizer.NormalizeTokens(request.Niche);
+        var nextCacheSnapshot = SiteUpdateCacheSnapshot.FromUpdate(request, location.LocationKey, nextNicheTokens);
         site.DR = request.DR;
         site.Traffic = request.Traffic;
         site.Location = location.RawValue ?? string.Empty;
@@ -348,7 +427,7 @@ public class SitesService : ISitesService
         site.SponsoredTag = request.SponsoredTag;
         site.NumberDFLinks = request.NumberDFLinks;
         site.Niche = request.Niche;
-        site.NicheTokens = NicheNormalizer.NormalizeTokens(request.Niche);
+        site.NicheTokens = nextNicheTokens;
         site.Categories = request.Categories;
         site.IsQuarantined = request.IsQuarantined;
         site.QuarantineReason = request.IsQuarantined ? request.QuarantineReason : null;
@@ -380,7 +459,10 @@ public class SitesService : ISitesService
         site.UpdatedAtUtc = now;
         site.UpdatedBy = AuditUserFormatter.Format(userEmail);
         await _context.SaveChangesAsync(cancellationToken);
-        _nicheFilterOptionsCache.Invalidate();
+        SiteUpdateCacheInvalidation.InvalidateAfterSiteUpdate(
+            _sitesCatalogCache,
+            previousCacheSnapshot,
+            nextCacheSnapshot);
 
         var dto = await _context.Sites
             .AsNoTracking()

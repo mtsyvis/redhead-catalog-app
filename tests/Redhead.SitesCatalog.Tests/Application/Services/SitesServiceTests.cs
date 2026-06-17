@@ -29,8 +29,12 @@ public class SitesServiceTests : IDisposable
         _context = new ApplicationDbContext(options);
         _memoryCache = new MemoryCache(new MemoryCacheOptions());
         var queryBuilder = new SitesQueryBuilder(_context);
-        var nicheFilterOptionsCache = new NicheFilterOptionsCache(_context, _memoryCache);
-        _service = new SitesService(_context, queryBuilder, nicheFilterOptionsCache, new LocationNormalizer());
+        var sitesCatalogCache = new SitesCatalogCache(_memoryCache);
+        _service = new SitesService(
+            _context,
+            queryBuilder,
+            sitesCatalogCache,
+            new LocationNormalizer());
 
         SeedTestData();
     }
@@ -2898,17 +2902,23 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateSiteAsync_InvalidatesNicheOptionsCache()
+    public async Task UpdateSiteAsync_WhenNicheChanges_InvalidatesNicheOptionsOnly()
     {
-        var nicheOptionsCacheMock = new Mock<INicheFilterOptionsCache>();
-        var service = new SitesService(_context, new SitesQueryBuilder(_context), nicheOptionsCacheMock.Object, new LocationNormalizer());
+        var sitesCatalogCacheMock = new Mock<ISitesCatalogCache>();
+        var service = new SitesService(
+            _context,
+            new SitesQueryBuilder(_context),
+            sitesCatalogCacheMock.Object,
+            new LocationNormalizer());
         var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
         var request = RequestFrom(site);
         request.Niche = "Updated Cache Niche";
 
         await service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
 
-        nicheOptionsCacheMock.Verify(cache => cache.Invalidate(), Times.Once);
+        sitesCatalogCacheMock.Verify(cache => cache.InvalidateNicheOptions(), Times.Once);
+        sitesCatalogCacheMock.Verify(cache => cache.InvalidateLocationOptions(), Times.Never);
+        sitesCatalogCacheMock.Verify(cache => cache.InvalidateTermOptions(), Times.Never);
     }
 
     #endregion

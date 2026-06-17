@@ -125,13 +125,11 @@ public class SitesController : ControllerBase
     [HttpGet("filter-options")]
     public async Task<ActionResult<FilterOptionsResponse>> GetFilterOptions(CancellationToken cancellationToken)
     {
-        var niches = await _sitesService.GetNicheOptionsAsync(cancellationToken);
-        var locations = await _sitesService.GetLocationFilterOptionsAsync(cancellationToken);
-        var terms = await _sitesService.GetTermOptionsAsync(cancellationToken);
+        var filterOptions = await _sitesService.GetFilterOptionsAsync(cancellationToken);
 
         return Ok(new FilterOptionsResponse
         {
-            Niches = niches
+            Niches = filterOptions.Niches
                 .Select(option => new FilterOptionResponse
                 {
                     Value = option.Value,
@@ -140,7 +138,7 @@ public class SitesController : ControllerBase
                 .ToList(),
             Locations = new LocationFilterOptionsResponse
             {
-                Groups = locations.Groups.Select(group => new LocationGroupFilterOptionResponse
+                Groups = filterOptions.Locations.Groups.Select(group => new LocationGroupFilterOptionResponse
                 {
                     Key = group.Key,
                     DisplayName = group.DisplayName,
@@ -152,7 +150,7 @@ public class SitesController : ControllerBase
                         DisplayName = location.DisplayName
                     }).ToList()
                 }).ToList(),
-                Locations = locations.Locations.Select(location => new LocationFilterOptionResponse
+                Locations = filterOptions.Locations.Locations.Select(location => new LocationFilterOptionResponse
                 {
                     Key = location.Key,
                     DisplayName = location.DisplayName
@@ -161,19 +159,19 @@ public class SitesController : ControllerBase
                 {
                     Unknown = new LocationFilterOptionResponse
                     {
-                        Key = locations.Special.Unknown.Key,
-                        DisplayName = locations.Special.Unknown.DisplayName
+                        Key = filterOptions.Locations.Special.Unknown.Key,
+                        DisplayName = filterOptions.Locations.Special.Unknown.DisplayName
                     },
-                    Other = locations.Special.Other is null
+                    Other = filterOptions.Locations.Special.Other is null
                         ? null
                         : new LocationFilterOptionResponse
                     {
-                        Key = locations.Special.Other.Key,
-                        DisplayName = locations.Special.Other.DisplayName
+                        Key = filterOptions.Locations.Special.Other.Key,
+                        DisplayName = filterOptions.Locations.Special.Other.DisplayName
                     }
                 }
             },
-            Terms = terms
+            Terms = filterOptions.Terms
                 .Select(term => new TermFilterOptionResponse
                 {
                     TermKey = term.TermKey,

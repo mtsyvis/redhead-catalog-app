@@ -52,34 +52,32 @@ public class SitesControllerTests
         // Arrange
         var sitesService = new Mock<ISitesService>();
         sitesService
-            .Setup(service => service.GetNicheOptionsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
-        sitesService
-            .Setup(service => service.GetLocationFilterOptionsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new LocationFilterOptionsDto
+            .Setup(service => service.GetFilterOptionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SitesFilterOptionsDto
             {
-                Special = new LocationSpecialFilterOptionsDto
+                Locations = new LocationFilterOptionsDto
                 {
-                    Unknown = new LocationFilterOptionDto
+                    Special = new LocationSpecialFilterOptionsDto
                     {
-                        Key = LocationConstants.UnknownLocationKey,
-                        DisplayName = "Unknown"
+                        Unknown = new LocationFilterOptionDto
+                        {
+                            Key = LocationConstants.UnknownLocationKey,
+                            DisplayName = "Unknown"
+                        }
                     }
-                }
+                },
+                Terms =
+                [
+                    new TermFilterOptionDto
+                    {
+                        TermKey = "finite:1:year",
+                        Label = "1 year",
+                        TermType = TermType.Finite,
+                        TermValue = 1,
+                        TermUnit = TermUnit.Year
+                    }
+                ]
             });
-        sitesService
-            .Setup(service => service.GetTermOptionsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(
-            [
-                new TermFilterOptionDto
-                {
-                    TermKey = "finite:1:year",
-                    Label = "1 year",
-                    TermType = TermType.Finite,
-                    TermValue = 1,
-                    TermUnit = TermUnit.Year
-                }
-            ]);
         var controller = new SitesController(sitesService.Object);
 
         // Act

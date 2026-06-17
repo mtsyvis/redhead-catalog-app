@@ -24,7 +24,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     private const string CsvContentType = "text/csv";
 
     private readonly ApplicationDbContext _context;
-    private readonly MemoryCache _nicheOptionsMemoryCache;
+    private readonly MemoryCache _catalogMemoryCache;
     private readonly ImportArtifactStorageService _artifactStorageService;
     private readonly SitesUpdateImportService _sut;
 
@@ -35,13 +35,13 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        _nicheOptionsMemoryCache = new MemoryCache(new MemoryCacheOptions());
+        _catalogMemoryCache = new MemoryCache(new MemoryCacheOptions());
         _artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
         _sut = new SitesUpdateImportService(
             _context,
             NullLogger<SitesUpdateImportService>.Instance,
             _artifactStorageService,
-            new NicheFilterOptionsCache(_context, _nicheOptionsMemoryCache),
+            new SitesCatalogCache(_catalogMemoryCache),
             new LocationNormalizer());
 
         SeedSites();
@@ -51,7 +51,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
-        _nicheOptionsMemoryCache.Dispose();
+        _catalogMemoryCache.Dispose();
     }
 
     [Fact]
