@@ -28,6 +28,8 @@ export interface ExportMetadata {
  */
 class SitesService {
   private readonly baseUrl = '/api/sites';
+  private filterOptionsCache: FilterOptionsResponse | null = null;
+  private filterOptionsRequest: Promise<FilterOptionsResponse> | null = null;
 
   /**
    * Fetch sites with filters, sorting, and pagination
@@ -50,10 +52,13 @@ class SitesService {
    * Update site fields (Admin/SuperAdmin). Includes all editable fields + quarantine.
    */
   async updateSite(domain: string, payload: UpdateSitePayload): Promise<Site> {
-    return apiClient.put<Site, UpdateSitePayload>(
+    const updated = await apiClient.put<Site, UpdateSitePayload>(
       `${this.baseUrl}/${encodeURIComponent(domain)}`,
       payload
     );
+    this.clearFilterOptionsCache();
+
+    return updated;
   }
 
   /**
@@ -68,7 +73,29 @@ class SitesService {
    * Fetch filter option values for advanced filters.
    */
   async getFilterOptions(): Promise<FilterOptionsResponse> {
-    return apiClient.get<FilterOptionsResponse>(`${this.baseUrl}/filter-options`);
+    if (this.filterOptionsCache) {
+      return cloneFilterOptions(this.filterOptionsCache);
+    }
+
+    if (!this.filterOptionsRequest) {
+      this.filterOptionsRequest = apiClient
+        .get<FilterOptionsResponse>(`${this.baseUrl}/filter-options`)
+        .then((response) => {
+          this.filterOptionsCache = cloneFilterOptions(response);
+          return response;
+        })
+        .finally(() => {
+          this.filterOptionsRequest = null;
+        });
+    }
+
+    const response = await this.filterOptionsRequest;
+    return cloneFilterOptions(response);
+  }
+
+  clearFilterOptionsCache() {
+    this.filterOptionsCache = null;
+    this.filterOptionsRequest = null;
   }
 
   /**
@@ -156,6 +183,28 @@ class SitesService {
 }
 
 export const sitesService = new SitesService();
+
+function cloneFilterOptions(options: FilterOptionsResponse): FilterOptionsResponse {
+  return {
+    niches: options.niches.map((option) => ({ ...option })),
+    locations: options.locations
+      ? {
+          groups: options.locations.groups.map((group) => ({
+            ...group,
+            locations: group.locations.map((location) => ({ ...location })),
+          })),
+          locations: options.locations.locations.map((location) => ({ ...location })),
+          special: {
+            unknown: { ...options.locations.special.unknown },
+            other: options.locations.special.other
+              ? { ...options.locations.special.other }
+              : null,
+          },
+        }
+      : null,
+    terms: options.terms?.map((term) => ({ ...term })) ?? null,
+  };
+}
 
 function readExportMetadata(headers: Headers): ExportMetadata {
   return {

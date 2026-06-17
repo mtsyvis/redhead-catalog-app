@@ -290,7 +290,7 @@ export function SitesFilters({
   };
 
   const handleClearAdvancedFilters = () => {
-    onFiltersChange({
+    const nextFilters = {
       ...filters,
       drMin: INITIAL_FILTERS.drMin,
       drMax: INITIAL_FILTERS.drMax,
@@ -316,8 +316,13 @@ export function SitesFilters({
       quarantine: getDefaultQuarantineFilter(multiSearchMode),
       lastPublishedFromMonth: INITIAL_FILTERS.lastPublishedFromMonth,
       lastPublishedToMonth: INITIAL_FILTERS.lastPublishedToMonth,
-    });
+    };
+
+    onFiltersChange(nextFilters);
     onClearSavedFilterSetSelection?.();
+    if (!multiSearchMode) {
+      onApply(nextFilters);
+    }
   };
 
   const handleApply = () => {
@@ -443,13 +448,21 @@ export function SitesFilters({
   };
 
   const handleApplyStopList = (domains: string[]) => {
-    handleChange('stopListDomains', domains);
+    const nextFilters = { ...filters, stopListDomains: domains };
+    onFiltersChange(nextFilters);
     setStopListDialogOpen(false);
+    if (!multiSearchMode) {
+      onApply(nextFilters);
+    }
   };
 
   const handleClearStopList = () => {
-    handleChange('stopListDomains', []);
+    const nextFilters = { ...filters, stopListDomains: [] };
+    onFiltersChange(nextFilters);
     setStopListDialogOpen(false);
+    if (!multiSearchMode) {
+      onApply(nextFilters);
+    }
   };
 
   const handleClearSearch = () => {

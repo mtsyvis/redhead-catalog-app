@@ -42,7 +42,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 builder.Services.AddScoped<ISitesQueryBuilder, SitesQueryBuilder>();
-builder.Services.AddScoped<INicheFilterOptionsCache, NicheFilterOptionsCache>();
+builder.Services.AddSingleton<ISitesCatalogCache, SitesCatalogCache>();
 builder.Services.AddScoped<ISitesService, SitesService>();
 builder.Services.AddScoped<IAdminUsersListService, AdminUsersListService>();
 builder.Services.AddScoped<IBusinessDemandAnalyticsService, BusinessDemandAnalyticsService>();

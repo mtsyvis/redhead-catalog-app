@@ -31,7 +31,10 @@ public sealed class QuarantineImportServiceTests : IDisposable
 
         _context = new ApplicationDbContext(options);
         _artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
-        _sut = new QuarantineImportService(_context, NullLogger<QuarantineImportService>.Instance, _artifactStorageService);
+        _sut = new QuarantineImportService(
+            _context,
+            NullLogger<QuarantineImportService>.Instance,
+            _artifactStorageService);
 
         SeedSites();
     }

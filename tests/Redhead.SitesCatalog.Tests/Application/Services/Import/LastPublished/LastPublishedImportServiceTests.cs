@@ -31,7 +31,10 @@ public sealed class LastPublishedImportServiceTests : IDisposable
 
         _context = new ApplicationDbContext(options);
         _artifactStorageService = new ImportArtifactStorageService(new MemoryCache(new MemoryCacheOptions()));
-        _sut = new LastPublishedImportService(_context, NullLogger<LastPublishedImportService>.Instance, _artifactStorageService);
+        _sut = new LastPublishedImportService(
+            _context,
+            NullLogger<LastPublishedImportService>.Instance,
+            _artifactStorageService);
 
         SeedSites();
     }

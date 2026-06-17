@@ -33,6 +33,11 @@ public interface ISitesService
     Task<List<TermFilterOptionDto>> GetTermOptionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get all advanced filter options derived from current catalog data.
+    /// </summary>
+    Task<SitesFilterOptionsDto> GetFilterOptionsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Multi-search: exact match by normalized domains. Single DB query.
     /// </summary>
     /// <param name="normalizedDomains">Unique normalized domains to look up</param>

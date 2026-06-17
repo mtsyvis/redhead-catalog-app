@@ -25,20 +25,20 @@ public sealed class SitesImportService : ISitesImportService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SitesImportService> _logger;
     private readonly IImportArtifactStorageService _importArtifactStorageService;
-    private readonly INicheFilterOptionsCache _nicheFilterOptionsCache;
+    private readonly ISitesCatalogCache _sitesCatalogCache;
     private readonly ILocationNormalizer _locationNormalizer;
 
     public SitesImportService(
         ApplicationDbContext context,
         ILogger<SitesImportService> logger,
         IImportArtifactStorageService importArtifactStorageService,
-        INicheFilterOptionsCache nicheFilterOptionsCache,
+        ISitesCatalogCache sitesCatalogCache,
         ILocationNormalizer locationNormalizer)
     {
         _context = context;
         _logger = logger;
         _importArtifactStorageService = importArtifactStorageService;
-        _nicheFilterOptionsCache = nicheFilterOptionsCache;
+        _sitesCatalogCache = sitesCatalogCache;
         _locationNormalizer = locationNormalizer;
     }
 
@@ -180,7 +180,12 @@ public sealed class SitesImportService : ISitesImportService
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            _nicheFilterOptionsCache.Invalidate();
+            if (result.InsertedCount > 0)
+            {
+                _sitesCatalogCache.InvalidateNicheOptions();
+                _sitesCatalogCache.InvalidateTermOptions();
+                _sitesCatalogCache.InvalidateLocationOptions();
+            }
         }
         catch (DbUpdateException ex)
         {

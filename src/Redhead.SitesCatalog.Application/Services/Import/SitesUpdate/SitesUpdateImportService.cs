@@ -25,20 +25,20 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SitesUpdateImportService> _logger;
     private readonly IImportArtifactStorageService _importArtifactStorageService;
-    private readonly INicheFilterOptionsCache _nicheFilterOptionsCache;
+    private readonly ISitesCatalogCache _sitesCatalogCache;
     private readonly ILocationNormalizer _locationNormalizer;
 
     public SitesUpdateImportService(
         ApplicationDbContext context,
         ILogger<SitesUpdateImportService> logger,
         IImportArtifactStorageService importArtifactStorageService,
-        INicheFilterOptionsCache nicheFilterOptionsCache,
+        ISitesCatalogCache sitesCatalogCache,
         ILocationNormalizer locationNormalizer)
     {
         _context = context;
         _logger = logger;
         _importArtifactStorageService = importArtifactStorageService;
-        _nicheFilterOptionsCache = nicheFilterOptionsCache;
+        _sitesCatalogCache = sitesCatalogCache;
         _locationNormalizer = locationNormalizer;
     }
 
@@ -120,6 +120,9 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         var sitesByDomain = await LoadSitesByDomainAsync(updateCandidatesByDomain.Keys.ToList(), cancellationToken);
         var now = DateTime.UtcNow;
         var auditUser = AuditUserFormatter.Format(userEmail);
+        var shouldInvalidateNicheOptions = false;
+        var shouldInvalidateLocationOptions = false;
+        var shouldInvalidateTermOptions = false;
 
         foreach (var (domain, candidates) in updateCandidatesByDomain)
         {
@@ -145,6 +148,10 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                 warningRowsPayload.Rows.Add(pricingWarning);
             }
 
+            shouldInvalidateNicheOptions |= update.PresentColumns.Contains(ImportConstants.SitesImportColumns.Niche);
+            shouldInvalidateLocationOptions |= update.PresentColumns.Contains(ImportConstants.SitesImportColumns.Location);
+            shouldInvalidateTermOptions |= update.PriceOperations.Count > 0 || update.AvailabilityOperations.Count > 0;
+
             SitesUpdateImportApplier.Apply(site, update, now);
             site.UpdatedAtUtc = now;
             site.UpdatedBy = auditUser;
@@ -161,7 +168,20 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         await _context.SaveChangesAsync(cancellationToken);
         if (result.UpdatedCount > 0)
         {
-            _nicheFilterOptionsCache.Invalidate();
+            if (shouldInvalidateNicheOptions)
+            {
+                _sitesCatalogCache.InvalidateNicheOptions();
+            }
+
+            if (shouldInvalidateLocationOptions)
+            {
+                _sitesCatalogCache.InvalidateLocationOptions();
+            }
+
+            if (shouldInvalidateTermOptions)
+            {
+                _sitesCatalogCache.InvalidateTermOptions();
+            }
         }
 
         _logger.LogInformation(

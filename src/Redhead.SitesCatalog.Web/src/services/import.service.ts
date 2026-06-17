@@ -1,4 +1,5 @@
 import { notifySessionExpired } from './sessionExpired';
+import { sitesService } from './sites.service';
 
 export interface ImportDownloadInfo {
   available: boolean;
@@ -73,7 +74,10 @@ async function runImportRequest<T>(
     throw new Error(err.message || err.error || 'Import failed');
   }
 
-  return response.json();
+  const result = await response.json();
+  sitesService.clearFilterOptionsCache();
+
+  return result;
 }
 
 /**
