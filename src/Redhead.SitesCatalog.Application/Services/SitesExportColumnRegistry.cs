@@ -173,7 +173,7 @@ internal static class SitesExportColumnRegistry
         };
     }
 
-    private const string EmptyPricingLabel = "—";
+    private static readonly string EmptyPricingLabel = string.Empty;
 
     private static decimal? SelectExportPrice(
         IEnumerable<SitePriceOption> priceOptions,

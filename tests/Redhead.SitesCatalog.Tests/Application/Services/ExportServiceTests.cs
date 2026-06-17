@@ -1355,7 +1355,7 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_NotAvailableAndUnknown_AreExportedAsNoAndDash()
+    public async Task ExportSitesAsExcelAsync_NotAvailableAndUnknown_AreExportedAsNoAndEmptyString()
     {
         // Arrange
         var now = DateTime.UtcNow;
@@ -1416,10 +1416,10 @@ public class ExportServiceTests : IDisposable
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         Assert.Single(rows);
         Assert.Equal("NO", rows[0]["Casino"]);
-        Assert.Equal("—", rows[0]["Crypto"]);
+        Assert.Equal(string.Empty, rows[0]["Crypto"]);
         Assert.Equal("12", rows[0]["Link Insert"]);
         Assert.Equal("NO", rows[0]["Link Insert Casino"]);
-        Assert.Equal("—", rows[0]["Dating"]);
+        Assert.Equal(string.Empty, rows[0]["Dating"]);
         Assert.Equal("4", rows[0]["DF Links"]);
         Assert.Equal("1 year", rows[0]["Term"]);
     }
@@ -2398,7 +2398,7 @@ public class ExportServiceTests : IDisposable
         // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
         Assert.Equal("100", rows.Single(row => row["Domain"] == "term-main-multiple.com")["Price USD"]);
-        Assert.Equal("—", rows.Single(row => row["Domain"] == "term-main-empty.com")["Price USD"]);
+        Assert.Equal(string.Empty, rows.Single(row => row["Domain"] == "term-main-empty.com")["Price USD"]);
         Assert.Equal("100", rows.Single(row => row["Domain"] == "term-main-unknown.com")["Price USD"]);
     }
 
@@ -2430,7 +2430,7 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
-        Assert.Equal("—", rows.Single(row => row["Domain"] == "term-casino-unknown.com")["Casino"]);
+        Assert.Equal(string.Empty, rows.Single(row => row["Domain"] == "term-casino-unknown.com")["Casino"]);
         Assert.Equal("NO", rows.Single(row => row["Domain"] == "term-casino-no.com")["Casino"]);
         Assert.Equal("YES", rows.Single(row => row["Domain"] == "term-casino-yes.com")["Casino"]);
     }
@@ -2538,7 +2538,7 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_WithTermKeyAndMissingServiceTermPrice_ExportsDash()
+    public async Task ExportSitesAsExcelAsync_WithTermKeyAndMissingServiceTermPrice_ExportsEmptyString()
     {
         // Arrange
         var site = SiteWithNullPrice("term-filter-service-mismatch.com");
@@ -2569,11 +2569,11 @@ public class ExportServiceTests : IDisposable
         var row = Assert.Single(await ReadSitesSheetRowsFromStream(result.FileStream));
         Assert.Equal("term-filter-service-mismatch.com", row["Domain"]);
         Assert.Equal("300", row["Price USD"]);
-        Assert.Equal("—", row["Casino"]);
+        Assert.Equal(string.Empty, row["Casino"]);
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_WithTermKeyAndServiceStatusWithoutTermPrice_ExportsDash()
+    public async Task ExportSitesAsExcelAsync_WithTermKeyAndServiceStatusWithoutTermPrice_ExportsEmptyString()
     {
         // Arrange
         var site = SiteWithNullPrice("term-filter-service-status.com");
@@ -2600,7 +2600,7 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         var row = Assert.Single(await ReadSitesSheetRowsFromStream(result.FileStream));
-        Assert.Equal("—", row["Casino"]);
+        Assert.Equal(string.Empty, row["Casino"]);
     }
 
     #endregion
