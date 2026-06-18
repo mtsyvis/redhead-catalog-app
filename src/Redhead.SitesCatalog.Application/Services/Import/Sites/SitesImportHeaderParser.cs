@@ -3,22 +3,15 @@ using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Application.Services.Import.Csv;
-using Redhead.SitesCatalog.Application.Services.Import.ValueParsers;
 
 namespace Redhead.SitesCatalog.Application.Services.Import.Sites;
 
 internal sealed record SitesImportHeaderInfo(
-    IReadOnlyList<SitesImportPriceColumn> PriceColumns,
-    IReadOnlyList<SitesImportAvailabilityColumn> AvailabilityColumns);
+    IReadOnlyList<SitesImportPriceColumn> PriceColumns);
 
 internal sealed record SitesImportPriceColumn(
     string Header,
-    PriceType PriceType,
-    PricingTerm Term);
-
-internal sealed record SitesImportAvailabilityColumn(
-    string Header,
-    PriceType ServiceType);
+    PriceType PriceType);
 
 internal static class SitesImportHeaderParser
 {
@@ -31,16 +24,6 @@ internal static class SitesImportHeaderParser
             [ImportConstants.SitesImportColumns.PriceLinkInsert] = PriceType.LinkInsertion,
             [ImportConstants.SitesImportColumns.PriceLinkInsertCasino] = PriceType.LinkInsertionCasino,
             [ImportConstants.SitesImportColumns.PriceDating] = PriceType.Dating
-        };
-
-    private static readonly IReadOnlyDictionary<string, PriceType> AvailabilityHeaders =
-        new Dictionary<string, PriceType>(StringComparer.OrdinalIgnoreCase)
-        {
-            [ImportConstants.SitesImportColumns.PriceCasinoAvailability] = PriceType.Casino,
-            [ImportConstants.SitesImportColumns.PriceCryptoAvailability] = PriceType.Crypto,
-            [ImportConstants.SitesImportColumns.PriceLinkInsertAvailability] = PriceType.LinkInsertion,
-            [ImportConstants.SitesImportColumns.PriceLinkInsertCasinoAvailability] = PriceType.LinkInsertionCasino,
-            [ImportConstants.SitesImportColumns.PriceDatingAvailability] = PriceType.Dating
         };
 
     public static void ValidateOrThrow(string[] actualHeader)
@@ -58,10 +41,9 @@ internal static class SitesImportHeaderParser
         }
 
         var seenBaseHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var seenPriceTerms = new HashSet<(PriceType PriceType, string TermKey)>();
-        var seenAvailabilityTypes = new HashSet<PriceType>();
+        var seenPriceTypes = new HashSet<PriceType>();
         var priceColumns = new List<SitesImportPriceColumn>();
-        var availabilityColumns = new List<SitesImportAvailabilityColumn>();
+        var hasTermHeader = false;
 
         for (var i = 0; i < actualHeader.Length; i++)
         {
@@ -71,39 +53,30 @@ internal static class SitesImportHeaderParser
                 throw new ImportHeaderValidationException($"CSV header is invalid. Column {i + 1} is empty.");
             }
 
-            if (TryParsePriceHeader(header, out var priceType, out var term, out var invalidTerm))
+            if (TryGetPriceType(header, out var priceType))
             {
-                if (!seenPriceTerms.Add((priceType, term.TermKey)))
+                if (!seenPriceTypes.Add(priceType))
                 {
-                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate price column for {priceType} and term '{term.TermKey}'.");
+                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate pricing column: '{header}'.");
                 }
 
-                priceColumns.Add(new SitesImportPriceColumn(header, priceType, term));
+                priceColumns.Add(new SitesImportPriceColumn(header, priceType));
                 continue;
             }
 
-            if (invalidTerm)
+            if (string.Equals(header, ImportConstants.SitesImportColumns.Term, StringComparison.OrdinalIgnoreCase))
             {
-                throw new ImportHeaderValidationException($"CSV header is invalid. Invalid term header: '{header}'.");
-            }
-
-            if (TryGetAvailabilityServiceType(header, out var availabilityServiceType))
-            {
-                if (!seenAvailabilityTypes.Add(availabilityServiceType))
+                if (!seenBaseHeaders.Add(header))
                 {
-                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate availability column for {availabilityServiceType}.");
+                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate column: '{header}'.");
                 }
 
-                availabilityColumns.Add(new SitesImportAvailabilityColumn(header, availabilityServiceType));
+                hasTermHeader = true;
                 continue;
             }
 
-            if (IsMainAvailabilityHeader(header))
-            {
-                throw new ImportHeaderValidationException("CSV header is invalid. Main pricing must not include an availability column.");
-            }
-
-            if (header.StartsWith("Price", StringComparison.OrdinalIgnoreCase))
+            if (header.StartsWith("Price", StringComparison.OrdinalIgnoreCase)
+                || header.EndsWith("Availability", StringComparison.OrdinalIgnoreCase))
             {
                 throw new ImportHeaderValidationException($"CSV header is invalid. Unknown pricing column: '{header}'.");
             }
@@ -131,60 +104,32 @@ internal static class SitesImportHeaderParser
                 $"CSV header is invalid. Missing required columns: {string.Join(", ", missingRequiredHeaders)}.");
         }
 
-        return new SitesImportHeaderInfo(priceColumns, availabilityColumns);
+        if (priceColumns.Count > 0 && !hasTermHeader)
+        {
+            throw new ImportHeaderValidationException("CSV header is invalid. Term column is required when pricing columns are present.");
+        }
+
+        return new SitesImportHeaderInfo(priceColumns);
     }
 
-    internal static bool TryParsePriceHeader(
-        string header,
-        out PriceType priceType,
-        out PricingTerm term,
-        out bool invalidTerm)
+    internal static bool TryGetPriceType(string header, out PriceType priceType)
     {
-        priceType = default;
-        term = PricingTerm.Unknown;
-        invalidTerm = false;
-
-        var openBracketIndex = header.IndexOf('[', StringComparison.Ordinal);
-        var closeBracketIndex = header.LastIndexOf(']');
-        if (openBracketIndex < 0 && closeBracketIndex < 0)
-        {
-            return false;
-        }
-
-        if (openBracketIndex <= 0 || closeBracketIndex != header.Length - 1 || closeBracketIndex <= openBracketIndex)
-        {
-            invalidTerm = header.StartsWith("Price", StringComparison.OrdinalIgnoreCase);
-            return false;
-        }
-
-        var priceHeader = header[..openBracketIndex].Trim();
-        if (!PriceHeaders.TryGetValue(priceHeader, out priceType))
-        {
-            return false;
-        }
-
-        var rawTerm = header[(openBracketIndex + 1)..closeBracketIndex];
-        if (!TryParseTerm(rawTerm, out term))
-        {
-            invalidTerm = true;
-            return false;
-        }
-
-        return true;
+        return PriceHeaders.TryGetValue(header, out priceType);
     }
 
-    internal static bool TryGetAvailabilityServiceType(string header, out PriceType serviceType)
-        => AvailabilityHeaders.TryGetValue(header, out serviceType);
-
-    internal static bool IsMainAvailabilityHeader(string header)
-        => string.Equals(header, $"{ImportConstants.SitesImportColumns.PriceUsd}Availability", StringComparison.OrdinalIgnoreCase);
-
-    private static bool TryParseTerm(string rawTerm, out PricingTerm term)
+    internal static bool TryParseTermCell(string? rawTerm, out PricingTerm term)
     {
         term = PricingTerm.Unknown;
 
-        var trimmed = rawTerm.Trim();
-        if (string.Equals(trimmed, "unknown term", StringComparison.OrdinalIgnoreCase))
+        var trimmed = rawTerm?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0)
+        {
+            term = PricingTerm.Unknown;
+            return true;
+        }
+
+        if (string.Equals(trimmed, "no term", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(trimmed, "unknown term", StringComparison.OrdinalIgnoreCase))
         {
             term = PricingTerm.Unknown;
             return true;

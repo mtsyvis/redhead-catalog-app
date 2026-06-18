@@ -137,9 +137,29 @@ public static class SitesImportRowValidator
             }, null);
         }
 
+        var term = PricingTerm.Unknown;
+        if (row.PriceCells.Count > 0
+            && !SitesImportHeaderParser.TryParseTermCell(row.TermRaw, out term))
+        {
+            return RowError(
+                row,
+                domain,
+                ImportConstants.SitesImportColumns.Term,
+                row.TermRaw,
+                "Term must be empty, No term, permanent, or a positive number of years such as 1 year or 2 years.");
+        }
+
         var priceOptions = new List<ValidatedSitesPriceOption>();
+        var explicitServiceStatuses = new Dictionary<PriceType, ServiceAvailabilityStatus>();
         foreach (var priceCell in row.PriceCells)
         {
+            if (priceCell.PriceType != PriceType.Main
+                && TryParseServiceCellStatus(priceCell.RawValue, out var serviceStatus))
+            {
+                explicitServiceStatuses[priceCell.PriceType] = serviceStatus;
+                continue;
+            }
+
             if (string.IsNullOrWhiteSpace(priceCell.RawValue))
             {
                 continue;
@@ -148,7 +168,14 @@ public static class SitesImportRowValidator
             var rawValue = priceCell.RawValue.Trim();
             if (!DecimalParsingHelper.TryParseDecimalFlexible(rawValue, out var amount))
             {
-                return RowError(row, domain, priceCell.Header, priceCell.RawValue, $"Invalid {priceCell.Header} value.");
+                return RowError(
+                    row,
+                    domain,
+                    priceCell.Header,
+                    priceCell.RawValue,
+                    priceCell.PriceType == PriceType.Main
+                        ? $"Invalid {priceCell.Header} value."
+                        : $"{priceCell.Header} must be empty, YES, NO, or a positive numeric value.");
             }
 
             if (amount <= 0)
@@ -158,50 +185,28 @@ public static class SitesImportRowValidator
 
             priceOptions.Add(new ValidatedSitesPriceOption(
                 priceCell.PriceType,
-                priceCell.TermKey,
-                priceCell.TermType,
-                priceCell.TermValue,
-                priceCell.TermUnit,
+                term.TermKey,
+                term.TermType,
+                term.TermValue,
+                term.TermUnit,
                 amount));
-        }
 
-        var explicitAvailabilityStatuses = new Dictionary<PriceType, ServiceAvailabilityStatus>();
-        foreach (var availabilityCell in row.AvailabilityCells)
-        {
-            if (!TryParseAvailability(availabilityCell.RawValue, out var status))
+            if (priceCell.PriceType != PriceType.Main)
             {
-                return RowError(
-                    row,
-                    domain,
-                    availabilityCell.Header,
-                    availabilityCell.RawValue,
-                    $"{availabilityCell.Header} must be empty, YES, or NO.");
+                explicitServiceStatuses[priceCell.PriceType] = ServiceAvailabilityStatus.Available;
             }
-
-            explicitAvailabilityStatuses[availabilityCell.ServiceType] = status;
         }
 
         var serviceAvailabilities = new List<ValidatedSitesServiceAvailability>();
         foreach (var serviceType in OptionalServiceTypes)
         {
-            var hasPrice = priceOptions.Any(priceOption => priceOption.PriceType == serviceType);
-            var explicitStatus = explicitAvailabilityStatuses.TryGetValue(serviceType, out var status)
-                ? status
+            var explicitStatus = explicitServiceStatuses.TryGetValue(serviceType, out var serviceCellStatus)
+                ? serviceCellStatus
                 : ServiceAvailabilityStatus.Unknown;
-
-            if (hasPrice && explicitStatus is ServiceAvailabilityStatus.NotAvailable or ServiceAvailabilityStatus.AvailableWithUnknownPrice)
-            {
-                return (false, new SitesImportError
-                {
-                    RowNumber = row.RowNumber,
-                    Domain = domain,
-                    Message = $"{FormatPriceType(serviceType)} availability cannot be YES or NO when a price is provided."
-                }, null);
-            }
 
             serviceAvailabilities.Add(new ValidatedSitesServiceAvailability(
                 serviceType,
-                hasPrice ? ServiceAvailabilityStatus.Available : explicitStatus));
+                explicitStatus));
         }
 
         var data = new ValidatedSitesRow(
@@ -231,11 +236,11 @@ public static class SitesImportRowValidator
                && string.IsNullOrWhiteSpace(row.Niche)
                && string.IsNullOrWhiteSpace(row.Categories)
                && string.IsNullOrWhiteSpace(row.SponsoredTag)
-               && row.PriceCells.All(cell => string.IsNullOrWhiteSpace(cell.RawValue))
-               && row.AvailabilityCells.All(cell => string.IsNullOrWhiteSpace(cell.RawValue));
+               && string.IsNullOrWhiteSpace(row.TermRaw)
+               && row.PriceCells.All(cell => string.IsNullOrWhiteSpace(cell.RawValue));
     }
 
-    private static bool TryParseAvailability(string? rawValue, out ServiceAvailabilityStatus status)
+    private static bool TryParseServiceCellStatus(string? rawValue, out ServiceAvailabilityStatus status)
     {
         status = ServiceAvailabilityStatus.Unknown;
         if (string.IsNullOrWhiteSpace(rawValue))

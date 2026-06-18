@@ -262,9 +262,9 @@ Rules:
 * UI must display empty `PriceUsd` as `NO`.
 * Price filtering and sorting use `SitePriceOptions` as the backend source of truth once term-aware pricing is enabled. With no selected term, price logic considers all terms; with a selected `TermKey`, price logic considers only matching price options.
 * During sites import, price fields may all be empty or unavailable; valid rows are not rejected only because no numeric price is present.
-* During sites update import, a present empty term-specific main price column such as `PriceUsd [1 year]` clears that exact `SitePriceOption`; a missing price column leaves that exact pricing data unchanged.
+* During sites update import, a present empty `PriceUsd` cell with a row `Term` clears that exact `SitePriceOption`; a missing price column leaves pricing data unchanged.
 * During sites update import, service price and availability fields may be omitted, cleared, or set unavailable according to field-level rules; update rows are not rejected only because no numeric price remains.
-* During sites import and sites update import, if a term-specific `PriceUsd [...]` value is provided, it must be greater than `0`.
+* During sites import and sites update import, if a `PriceUsd` value is provided, it must be greater than `0`.
 * Site exports use `SitePriceOptions` as the source of truth for the `Price USD` column. With no selected term, the exported cell contains the lowest known main price across all terms as a raw numeric Excel value. With a selected `TermKey`, the exported cell contains only that term's main price as a raw numeric Excel value. If no matching main price exists, export `—`.
 * Invalid price data must create row-level validation errors.
 * Empty input in an import file means empty value, not implicit zero.
@@ -578,21 +578,21 @@ Optional base columns:
 * `SponsoredTag`
 * `Language`
 
-Pricing columns are optional dynamic columns. Main prices use term-specific headers such as `PriceUsd [unknown term]`, `PriceUsd [1 year]`, `PriceUsd [2 years]`, and `PriceUsd [permanent]`. Optional service prices use the same term-specific format for `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, and `PriceDating`.
+Pricing columns are optional flat columns. If any pricing column is present, the file must include a row-level `Term` column. Supported pricing columns are `PriceUsd`, `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, and `PriceDating`.
 
-Optional service availability columns are `PriceCasinoAvailability`, `PriceCryptoAvailability`, `PriceLinkInsertAvailability`, `PriceLinkInsertCasinoAvailability`, and `PriceDatingAvailability`. Empty means `Unknown`, `YES` means `AvailableWithUnknownPrice`, and `NO` means `NotAvailable`.
+`Term` values are empty, `No term`, `permanent`, or positive finite year labels such as `1 year` or `2 years`. Empty `Term` and `No term` are stored with the internal unknown term key and displayed in the UI as `No term`. The legacy `unknown term` text is accepted as an alias but is not shown in UI instructions. A non-empty invalid term, including a cell containing multiple terms, is a row-level error.
+
+Optional service columns accept empty, `YES`, `NO`, or a positive numeric price. Empty means `Unknown`, `YES` means `AvailableWithUnknownPrice`, `NO` means `NotAvailable`, and a numeric price means `Available`.
 
 Rules:
 
 * Add-only import.
 * `Language` is part of the required base column order; empty values are stored as empty/null, accepted values are normalized, and invalid values are row-level errors.
 * New insert import writes prices to `SitePriceOptions` and optional service statuses to `SiteServiceAvailabilities`; it does not write imported pricing to legacy flat `Site` price fields.
-* Bare legacy pricing headers `PriceUsd`, `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, `PriceDating`, and `Term` are invalid for insert import.
-* Price columns are empty or positive numeric values only. Empty creates no price option; `0`, negative values, `YES`/`NO`, and non-numeric values are invalid.
-* Supported term labels in price headers are `unknown term`, `permanent`, and positive finite year labels such as `1 year` or `2 years`.
-* Duplicate price columns for the same price type and normalized term are invalid.
-* If an optional service has at least one numeric price option, its availability is saved as `Available`.
-* Service availability `YES` or `NO` cannot be combined with a numeric price for the same service in the same row.
+* `PriceUsd` cells are empty or positive numeric values only. Empty creates no price option; `0`, negative values, `YES`/`NO`, and non-numeric values are invalid.
+* Service cells are empty, `YES`, `NO`, or positive numeric values only; `0`, negative values, and other non-numeric values are invalid.
+* Duplicate pricing columns are invalid.
+* If an optional service has a numeric price in the row, its availability is saved as `Available`.
 * Existing domains are skipped and reported.
 * New domains are inserted.
 * Domain is normalized before uniqueness checks.
@@ -611,19 +611,22 @@ Purpose: mass-update existing sites by domain.
 Rules:
 
 * Requires a `Domain` header and at least one supported update column.
-* Supports editable non-pricing catalog columns plus dynamic term-aware pricing columns.
+* Supports editable non-pricing catalog columns plus row-term pricing columns.
 * Column order is flexible.
 * Unknown, duplicate, or blank headers are invalid.
-* Bare legacy pricing headers `PriceUsd`, `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, `PriceDating`, and `Term` are invalid.
+* If any pricing column is present, the file must include `Term`; `Term` alone does not count as an update column.
+* Supported pricing columns are `PriceUsd`, `PriceCasino`, `PriceCrypto`, `PriceLinkInsert`, `PriceLinkInsertCasino`, and `PriceDating`.
+* Old term-in-header pricing columns such as `PriceUsd [1 year]` and old `Price...Availability` columns are invalid.
 * `Domain` is the lookup key and must never be changed by the import.
 * Updates existing sites only.
 * Only columns present in the CSV are updated.
 * Missing columns leave existing values unchanged.
 * Present empty values are explicit updates and follow field-specific rules.
-* Present empty term-specific price cells clear the exact price option for that price type and term.
-* Present numeric term-specific service price cells upsert the exact price option and set that service availability to `Available`.
-* Present service availability cells set that service to `Unknown`, `AvailableWithUnknownPrice`, or `NotAvailable` and remove all price options for that service.
-* A service availability cell cannot be combined with a numeric service price cell for the same service in the same row.
+* Present empty `PriceUsd` cells clear the exact main price option for the row `Term`.
+* Present numeric `PriceUsd` cells upsert the exact main price option for the row `Term`.
+* Present numeric service cells upsert the exact service price option for the row `Term` and set that service availability to `Available`.
+* Present service `YES`, `NO`, or empty cells remove only the exact service price option for the row `Term`.
+* After a service `YES`, `NO`, or empty cell, service availability is set to `Available` if any numeric prices for that service remain on other terms; otherwise it is set from the cell value.
 * Empty `Language` values overwrite existing language with empty/null.
 * Present empty nullable fields clear existing values according to the field storage convention.
 * Present empty required fields such as `DR` and `Traffic` are row-level errors.

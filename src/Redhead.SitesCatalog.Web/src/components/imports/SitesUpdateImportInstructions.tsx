@@ -5,6 +5,9 @@ import { ImportInstructionsPanel } from './ImportInstructionsPanel';
 const RULES = [
   'Domain is required and is used to find the site.',
   'Include at least one update column besides Domain.',
+  'Include Term when any pricing or service column is present.',
+  'Term alone does not count as an update column.',
+  'Leave Term empty to save prices as No term.',
   'Only included columns are updated.',
   'Missing columns stay unchanged.',
   'Empty cells are treated as explicit values.',
@@ -14,42 +17,31 @@ const RULES = [
 
 const EXAMPLES = [
   {
+    title: 'Update all prices and services',
+    csv:
+      'Domain,Term,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating\n' +
+      'example.com,1 year,120,250,YES,NO,,175',
+    note:
+      'Numeric values set prices. YES means available without a known price. NO means unavailable. An empty service cell clears that Term price and becomes Unknown only when no prices for that service remain on other Terms.',
+  },
+  {
+    title: 'Clear prices for a Term',
+    csv: 'Domain,Term,PriceUsd,PriceCasino\nexample.com,1 year,,',
+    note: 'Empty included price cells clear those exact price options for the row Term.',
+  },
+  {
     title: 'Update language only',
     csv: 'Domain,Language\nexample.com,EN\nanother-site.com,UNKNOWN',
     note: 'Only Language changes. Other site fields remain unchanged.',
   },
-  {
-    title: 'Update Main price',
-    csv: 'Domain,PriceUsd [1 year],PriceUsd [permanent]\nexample.com,120,350',
-    note: 'Only the included Main price terms change.',
-  },
-  {
-    title: 'Clear Main 1 year price',
-    csv: 'Domain,PriceUsd [1 year]\nexample.com,',
-    note: 'The empty included cell clears that exact Main 1-year price option.',
-  },
-  {
-    title: 'Set service availability',
-    csv: 'Domain,PriceCasinoAvailability\nexample.com,YES\nanother-site.com,NO\nunknown-site.com,',
-    note:
-      'YES means available with unknown price. Empty availability cells set the service to Unknown and clear service prices.',
-  },
-  {
-    title: 'Update service price',
-    csv: 'Domain,PriceCasino [1 year],PriceCasino [permanent]\nexample.com,250,600',
-    note: 'Known service prices set that service to Has price.',
-  },
-  {
-    title: 'Clear service price',
-    csv: 'Domain,PriceCasino [1 year]\nexample.com,',
-    note: 'The empty included cell clears that exact Casino 1-year price option.',
-  },
-  {
-    title: 'Invalid combination',
-    csv: 'Domain,PriceCasinoAvailability,PriceCasino [1 year]\nexample.com,NO,250',
-    note: 'Invalid: service cannot be NO and have a price in the same row.',
-  },
 ];
+
+const EXAMPLE_DOWNLOAD = {
+  fileName: 'sites-update-import-example.csv',
+  csv:
+    'Domain,DR,Traffic,Location,Niche,Categories,NumberDFLinks,SponsoredTag,Language,Term,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating\n' +
+    'example.com,55,12000,US,Technology,News,3,Sponsored,EN,1 year,120,250,YES,NO,,175',
+};
 
 export function SitesUpdateImportInstructions() {
   return (
@@ -62,14 +54,13 @@ export function SitesUpdateImportInstructions() {
       supportedColumns={SITES_UPDATE_IMPORT_INSTRUCTIONS.optionalColumns}
       supportedColumnsNote="Only columns included in the file are updated."
       pricingColumns={SITES_UPDATE_IMPORT_INSTRUCTIONS.pricingColumns}
-      pricingColumnsNote="Supported term labels: [unknown term], [1 year], [2 years], [n years], [permanent]."
-      availabilityColumns={SITES_UPDATE_IMPORT_INSTRUCTIONS.availabilityColumns}
-      availabilityColumnsNote="Availability columns accept empty, YES, or NO."
+      pricingColumnsNote="Supported Term values: No term, 1 year, 2 years, n years, permanent. An empty cell is treated as No term."
       rules={RULES}
       examples={EXAMPLES}
+      exampleDownload={EXAMPLE_DOWNLOAD}
       alerts={[
         'Domains not found in the catalog will be reported as unmatched.',
-        'YES means available with unknown price. If you know the price, use a term-specific price column instead.',
+        'YES means available with unknown price. If you know the price, put the numeric value in the service column instead.',
       ]}
     />
   );

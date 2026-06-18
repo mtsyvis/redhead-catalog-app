@@ -30,6 +30,7 @@ public static class SitesImportRowMapper
         var niche = TryGetValue(getValue, ImportConstants.SitesImportColumns.Niche);
         var categories = TryGetValue(getValue, ImportConstants.SitesImportColumns.Categories);
         var sponsoredTag = TryGetValue(getValue, ImportConstants.SitesImportColumns.SponsoredTag);
+        var termRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.Term);
 
         var row = new SitesImportRowDto
         {
@@ -45,7 +46,8 @@ public static class SitesImportRowMapper
             Language = language,
             Niche = niche,
             Categories = categories,
-            SponsoredTag = sponsoredTag
+            SponsoredTag = sponsoredTag,
+            TermRaw = termRaw
         };
 
         if (insertHeaderInfo is null)
@@ -58,19 +60,7 @@ public static class SitesImportRowMapper
             row.PriceCells.Add(new SitesImportPriceCell(
                 priceColumn.Header,
                 priceColumn.PriceType,
-                priceColumn.Term.TermKey,
-                priceColumn.Term.TermType,
-                priceColumn.Term.TermValue,
-                priceColumn.Term.TermUnit,
                 TryGetValue(getValue, priceColumn.Header)));
-        }
-
-        foreach (var availabilityColumn in insertHeaderInfo.AvailabilityColumns)
-        {
-            row.AvailabilityCells.Add(new SitesImportAvailabilityCell(
-                availabilityColumn.Header,
-                availabilityColumn.ServiceType,
-                TryGetValue(getValue, availabilityColumn.Header)));
         }
 
         return row;

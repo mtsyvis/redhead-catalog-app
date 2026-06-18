@@ -82,8 +82,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,PriceUsd [1 year]\n" +
-            "existing.com,120\n");
+            "Domain,Term,PriceUsd\n" +
+            "existing.com,1 year,120\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -102,8 +102,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,PriceUsd [1 year]\n" +
-            "existing.com,\n");
+            "Domain,Term,PriceUsd\n" +
+            "existing.com,1 year,\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -118,7 +118,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
 
         var warningLines = GetDownloadLines(result.Downloads!.WarningRows!.Token);
         Assert.Equal("Domain,Field,Raw Value,Source Row Number,Warning", warningLines[0]);
-        Assert.Equal("existing.com,PriceUsd [1 year],,2,Existing price was cleared because the imported cell was empty.", warningLines[1]);
+        Assert.Equal("existing.com,PriceUsd,,2,Existing price for 1 year was cleared because the imported cell was empty.", warningLines[1]);
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,PriceCasino [permanent]\n" +
-            "existing.com,650\n");
+            "Domain,Term,PriceCasino\n" +
+            "existing.com,permanent,650\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -147,8 +147,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,PriceCasino [permanent]\n" +
-            "existing.com,\n");
+            "Domain,Term,PriceCasino\n" +
+            "existing.com,permanent,\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -164,18 +164,17 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData("NO", ServiceAvailabilityStatus.NotAvailable, "NotAvailable")]
-    [InlineData("YES", ServiceAvailabilityStatus.AvailableWithUnknownPrice, "AvailableWithUnknownPrice")]
-    [InlineData("", ServiceAvailabilityStatus.Unknown, "Unknown")]
-    public async Task ImportAsync_ServiceAvailabilityColumn_ClearsServicePricesAndCreatesWarning(
+    [InlineData("NO", "NotAvailable")]
+    [InlineData("YES", "AvailableWithUnknownPrice")]
+    [InlineData("", "Unknown")]
+    public async Task ImportAsync_ServiceStatusValue_ClearsExactTermPriceAndResolvesStatus(
         string rawValue,
-        ServiceAvailabilityStatus expectedStatus,
         string expectedStatusText)
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,PriceCasinoAvailability\n" +
-            $"existing.com,{rawValue}\n");
+            "Domain,Term,PriceCasino\n" +
+            $"existing.com,1 year,{rawValue}\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -186,32 +185,32 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(1, result.SavedWithWarningsCount);
 
         var site = await GetSiteAsync("existing.com");
-        Assert.DoesNotContain(site.PriceOptions, price => price.PriceType == PriceType.Casino);
-        AssertAvailability(site, PriceType.Casino, expectedStatus);
+        Assert.DoesNotContain(site.PriceOptions, price => price.PriceType == PriceType.Casino && price.TermKey == "finite:1:year");
+        AssertPrice(site, PriceType.Casino, "permanent", 500m);
+        AssertAvailability(site, PriceType.Casino, ServiceAvailabilityStatus.Available);
 
         var warningLines = GetDownloadLines(result.Downloads!.WarningRows!.Token);
-        Assert.Equal($"existing.com,PriceCasinoAvailability,{rawValue},2,Casino status was set to {expectedStatusText} and existing Casino prices were cleared.", warningLines[1]);
+        Assert.Equal($"existing.com,PriceCasino,{rawValue},2,Existing Casino price for 1 year was cleared because the imported cell was {expectedStatusText}.", warningLines[1]);
     }
 
-    [Theory]
-    [InlineData("NO")]
-    [InlineData("YES")]
-    [InlineData("")]
-    public async Task ImportAsync_ServiceAvailabilityAndNumericServicePrice_IsInvalidRow(string availability)
+    [Fact]
+    public async Task ImportAsync_ServiceStatusValueWithoutRemainingPrices_UsesCellStatus()
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,PriceCasinoAvailability,PriceCasino [1 year]\n" +
-            $"existing.com,{availability},250\n");
+            "Domain,Term,PriceCrypto\n" +
+            "existing.com,1 year,NO\n");
 
         // Act
         var result = await ImportAsync(stream);
 
         // Assert
-        Assert.Equal(0, result.UpdatedCount);
-        Assert.Equal(1, result.InvalidRowsCount);
-        var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
-        Assert.Contains(invalidLines, line => line.Contains("availability cannot be empty, YES, or NO", StringComparison.Ordinal));
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("existing.com");
+        Assert.DoesNotContain(site.PriceOptions, price => price.PriceType == PriceType.Crypto);
+        AssertAvailability(site, PriceType.Crypto, ServiceAvailabilityStatus.NotAvailable);
     }
 
     [Fact]
@@ -219,8 +218,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,PriceUsd [1 year]\n" +
-            "existing.com,0\n");
+            "Domain,Term,PriceUsd\n" +
+            "existing.com,1 year,0\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -229,7 +228,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(0, result.UpdatedCount);
         Assert.Equal(1, result.InvalidRowsCount);
         var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
-        Assert.Contains(invalidLines, line => line.Contains("PriceUsd [1 year] must be greater than 0", StringComparison.Ordinal));
+        Assert.Contains(invalidLines, line => line.Contains("PriceUsd must be greater than 0", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -237,40 +236,38 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,PriceUsd [1 year],PriceUsd [1 Year]\n" +
-            "existing.com,100,120\n");
+            "Domain,Term,PriceUsd,PriceUsd\n" +
+            "existing.com,1 year,100,120\n");
 
         // Act
         var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
 
         // Assert
-        Assert.Contains("Duplicate price column", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("PriceUsd [1 month]")]
-    [InlineData("PriceUsd []")]
-    [InlineData("PriceUsd [0 years]")]
-    [InlineData("PriceUsd [-1 year]")]
-    public async Task ImportAsync_InvalidTermHeader_ThrowsImportHeaderValidationException(string header)
-    {
-        // Arrange
-        using var stream = Utf8Csv($"Domain,{header}\nexisting.com,100\n");
-
-        // Act
-        var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
-
-        // Assert
-        Assert.Contains("Invalid term header", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Duplicate pricing column", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ImportAsync_InvalidAvailabilityValue_IsInvalidRow()
+    public async Task ImportAsync_WithPricingHeaderWithoutTerm_ThrowsImportHeaderValidationException()
     {
         // Arrange
-        using var stream = Utf8Csv(
-            "Domain,PriceCasinoAvailability\n" +
-            "existing.com,MAYBE\n");
+        using var stream = Utf8Csv("Domain,PriceUsd\nexisting.com,100\n");
+
+        // Act
+        var exception = await Assert.ThrowsAsync<ImportHeaderValidationException>(() => ImportAsync(stream));
+
+        // Assert
+        Assert.Contains("Term column is required", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("1 month")]
+    [InlineData("0 years")]
+    [InlineData("-1 year")]
+    [InlineData("1 year; permanent")]
+    public async Task ImportAsync_InvalidTermValue_IsInvalidRow(string term)
+    {
+        // Arrange
+        using var stream = Utf8Csv($"Domain,Term,PriceUsd\nexisting.com,{term},100\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -279,7 +276,29 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(0, result.UpdatedCount);
         Assert.Equal(1, result.InvalidRowsCount);
         var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
-        Assert.Contains(invalidLines, line => line.Contains("must be empty, YES, or NO", StringComparison.Ordinal));
+        Assert.Contains(
+            invalidLines,
+            line => line.Contains(
+                "Term must be empty, No term, permanent, or a positive number of years such as 1 year or 2 years.",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ImportAsync_InvalidAvailabilityValue_IsInvalidRow()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain,Term,PriceCasino\n" +
+            "existing.com,1 year,MAYBE\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains("must be empty, YES, NO, or a positive numeric value", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -287,8 +306,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,PriceUsd [1 year]\n" +
-            "missing.com,100\n");
+            "Domain,Term,PriceUsd\n" +
+            "missing.com,1 year,100\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -330,8 +349,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     {
         // Arrange
         using var stream = Utf8Csv(
-            "Domain,PriceUsd [1 year]\n" +
-            "existing.com,abc\n");
+            "Domain,Term,PriceUsd\n" +
+            "existing.com,1 year,abc\n");
 
         // Act
         var result = await ImportAsync(stream);
@@ -340,8 +359,8 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Equal(0, result.UpdatedCount);
         Assert.Equal(1, result.InvalidRowsCount);
         var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
-        Assert.Equal("Domain,PriceUsd [1 year],Source Row Number,Error Details", invalidLines[0]);
-        Assert.Contains("existing.com,abc,2,Invalid PriceUsd [1 year] value.", invalidLines);
+        Assert.Equal("Domain,Term,PriceUsd,Source Row Number,Error Details", invalidLines[0]);
+        Assert.Contains("existing.com,1 year,abc,2,Invalid PriceUsd value.", invalidLines);
     }
 
     private async Task<SitesUpdateImportResult> ImportAsync(Stream stream)

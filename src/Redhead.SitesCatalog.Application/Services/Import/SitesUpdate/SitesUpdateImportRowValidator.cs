@@ -1,5 +1,6 @@
 using System.Globalization;
 using Redhead.SitesCatalog.Application.Models.Import;
+using Redhead.SitesCatalog.Application.Services.Import.Sites;
 using Redhead.SitesCatalog.Application.Services.Import.ValueParsers;
 using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain;
@@ -96,18 +97,46 @@ internal static class SitesUpdateImportRowValidator
             }, null);
         }
 
+        var term = PricingTerm.Unknown;
+        if (row.PriceCells.Count > 0
+            && !SitesImportHeaderParser.TryParseTermCell(row.TermRaw, out term))
+        {
+            return RowError(
+                row,
+                domain,
+                ImportConstants.SitesImportColumns.Term,
+                row.TermRaw,
+                "Term must be empty, No term, permanent, or a positive number of years such as 1 year or 2 years.");
+        }
+
         var priceOperations = new List<SitesUpdatePriceOperation>();
+        var availabilityOperations = new List<SitesUpdateAvailabilityOperation>();
         foreach (var priceCell in row.PriceCells)
         {
+            if (priceCell.PriceType != PriceType.Main
+                && TryParseServiceCellStatus(priceCell.RawValue, out var serviceStatus))
+            {
+                availabilityOperations.Add(new SitesUpdateAvailabilityOperation(
+                    priceCell.Header,
+                    priceCell.PriceType,
+                    term.TermKey,
+                    term.TermType,
+                    term.TermValue,
+                    term.TermUnit,
+                    priceCell.RawValue,
+                    serviceStatus));
+                continue;
+            }
+
             if (string.IsNullOrWhiteSpace(priceCell.RawValue))
             {
                 priceOperations.Add(new SitesUpdatePriceOperation(
                     priceCell.Header,
                     priceCell.PriceType,
-                    priceCell.TermKey,
-                    priceCell.TermType,
-                    priceCell.TermValue,
-                    priceCell.TermUnit,
+                    term.TermKey,
+                    term.TermType,
+                    term.TermValue,
+                    term.TermUnit,
                     priceCell.RawValue,
                     null));
                 continue;
@@ -116,7 +145,14 @@ internal static class SitesUpdateImportRowValidator
             var rawValue = priceCell.RawValue.Trim();
             if (!DecimalParsingHelper.TryParseDecimalFlexible(rawValue, out var amount))
             {
-                return RowError(row, domain, priceCell.Header, priceCell.RawValue, $"Invalid {priceCell.Header} value.");
+                return RowError(
+                    row,
+                    domain,
+                    priceCell.Header,
+                    priceCell.RawValue,
+                    priceCell.PriceType == PriceType.Main
+                        ? $"Invalid {priceCell.Header} value."
+                        : $"{priceCell.Header} must be empty, YES, NO, or a positive numeric value.");
             }
 
             if (amount <= 0)
@@ -127,47 +163,12 @@ internal static class SitesUpdateImportRowValidator
             priceOperations.Add(new SitesUpdatePriceOperation(
                 priceCell.Header,
                 priceCell.PriceType,
-                priceCell.TermKey,
-                priceCell.TermType,
-                priceCell.TermValue,
-                priceCell.TermUnit,
+                term.TermKey,
+                term.TermType,
+                term.TermValue,
+                term.TermUnit,
                 priceCell.RawValue,
                 amount));
-        }
-
-        var availabilityOperations = new List<SitesUpdateAvailabilityOperation>();
-        foreach (var availabilityCell in row.AvailabilityCells)
-        {
-            if (!TryParseAvailability(availabilityCell.RawValue, out var status))
-            {
-                return RowError(
-                    row,
-                    domain,
-                    availabilityCell.Header,
-                    availabilityCell.RawValue,
-                    $"{availabilityCell.Header} must be empty, YES, or NO.");
-            }
-
-            availabilityOperations.Add(new SitesUpdateAvailabilityOperation(
-                availabilityCell.Header,
-                availabilityCell.ServiceType,
-                availabilityCell.RawValue,
-                status));
-        }
-
-        foreach (var availabilityOperation in availabilityOperations)
-        {
-            if (priceOperations.Any(operation =>
-                    operation.PriceType == availabilityOperation.ServiceType
-                    && operation.AmountUsd.HasValue))
-            {
-                return (false, new SitesImportError
-                {
-                    RowNumber = row.RowNumber,
-                    Domain = domain,
-                    Message = $"{FormatPriceType(availabilityOperation.ServiceType)} availability cannot be empty, YES, or NO when a price is provided."
-                }, null);
-            }
         }
 
         update = update with
@@ -271,8 +272,8 @@ internal static class SitesUpdateImportRowValidator
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Niche) || string.IsNullOrWhiteSpace(row.Niche))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Categories) || string.IsNullOrWhiteSpace(row.Categories))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.SponsoredTag) || string.IsNullOrWhiteSpace(row.SponsoredTag))
-               && row.PriceCells.All(cell => string.IsNullOrWhiteSpace(cell.RawValue))
-               && row.AvailabilityCells.All(cell => string.IsNullOrWhiteSpace(cell.RawValue));
+               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Term) || string.IsNullOrWhiteSpace(row.TermRaw))
+               && row.PriceCells.All(cell => string.IsNullOrWhiteSpace(cell.RawValue));
     }
 
     private static bool TryParseRequiredDouble(string? rawValue, out double value)
@@ -297,7 +298,7 @@ internal static class SitesUpdateImportRowValidator
     private static string? TrimToNull(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static bool TryParseAvailability(string? rawValue, out ServiceAvailabilityStatus status)
+    private static bool TryParseServiceCellStatus(string? rawValue, out ServiceAvailabilityStatus status)
     {
         status = ServiceAvailabilityStatus.Unknown;
         if (string.IsNullOrWhiteSpace(rawValue))

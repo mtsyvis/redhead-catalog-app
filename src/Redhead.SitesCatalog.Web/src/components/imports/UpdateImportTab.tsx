@@ -20,6 +20,10 @@ type UpdateImportTabProps = {
     readonly requiredColumnsNote?: React.ReactNode;
     readonly rules?: readonly React.ReactNode[];
     readonly examples?: readonly { title: string; csv: string; note?: React.ReactNode }[];
+    readonly exampleDownload?: {
+      readonly fileName: string;
+      readonly csv: string;
+    };
   };
   readonly instructionsContent?: React.ReactNode;
   readonly uploadHelper?: React.ReactNode;
@@ -63,6 +67,7 @@ export function UpdateImportTab({
             requiredColumnsNote={instructions.requiredColumnsNote}
             rules={instructions.rules}
             examples={instructions.examples}
+            exampleDownload={instructions.exampleDownload}
           />
         ) : null)
       }

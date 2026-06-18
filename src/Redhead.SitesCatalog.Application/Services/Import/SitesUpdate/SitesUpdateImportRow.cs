@@ -15,6 +15,10 @@ internal sealed record SitesUpdatePriceOperation(
 internal sealed record SitesUpdateAvailabilityOperation(
     string Header,
     PriceType ServiceType,
+    string TermKey,
+    TermType? TermType,
+    int? TermValue,
+    TermUnit? TermUnit,
     string? RawValue,
     ServiceAvailabilityStatus Status);
 

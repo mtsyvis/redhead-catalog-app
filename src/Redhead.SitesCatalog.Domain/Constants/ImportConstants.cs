@@ -101,11 +101,6 @@ public static class ImportConstants
         public const string PriceLinkInsert = "PriceLinkInsert";
         public const string PriceLinkInsertCasino = "PriceLinkInsertCasino";
         public const string PriceDating = "PriceDating";
-        public const string PriceCasinoAvailability = "PriceCasinoAvailability";
-        public const string PriceCryptoAvailability = "PriceCryptoAvailability";
-        public const string PriceLinkInsertAvailability = "PriceLinkInsertAvailability";
-        public const string PriceLinkInsertCasinoAvailability = "PriceLinkInsertCasinoAvailability";
-        public const string PriceDatingAvailability = "PriceDatingAvailability";
         public const string Niche = "Niche";
         public const string Categories = "Categories";
         public const string NumberDFLinks = "NumberDFLinks";

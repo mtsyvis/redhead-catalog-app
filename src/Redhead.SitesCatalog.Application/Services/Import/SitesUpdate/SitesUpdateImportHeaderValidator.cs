@@ -24,11 +24,10 @@ internal static class SitesUpdateImportHeaderValidator
 
         var allowedHeaders = ImportConstants.SitesUpdateImportBaseColumns.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var seenHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var seenPriceTerms = new HashSet<(PriceType PriceType, string TermKey)>();
-        var seenAvailabilityTypes = new HashSet<PriceType>();
+        var seenPriceTypes = new HashSet<PriceType>();
         var priceColumns = new List<SitesImportPriceColumn>();
-        var availabilityColumns = new List<SitesImportAvailabilityColumn>();
         var hasDomain = false;
+        var hasTermHeader = false;
         var updateColumnCount = 0;
 
         for (var i = 0; i < actualHeader.Length; i++)
@@ -39,41 +38,31 @@ internal static class SitesUpdateImportHeaderValidator
                 throw new ImportHeaderValidationException($"CSV header is invalid. Column {i + 1} is empty.");
             }
 
-            if (SitesImportHeaderParser.TryParsePriceHeader(header, out var priceType, out var term, out var invalidTerm))
+            if (SitesImportHeaderParser.TryGetPriceType(header, out var priceType))
             {
-                if (!seenPriceTerms.Add((priceType, term.TermKey)))
+                if (!seenPriceTypes.Add(priceType))
                 {
-                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate price column for {priceType} and term '{term.TermKey}'.");
+                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate pricing column: '{header}'.");
                 }
 
-                priceColumns.Add(new SitesImportPriceColumn(header, priceType, term));
+                priceColumns.Add(new SitesImportPriceColumn(header, priceType));
                 updateColumnCount++;
                 continue;
             }
 
-            if (invalidTerm)
+            if (string.Equals(header, ImportConstants.SitesImportColumns.Term, StringComparison.OrdinalIgnoreCase))
             {
-                throw new ImportHeaderValidationException($"CSV header is invalid. Invalid term header: '{header}'.");
-            }
-
-            if (SitesImportHeaderParser.TryGetAvailabilityServiceType(header, out var availabilityServiceType))
-            {
-                if (!seenAvailabilityTypes.Add(availabilityServiceType))
+                if (!seenHeaders.Add(header))
                 {
-                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate availability column for {availabilityServiceType}.");
+                    throw new ImportHeaderValidationException($"CSV header is invalid. Duplicate column: '{header}'.");
                 }
 
-                availabilityColumns.Add(new SitesImportAvailabilityColumn(header, availabilityServiceType));
-                updateColumnCount++;
+                hasTermHeader = true;
                 continue;
             }
 
-            if (SitesImportHeaderParser.IsMainAvailabilityHeader(header))
-            {
-                throw new ImportHeaderValidationException("CSV header is invalid. Main pricing must not include an availability column.");
-            }
-
-            if (header.StartsWith("Price", StringComparison.OrdinalIgnoreCase))
+            if (header.StartsWith("Price", StringComparison.OrdinalIgnoreCase)
+                || header.EndsWith("Availability", StringComparison.OrdinalIgnoreCase))
             {
                 throw new ImportHeaderValidationException($"CSV header is invalid. Unknown pricing column: '{header}'.");
             }
@@ -108,7 +97,12 @@ internal static class SitesUpdateImportHeaderValidator
             throw new ImportHeaderValidationException("CSV header is invalid. At least one update column besides Domain is required.");
         }
 
-        return new SitesImportHeaderInfo(priceColumns, availabilityColumns);
+        if (priceColumns.Count > 0 && !hasTermHeader)
+        {
+            throw new ImportHeaderValidationException("CSV header is invalid. Term column is required when pricing columns are present.");
+        }
+
+        return new SitesImportHeaderInfo(priceColumns);
     }
 
     public static HashSet<string> BuildPresentColumnSet(IReadOnlyList<string> header)

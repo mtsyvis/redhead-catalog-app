@@ -339,13 +339,11 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
     private static IEnumerable<WarningImportRowRecord> CreatePricingWarnings(Site site, SitesUpdateImportRow update)
     {
-        var serviceTypesClearedByAvailability = update.AvailabilityOperations
-            .Select(operation => operation.ServiceType)
-            .ToHashSet();
-
         foreach (var availabilityOperation in update.AvailabilityOperations)
         {
-            if (site.PriceOptions.Any(price => price.PriceType == availabilityOperation.ServiceType))
+            if (site.PriceOptions.Any(price =>
+                    price.PriceType == availabilityOperation.ServiceType
+                    && string.Equals(price.TermKey, availabilityOperation.TermKey, StringComparison.Ordinal)))
             {
                 yield return new WarningImportRowRecord
                 {
@@ -353,15 +351,14 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                     Field = availabilityOperation.Header,
                     RawValue = availabilityOperation.RawValue ?? string.Empty,
                     SourceRowNumber = update.SourceRowNumber,
-                    Warning = $"{FormatPriceTypeLabel(availabilityOperation.ServiceType)} status was set to {FormatAvailabilityStatus(availabilityOperation.Status)} and existing {FormatPriceTypeLabel(availabilityOperation.ServiceType)} prices were cleared."
+                    Warning = $"Existing {FormatPriceTypeLabel(availabilityOperation.ServiceType)} price for {FormatTermLabel(availabilityOperation.TermKey, availabilityOperation.TermType, availabilityOperation.TermValue, availabilityOperation.TermUnit)} was cleared because the imported cell was {FormatAvailabilityStatus(availabilityOperation.Status)}."
                 };
             }
         }
 
         foreach (var priceOperation in update.PriceOperations)
         {
-            if (priceOperation.AmountUsd.HasValue
-                || serviceTypesClearedByAvailability.Contains(priceOperation.PriceType))
+            if (priceOperation.AmountUsd.HasValue)
             {
                 continue;
             }
@@ -376,11 +373,18 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
                     Field = priceOperation.Header,
                     RawValue = priceOperation.RawValue ?? string.Empty,
                     SourceRowNumber = update.SourceRowNumber,
-                    Warning = "Existing price was cleared because the imported cell was empty."
+                    Warning = $"Existing price for {FormatTermLabel(priceOperation.TermKey, priceOperation.TermType, priceOperation.TermValue, priceOperation.TermUnit)} was cleared because the imported cell was empty."
                 };
             }
         }
     }
+
+    private static string FormatTermLabel(
+        string termKey,
+        TermType? termType,
+        int? termValue,
+        TermUnit? termUnit)
+        => PricingTerm.FormatLabel(termKey, termType, termValue, termUnit);
 
     private static string FormatAvailabilityStatus(ServiceAvailabilityStatus status)
         => status switch
