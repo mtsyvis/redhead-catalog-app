@@ -31,8 +31,6 @@ export interface ImportInstructionsPanelProps {
   supportedColumnsNote?: React.ReactNode;
   pricingColumns?: readonly string[];
   pricingColumnsNote?: React.ReactNode;
-  availabilityColumns?: readonly string[];
-  availabilityColumnsNote?: React.ReactNode;
   rules?: readonly React.ReactNode[];
   examples?: readonly ImportInstructionExample[];
   alerts?: readonly React.ReactNode[];
@@ -188,8 +186,6 @@ export function ImportInstructionsPanel({
   supportedColumnsNote,
   pricingColumns = [],
   pricingColumnsNote,
-  availabilityColumns = [],
-  availabilityColumnsNote,
   rules = [],
   examples = [],
   alerts = [],
@@ -203,8 +199,7 @@ export function ImportInstructionsPanel({
   const hasColumnSections =
     requiredColumns.length > 0 ||
     supportedColumns.length > 0 ||
-    pricingColumns.length > 0 ||
-    availabilityColumns.length > 0;
+    pricingColumns.length > 0;
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -233,11 +228,6 @@ export function ImportInstructionsPanel({
                 title="Supported pricing columns"
                 items={pricingColumns}
                 note={pricingColumnsNote}
-              />
-              <ColumnSection
-                title="Availability columns"
-                items={availabilityColumns}
-                note={availabilityColumnsNote}
               />
             </Stack>
           )}

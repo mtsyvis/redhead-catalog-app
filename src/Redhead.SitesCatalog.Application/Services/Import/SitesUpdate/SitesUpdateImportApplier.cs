@@ -54,8 +54,11 @@ internal static class SitesUpdateImportApplier
 
         foreach (var availabilityOperation in update.AvailabilityOperations)
         {
-            UpsertAvailability(site, availabilityOperation.ServiceType, availabilityOperation.Status, now);
-            RemoveAllPrices(site, availabilityOperation.ServiceType);
+            RemovePrice(site, availabilityOperation.ServiceType, availabilityOperation.TermKey);
+            var resolvedStatus = site.PriceOptions.Any(price => price.PriceType == availabilityOperation.ServiceType)
+                ? ServiceAvailabilityStatus.Available
+                : availabilityOperation.Status;
+            UpsertAvailability(site, availabilityOperation.ServiceType, resolvedStatus, now);
         }
 
         foreach (var priceOperation in update.PriceOperations)
@@ -112,14 +115,6 @@ internal static class SitesUpdateImportApplier
         if (existing is not null)
         {
             site.PriceOptions.Remove(existing);
-        }
-    }
-
-    private static void RemoveAllPrices(Site site, PriceType serviceType)
-    {
-        foreach (var price in site.PriceOptions.Where(price => price.PriceType == serviceType).ToList())
-        {
-            site.PriceOptions.Remove(price);
         }
     }
 
