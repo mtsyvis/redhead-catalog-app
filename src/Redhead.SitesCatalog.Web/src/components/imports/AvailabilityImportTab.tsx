@@ -75,6 +75,16 @@ export function AvailabilityImportTab({ persistedStateKey }: AvailabilityImportT
             note: 'Quarantine status and reason are cleared for matched sites.',
           },
         ];
+  const exampleDownload =
+    action === 'markUnavailable'
+      ? {
+          fileName: 'availability-mark-unavailable-example.csv',
+          csv: examples[0].csv,
+        }
+      : {
+          fileName: 'availability-restore-available-example.csv',
+          csv: examples[0].csv,
+        };
 
   const handleActionChange = (_event: MouseEvent<HTMLElement>, nextAction: AvailabilityImportAction | null) => {
     if (nextAction === null || nextAction === action) {
@@ -159,6 +169,7 @@ export function AvailabilityImportTab({ persistedStateKey }: AvailabilityImportT
               'Duplicate domains: last valid row wins.',
             ]}
             examples={examples}
+            exampleDownload={exampleDownload}
           />
         </Stack>
       }

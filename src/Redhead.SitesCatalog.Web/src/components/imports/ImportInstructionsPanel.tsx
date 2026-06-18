@@ -13,12 +13,18 @@ import {
   Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import DownloadIcon from '@mui/icons-material/Download';
 import { IMPORT_COMMON_INSTRUCTIONS } from '../../constants/imports.constants';
 
 export interface ImportInstructionExample {
   title: string;
   csv: string;
   note?: React.ReactNode;
+}
+
+export interface ImportExampleDownload {
+  fileName: string;
+  csv: string;
 }
 
 export interface ImportInstructionsPanelProps {
@@ -33,8 +39,23 @@ export interface ImportInstructionsPanelProps {
   pricingColumnsNote?: React.ReactNode;
   rules?: readonly React.ReactNode[];
   examples?: readonly ImportInstructionExample[];
+  exampleDownload?: ImportExampleDownload;
   alerts?: readonly React.ReactNode[];
   children?: React.ReactNode;
+}
+
+function downloadExampleCsv({ fileName, csv }: ImportExampleDownload) {
+  const content = csv.endsWith('\n') ? csv : `${csv}\n`;
+  const blob = new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8' });
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = downloadUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(downloadUrl);
 }
 
 export function CsvSnippet({ children }: { readonly children: string }) {
@@ -188,6 +209,7 @@ export function ImportInstructionsPanel({
   pricingColumnsNote,
   rules = [],
   examples = [],
+  exampleDownload,
   alerts = [],
   children,
 }: ImportInstructionsPanelProps) {
@@ -264,6 +286,19 @@ export function ImportInstructionsPanel({
               }}
             >
               <Stack spacing={1.5}>
+                {exampleDownload && (
+                  <Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<DownloadIcon />}
+                      onClick={() => downloadExampleCsv(exampleDownload)}
+                    >
+                      Download example CSV
+                    </Button>
+                  </Box>
+                )}
+
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                   {examples.map((example) => {
                     const selected = activeExample?.title === example.title;

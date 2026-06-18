@@ -17,42 +17,31 @@ const RULES = [
 
 const EXAMPLES = [
   {
+    title: 'Update all prices and services',
+    csv:
+      'Domain,Term,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating\n' +
+      'example.com,1 year,120,250,YES,NO,,175',
+    note:
+      'Numeric values set prices. YES means available without a known price. NO means unavailable. An empty service cell clears that Term price and becomes Unknown only when no prices for that service remain on other Terms.',
+  },
+  {
+    title: 'Clear prices for a Term',
+    csv: 'Domain,Term,PriceUsd,PriceCasino\nexample.com,1 year,,',
+    note: 'Empty included price cells clear those exact price options for the row Term.',
+  },
+  {
     title: 'Update language only',
     csv: 'Domain,Language\nexample.com,EN\nanother-site.com,UNKNOWN',
     note: 'Only Language changes. Other site fields remain unchanged.',
   },
-  {
-    title: 'Update Main price',
-    csv: 'Domain,Term,PriceUsd\nexample.com,1 year,120',
-    note: 'Only the included Main price for the row Term changes.',
-  },
-  {
-    title: 'Clear Main 1 year price',
-    csv: 'Domain,Term,PriceUsd\nexample.com,1 year,',
-    note: 'The empty included cell clears that exact Main 1-year price option.',
-  },
-  {
-    title: 'Set service availability',
-    csv: 'Domain,Term,PriceCasino\nexample.com,,YES\nanother-site.com,,NO\nunknown-site.com,,',
-    note:
-      'YES means available with unknown price. Empty service cells set Unknown only when no other numeric service prices remain.',
-  },
-  {
-    title: 'Update service price',
-    csv: 'Domain,Term,PriceCasino,PriceCrypto\nexample.com,permanent,250,600',
-    note: 'Known service prices set that service to Has price.',
-  },
-  {
-    title: 'Clear service price',
-    csv: 'Domain,Term,PriceCasino\nexample.com,1 year,',
-    note: 'The empty included cell clears that exact Casino 1-year price option.',
-  },
-  {
-    title: 'Invalid Term',
-    csv: 'Domain,Term,PriceUsd\nexample.com,1 month,120',
-    note: 'Invalid: leave Term empty for No term, or use No term, permanent, or a positive year term.',
-  },
 ];
+
+const EXAMPLE_DOWNLOAD = {
+  fileName: 'sites-update-import-example.csv',
+  csv:
+    'Domain,DR,Traffic,Location,Niche,Categories,NumberDFLinks,SponsoredTag,Language,Term,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating\n' +
+    'example.com,55,12000,US,Technology,News,3,Sponsored,EN,1 year,120,250,YES,NO,,175',
+};
 
 export function SitesUpdateImportInstructions() {
   return (
@@ -68,6 +57,7 @@ export function SitesUpdateImportInstructions() {
       pricingColumnsNote="Supported Term values: No term, 1 year, 2 years, n years, permanent. An empty cell is treated as No term."
       rules={RULES}
       examples={EXAMPLES}
+      exampleDownload={EXAMPLE_DOWNLOAD}
       alerts={[
         'Domains not found in the catalog will be reported as unmatched.',
         'YES means available with unknown price. If you know the price, put the numeric value in the service column instead.',

@@ -12,25 +12,19 @@ const RULES = [
 
 const EXAMPLES = [
   {
-    title: 'Main prices',
+    title: 'Import a site with prices and services',
     csv:
-      'Domain,DR,Traffic,Location,Term,PriceUsd\n' +
-      'example.com,40,1000,US,1 year,120',
-  },
-  {
-    title: 'Service availability',
-    csv:
-      'Domain,DR,Traffic,Location,Term,PriceCasino\n' +
-      'example.com,40,1000,US,,YES\n' +
-      'another-site.com,35,500,GB,,NO',
-  },
-  {
-    title: 'Service prices',
-    csv:
-      'Domain,DR,Traffic,Location,Term,PriceCasino,PriceCrypto\n' +
-      'example.com,40,1000,US,permanent,250,600',
+      'Domain,DR,Traffic,Location,Niche,Categories,NumberDFLinks,SponsoredTag,Language,Term,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating\n' +
+      'example.com,40,1000,US,Technology,News,3,Sponsored,EN,1 year,120,250,YES,NO,,175',
+    note:
+      'The example includes every supported column. Numeric service values set prices; YES, NO, and empty cells set service availability when no numeric price is provided.',
   },
 ];
+
+const EXAMPLE_DOWNLOAD = {
+  fileName: 'sites-import-example.csv',
+  csv: EXAMPLES[0].csv,
+};
 
 export function SitesImportInstructions() {
   return (
@@ -45,6 +39,7 @@ export function SitesImportInstructions() {
       pricingColumnsNote="Supported Term values: No term, 1 year, 2 years, n years, permanent. An empty cell is treated as No term."
       rules={RULES}
       examples={EXAMPLES}
+      exampleDownload={EXAMPLE_DOWNLOAD}
       alerts={[
         'If you know a service price, put the numeric value in the service column instead of YES.',
         'Use short language codes in CSV files, e.g. EN, DE, UNKNOWN, MULTI.',

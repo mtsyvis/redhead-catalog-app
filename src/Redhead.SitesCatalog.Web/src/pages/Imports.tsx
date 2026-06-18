@@ -165,6 +165,10 @@ function ImportRouteContent({
             note: 'Month and year values are saved as month-only dates.',
           },
         ],
+        exampleDownload: {
+          fileName: 'last-published-import-example.csv',
+          csv: 'Domain,LastPublishedDate\nexample.com,15.01.2026',
+        },
       }}
     />
   );
