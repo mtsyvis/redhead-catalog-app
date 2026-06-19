@@ -253,8 +253,13 @@ FodyWeavers.xsd
 *.msixbundle
 
 # Cake - build automation tool
-tools/
+tools/*
 !tools/packages.config
+!tools/Redhead.SitesCatalog.AnalyticsLoadTest/
+tools/Redhead.SitesCatalog.AnalyticsLoadTest/*
+!tools/Redhead.SitesCatalog.AnalyticsLoadTest/Program.cs
+!tools/Redhead.SitesCatalog.AnalyticsLoadTest/README.md
+!tools/Redhead.SitesCatalog.AnalyticsLoadTest/Redhead.SitesCatalog.AnalyticsLoadTest.csproj
 
 # Local .terraform directories
 **/.terraform/*
