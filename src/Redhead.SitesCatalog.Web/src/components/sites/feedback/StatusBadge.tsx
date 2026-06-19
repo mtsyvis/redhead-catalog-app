@@ -15,14 +15,14 @@ const getStatusBadgeSx = (theme: Theme, isAvailable: boolean) => ({
   fontWeight: 600,
   lineHeight: 1.2,
   whiteSpace: 'nowrap',
-  color: isAvailable ? theme.palette.success.dark : theme.palette.warning.dark,
+  color: isAvailable ? theme.palette.success.dark : theme.palette.error.dark,
   backgroundColor: isAvailable
     ? alpha(theme.palette.success.main, 0.14)
-    : alpha(theme.palette.warning.main, 0.18),
+    : alpha(theme.palette.error.main, 0.18),
   border: `1px solid ${
     isAvailable
       ? alpha(theme.palette.success.main, 0.28)
-      : alpha(theme.palette.warning.main, 0.32)
+      : alpha(theme.palette.error.main, 0.32)
   }`,
 });
 
