@@ -18,7 +18,7 @@ const QUARANTINE_FILTER_LABELS: Record<SitesFilters['quarantine'], string> = {
 const MULTI_SEARCH_DEFAULT_QUARANTINE: SitesFilters['quarantine'] = 'all';
 
 function getDefaultQuarantineFilter(multiSearchMode: boolean): SitesFilters['quarantine'] {
-  return multiSearchMode ? MULTI_SEARCH_DEFAULT_QUARANTINE : 'exclude';
+  return multiSearchMode ? MULTI_SEARCH_DEFAULT_QUARANTINE : 'all';
 }
 
 const TOPIC_FIT_MODE_LABELS: Record<SitesFilters['topicFitMode'], string> = {

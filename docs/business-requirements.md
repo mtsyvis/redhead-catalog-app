@@ -343,6 +343,7 @@ Quarantine marks sites that should currently be treated as unavailable.
 Rules:
 
 * `IsQuarantined = true` means the site is displayed as unavailable.
+* Unavailable sites use a restrained red table-row treatment with a warning icon beside the domain and a red `Unavailable` status badge so managers can clearly identify sites that must not be offered to clients.
 * `QuarantineReason` is optional.
 * `QuarantineUpdatedAtUtc` is updated when quarantine state is changed by import or edit.
 * When quarantine is turned off manually, `QuarantineReason` should be cleared.
@@ -422,7 +423,7 @@ Main filters:
 * Link Insert Casino availability
 * Dating availability
 * Quarantine status: all / only quarantined / exclude quarantined
-* The default quarantine status filter excludes quarantined sites (`Available Only`).
+* The default quarantine status filter includes all sites (`All Sites`) in both Single search and Multi-search modes.
 * Last publication date range/month filter
 
 Optional service availability filter rules:
@@ -515,7 +516,7 @@ Display rules:
 
 * Found rows are shown in the same sites grid as normal search results.
 * By default, found and not found rows are shown together in normalized input order after duplicate removal.
-* Multi-search uses `All Sites` as the default quarantine filter so found unavailable sites remain visible unless the user explicitly filters them out.
+* Multi-search uses `All Sites` as the default quarantine filter, consistent with Single search, so found unavailable sites remain visible unless the user explicitly filters them out.
 * Not found rows contain only `Domain`; all other columns show placeholders.
 * Not found rows should be visually distinguishable from found rows, for example with a subtle warning row background.
 * When no filters are active, the Sites table result count shows unique searched domains, found domains, and not found domains.

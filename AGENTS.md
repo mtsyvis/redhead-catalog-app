@@ -145,8 +145,10 @@ npm run build
 npm run test
 ```
 
-Do not add new frontend unit tests unless the current task explicitly requests them. Existing frontend
-tests may still be updated when a task directly asks for frontend test changes.
+Do not add new frontend unit tests proactively. Only add or update frontend unit tests when the
+current task explicitly asks for frontend test changes. If a task lists suggested frontend test
+coverage but does not explicitly require new frontend tests, use existing checks and focused
+manual/frontend verification instead.
 
 If a command cannot be run, explain why and provide the exact command the user should run manually.
 

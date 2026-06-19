@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Box, Chip, IconButton, Tooltip, Typography } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { Site } from '../../../types/sites.types';
 import type { TableViewDensity } from '../../../types/tableViews.types';
@@ -76,6 +77,47 @@ function formatLocationCell(row: GridRow, value: string | null): string {
 
 function renderTruncatedTextCell(value: string) {
   return <TruncatedTextCell value={value} />;
+}
+
+function renderDomainCell(row: GridRow, value: string) {
+  if (isNotFoundRow(row) || !row.isQuarantined) {
+    return renderTruncatedTextCell(value);
+  }
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, width: '100%' }}>
+      <Tooltip
+        title="Unavailable"
+        arrow
+        placement="top"
+        slotProps={{
+          popper: {
+            modifiers: [{ name: 'offset', options: { offset: [0, 24] } }],
+          },
+        }}
+      >
+        <Box
+          component="span"
+          role="img"
+          aria-label="Unavailable site"
+          tabIndex={0}
+          sx={{
+            display: 'inline-flex',
+            flexShrink: 0,
+            color: 'error.dark',
+            outline: 'none',
+            borderRadius: '50%',
+            '&:focus-visible': {
+              boxShadow: (theme) => `0 0 0 2px ${theme.palette.error.light}`,
+            },
+          }}
+        >
+          <ErrorOutlineRoundedIcon aria-hidden sx={{ fontSize: 18 }} />
+        </Box>
+      </Tooltip>
+      {renderTruncatedTextCell(value)}
+    </Box>
+  );
 }
 
 function renderPriceColumnHeader(
@@ -433,7 +475,8 @@ export function useSitesColumns({
           field: 'domain',
           cellClassName: 'SitesGrid-domainCell',
           headerClassName: 'SitesGrid-domainHeader',
-          renderCell: (params) => renderTruncatedTextCell(String(params.value ?? '—')),
+          renderCell: (params) =>
+            renderDomainCell(params.row, String(params.value ?? '—')),
         },
         {
           ...gridColumnDefaults('dr', columnWidths),
@@ -465,6 +508,7 @@ export function useSitesColumns({
           field: 'priceUsd',
           type: 'number',
           headerAlign: 'left',
+          align: 'left',
           valueFormatter: (_value, row) =>
             isNotFoundRow(row) ? '—' : formatMainPriceCell(row as Site).primary,
           renderCell: (params) =>
@@ -686,7 +730,7 @@ export function useSitesColumns({
             if (isNotFoundRow(row)) return '—';
             const site = row as Site;
             if (site.lastPublishedDate == null) {
-              return '-';
+              return '—';
             }
             const d = new Date(site.lastPublishedDate);
             if (site.lastPublishedDateIsMonthOnly) {

@@ -109,7 +109,7 @@ const INITIAL_FILTERS: SitesFilters = {
   linkInsertAvailability: [],
   linkInsertCasinoAvailability: [],
   datingAvailability: [],
-  quarantine: 'exclude',
+  quarantine: 'all',
   lastPublishedFromMonth: null,
   lastPublishedToMonth: null,
 };

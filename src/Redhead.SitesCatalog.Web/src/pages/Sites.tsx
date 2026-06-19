@@ -10,6 +10,7 @@ import {
   Popover,
   Typography,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { DataGrid } from '@mui/x-data-grid';
 import type {
   GridColumnResizeParams,
@@ -77,7 +78,7 @@ const INITIAL_FILTERS: FiltersType = {
   linkInsertAvailability: [],
   linkInsertCasinoAvailability: [],
   datingAvailability: [],
-  quarantine: 'exclude',
+  quarantine: 'all',
   lastPublishedFromMonth: null,
   lastPublishedToMonth: null,
 };
@@ -952,19 +953,43 @@ export function Sites() {
                   backgroundColor: 'grey.100',
                 },
                 '& .SitesGrid-unavailableRow .MuiDataGrid-cell': {
-                  bgcolor: '#fffaf2',
+                  bgcolor: (theme) => alpha(theme.palette.error.main, 0.08),
                 },
                 '& .SitesGrid-unavailableRow .SitesGrid-domainCell': {
-                  bgcolor: '#fffaf2',
-                  backgroundImage: 'linear-gradient(to right, #f59e0b 0 3px, transparent 3px)',
+                  bgcolor: (theme) =>
+                    `color-mix(in srgb, ${theme.palette.error.main} 8%, ${theme.palette.background.paper})`,
+                  backgroundImage: (theme) =>
+                    `linear-gradient(to right, ${theme.palette.error.main} 0 3px, transparent 3px)`,
                   backgroundRepeat: 'no-repeat',
                 },
                 '& .SitesGrid-unavailableRow:hover .MuiDataGrid-cell': {
-                  bgcolor: '#fff4e5',
+                  bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
                 },
                 '& .SitesGrid-unavailableRow:hover .SitesGrid-domainCell': {
-                  bgcolor: '#fff4e5',
-                  backgroundImage: 'linear-gradient(to right, #f59e0b 0 3px, transparent 3px)',
+                  bgcolor: (theme) =>
+                    `color-mix(in srgb, ${theme.palette.error.main} 10%, ${theme.palette.background.paper})`,
+                  backgroundImage: (theme) =>
+                    `linear-gradient(to right, ${theme.palette.error.main} 0 3px, transparent 3px)`,
+                  backgroundRepeat: 'no-repeat',
+                },
+                '& .SitesGrid-unavailableRow.Mui-selected .MuiDataGrid-cell': {
+                  bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
+                },
+                '& .SitesGrid-unavailableRow.Mui-selected .SitesGrid-domainCell': {
+                  bgcolor: (theme) =>
+                    `color-mix(in srgb, ${theme.palette.error.main} 10%, ${theme.palette.background.paper})`,
+                  backgroundImage: (theme) =>
+                    `linear-gradient(to right, ${theme.palette.error.main} 0 3px, transparent 3px)`,
+                  backgroundRepeat: 'no-repeat',
+                },
+                '& .SitesGrid-unavailableRow.Mui-selected:hover .MuiDataGrid-cell': {
+                  bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
+                },
+                '& .SitesGrid-unavailableRow.Mui-selected:hover .SitesGrid-domainCell': {
+                  bgcolor: (theme) =>
+                    `color-mix(in srgb, ${theme.palette.error.main} 10%, ${theme.palette.background.paper})`,
+                  backgroundImage: (theme) =>
+                    `linear-gradient(to right, ${theme.palette.error.main} 0 3px, transparent 3px)`,
                   backgroundRepeat: 'no-repeat',
                 },
                 '& .SitesGrid-notFoundRow .MuiDataGrid-cell': {
