@@ -40,6 +40,7 @@ public class Site
     public string? UpdatedBy { get; set; }
     public DateTime? LastPublishedDate { get; set; }
     public bool LastPublishedDateIsMonthOnly { get; set; }
+    public DateTime? AhrefsLastSyncedAt { get; set; }
     public ICollection<SitePriceOption> PriceOptions { get; set; } = [];
     public ICollection<SiteServiceAvailability> ServiceAvailabilities { get; set; } = [];
 }

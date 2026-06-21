@@ -4,6 +4,7 @@ using Redhead.SitesCatalog.Api.AccountSetup;
 using Redhead.SitesCatalog.Api.DependencyInjection;
 using Redhead.SitesCatalog.Api.Middleware;
 using Redhead.SitesCatalog.Api.Options;
+using Redhead.SitesCatalog.Application.Ahrefs;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Services;
@@ -18,6 +19,8 @@ using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Repositories;
 using Redhead.SitesCatalog.Domain.SystemExports;
 using Redhead.SitesCatalog.Infrastructure.Data;
+using Redhead.SitesCatalog.Infrastructure.Concurrency;
+using Redhead.SitesCatalog.Infrastructure.Integrations.Ahrefs;
 using Redhead.SitesCatalog.Infrastructure.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Infrastructure.Locations;
 using Redhead.SitesCatalog.Infrastructure.Options;
@@ -35,6 +38,7 @@ builder.Services.Configure<GoogleDriveOptions>(
     builder.Configuration.GetSection(GoogleDriveOptions.SectionName));
 builder.Services.AddEmergencySitesExportOptions(builder.Configuration);
 builder.Services.AddExportedDomainAccessCleanup(builder.Configuration);
+builder.Services.AddAhrefsSync(builder.Configuration);
 builder.Services.Configure<FrontendOptions>(
     builder.Configuration.GetSection(FrontendOptions.SectionName));
 
@@ -59,6 +63,9 @@ builder.Services.AddScoped<IEmergencySitesExportRunner, EmergencySitesExportRunn
 builder.Services.AddScoped<ISystemExportStorage, GoogleDriveServiceAccountExportStorage>();
 builder.Services.AddScoped<ISystemJobRunRepository, SystemJobRunRepository>();
 builder.Services.AddScoped<ISystemJobRunService, SystemJobRunService>();
+builder.Services.AddScoped<IAhrefsSyncService, AhrefsSyncService>();
+builder.Services.AddScoped<IAhrefsApiClient, AhrefsApiClient>();
+builder.Services.AddScoped<IAhrefsSyncLock, PostgresAhrefsSyncLock>();
 builder.Services.AddScoped<ISitesImportService, SitesImportService>();
 builder.Services.AddScoped<IQuarantineImportService, QuarantineImportService>();
 builder.Services.AddScoped<ILastPublishedImportService, LastPublishedImportService>();

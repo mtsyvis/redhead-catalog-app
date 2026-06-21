@@ -49,6 +49,18 @@ services:
       ExportedDomainAccessCleanup__RetentionDays: ${ExportedDomainAccessCleanup__RetentionDays:-30}
       ExportedDomainAccessCleanup__BatchSize: ${ExportedDomainAccessCleanup__BatchSize:-1000}
       ExportedDomainAccessCleanup__IntervalHours: ${ExportedDomainAccessCleanup__IntervalHours:-24}
+      Ahrefs__ApiKey: ${Ahrefs__ApiKey:-}
+      Ahrefs__BaseUrl: ${Ahrefs__BaseUrl:-https://api.ahrefs.com/v3}
+      AhrefsSync__Enabled: ${AhrefsSync__Enabled:-true}
+      AhrefsSync__Cron: ${AhrefsSync__Cron:-0 1 14 * *}
+      AhrefsSync__BatchSize: ${AhrefsSync__BatchSize:-100}
+      AhrefsSync__MaxSitesPerRun: ${AhrefsSync__MaxSitesPerRun:-100000}
+      AhrefsSync__TargetMode: ${AhrefsSync__TargetMode:-subdomains}
+      AhrefsSync__Protocol: ${AhrefsSync__Protocol:-both}
+      AhrefsSync__VolumeMode: ${AhrefsSync__VolumeMode:-monthly}
+      AhrefsSync__MonthlyAppBudgetUnits: ${AhrefsSync__MonthlyAppBudgetUnits:-975000}
+      AhrefsSync__SafetyBufferUnits: ${AhrefsSync__SafetyBufferUnits:-25000}
+      AhrefsSync__StopIfRemainingUnitsBelow: ${AhrefsSync__StopIfRemainingUnitsBelow:-25000}
       Frontend__BaseUrl: ${FRONTEND_BASE_URL}
     volumes:
       - dataprotection_keys:/root/.aspnet/DataProtection-Keys

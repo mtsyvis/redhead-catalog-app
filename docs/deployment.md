@@ -132,6 +132,18 @@ ExportedDomainAccessCleanup__Enabled=true
 ExportedDomainAccessCleanup__RetentionDays=30
 ExportedDomainAccessCleanup__BatchSize=1000
 ExportedDomainAccessCleanup__IntervalHours=24
+Ahrefs__ApiKey=<Ahrefs API v3 key>
+Ahrefs__BaseUrl=https://api.ahrefs.com/v3
+AhrefsSync__Enabled=true
+AhrefsSync__Cron=0 1 14 * *
+AhrefsSync__BatchSize=100
+AhrefsSync__MaxSitesPerRun=100000
+AhrefsSync__TargetMode=subdomains
+AhrefsSync__Protocol=both
+AhrefsSync__VolumeMode=monthly
+AhrefsSync__MonthlyAppBudgetUnits=975000
+AhrefsSync__SafetyBufferUnits=25000
+AhrefsSync__StopIfRemainingUnitsBelow=25000
 FRONTEND_BASE_URL=https://catalog.rhda.us
 ```
 
@@ -162,6 +174,18 @@ ExportedDomainAccessCleanup__Enabled=${ExportedDomainAccessCleanup__Enabled}
 ExportedDomainAccessCleanup__RetentionDays=${ExportedDomainAccessCleanup__RetentionDays}
 ExportedDomainAccessCleanup__BatchSize=${ExportedDomainAccessCleanup__BatchSize}
 ExportedDomainAccessCleanup__IntervalHours=${ExportedDomainAccessCleanup__IntervalHours}
+Ahrefs__ApiKey=${Ahrefs__ApiKey}
+Ahrefs__BaseUrl=${Ahrefs__BaseUrl}
+AhrefsSync__Enabled=${AhrefsSync__Enabled}
+AhrefsSync__Cron=${AhrefsSync__Cron}
+AhrefsSync__BatchSize=${AhrefsSync__BatchSize}
+AhrefsSync__MaxSitesPerRun=${AhrefsSync__MaxSitesPerRun}
+AhrefsSync__TargetMode=${AhrefsSync__TargetMode}
+AhrefsSync__Protocol=${AhrefsSync__Protocol}
+AhrefsSync__VolumeMode=${AhrefsSync__VolumeMode}
+AhrefsSync__MonthlyAppBudgetUnits=${AhrefsSync__MonthlyAppBudgetUnits}
+AhrefsSync__SafetyBufferUnits=${AhrefsSync__SafetyBufferUnits}
+AhrefsSync__StopIfRemainingUnitsBelow=${AhrefsSync__StopIfRemainingUnitsBelow}
 Frontend__BaseUrl=${FRONTEND_BASE_URL}
 ```
 

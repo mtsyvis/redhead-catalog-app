@@ -349,6 +349,14 @@ Rules:
 * When quarantine is turned off manually, `QuarantineReason` should be cleared.
 * Quarantined sites remain in the catalog and can still appear in filtered results depending on the selected quarantine filter.
 
+### Ahrefs monthly metrics sync
+
+Once per UTC month, the backend updates `Traffic` and `DR` for non-quarantined sites from Ahrefs Batch Analysis using target mode `subdomains` and stores one Ahrefs snapshot per domain and month. Zero traffic is valid. Failed or missing Ahrefs rows preserve existing site values. Ahrefs updates set `AhrefsLastSyncedAt` but do not change the normal site audit fields `UpdatedAtUtc` or `UpdatedBy`.
+
+The sync is budget-aware, checks Ahrefs workspace/API-key usage before each real run, and may process only the affordable highest-traffic sites. Scheduled and manual full runs save monthly snapshots by default; limited manual runs do not unless requested. Existing site values are not backfilled into snapshot history.
+
+Ahrefs sync administration is SuperAdmin-only. Run details expose audit items through paginated backend responses so large catalog runs do not return every site item in one response.
+
 ### LastPublishedDate
 
 `LastPublishedDate` stores the last known Redhead publication date for a site.

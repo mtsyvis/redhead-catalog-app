@@ -239,6 +239,18 @@ EmergencySitesExport__ServiceAccountJsonPath
 EmergencySitesExport__RetentionWeeks
 EmergencySitesExport__FilePrefix
 EmergencySitesExport__UploadTimeoutMinutes
+Ahrefs__ApiKey
+Ahrefs__BaseUrl
+AhrefsSync__Enabled
+AhrefsSync__Cron
+AhrefsSync__BatchSize
+AhrefsSync__MaxSitesPerRun
+AhrefsSync__TargetMode
+AhrefsSync__Protocol
+AhrefsSync__VolumeMode
+AhrefsSync__MonthlyAppBudgetUnits
+AhrefsSync__SafetyBufferUnits
+AhrefsSync__StopIfRemainingUnitsBelow
 FRONTEND_BASE_URL
 ```
 
@@ -260,6 +272,8 @@ EmergencySitesExport__ServiceAccountJsonPath
 EmergencySitesExport__RetentionWeeks
 EmergencySitesExport__FilePrefix
 EmergencySitesExport__UploadTimeoutMinutes
+Ahrefs__ApiKey
+AhrefsSync__Cron
 Frontend__BaseUrl
 ASPNETCORE_ENVIRONMENT
 ASPNETCORE_URLS

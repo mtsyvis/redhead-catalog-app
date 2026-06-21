@@ -1,0 +1,94 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Redhead.SitesCatalog.Api.Models;
+using Redhead.SitesCatalog.Application.Ahrefs;
+using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Enums;
+
+namespace Redhead.SitesCatalog.Api.Controllers;
+
+[ApiController]
+[Route("api/admin/ahrefs-sync")]
+[Authorize(Policy = AppPolicies.SuperAdminOnly)]
+public sealed class AhrefsSyncController : ControllerBase
+{
+    private readonly IAhrefsSyncService _syncService;
+
+    public AhrefsSyncController(IAhrefsSyncService syncService)
+    {
+        _syncService = syncService;
+    }
+
+    [HttpPost("dry-run")]
+    public async Task<ActionResult> DryRun(
+        [FromBody] AhrefsSyncDryRunRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (request?.MaxSitesOverride <= 0)
+        {
+            return BadRequest(new MessageResponse("MaxSitesOverride must be greater than zero."));
+        }
+
+        var result = await _syncService.DryRunAsync(
+            request?.MaxSitesOverride,
+            cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("run")]
+    public async Task<ActionResult> Run(
+        [FromBody] AhrefsSyncRunRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.MaxSitesOverride <= 0)
+        {
+            return BadRequest(new MessageResponse("MaxSitesOverride must be greater than zero."));
+        }
+
+        var limited = request.MaxSitesOverride.HasValue;
+        var result = await _syncService.RunAsync(
+            new Application.Ahrefs.AhrefsSyncRequest(
+                limited ? AhrefsSyncRunKind.ManualLimited : AhrefsSyncRunKind.ManualFull,
+                User.FindFirstValue(ClaimTypes.NameIdentifier),
+                request.MaxSitesOverride,
+                request.SaveSnapshots ?? !limited,
+                request.Force),
+            cancellationToken);
+        if (result.Conflict)
+        {
+            return Conflict(new MessageResponse(result.ConflictMessage!));
+        }
+
+        return Ok(result.Run);
+    }
+
+    [HttpGet("runs")]
+    public async Task<ActionResult> ListRuns(
+        [FromQuery] int take = 50,
+        CancellationToken cancellationToken = default)
+        => Ok(await _syncService.ListRunsAsync(take, cancellationToken));
+
+    [HttpGet("runs/{id:guid}")]
+    public async Task<ActionResult> GetRun(
+        Guid id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        CancellationToken cancellationToken = default)
+    {
+        if (page <= 0)
+        {
+            return BadRequest(new MessageResponse("Page must be greater than zero."));
+        }
+
+        if (pageSize is <= 0 or > 500)
+        {
+            return BadRequest(new MessageResponse("PageSize must be between 1 and 500."));
+        }
+
+        var result = await _syncService.GetRunAsync(id, page, pageSize, cancellationToken);
+        return result == null
+            ? NotFound(new MessageResponse("Ahrefs sync run not found."))
+            : Ok(result);
+    }
+}
