@@ -250,7 +250,6 @@ AhrefsSync__Protocol
 AhrefsSync__VolumeMode
 AhrefsSync__MonthlyAppBudgetUnits
 AhrefsSync__SafetyBufferUnits
-AhrefsSync__StopIfRemainingUnitsBelow
 FRONTEND_BASE_URL
 ```
 

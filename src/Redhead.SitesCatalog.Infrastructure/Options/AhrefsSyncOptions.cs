@@ -14,7 +14,6 @@ public sealed class AhrefsSyncOptions
     public string VolumeMode { get; set; } = "monthly";
     public int MonthlyAppBudgetUnits { get; set; } = 975000;
     public int SafetyBufferUnits { get; set; } = 25000;
-    public int StopIfRemainingUnitsBelow { get; set; } = 25000;
 
     public static bool IsValid(AhrefsSyncOptions options)
         => !string.IsNullOrWhiteSpace(options.Cron) &&
@@ -24,6 +23,5 @@ public sealed class AhrefsSyncOptions
             string.Equals(options.Protocol, "both", StringComparison.Ordinal) &&
             string.Equals(options.VolumeMode, "monthly", StringComparison.Ordinal) &&
             options.MonthlyAppBudgetUnits > 0 &&
-            options.SafetyBufferUnits >= 0 &&
-            options.StopIfRemainingUnitsBelow >= 0;
+            options.SafetyBufferUnits >= 0;
 }

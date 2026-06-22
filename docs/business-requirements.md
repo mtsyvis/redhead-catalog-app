@@ -354,6 +354,8 @@ Rules:
 Once per UTC month, the backend updates `Traffic` and `DR` for non-quarantined sites from Ahrefs Batch Analysis using target mode `subdomains` and stores one Ahrefs snapshot per domain and month. Zero traffic is valid. Failed or missing Ahrefs rows preserve existing site values. Ahrefs updates set `AhrefsLastSyncedAt` but do not change the normal site audit fields `UpdatedAtUtc` or `UpdatedBy`.
 
 The sync is budget-aware, checks Ahrefs workspace/API-key usage before each real run, and may process only the affordable highest-traffic sites. Scheduled and manual full runs save monthly snapshots by default; limited manual runs do not unless requested. Existing site values are not backfilled into snapshot history.
+The configured safety buffer is used both when selecting affordable sites before the run and as the
+minimum remaining-units threshold checked between batches.
 
 Before a scheduled monthly run starts, the limits response must confirm a new Ahrefs usage period
 by returning a future `usage_reset_date`. If Ahrefs still reports an expired reset date, the

@@ -60,7 +60,6 @@ services:
       AhrefsSync__VolumeMode: ${AhrefsSync__VolumeMode:-monthly}
       AhrefsSync__MonthlyAppBudgetUnits: ${AhrefsSync__MonthlyAppBudgetUnits:-975000}
       AhrefsSync__SafetyBufferUnits: ${AhrefsSync__SafetyBufferUnits:-25000}
-      AhrefsSync__StopIfRemainingUnitsBelow: ${AhrefsSync__StopIfRemainingUnitsBelow:-25000}
       Frontend__BaseUrl: ${FRONTEND_BASE_URL}
     volumes:
       - dataprotection_keys:/root/.aspnet/DataProtection-Keys

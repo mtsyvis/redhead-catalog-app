@@ -143,7 +143,6 @@ AhrefsSync__Protocol=both
 AhrefsSync__VolumeMode=monthly
 AhrefsSync__MonthlyAppBudgetUnits=975000
 AhrefsSync__SafetyBufferUnits=25000
-AhrefsSync__StopIfRemainingUnitsBelow=25000
 FRONTEND_BASE_URL=https://catalog.rhda.us
 ```
 
@@ -194,7 +193,6 @@ AhrefsSync__Protocol=${AhrefsSync__Protocol}
 AhrefsSync__VolumeMode=${AhrefsSync__VolumeMode}
 AhrefsSync__MonthlyAppBudgetUnits=${AhrefsSync__MonthlyAppBudgetUnits}
 AhrefsSync__SafetyBufferUnits=${AhrefsSync__SafetyBufferUnits}
-AhrefsSync__StopIfRemainingUnitsBelow=${AhrefsSync__StopIfRemainingUnitsBelow}
 Frontend__BaseUrl=${FRONTEND_BASE_URL}
 ```
 

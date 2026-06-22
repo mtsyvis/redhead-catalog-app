@@ -579,6 +579,39 @@ public sealed class AhrefsSyncServiceTests
         Assert.Empty(context.SiteMetricSnapshots);
     }
 
+    [Fact]
+    public async Task Run_UsesSafetyBufferAsPersistedRuntimeStopThreshold()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        context.Sites.Add(CreateSite("example.com"));
+        await context.SaveChangesAsync();
+        var api = CreateApiMock(availableUnits: 100_000);
+        api.Setup(client => client.RunBatchAnalysisAsync(
+                It.IsAny<IReadOnlyList<AhrefsBatchTarget>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BatchResult(10, 20));
+        var sut = CreateService(
+            context,
+            api.Object,
+            new AhrefsSyncOptions { SafetyBufferUnits = 12_345 });
+
+        // Act
+        var result = await sut.RunAsync(
+            new AhrefsSyncRequest(
+                AhrefsSyncRunKind.ManualLimited,
+                null,
+                1,
+                SaveSnapshots: false,
+                Force: false),
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(12_345, result.Run!.SafetyBufferUnits);
+        Assert.Equal(12_345, result.Run.StopIfRemainingUnitsBelow);
+    }
+
     [Theory]
     [InlineData(-1, "outside the target range")]
     [InlineData(1, "outside the target range")]

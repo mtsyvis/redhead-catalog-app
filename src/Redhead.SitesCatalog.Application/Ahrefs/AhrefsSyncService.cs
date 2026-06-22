@@ -684,7 +684,7 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
             SnapshotMonth = snapshotMonth,
             CostPerSite = AhrefsSyncCostCalculator.CostPerSite,
             SafetyBufferUnits = _options.SafetyBufferUnits,
-            StopIfRemainingUnitsBelow = _options.StopIfRemainingUnitsBelow,
+            StopIfRemainingUnitsBelow = _options.SafetyBufferUnits,
             BatchSize = _options.BatchSize,
             MaxSitesPerRun = Math.Min(
                 request.MaxSitesOverride ?? _options.MaxSitesPerRun,
