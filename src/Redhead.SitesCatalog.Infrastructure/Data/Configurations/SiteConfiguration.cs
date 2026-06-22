@@ -184,6 +184,8 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
             .IsRequired()
             .HasDefaultValue(false);
 
+        builder.Property(s => s.AhrefsLastSyncedAt);
+
         // Optional: Create indexes for performance
         builder.HasIndex(s => s.DR);
         builder.HasIndex(s => s.Traffic);

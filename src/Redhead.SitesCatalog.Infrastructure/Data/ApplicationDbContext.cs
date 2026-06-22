@@ -28,6 +28,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<LocationGroupItem> LocationGroupItems => Set<LocationGroupItem>();
     public DbSet<SystemJobRun> SystemJobRuns => Set<SystemJobRun>();
     public DbSet<SystemJobArtifact> SystemJobArtifacts => Set<SystemJobArtifact>();
+    public DbSet<SiteMetricSnapshot> SiteMetricSnapshots => Set<SiteMetricSnapshot>();
+    public DbSet<AhrefsSyncRun> AhrefsSyncRuns => Set<AhrefsSyncRun>();
+    public DbSet<AhrefsSyncRunItem> AhrefsSyncRunItems => Set<AhrefsSyncRunItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,5 +1,6 @@
 **/.git
 **/.env
+**/appsettings.Development.json
 **/node_modules
 **/dist
 **/bin

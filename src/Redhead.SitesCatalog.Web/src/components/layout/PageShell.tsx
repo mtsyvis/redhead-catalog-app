@@ -167,9 +167,14 @@ export const PageShell: React.FC<PageShellProps> = ({
                       transformOrigin={{ vertical: 'top', horizontal: 'left' }}
                     >
                       {isSuperAdmin && (
-                        <MenuItem onClick={() => handleAdminNav('/admin/analytics')}>
-                          Analytics
-                        </MenuItem>
+                        <>
+                          <MenuItem onClick={() => handleAdminNav('/admin/analytics')}>
+                            Analytics
+                          </MenuItem>
+                          <MenuItem onClick={() => handleAdminNav('/admin/ahrefs-sync')}>
+                            Ahrefs Sync
+                          </MenuItem>
+                        </>
                       )}
                       <MenuItem onClick={() => handleAdminNav('/admin/users')}>Users</MenuItem>
                       <MenuItem onClick={() => handleAdminNav('/admin/role-settings')}>
