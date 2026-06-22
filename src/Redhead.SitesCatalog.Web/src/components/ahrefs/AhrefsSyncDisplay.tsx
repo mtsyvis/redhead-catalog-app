@@ -1,23 +1,51 @@
 import { Chip } from '@mui/material';
+import type { AhrefsSyncRun } from '../../types/ahrefsSync.types';
 import {
   formatItemStatus,
-  formatRunStatus,
+  formatRunOutcome,
 } from '../../utils/ahrefsSyncDisplay';
 
-export function RunStatusChip({ status }: { status: number }) {
+export function RunOutcomeChip({ run }: { run: AhrefsSyncRun }) {
+  const hasIssues =
+    run.status === 3 && (run.failedSitesCount > 0 || run.skippedSitesCount > 0);
   const color =
-    status === 2
+    run.status === 2 || (run.status === 3 && !hasIssues)
       ? 'success'
-      : status === 1
+      : run.status === 1
         ? 'info'
-        : status === 3 || status === 5 || status === 6 || status === 7
+        : run.status === 3 ||
+            run.status === 5 ||
+            run.status === 6 ||
+            run.status === 7
           ? 'warning'
           : 'error';
   return (
     <Chip
       size="small"
-      label={formatRunStatus(status)}
+      label={formatRunOutcome(run)}
       color={color}
+      variant="outlined"
+    />
+  );
+}
+
+export function RunScopeChip({ run }: { run: AhrefsSyncRun }) {
+  if (run.isFullCoverage) {
+    return <Chip size="small" label="Full catalog" color="success" variant="outlined" />;
+  }
+
+  const configuredSiteLimit = Math.min(run.eligibleSitesCount, run.maxSitesPerRun);
+  const wasActuallyLimitedByBudget =
+    run.wasLimitedByBudget && run.selectedSitesCount < configuredSiteLimit;
+
+  if (wasActuallyLimitedByBudget) {
+    return <Chip size="small" label="Budget limited" color="warning" variant="outlined" />;
+  }
+
+  return (
+    <Chip
+      size="small"
+      label={run.runKind === 3 ? 'Limited run' : 'Partial coverage'}
       variant="outlined"
     />
   );

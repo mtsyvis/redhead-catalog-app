@@ -69,6 +69,7 @@ export interface AhrefsSyncStatus {
   cron: string;
   nextScheduledRunUtc: string | null;
   isDueNow: boolean;
+  isWaitingForUsageReset: boolean;
   dueOccurrenceUtc: string | null;
   limitsCheckedAt: string;
   usageResetDate: string | null;
@@ -77,12 +78,22 @@ export interface AhrefsSyncStatus {
   appBudgetRemainingUnits: number;
   effectiveAvailableUnits: number;
   safetyBufferUnits: number;
+  spendableUnits: number;
   eligibleSitesCount: number;
   fullEstimatedUnits: number;
+  affordableSitesCount: number;
+  plannedSitesCount: number;
+  plannedEstimatedUnits: number;
+  canStartRun: boolean;
+  fullCatalogFitsBudget: boolean;
+  fullCatalogShortfallUnits: number;
+  configuredRunLimitedByBudget: boolean;
+  configuredRunLimitedByMaxSites: boolean;
   batchSize: number;
   maxSitesPerRun: number;
   targetMode: string;
   protocol: string;
   volumeMode: string;
+  hasCompletedMonthlyRun: boolean;
   activeRun: AhrefsSyncRun | null;
 }

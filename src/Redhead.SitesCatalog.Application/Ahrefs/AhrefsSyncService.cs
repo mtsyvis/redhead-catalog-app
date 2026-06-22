@@ -55,11 +55,11 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
             availableUnits);
         var snapshotMonth = GetSnapshotMonth(DateTime.UtcNow);
         var alreadyCompleted = maxSitesOverride == null &&
-            await HasSuccessfulFullRunAsync(snapshotMonth, cancellationToken);
+            await HasCompletedMonthlyRunAsync(snapshotMonth, cancellationToken);
         var reason = lockHandle == null
             ? "An Ahrefs sync is already running."
             : alreadyCompleted
-                ? "A successful full coverage sync already exists for this snapshot month."
+                ? "A completed monthly sync already exists for this snapshot month."
                 : selection.SelectedSitesCount <= 0
                     ? "No sites are affordable after applying the configured safety buffer."
                     : null;
@@ -96,28 +96,76 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
         var now = DateTime.UtcNow;
         var snapshotMonth = GetSnapshotMonth(now);
         if (!request.Force && IsFullRun(request.RunKind) &&
-            await HasSuccessfulFullRunAsync(snapshotMonth, cancellationToken))
+            await HasCompletedMonthlyRunAsync(snapshotMonth, cancellationToken))
         {
             var skipped = CreateRun(request, now, snapshotMonth);
             skipped.Status = AhrefsSyncRunStatus.SkippedAlreadyCompleted;
             skipped.FinishedAt = DateTime.UtcNow;
-            skipped.ErrorMessage = "A successful full coverage sync already exists for this snapshot month.";
+            skipped.ErrorMessage = "A completed monthly sync already exists for this snapshot month.";
             _context.AhrefsSyncRuns.Add(skipped);
             await _context.SaveChangesAsync(cancellationToken);
             return AhrefsSyncRunResult.Completed(skipped);
         }
 
+        AhrefsLimitsSnapshot limitsSnapshot;
+        try
+        {
+            limitsSnapshot = await _limitsProvider.GetAsync(
+                forceRefresh: true,
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            if (request.RunKind == AhrefsSyncRunKind.Scheduled)
+            {
+                var existingFailure = await _context.AhrefsSyncRuns
+                    .OrderByDescending(candidate => candidate.StartedAt)
+                    .FirstOrDefaultAsync(
+                        candidate =>
+                            candidate.SnapshotMonth == snapshotMonth &&
+                            candidate.RunKind == AhrefsSyncRunKind.Scheduled &&
+                            candidate.Status == AhrefsSyncRunStatus.Failed &&
+                            candidate.ProcessedSitesCount == 0 &&
+                            candidate.ErrorMessage == ex.Message,
+                        CancellationToken.None);
+                if (existingFailure != null)
+                {
+                    _logger.LogWarning(
+                        "Ahrefs limits check is still failing. Reusing failed run {RunId}.",
+                        existingFailure.Id);
+                    return AhrefsSyncRunResult.Completed(existingFailure);
+                }
+            }
+
+            var failedRun = CreateRun(request, now, snapshotMonth);
+            failedRun.Status = AhrefsSyncRunStatus.Failed;
+            failedRun.FinishedAt = DateTime.UtcNow;
+            failedRun.ErrorMessage = ex.Message;
+            _context.AhrefsSyncRuns.Add(failedRun);
+            await _context.SaveChangesAsync(CancellationToken.None);
+            _logger.LogError(ex, "Ahrefs limits check failed. RunId={RunId}", failedRun.Id);
+            return AhrefsSyncRunResult.Completed(failedRun);
+        }
+
+        if (request.RunKind == AhrefsSyncRunKind.Scheduled &&
+            IsWaitingForUsageReset(limitsSnapshot))
+        {
+            return AhrefsSyncRunResult.WaitForUsageReset(
+                limitsSnapshot.Limits.UsageResetDate);
+        }
+
         var run = CreateRun(request, now, snapshotMonth);
+        run.UsageResetDate = limitsSnapshot.Limits.UsageResetDate;
         _context.AhrefsSyncRuns.Add(run);
         await _context.SaveChangesAsync(cancellationToken);
 
         try
         {
-            var limitsSnapshot = await _limitsProvider.GetAsync(
-                forceRefresh: true,
-                cancellationToken);
             var limits = limitsSnapshot.Limits;
-            run.UsageResetDate = limits.UsageResetDate;
             run.AvailableUnitsBefore = GetEffectiveAvailableUnits(limits);
 
             run.EligibleSitesCount = await EligibleSitesQuery().CountAsync(cancellationToken);
@@ -271,7 +319,7 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
             .Where(run => run.Status == AhrefsSyncRunStatus.Running)
             .OrderByDescending(run => run.StartedAt)
             .FirstOrDefaultAsync(cancellationToken);
-        var hasSuccessfulFullRun = await HasSuccessfulFullRunAsync(
+        var hasCompletedMonthlyRun = await HasCompletedMonthlyRunAsync(
             snapshotMonth,
             cancellationToken);
         var apiKeyRemaining = Math.Max(
@@ -288,7 +336,7 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
             limits,
             checkedAt,
             activeRun,
-            hasSuccessfulFullRun,
+            hasCompletedMonthlyRun,
             snapshotMonth,
             eligibleCount,
             AhrefsSyncCostCalculator.EstimateUnits(eligibleCount, _options.BatchSize),
@@ -662,7 +710,7 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
             selectedCount,
             AhrefsSyncCostCalculator.EstimateUnits(eligibleCount, _options.BatchSize),
             AhrefsSyncCostCalculator.EstimateUnits(selectedCount, _options.BatchSize),
-            affordableCount < eligibleCount);
+            affordableCount < Math.Min(eligibleCount, maxSites));
     }
 
     private static void ApplySelection(AhrefsSyncRun run, Selection selection)
@@ -682,14 +730,21 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
                     limits.UnitsLimitWorkspace - limits.UnitsUsageWorkspace),
                 _options.MonthlyAppBudgetUnits - limits.UnitsUsageApiKey));
 
-    private Task<bool> HasSuccessfulFullRunAsync(
+    private Task<bool> HasCompletedMonthlyRunAsync(
         DateOnly snapshotMonth,
         CancellationToken cancellationToken)
         => _context.AhrefsSyncRuns.AsNoTracking().AnyAsync(
             run => run.SnapshotMonth == snapshotMonth &&
-                run.Status == AhrefsSyncRunStatus.Succeeded &&
-                run.IsFullCoverage,
+                (run.RunKind == AhrefsSyncRunKind.Scheduled ||
+                    run.RunKind == AhrefsSyncRunKind.ManualFull) &&
+                (run.Status == AhrefsSyncRunStatus.Succeeded ||
+                    run.Status == AhrefsSyncRunStatus.SucceededPartial ||
+                    run.Status == AhrefsSyncRunStatus.StoppedInsufficientUnits),
             cancellationToken);
+
+    public static bool IsWaitingForUsageReset(AhrefsLimitsSnapshot snapshot)
+        => !snapshot.Limits.UsageResetDate.HasValue ||
+            snapshot.Limits.UsageResetDate.Value <= snapshot.CheckedAt;
 
     private static bool IsFullRun(AhrefsSyncRunKind runKind)
         => runKind is AhrefsSyncRunKind.Scheduled or AhrefsSyncRunKind.ManualFull;

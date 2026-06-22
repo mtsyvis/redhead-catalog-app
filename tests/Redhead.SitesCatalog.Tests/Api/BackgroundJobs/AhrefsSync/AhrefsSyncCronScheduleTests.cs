@@ -55,4 +55,17 @@ public sealed class AhrefsSyncCronScheduleTests
         // Assert
         Assert.True(shouldRetry);
     }
+
+    [Fact]
+    public void ShouldRetry_WhenWaitingForUsageReset_ReturnsTrue()
+    {
+        // Arrange
+        var result = AhrefsSyncRunResult.WaitForUsageReset(DateTime.UtcNow);
+
+        // Act
+        var shouldRetry = AhrefsSyncHostedService.ShouldRetry(result);
+
+        // Assert
+        Assert.True(shouldRetry);
+    }
 }

@@ -6,6 +6,7 @@ using Redhead.SitesCatalog.Api.BackgroundJobs.AhrefsSync;
 using Redhead.SitesCatalog.Application.Ahrefs;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Infrastructure.Integrations.Ahrefs;
 using Redhead.SitesCatalog.Infrastructure.Options;
 using Microsoft.Extensions.Options;
 
@@ -97,17 +98,39 @@ public sealed class AhrefsSyncController : ControllerBase
         var data = await _syncService.GetMonitoringDataAsync(refresh, cancellationToken);
         AhrefsSyncCronSchedule.TryParse(_options.Cron, out var schedule);
         var dueOccurrence = schedule?.GetDueOccurrenceUtc(data.LimitsCheckedAt);
+        var isWaitingForUsageReset =
+            _options.Enabled &&
+            dueOccurrence.HasValue &&
+            data.ActiveRun == null &&
+            !data.HasCompletedMonthlyRunForSnapshotMonth &&
+            AhrefsSyncService.IsWaitingForUsageReset(
+                new AhrefsLimitsSnapshot(data.Limits, data.LimitsCheckedAt));
         var isDueNow =
             _options.Enabled &&
             dueOccurrence.HasValue &&
             data.ActiveRun == null &&
-            !data.HasSuccessfulFullRunForSnapshotMonth;
+            !data.HasCompletedMonthlyRunForSnapshotMonth &&
+            !isWaitingForUsageReset;
+        var spendableUnits = Math.Max(0, data.EffectiveAvailableUnits - data.SafetyBufferUnits);
+        var affordableSitesCount = AhrefsSyncCostCalculator.GetAffordableSiteCount(
+            spendableUnits,
+            data.EligibleSitesCount,
+            data.BatchSize);
+        var plannedSitesCount = Math.Min(
+            data.EligibleSitesCount,
+            Math.Min(affordableSitesCount, data.MaxSitesPerRun));
+        var fullCatalogFitsBudget = affordableSitesCount >= data.EligibleSitesCount;
+        var configuredRunLimitedByBudget =
+            plannedSitesCount < Math.Min(data.EligibleSitesCount, data.MaxSitesPerRun);
+        var configuredRunLimitedByMaxSites =
+            plannedSitesCount < Math.Min(data.EligibleSitesCount, affordableSitesCount);
 
         return Ok(new AhrefsSyncStatusResponse(
             _options.Enabled,
             _options.Cron,
             schedule?.GetNextOccurrenceUtc(data.LimitsCheckedAt),
             isDueNow,
+            isWaitingForUsageReset,
             dueOccurrence,
             data.LimitsCheckedAt,
             data.Limits.UsageResetDate,
@@ -116,13 +139,26 @@ public sealed class AhrefsSyncController : ControllerBase
             data.AppBudgetRemainingUnits,
             data.EffectiveAvailableUnits,
             data.SafetyBufferUnits,
+            spendableUnits,
             data.EligibleSitesCount,
             data.FullEstimatedUnits,
+            affordableSitesCount,
+            plannedSitesCount,
+            AhrefsSyncCostCalculator.EstimateUnits(plannedSitesCount, data.BatchSize),
+            plannedSitesCount > 0 &&
+                data.ActiveRun == null &&
+                !isWaitingForUsageReset &&
+                !data.HasCompletedMonthlyRunForSnapshotMonth,
+            fullCatalogFitsBudget,
+            Math.Max(0, data.FullEstimatedUnits - spendableUnits),
+            configuredRunLimitedByBudget,
+            configuredRunLimitedByMaxSites,
             data.BatchSize,
             data.MaxSitesPerRun,
             data.TargetMode,
             data.Protocol,
             data.VolumeMode,
+            data.HasCompletedMonthlyRunForSnapshotMonth,
             data.ActiveRun));
     }
 

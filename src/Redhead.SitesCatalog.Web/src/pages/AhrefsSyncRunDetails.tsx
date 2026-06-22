@@ -2,7 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { Alert, Box, CircularProgress, Paper, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  CircularProgress,
+  LinearProgress,
+  Paper,
+  Tooltip,
+  Typography,
+} from '@mui/material';
 import {
   DataGrid,
   type GridColDef,
@@ -12,7 +20,8 @@ import { PageShell } from '../components/layout/PageShell';
 import { BrandButton } from '../components/common/BrandButton';
 import {
   ItemStatusChip,
-  RunStatusChip,
+  RunOutcomeChip,
+  RunScopeChip,
 } from '../components/ahrefs/AhrefsSyncDisplay';
 import { useUserRoles } from '../hooks/useUserRoles';
 import { ahrefsSyncService } from '../services/ahrefsSync.service';
@@ -24,7 +33,9 @@ import { dataGridLocaleText, formatInteger } from '../utils/numberFormat';
 import {
   formatDateTime,
   formatDecimal,
+  formatDuration,
   formatRunKind,
+  formatSnapshotMonth,
 } from '../utils/ahrefsSyncDisplay';
 
 export const AhrefsSyncRunDetails: React.FC = () => {
@@ -126,8 +137,8 @@ export const AhrefsSyncRunDetails: React.FC = () => {
       {
         field: 'snapshotSaved',
         headerName: 'Snapshot',
-        minWidth: 95,
-        valueFormatter: (value) => ((value as boolean) ? 'Saved' : 'No'),
+        minWidth: 110,
+        valueFormatter: (value) => ((value as boolean) ? 'Saved' : 'Not saved'),
       },
       {
         field: 'errorMessage',
@@ -135,7 +146,18 @@ export const AhrefsSyncRunDetails: React.FC = () => {
         minWidth: 240,
         flex: 1.2,
         sortable: false,
-        valueFormatter: (value) => (value as string | null) ?? '—',
+        renderCell: (params) => {
+          const message = params.row.errorMessage;
+          return message ? (
+            <Tooltip title={message} placement="top-start">
+              <Typography variant="body2" noWrap sx={{ maxWidth: '100%' }}>
+                {message}
+              </Typography>
+            </Tooltip>
+          ) : (
+            '—'
+          );
+        },
       },
     ],
     []
@@ -150,7 +172,14 @@ export const AhrefsSyncRunDetails: React.FC = () => {
       title="Ahrefs Sync Run"
       maxWidth="xl"
       actions={
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 1,
+            flexWrap: 'wrap',
+            width: { xs: '100%', sm: 'auto' },
+          }}
+        >
           <BrandButton
             startIcon={<ArrowBackIcon />}
             onClick={() => navigate('/admin/ahrefs-sync')}
@@ -194,25 +223,28 @@ export const AhrefsSyncRunDetails: React.FC = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Ahrefs results mapped to the request target index for this run.
             </Typography>
-            <DataGrid
-              autoHeight
-              rows={details.items}
-              columns={columns}
-              rowCount={details.totalCount}
-              paginationMode="server"
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              pageSizeOptions={[25, 50, 100, 250, 500]}
-              disableRowSelectionOnClick
-              loading={loading}
-              localeText={dataGridLocaleText}
-              sx={{
-                border: 0,
-                '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within': {
-                  outline: 'none',
-                },
-              }}
-            />
+            <Box sx={{ overflowX: 'auto' }}>
+              <DataGrid
+                autoHeight
+                rows={details.items}
+                columns={columns}
+                rowCount={details.totalCount}
+                paginationMode="server"
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
+                pageSizeOptions={[25, 50, 100, 250, 500]}
+                disableRowSelectionOnClick
+                loading={loading}
+                localeText={dataGridLocaleText}
+                sx={{
+                  border: 0,
+                  minWidth: 1220,
+                  '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within': {
+                    outline: 'none',
+                  },
+                }}
+              />
+            </Box>
           </Paper>
         </Box>
       ) : null}
@@ -222,26 +254,7 @@ export const AhrefsSyncRunDetails: React.FC = () => {
 
 function RunSummary({ details }: { details: RunDetails }) {
   const { run } = details;
-  const summary = [
-    ['Kind', formatRunKind(run.runKind)],
-    ['Started', formatDateTime(run.startedAt)],
-    ['Finished', formatDateTime(run.finishedAt)],
-    ['Snapshot month', run.snapshotMonth],
-    ['Eligible', formatInteger(run.eligibleSitesCount)],
-    ['Selected', formatInteger(run.selectedSitesCount)],
-    ['Processed', formatInteger(run.processedSitesCount)],
-    ['Updated', formatInteger(run.updatedSitesCount)],
-    ['Failed', formatInteger(run.failedSitesCount)],
-    ['Skipped', formatInteger(run.skippedSitesCount)],
-    ['Estimated units', formatInteger(run.selectedEstimatedUnits)],
-    ['Actual units', formatInteger(run.actualUnits)],
-    ['Available before', formatInteger(run.availableUnitsBefore)],
-    [
-      'Available after',
-      run.availableUnitsAfter === null ? '—' : formatInteger(run.availableUnitsAfter),
-    ],
-    ['Target', `${run.targetMode} / ${run.protocol} / ${run.volumeMode}`],
-  ];
+  const progress = getProgressPercent(run.processedSitesCount, run.selectedSitesCount);
 
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
@@ -258,8 +271,32 @@ function RunSummary({ details }: { details: RunDetails }) {
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
           Run summary
         </Typography>
-        <RunStatusChip status={run.status} />
+        <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+          <RunOutcomeChip run={run} />
+          <RunScopeChip run={run} />
+        </Box>
       </Box>
+      {run.status === 1 && (
+        <Box sx={{ mb: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 2,
+              mb: 0.75,
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              Processing sites
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {formatInteger(run.processedSitesCount)} /{' '}
+              {formatInteger(run.selectedSitesCount)}
+            </Typography>
+          </Box>
+          <LinearProgress variant="determinate" value={progress} />
+        </Box>
+      )}
       <Box
         sx={{
           display: 'grid',
@@ -268,20 +305,94 @@ function RunSummary({ details }: { details: RunDetails }) {
             sm: 'repeat(2, minmax(0, 1fr))',
             lg: 'repeat(4, minmax(0, 1fr))',
           },
-          gap: 2,
+          gap: 1.5,
         }}
       >
-        {summary.map(([label, value]) => (
+        <SummarySection
+          title="Outcome"
+          items={[
+            ['Kind', formatRunKind(run.runKind)],
+            ['Started', formatDateTime(run.startedAt)],
+            ['Finished', formatDateTime(run.finishedAt)],
+            ['Duration', formatDuration(run.startedAt, run.finishedAt)],
+          ]}
+        />
+        <SummarySection
+          title="Coverage"
+          items={[
+            ['Snapshot month', formatSnapshotMonth(run.snapshotMonth)],
+            ['Eligible', formatInteger(run.eligibleSitesCount)],
+            ['Selected / processed', `${formatInteger(run.selectedSitesCount)} / ${formatInteger(run.processedSitesCount)}`],
+            ['Updated / failed / skipped', `${formatInteger(run.updatedSitesCount)} / ${formatInteger(run.failedSitesCount)} / ${formatInteger(run.skippedSitesCount)}`],
+          ]}
+        />
+        <SummarySection
+          title="Cost"
+          items={[
+            ['Estimated / actual units', `${formatInteger(run.selectedEstimatedUnits)} / ${formatInteger(run.actualUnits)}`],
+            ['Available before', formatInteger(run.availableUnitsBefore)],
+            [
+              'Available after',
+              run.availableUnitsAfter === null
+                ? '—'
+                : formatInteger(run.availableUnitsAfter),
+            ],
+            ['Cost per site', `${formatInteger(run.costPerSite)} units`],
+          ]}
+        />
+        <SummarySection
+          title="Request"
+          items={[
+            ['Target mode', run.targetMode],
+            ['Protocol', run.protocol],
+            ['Volume mode', run.volumeMode],
+            ['Batch / max sites', `${formatInteger(run.batchSize)} / ${formatInteger(run.maxSitesPerRun)}`],
+          ]}
+        />
+      </Box>
+    </Paper>
+  );
+}
+
+function SummarySection({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<[string, string]>;
+}) {
+  return (
+    <Box
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 1,
+        p: 1.5,
+        minWidth: 0,
+      }}
+    >
+      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.25 }}>
+        {title}
+      </Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {items.map(([label, value]) => (
           <Box key={label}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="caption" color="text.secondary">
               {label}
             </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.25 }}>
+            <Typography
+              variant="body2"
+              sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}
+            >
               {value}
             </Typography>
           </Box>
         ))}
       </Box>
-    </Paper>
+    </Box>
   );
+}
+
+function getProgressPercent(processed: number, selected: number): number {
+  return selected <= 0 ? 0 : Math.min(100, (processed / selected) * 100);
 }

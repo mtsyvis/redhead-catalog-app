@@ -355,11 +355,29 @@ Once per UTC month, the backend updates `Traffic` and `DR` for non-quarantined s
 
 The sync is budget-aware, checks Ahrefs workspace/API-key usage before each real run, and may process only the affordable highest-traffic sites. Scheduled and manual full runs save monthly snapshots by default; limited manual runs do not unless requested. Existing site values are not backfilled into snapshot history.
 
+Before a scheduled monthly run starts, the limits response must confirm a new Ahrefs usage period
+by returning a future `usage_reset_date`. If Ahrefs still reports an expired reset date, the
+scheduler waits and checks again hourly without creating an audit run or calling Batch Analysis.
+An unavailable, invalid, or expired API key creates a failed audit run with the API error and does
+not call Batch Analysis. Repeated identical limits failures reuse the existing failed run instead
+of adding hourly duplicates.
+
+A successfully completed monthly full run is considered complete even when budget or the configured
+site cap allowed only partial catalog coverage. It is not automatically repeated during the same
+snapshot month, because another run would process the same priority-ordered sites again. The run
+audit and monitoring UI must clearly show selected versus eligible sites when coverage is partial.
+
 Ahrefs sync administration is SuperAdmin-only. Run details expose audit items through paginated backend responses so large catalog runs do not return every site item in one response.
 
 SuperAdmin has a read-only Ahrefs monitoring UI showing current API/workspace/app-budget
 availability, usage reset date, scheduler state, next scheduled run, recent sync runs, and
 paginated site-level run results. The UI does not start, force, or otherwise mutate Ahrefs runs.
+The monitoring status also shows spendable units after the safety buffer, the affordable and
+configured next-run capacity, the limiting budget or max-sites constraint, and any full-catalog
+budget shortfall. Schedule occurrences and snapshot months are displayed as human-readable UTC
+dates. Run outcome is presented separately from its scope so a successful limited run is not
+reported as an operational failure. Detailed budget and job configuration values are available in
+a collapsed technical-details section.
 
 ### LastPublishedDate
 

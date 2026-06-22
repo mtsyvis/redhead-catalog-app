@@ -149,6 +149,196 @@ public sealed class AhrefsSyncControllerTests
     }
 
     [Fact]
+    public async Task GetStatus_WhenSchedulerIsDisabled_ReturnsNextConfiguredOccurrence()
+    {
+        // Arrange
+        var checkedAt = new DateTime(2026, 6, 21, 0, 0, 0, DateTimeKind.Utc);
+        var service = new Mock<IAhrefsSyncService>();
+        service.Setup(candidate => candidate.GetMonitoringDataAsync(
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateMonitoringData(checkedAt));
+        var sut = CreateController(
+            service.Object,
+            new AhrefsSyncOptions
+            {
+                Enabled = false,
+                Cron = "0 1 14 * *"
+            });
+
+        // Act
+        var response = await sut.GetStatus(refresh: false);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<AhrefsSyncStatusResponse>(ok.Value);
+        Assert.False(payload.SchedulerEnabled);
+        Assert.False(payload.IsDueNow);
+        Assert.Equal(
+            new DateTime(2026, 7, 14, 1, 0, 0, DateTimeKind.Utc),
+            payload.NextScheduledRunUtc);
+    }
+
+    [Fact]
+    public async Task GetStatus_WhenUsageResetIsStale_ReturnsWaitingState()
+    {
+        // Arrange
+        var checkedAt = new DateTime(2026, 6, 21, 0, 0, 0, DateTimeKind.Utc);
+        var service = new Mock<IAhrefsSyncService>();
+        service.Setup(candidate => candidate.GetMonitoringDataAsync(
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateMonitoringData(
+                checkedAt,
+                usageResetDate: checkedAt.AddMinutes(-1)));
+        var sut = CreateController(
+            service.Object,
+            new AhrefsSyncOptions
+            {
+                Enabled = true,
+                Cron = "0 1 14 * *"
+            });
+
+        // Act
+        var response = await sut.GetStatus(refresh: false);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<AhrefsSyncStatusResponse>(ok.Value);
+        Assert.True(payload.IsWaitingForUsageReset);
+        Assert.False(payload.IsDueNow);
+        Assert.False(payload.CanStartRun);
+    }
+
+    [Fact]
+    public async Task GetStatus_CalculatesBudgetAndMaxSitesCapacity()
+    {
+        // Arrange
+        var checkedAt = new DateTime(2026, 6, 21, 0, 0, 0, DateTimeKind.Utc);
+        var service = new Mock<IAhrefsSyncService>();
+        service.Setup(candidate => candidate.GetMonitoringDataAsync(
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateMonitoringData(
+                checkedAt,
+                eligibleSitesCount: 100,
+                effectiveAvailableUnits: 145,
+                safetyBufferUnits: 25,
+                maxSitesPerRun: 5));
+        var sut = CreateController(service.Object);
+
+        // Act
+        var response = await sut.GetStatus(refresh: false);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<AhrefsSyncStatusResponse>(ok.Value);
+        Assert.Equal(120, payload.SpendableUnits);
+        Assert.Equal(10, payload.AffordableSitesCount);
+        Assert.Equal(5, payload.PlannedSitesCount);
+        Assert.Equal(60, payload.PlannedEstimatedUnits);
+        Assert.True(payload.CanStartRun);
+        Assert.False(payload.FullCatalogFitsBudget);
+        Assert.Equal(1_080, payload.FullCatalogShortfallUnits);
+        Assert.False(payload.ConfiguredRunLimitedByBudget);
+        Assert.True(payload.ConfiguredRunLimitedByMaxSites);
+    }
+
+    [Fact]
+    public async Task GetStatus_WhenNothingIsAffordable_ReturnsCannotStart()
+    {
+        // Arrange
+        var checkedAt = new DateTime(2026, 6, 21, 0, 0, 0, DateTimeKind.Utc);
+        var service = new Mock<IAhrefsSyncService>();
+        service.Setup(candidate => candidate.GetMonitoringDataAsync(
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateMonitoringData(
+                checkedAt,
+                eligibleSitesCount: 100,
+                effectiveAvailableUnits: 74,
+                safetyBufferUnits: 25));
+        var sut = CreateController(service.Object);
+
+        // Act
+        var response = await sut.GetStatus(refresh: false);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<AhrefsSyncStatusResponse>(ok.Value);
+        Assert.Equal(49, payload.SpendableUnits);
+        Assert.Equal(0, payload.AffordableSitesCount);
+        Assert.Equal(0, payload.PlannedSitesCount);
+        Assert.Equal(0, payload.PlannedEstimatedUnits);
+        Assert.False(payload.CanStartRun);
+        Assert.True(payload.ConfiguredRunLimitedByBudget);
+        Assert.False(payload.ConfiguredRunLimitedByMaxSites);
+    }
+
+    [Fact]
+    public async Task GetStatus_WhenBudgetAllowsOnlyPartOfConfiguredRun_ReturnsBudgetLimit()
+    {
+        // Arrange
+        var checkedAt = new DateTime(2026, 6, 21, 0, 0, 0, DateTimeKind.Utc);
+        var service = new Mock<IAhrefsSyncService>();
+        service.Setup(candidate => candidate.GetMonitoringDataAsync(
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateMonitoringData(
+                checkedAt,
+                eligibleSitesCount: 10,
+                effectiveAvailableUnits: 85,
+                safetyBufferUnits: 25));
+        var sut = CreateController(service.Object);
+
+        // Act
+        var response = await sut.GetStatus(refresh: false);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<AhrefsSyncStatusResponse>(ok.Value);
+        Assert.Equal(60, payload.SpendableUnits);
+        Assert.Equal(5, payload.AffordableSitesCount);
+        Assert.Equal(5, payload.PlannedSitesCount);
+        Assert.Equal(60, payload.PlannedEstimatedUnits);
+        Assert.True(payload.CanStartRun);
+        Assert.False(payload.FullCatalogFitsBudget);
+        Assert.Equal(60, payload.FullCatalogShortfallUnits);
+        Assert.True(payload.ConfiguredRunLimitedByBudget);
+        Assert.False(payload.ConfiguredRunLimitedByMaxSites);
+    }
+
+    [Fact]
+    public async Task GetStatus_WhenFullCatalogIsAffordable_ReturnsFullCapacity()
+    {
+        // Arrange
+        var checkedAt = new DateTime(2026, 6, 21, 0, 0, 0, DateTimeKind.Utc);
+        var service = new Mock<IAhrefsSyncService>();
+        service.Setup(candidate => candidate.GetMonitoringDataAsync(
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateMonitoringData(
+                checkedAt,
+                eligibleSitesCount: 10,
+                effectiveAvailableUnits: 145,
+                safetyBufferUnits: 25));
+        var sut = CreateController(service.Object);
+
+        // Act
+        var response = await sut.GetStatus(refresh: false);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<AhrefsSyncStatusResponse>(ok.Value);
+        Assert.Equal(10, payload.PlannedSitesCount);
+        Assert.Equal(120, payload.PlannedEstimatedUnits);
+        Assert.True(payload.FullCatalogFitsBudget);
+        Assert.Equal(0, payload.FullCatalogShortfallUnits);
+        Assert.False(payload.ConfiguredRunLimitedByBudget);
+        Assert.False(payload.ConfiguredRunLimitedByMaxSites);
+    }
+
+    [Fact]
     public async Task GetStatus_PassesRefreshToMonitoringService()
     {
         // Arrange
@@ -171,27 +361,35 @@ public sealed class AhrefsSyncControllerTests
         AhrefsSyncOptions? options = null)
         => new(service, Options.Create(options ?? new AhrefsSyncOptions()));
 
-    private static AhrefsSyncMonitoringData CreateMonitoringData(DateTime checkedAt)
+    private static AhrefsSyncMonitoringData CreateMonitoringData(
+        DateTime checkedAt,
+        int eligibleSitesCount = 10,
+        long effectiveAvailableUnits = 975,
+        int safetyBufferUnits = 25,
+        int maxSitesPerRun = 100_000,
+        DateTime? usageResetDate = null)
         => new(
             new Redhead.SitesCatalog.Infrastructure.Integrations.Ahrefs.AhrefsLimitsAndUsage(
                 1_000,
                 0,
                 975,
                 0,
-                checkedAt.AddDays(10)),
+                usageResetDate ?? checkedAt.AddDays(10)),
             checkedAt,
             ActiveRun: null,
-            HasSuccessfulFullRunForSnapshotMonth: false,
+            HasCompletedMonthlyRunForSnapshotMonth: false,
             new DateOnly(checkedAt.Year, checkedAt.Month, 1),
-            EligibleSitesCount: 10,
-            FullEstimatedUnits: 120,
+            EligibleSitesCount: eligibleSitesCount,
+            FullEstimatedUnits: AhrefsSyncCostCalculator.EstimateUnits(
+                eligibleSitesCount,
+                batchSize: 100),
             ApiKeyRemainingUnits: 975,
             WorkspaceRemainingUnits: 1_000,
             AppBudgetRemainingUnits: 975,
-            EffectiveAvailableUnits: 975,
-            SafetyBufferUnits: 25,
+            EffectiveAvailableUnits: effectiveAvailableUnits,
+            SafetyBufferUnits: safetyBufferUnits,
             BatchSize: 100,
-            MaxSitesPerRun: 100_000,
+            MaxSitesPerRun: maxSitesPerRun,
             TargetMode: "subdomains",
             Protocol: "both",
             VolumeMode: "monthly");

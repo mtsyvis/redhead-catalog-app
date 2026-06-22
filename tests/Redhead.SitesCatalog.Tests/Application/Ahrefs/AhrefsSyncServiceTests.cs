@@ -85,6 +85,30 @@ public sealed class AhrefsSyncServiceTests
     }
 
     [Fact]
+    public async Task DryRun_WhenMaxSitesIsTheOnlyLimit_DoesNotReportBudgetLimit()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        context.Sites.AddRange(
+            Enumerable.Range(1, 20)
+                .Select(index => CreateSite($"site-{index}.example")));
+        await context.SaveChangesAsync();
+        var api = CreateApiMock(availableUnits: 100_000);
+        var sut = CreateService(
+            context,
+            api.Object,
+            new AhrefsSyncOptions { MaxSitesPerRun = 10 });
+
+        // Act
+        var result = await sut.DryRunAsync(null, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.CanRun);
+        Assert.Equal(10, result.SelectedSitesCount);
+        Assert.False(result.WasLimitedByBudget);
+    }
+
+    [Fact]
     public async Task DryRun_WhenFullRunAlreadyCompleted_ReturnsCannotRun()
     {
         // Arrange
@@ -399,6 +423,130 @@ public sealed class AhrefsSyncServiceTests
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task ScheduledRun_WhenPartialMonthlyRunAlreadyCompleted_IsSkipped()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        context.Sites.Add(CreateSite("example.com"));
+        context.AhrefsSyncRuns.Add(new AhrefsSyncRun
+        {
+            Id = Guid.NewGuid(),
+            StartedAt = DateTime.UtcNow.AddDays(-1),
+            FinishedAt = DateTime.UtcNow.AddDays(-1),
+            Status = AhrefsSyncRunStatus.SucceededPartial,
+            RunKind = AhrefsSyncRunKind.Scheduled,
+            SnapshotMonth = CurrentSnapshotMonth(),
+            TargetMode = "subdomains",
+            Protocol = "both",
+            VolumeMode = "monthly"
+        });
+        await context.SaveChangesAsync();
+        var api = CreateApiMock(availableUnits: 100_000);
+        var sut = CreateService(context, api.Object);
+
+        // Act
+        var result = await sut.RunAsync(
+            new AhrefsSyncRequest(
+                AhrefsSyncRunKind.Scheduled,
+                null,
+                null,
+                SaveSnapshots: true,
+                Force: false),
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(AhrefsSyncRunStatus.SkippedAlreadyCompleted, result.Run!.Status);
+        api.Verify(
+            client => client.RunBatchAnalysisAsync(
+                It.IsAny<IReadOnlyList<AhrefsBatchTarget>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ScheduledRun_WhenUsagePeriodHasNotReset_WaitsWithoutCreatingRun()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        context.Sites.Add(CreateSite("example.com"));
+        await context.SaveChangesAsync();
+        var api = CreateApiMock(availableUnits: 100_000);
+        api.Setup(client => client.GetLimitsAndUsageAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AhrefsLimitsAndUsage(
+                100_000,
+                50_000,
+                100_000,
+                50_000,
+                DateTime.UtcNow.AddMinutes(-1)));
+        var sut = CreateService(context, api.Object);
+
+        // Act
+        var result = await sut.RunAsync(
+            new AhrefsSyncRequest(
+                AhrefsSyncRunKind.Scheduled,
+                null,
+                null,
+                SaveSnapshots: true,
+                Force: false),
+            CancellationToken.None);
+
+        // Assert
+        Assert.True(result.WaitingForUsageReset);
+        Assert.Null(result.Run);
+        Assert.Empty(context.AhrefsSyncRuns);
+        api.Verify(
+            client => client.RunBatchAnalysisAsync(
+                It.IsAny<IReadOnlyList<AhrefsBatchTarget>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ScheduledRun_WhenLimitsCheckFails_PersistsFailedRun()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        context.Sites.Add(CreateSite("example.com"));
+        await context.SaveChangesAsync();
+        var api = new Mock<IAhrefsApiClient>();
+        api.Setup(client => client.GetLimitsAndUsageAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new AhrefsApiException("Ahrefs API key is expired."));
+        var sut = CreateService(context, api.Object);
+
+        // Act
+        var result = await sut.RunAsync(
+            new AhrefsSyncRequest(
+                AhrefsSyncRunKind.Scheduled,
+                null,
+                null,
+                SaveSnapshots: true,
+                Force: false),
+            CancellationToken.None);
+        var repeatedResult = await sut.RunAsync(
+            new AhrefsSyncRequest(
+                AhrefsSyncRunKind.Scheduled,
+                null,
+                null,
+                SaveSnapshots: true,
+                Force: false),
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(AhrefsSyncRunStatus.Failed, result.Run!.Status);
+        Assert.Contains("expired", result.Run.ErrorMessage);
+        Assert.Equal(result.Run.Id, repeatedResult.Run!.Id);
+        Assert.Equal(result.Run.Id, (await context.AhrefsSyncRuns.SingleAsync()).Id);
+        api.Verify(
+            client => client.RunBatchAnalysisAsync(
+                It.IsAny<IReadOnlyList<AhrefsBatchTarget>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

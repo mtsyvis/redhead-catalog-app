@@ -73,8 +73,9 @@ public sealed class AhrefsSyncHostedService : BackgroundService
                     Force: false),
                 cancellationToken);
             _logger.LogInformation(
-                "Ahrefs scheduled sync finished. Conflict={Conflict}; RunId={RunId}; Status={Status}",
+                "Ahrefs scheduled sync finished. Conflict={Conflict}; WaitingForUsageReset={WaitingForUsageReset}; RunId={RunId}; Status={Status}",
                 result.Conflict,
+                result.WaitingForUsageReset,
                 result.Run?.Id,
                 result.Run?.Status);
             return ShouldRetry(result);
@@ -91,5 +92,7 @@ public sealed class AhrefsSyncHostedService : BackgroundService
     }
 
     public static bool ShouldRetry(AhrefsSyncRunResult result)
-        => result.Conflict || result.Run?.Status == AhrefsSyncRunStatus.Failed;
+        => result.Conflict ||
+            result.WaitingForUsageReset ||
+            result.Run?.Status == AhrefsSyncRunStatus.Failed;
 }
