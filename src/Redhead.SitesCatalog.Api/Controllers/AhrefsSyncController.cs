@@ -2,9 +2,12 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Models;
+using Redhead.SitesCatalog.Api.BackgroundJobs.AhrefsSync;
 using Redhead.SitesCatalog.Application.Ahrefs;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Infrastructure.Options;
+using Microsoft.Extensions.Options;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -14,10 +17,14 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 public sealed class AhrefsSyncController : ControllerBase
 {
     private readonly IAhrefsSyncService _syncService;
+    private readonly AhrefsSyncOptions _options;
 
-    public AhrefsSyncController(IAhrefsSyncService syncService)
+    public AhrefsSyncController(
+        IAhrefsSyncService syncService,
+        IOptions<AhrefsSyncOptions> options)
     {
         _syncService = syncService;
+        _options = options.Value;
     }
 
     [HttpPost("dry-run")]
@@ -65,9 +72,59 @@ public sealed class AhrefsSyncController : ControllerBase
 
     [HttpGet("runs")]
     public async Task<ActionResult> ListRuns(
-        [FromQuery] int take = 50,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
         CancellationToken cancellationToken = default)
-        => Ok(await _syncService.ListRunsAsync(take, cancellationToken));
+    {
+        if (page <= 0)
+        {
+            return BadRequest(new MessageResponse("Page must be greater than zero."));
+        }
+
+        if (pageSize is <= 0 or > 100)
+        {
+            return BadRequest(new MessageResponse("PageSize must be between 1 and 100."));
+        }
+
+        return Ok(await _syncService.ListRunsAsync(page, pageSize, cancellationToken));
+    }
+
+    [HttpGet("status")]
+    public async Task<ActionResult> GetStatus(
+        [FromQuery] bool refresh = false,
+        CancellationToken cancellationToken = default)
+    {
+        var data = await _syncService.GetMonitoringDataAsync(refresh, cancellationToken);
+        AhrefsSyncCronSchedule.TryParse(_options.Cron, out var schedule);
+        var dueOccurrence = schedule?.GetDueOccurrenceUtc(data.LimitsCheckedAt);
+        var isDueNow =
+            _options.Enabled &&
+            dueOccurrence.HasValue &&
+            data.ActiveRun == null &&
+            !data.HasSuccessfulFullRunForSnapshotMonth;
+
+        return Ok(new AhrefsSyncStatusResponse(
+            _options.Enabled,
+            _options.Cron,
+            schedule?.GetNextOccurrenceUtc(data.LimitsCheckedAt),
+            isDueNow,
+            dueOccurrence,
+            data.LimitsCheckedAt,
+            data.Limits.UsageResetDate,
+            data.ApiKeyRemainingUnits,
+            data.WorkspaceRemainingUnits,
+            data.AppBudgetRemainingUnits,
+            data.EffectiveAvailableUnits,
+            data.SafetyBufferUnits,
+            data.EligibleSitesCount,
+            data.FullEstimatedUnits,
+            data.BatchSize,
+            data.MaxSitesPerRun,
+            data.TargetMode,
+            data.Protocol,
+            data.VolumeMode,
+            data.ActiveRun));
+    }
 
     [HttpGet("runs/{id:guid}")]
     public async Task<ActionResult> GetRun(

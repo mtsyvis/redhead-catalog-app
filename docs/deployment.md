@@ -150,6 +150,15 @@ FRONTEND_BASE_URL=https://catalog.rhda.us
 `EmergencySitesExport__ScheduleCron` uses standard five-field cron in UTC: `minute hour day-of-month month day-of-week`.
 `ExportedDomainAccessCleanup__RetentionDays` must be at least `7` because client weekly unique-domain limits use a rolling 7-day window.
 
+The SuperAdmin Ahrefs monitoring page is available at:
+
+```txt
+https://catalog.rhda.us/admin/ahrefs-sync
+```
+
+It is read-only. Ahrefs limits shown on the page are cached for up to 60 seconds; the page's
+Refresh action requests fresh limits. Run history and run items use server-side pagination.
+
 The app receives these values through Docker Compose:
 
 ```txt

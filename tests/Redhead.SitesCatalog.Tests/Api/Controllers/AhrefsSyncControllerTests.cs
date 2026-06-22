@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 using Moq;
 using Redhead.SitesCatalog.Api.Controllers;
@@ -9,6 +10,7 @@ using Redhead.SitesCatalog.Application.Ahrefs;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Infrastructure.Options;
 
 namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 
@@ -45,14 +47,12 @@ public sealed class AhrefsSyncControllerTests
                 It.IsAny<CancellationToken>()))
             .Callback<AhrefsSyncRequest, CancellationToken>((request, _) => captured = request)
             .ReturnsAsync(AhrefsSyncRunResult.Completed(new AhrefsSyncRun()));
-        var sut = new AhrefsSyncController(service.Object)
+        var sut = CreateController(service.Object);
+        sut.ControllerContext = new ControllerContext
         {
-            ControllerContext = new ControllerContext
+            HttpContext = new DefaultHttpContext
             {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = new ClaimsPrincipal(new ClaimsIdentity())
-                }
+                User = new ClaimsPrincipal(new ClaimsIdentity())
             }
         };
 
@@ -86,7 +86,7 @@ public sealed class AhrefsSyncControllerTests
                 25,
                 0,
                 0));
-        var sut = new AhrefsSyncController(service.Object);
+        var sut = CreateController(service.Object);
 
         // Act
         var response = await sut.GetRun(runId, page: 3, pageSize: 25);
@@ -106,7 +106,7 @@ public sealed class AhrefsSyncControllerTests
     {
         // Arrange
         var service = new Mock<IAhrefsSyncService>(MockBehavior.Strict);
-        var sut = new AhrefsSyncController(service.Object);
+        var sut = CreateController(service.Object);
 
         // Act
         var response = await sut.GetRun(Guid.NewGuid(), page, pageSize);
@@ -114,4 +114,85 @@ public sealed class AhrefsSyncControllerTests
         // Assert
         Assert.IsType<BadRequestObjectResult>(response);
     }
+
+    [Fact]
+    public async Task GetStatus_WhenCurrentMonthIsDue_ReturnsDueNow()
+    {
+        // Arrange
+        var checkedAt = new DateTime(2026, 6, 21, 0, 0, 0, DateTimeKind.Utc);
+        var service = new Mock<IAhrefsSyncService>();
+        service.Setup(candidate => candidate.GetMonitoringDataAsync(
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateMonitoringData(checkedAt));
+        var sut = CreateController(
+            service.Object,
+            new AhrefsSyncOptions
+            {
+                Enabled = true,
+                Cron = "0 1 14 * *"
+            });
+
+        // Act
+        var response = await sut.GetStatus(refresh: false);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<AhrefsSyncStatusResponse>(ok.Value);
+        Assert.True(payload.IsDueNow);
+        Assert.Equal(
+            new DateTime(2026, 6, 14, 1, 0, 0, DateTimeKind.Utc),
+            payload.DueOccurrenceUtc);
+        Assert.Equal(
+            new DateTime(2026, 7, 14, 1, 0, 0, DateTimeKind.Utc),
+            payload.NextScheduledRunUtc);
+    }
+
+    [Fact]
+    public async Task GetStatus_PassesRefreshToMonitoringService()
+    {
+        // Arrange
+        var service = new Mock<IAhrefsSyncService>();
+        service.Setup(candidate => candidate.GetMonitoringDataAsync(
+                true,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateMonitoringData(DateTime.UtcNow));
+        var sut = CreateController(service.Object);
+
+        // Act
+        await sut.GetStatus(refresh: true);
+
+        // Assert
+        service.VerifyAll();
+    }
+
+    private static AhrefsSyncController CreateController(
+        IAhrefsSyncService service,
+        AhrefsSyncOptions? options = null)
+        => new(service, Options.Create(options ?? new AhrefsSyncOptions()));
+
+    private static AhrefsSyncMonitoringData CreateMonitoringData(DateTime checkedAt)
+        => new(
+            new Redhead.SitesCatalog.Infrastructure.Integrations.Ahrefs.AhrefsLimitsAndUsage(
+                1_000,
+                0,
+                975,
+                0,
+                checkedAt.AddDays(10)),
+            checkedAt,
+            ActiveRun: null,
+            HasSuccessfulFullRunForSnapshotMonth: false,
+            new DateOnly(checkedAt.Year, checkedAt.Month, 1),
+            EligibleSitesCount: 10,
+            FullEstimatedUnits: 120,
+            ApiKeyRemainingUnits: 975,
+            WorkspaceRemainingUnits: 1_000,
+            AppBudgetRemainingUnits: 975,
+            EffectiveAvailableUnits: 975,
+            SafetyBufferUnits: 25,
+            BatchSize: 100,
+            MaxSitesPerRun: 100_000,
+            TargetMode: "subdomains",
+            Protocol: "both",
+            VolumeMode: "monthly");
 }

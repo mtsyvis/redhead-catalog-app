@@ -65,6 +65,7 @@ builder.Services.AddScoped<ISystemJobRunRepository, SystemJobRunRepository>();
 builder.Services.AddScoped<ISystemJobRunService, SystemJobRunService>();
 builder.Services.AddScoped<IAhrefsSyncService, AhrefsSyncService>();
 builder.Services.AddScoped<IAhrefsApiClient, AhrefsApiClient>();
+builder.Services.AddScoped<IAhrefsLimitsProvider, AhrefsLimitsProvider>();
 builder.Services.AddScoped<IAhrefsSyncLock, PostgresAhrefsSyncLock>();
 builder.Services.AddScoped<ISitesImportService, SitesImportService>();
 builder.Services.AddScoped<IQuarantineImportService, QuarantineImportService>();

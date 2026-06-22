@@ -10,13 +10,18 @@ public interface IAhrefsSyncService
         AhrefsSyncRequest request,
         CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<Domain.Entities.AhrefsSyncRun>> ListRunsAsync(
-        int take,
+    Task<AhrefsSyncRunsPage> ListRunsAsync(
+        int page,
+        int pageSize,
         CancellationToken cancellationToken);
 
     Task<AhrefsSyncRunDetails?> GetRunAsync(
         Guid id,
         int page,
         int pageSize,
+        CancellationToken cancellationToken);
+
+    Task<AhrefsSyncMonitoringData> GetMonitoringDataAsync(
+        bool refreshLimits,
         CancellationToken cancellationToken);
 }

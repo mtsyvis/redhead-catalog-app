@@ -1,5 +1,6 @@
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Infrastructure.Integrations.Ahrefs;
 
 namespace Redhead.SitesCatalog.Application.Ahrefs;
 
@@ -46,3 +47,29 @@ public sealed record AhrefsSyncRunDetails(
     int PageSize,
     int TotalCount,
     int TotalPages);
+
+public sealed record AhrefsSyncRunsPage(
+    IReadOnlyList<AhrefsSyncRun> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    int TotalPages);
+
+public sealed record AhrefsSyncMonitoringData(
+    AhrefsLimitsAndUsage Limits,
+    DateTime LimitsCheckedAt,
+    AhrefsSyncRun? ActiveRun,
+    bool HasSuccessfulFullRunForSnapshotMonth,
+    DateOnly SnapshotMonth,
+    int EligibleSitesCount,
+    long FullEstimatedUnits,
+    long ApiKeyRemainingUnits,
+    long WorkspaceRemainingUnits,
+    long AppBudgetRemainingUnits,
+    long EffectiveAvailableUnits,
+    int SafetyBufferUnits,
+    int BatchSize,
+    int MaxSitesPerRun,
+    string TargetMode,
+    string Protocol,
+    string VolumeMode);

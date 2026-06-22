@@ -580,6 +580,73 @@ public sealed class AhrefsSyncServiceTests
         Assert.Equal("c.example", Assert.Single(result.Items).Domain);
     }
 
+    [Fact]
+    public async Task ListRuns_ReturnsRequestedPage()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        var now = DateTime.UtcNow;
+        context.AhrefsSyncRuns.AddRange(
+            CreateRun(now.AddMinutes(-1)),
+            CreateRun(now.AddMinutes(-2)),
+            CreateRun(now.AddMinutes(-3)));
+        await context.SaveChangesAsync();
+        var sut = CreateService(context, CreateApiMock(100_000).Object);
+
+        // Act
+        var result = await sut.ListRunsAsync(page: 2, pageSize: 2, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(2, result.Page);
+        Assert.Equal(2, result.PageSize);
+        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(2, result.TotalPages);
+        Assert.Single(result.Items);
+    }
+
+    [Fact]
+    public async Task GetMonitoringData_ReturnsBudgetBreakdownAndActiveRun()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        context.Sites.AddRange(
+            CreateSite("available.example"),
+            CreateSite("quarantined.example", quarantined: true));
+        var activeRun = CreateRun(DateTime.UtcNow);
+        activeRun.Status = AhrefsSyncRunStatus.Running;
+        context.AhrefsSyncRuns.Add(activeRun);
+        await context.SaveChangesAsync();
+        var api = new Mock<IAhrefsApiClient>();
+        api.Setup(client => client.GetLimitsAndUsageAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AhrefsLimitsAndUsage(
+                UnitsLimitWorkspace: 1_000,
+                UnitsUsageWorkspace: 100,
+                UnitsLimitApiKey: 975,
+                UnitsUsageApiKey: 75,
+                UsageResetDate: DateTime.UtcNow.AddDays(10)));
+        var options = new AhrefsSyncOptions
+        {
+            MonthlyAppBudgetUnits = 800,
+            SafetyBufferUnits = 25
+        };
+        var sut = CreateService(context, api.Object, options);
+
+        // Act
+        var result = await sut.GetMonitoringDataAsync(
+            refreshLimits: true,
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(1, result.EligibleSitesCount);
+        Assert.Equal(50, result.FullEstimatedUnits);
+        Assert.Equal(900, result.ApiKeyRemainingUnits);
+        Assert.Equal(900, result.WorkspaceRemainingUnits);
+        Assert.Equal(725, result.AppBudgetRemainingUnits);
+        Assert.Equal(725, result.EffectiveAvailableUnits);
+        Assert.Equal(25, result.SafetyBufferUnits);
+        Assert.Equal(activeRun.Id, result.ActiveRun!.Id);
+    }
+
     private static AhrefsSyncService CreateService(
         ApplicationDbContext context,
         IAhrefsApiClient apiClient,
@@ -588,6 +655,7 @@ public sealed class AhrefsSyncServiceTests
         => new(
             context,
             apiClient,
+            new PassThroughLimitsProvider(apiClient),
             syncLock ?? new AlwaysAvailableLock(),
             Options.Create(options ?? new AhrefsSyncOptions()),
             NullLogger<AhrefsSyncService>.Instance);
@@ -636,6 +704,19 @@ public sealed class AhrefsSyncServiceTests
             SnapshotMonth = CurrentSnapshotMonth()
         };
 
+    private static AhrefsSyncRun CreateRun(DateTime startedAt)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            StartedAt = startedAt,
+            Status = AhrefsSyncRunStatus.SucceededPartial,
+            RunKind = AhrefsSyncRunKind.ManualLimited,
+            SnapshotMonth = CurrentSnapshotMonth(),
+            TargetMode = "subdomains",
+            Protocol = "both",
+            VolumeMode = "monthly"
+        };
+
     private static DateOnly CurrentSnapshotMonth()
         => new(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
 
@@ -662,5 +743,22 @@ public sealed class AhrefsSyncServiceTests
     {
         public Task<IAsyncDisposable?> TryAcquireAsync(CancellationToken cancellationToken)
             => Task.FromResult<IAsyncDisposable?>(null);
+    }
+
+    private sealed class PassThroughLimitsProvider : IAhrefsLimitsProvider
+    {
+        private readonly IAhrefsApiClient _apiClient;
+
+        public PassThroughLimitsProvider(IAhrefsApiClient apiClient)
+        {
+            _apiClient = apiClient;
+        }
+
+        public async Task<AhrefsLimitsSnapshot> GetAsync(
+            bool forceRefresh,
+            CancellationToken cancellationToken)
+            => new(
+                await _apiClient.GetLimitsAndUsageAsync(cancellationToken),
+                DateTime.UtcNow);
     }
 }

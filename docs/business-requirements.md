@@ -357,6 +357,10 @@ The sync is budget-aware, checks Ahrefs workspace/API-key usage before each real
 
 Ahrefs sync administration is SuperAdmin-only. Run details expose audit items through paginated backend responses so large catalog runs do not return every site item in one response.
 
+SuperAdmin has a read-only Ahrefs monitoring UI showing current API/workspace/app-budget
+availability, usage reset date, scheduler state, next scheduled run, recent sync runs, and
+paginated site-level run results. The UI does not start, force, or otherwise mutate Ahrefs runs.
+
 ### LastPublishedDate
 
 `LastPublishedDate` stores the last known Redhead publication date for a site.

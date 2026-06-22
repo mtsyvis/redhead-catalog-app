@@ -9,3 +9,10 @@ public interface IAhrefsApiClient
         string volumeMode,
         CancellationToken cancellationToken);
 }
+
+public interface IAhrefsLimitsProvider
+{
+    Task<AhrefsLimitsSnapshot> GetAsync(
+        bool forceRefresh,
+        CancellationToken cancellationToken);
+}

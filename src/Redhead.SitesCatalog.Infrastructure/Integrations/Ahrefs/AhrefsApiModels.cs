@@ -7,6 +7,10 @@ public sealed record AhrefsLimitsAndUsage(
     long UnitsUsageApiKey,
     DateTime? UsageResetDate);
 
+public sealed record AhrefsLimitsSnapshot(
+    AhrefsLimitsAndUsage Limits,
+    DateTime CheckedAt);
+
 public sealed record AhrefsBatchTarget(string Url, string Mode, string Protocol);
 
 public sealed record AhrefsBatchRow(

@@ -17,6 +17,7 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
 
     private readonly ApplicationDbContext _context;
     private readonly IAhrefsApiClient _apiClient;
+    private readonly IAhrefsLimitsProvider _limitsProvider;
     private readonly IAhrefsSyncLock _syncLock;
     private readonly AhrefsSyncOptions _options;
     private readonly ILogger<AhrefsSyncService> _logger;
@@ -24,12 +25,14 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
     public AhrefsSyncService(
         ApplicationDbContext context,
         IAhrefsApiClient apiClient,
+        IAhrefsLimitsProvider limitsProvider,
         IAhrefsSyncLock syncLock,
         IOptions<AhrefsSyncOptions> options,
         ILogger<AhrefsSyncService> logger)
     {
         _context = context;
         _apiClient = apiClient;
+        _limitsProvider = limitsProvider;
         _syncLock = syncLock;
         _options = options.Value;
         _logger = logger;
@@ -41,7 +44,10 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
     {
         await using var lockHandle = await _syncLock.TryAcquireAsync(cancellationToken);
         var eligibleCount = await EligibleSitesQuery().CountAsync(cancellationToken);
-        var limits = await _apiClient.GetLimitsAndUsageAsync(cancellationToken);
+        var limitsSnapshot = await _limitsProvider.GetAsync(
+            forceRefresh: false,
+            cancellationToken);
+        var limits = limitsSnapshot.Limits;
         var availableUnits = GetEffectiveAvailableUnits(limits);
         var selection = CalculateSelection(
             eligibleCount,
@@ -107,7 +113,10 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
 
         try
         {
-            var limits = await _apiClient.GetLimitsAndUsageAsync(cancellationToken);
+            var limitsSnapshot = await _limitsProvider.GetAsync(
+                forceRefresh: true,
+                cancellationToken);
+            var limits = limitsSnapshot.Limits;
             run.UsageResetDate = limits.UsageResetDate;
             run.AvailableUnitsBefore = GetEffectiveAvailableUnits(limits);
 
@@ -185,14 +194,29 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
         }
     }
 
-    public async Task<IReadOnlyList<AhrefsSyncRun>> ListRunsAsync(
-        int take,
+    public async Task<AhrefsSyncRunsPage> ListRunsAsync(
+        int page,
+        int pageSize,
         CancellationToken cancellationToken)
-        => await _context.AhrefsSyncRuns
-            .AsNoTracking()
-            .OrderByDescending(run => run.StartedAt)
-            .Take(Math.Clamp(take, 1, 100))
-            .ToListAsync(cancellationToken);
+    {
+        var query = _context.AhrefsSyncRuns.AsNoTracking();
+        var totalCount = await query.CountAsync(cancellationToken);
+        var skip = (long)(page - 1) * pageSize;
+        var items = skip >= totalCount
+            ? []
+            : await query
+                .OrderByDescending(run => run.StartedAt)
+                .ThenByDescending(run => run.Id)
+                .Skip((int)skip)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+        return new AhrefsSyncRunsPage(
+            items,
+            page,
+            pageSize,
+            totalCount,
+            CalculateTotalPages(totalCount, pageSize));
+    }
 
     public async Task<AhrefsSyncRunDetails?> GetRunAsync(
         Guid id,
@@ -231,6 +255,53 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
             pageSize,
             totalCount,
             totalPages);
+    }
+
+    public async Task<AhrefsSyncMonitoringData> GetMonitoringDataAsync(
+        bool refreshLimits,
+        CancellationToken cancellationToken)
+    {
+        var limitsSnapshot = await _limitsProvider.GetAsync(refreshLimits, cancellationToken);
+        var limits = limitsSnapshot.Limits;
+        var checkedAt = limitsSnapshot.CheckedAt;
+        var snapshotMonth = GetSnapshotMonth(checkedAt);
+        var eligibleCount = await EligibleSitesQuery().CountAsync(cancellationToken);
+        var activeRun = await _context.AhrefsSyncRuns
+            .AsNoTracking()
+            .Where(run => run.Status == AhrefsSyncRunStatus.Running)
+            .OrderByDescending(run => run.StartedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        var hasSuccessfulFullRun = await HasSuccessfulFullRunAsync(
+            snapshotMonth,
+            cancellationToken);
+        var apiKeyRemaining = Math.Max(
+            0,
+            limits.UnitsLimitApiKey - limits.UnitsUsageApiKey);
+        var workspaceRemaining = Math.Max(
+            0,
+            limits.UnitsLimitWorkspace - limits.UnitsUsageWorkspace);
+        var appBudgetRemaining = Math.Max(
+            0,
+            _options.MonthlyAppBudgetUnits - limits.UnitsUsageApiKey);
+
+        return new AhrefsSyncMonitoringData(
+            limits,
+            checkedAt,
+            activeRun,
+            hasSuccessfulFullRun,
+            snapshotMonth,
+            eligibleCount,
+            AhrefsSyncCostCalculator.EstimateUnits(eligibleCount, _options.BatchSize),
+            apiKeyRemaining,
+            workspaceRemaining,
+            appBudgetRemaining,
+            Math.Min(Math.Min(apiKeyRemaining, workspaceRemaining), appBudgetRemaining),
+            _options.SafetyBufferUnits,
+            _options.BatchSize,
+            _options.MaxSitesPerRun,
+            _options.TargetMode,
+            _options.Protocol,
+            _options.VolumeMode);
     }
 
     internal IQueryable<Site> EligibleSitesQuery()
@@ -651,6 +722,11 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
 
     internal static DateOnly GetSnapshotMonth(DateTime utcNow)
         => new(utcNow.Year, utcNow.Month, 1);
+
+    private static int CalculateTotalPages(int totalCount, int pageSize)
+        => totalCount == 0
+            ? 0
+            : (int)Math.Ceiling(totalCount / (double)pageSize);
 
     private sealed record Selection(
         int SelectedSitesCount,
