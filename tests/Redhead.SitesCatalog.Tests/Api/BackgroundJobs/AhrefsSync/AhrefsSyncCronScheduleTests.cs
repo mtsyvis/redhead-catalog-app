@@ -2,6 +2,11 @@ using Redhead.SitesCatalog.Api.BackgroundJobs.AhrefsSync;
 using Redhead.SitesCatalog.Application.Ahrefs;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Infrastructure.Options;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Moq;
 
 namespace Redhead.SitesCatalog.Tests.Api.BackgroundJobs.AhrefsSync;
 
@@ -67,5 +72,75 @@ public sealed class AhrefsSyncCronScheduleTests
 
         // Assert
         Assert.True(shouldRetry);
+    }
+
+    [Fact]
+    public async Task RunLoop_WhenUsageHasNotReset_RetriesAfterHourThenCompletesRun()
+    {
+        // Arrange
+        var currentUtc = new DateTime(2026, 7, 14, 2, 0, 0, DateTimeKind.Utc);
+        var delays = new List<TimeSpan>();
+        using var cancellation = new CancellationTokenSource();
+        var syncService = new Mock<IAhrefsSyncService>();
+
+        // The first scheduled attempt sees the previous Ahrefs usage period and must wait.
+        // The second attempt simulates Ahrefs confirming the reset and completing the sync.
+        syncService.SetupSequence(service => service.RunAsync(
+                It.IsAny<AhrefsSyncRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AhrefsSyncRunResult.WaitForUsageReset(
+                new DateTime(2026, 7, 14, 0, 0, 0, DateTimeKind.Utc)))
+            .ReturnsAsync(AhrefsSyncRunResult.Completed(new AhrefsSyncRun
+            {
+                Id = Guid.NewGuid(),
+                Status = AhrefsSyncRunStatus.Succeeded,
+                RunKind = AhrefsSyncRunKind.Scheduled
+            }));
+        var services = new ServiceCollection();
+        services.AddScoped(_ => syncService.Object);
+        await using var provider = services.BuildServiceProvider();
+        var delayCalls = 0;
+        Task Delay(TimeSpan delay, CancellationToken cancellationToken)
+        {
+            delays.Add(delay);
+            delayCalls++;
+            if (delayCalls == 1)
+            {
+                // Advance the fake clock instead of making the unit test wait for a real hour.
+                currentUtc = currentUtc.Add(delay);
+                return Task.CompletedTask;
+            }
+
+            // After the successful retry, stop the otherwise infinite background-service loop.
+            cancellation.Cancel();
+            return Task.FromCanceled(cancellationToken);
+        }
+
+        var sut = new AhrefsSyncHostedService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new AhrefsSyncOptions
+            {
+                Enabled = true,
+                Cron = "0 1 14 * *"
+            }),
+            NullLogger<AhrefsSyncHostedService>.Instance,
+            () => currentUtc,
+            Delay);
+
+        // Act
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.RunLoopAsync(cancellation.Token));
+
+        // Assert
+        // Waiting for the reset uses the configured hourly retry interval.
+        Assert.Equal(TimeSpan.FromHours(1), delays[0]);
+
+        // One call observes the stale period; the next call performs the scheduled sync.
+        syncService.Verify(service => service.RunAsync(
+                It.Is<AhrefsSyncRequest>(request =>
+                    request.RunKind == AhrefsSyncRunKind.Scheduled &&
+                    request.SaveSnapshots),
+                It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
     }
 }

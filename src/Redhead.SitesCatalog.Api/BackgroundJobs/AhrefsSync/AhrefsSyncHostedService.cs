@@ -11,18 +11,40 @@ public sealed class AhrefsSyncHostedService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly AhrefsSyncOptions _options;
     private readonly ILogger<AhrefsSyncHostedService> _logger;
+    private readonly Func<DateTime> _utcNow;
+    private readonly Func<TimeSpan, CancellationToken, Task> _delay;
 
     public AhrefsSyncHostedService(
         IServiceScopeFactory scopeFactory,
         IOptions<AhrefsSyncOptions> options,
         ILogger<AhrefsSyncHostedService> logger)
+        : this(
+            scopeFactory,
+            options,
+            logger,
+            () => DateTime.UtcNow,
+            static (delay, cancellationToken) => Task.Delay(delay, cancellationToken))
+    {
+    }
+
+    internal AhrefsSyncHostedService(
+        IServiceScopeFactory scopeFactory,
+        IOptions<AhrefsSyncOptions> options,
+        ILogger<AhrefsSyncHostedService> logger,
+        Func<DateTime> utcNow,
+        Func<TimeSpan, CancellationToken, Task> delay)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
         _logger = logger;
+        _utcNow = utcNow;
+        _delay = delay;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        => await RunLoopAsync(stoppingToken);
+
+    internal async Task RunLoopAsync(CancellationToken stoppingToken)
     {
         if (!_options.Enabled)
         {
@@ -38,23 +60,26 @@ public sealed class AhrefsSyncHostedService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var now = DateTime.UtcNow;
+            var now = _utcNow();
             var due = schedule.GetDueOccurrenceUtc(now);
             if (due.HasValue)
             {
                 var shouldRetry = await RunScheduledAsync(stoppingToken);
                 if (shouldRetry)
                 {
-                    await Task.Delay(FailureDelay, stoppingToken);
+                    await _delay(FailureDelay, stoppingToken);
                     continue;
                 }
             }
 
-            var next = schedule.GetNextOccurrenceUtc(DateTime.UtcNow);
+            var currentUtc = _utcNow();
+            var next = schedule.GetNextOccurrenceUtc(currentUtc);
             var delay = next.HasValue
-                ? next.Value - DateTime.UtcNow
+                ? next.Value - currentUtc
                 : FailureDelay;
-            await Task.Delay(delay > TimeSpan.Zero ? delay : TimeSpan.FromSeconds(1), stoppingToken);
+            await _delay(
+                delay > TimeSpan.Zero ? delay : TimeSpan.FromSeconds(1),
+                stoppingToken);
         }
     }
 
