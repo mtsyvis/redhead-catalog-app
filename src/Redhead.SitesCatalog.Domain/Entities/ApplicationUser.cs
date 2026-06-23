@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Identity;
 using Redhead.SitesCatalog.Domain.Enums;
-using Redhead.SitesCatalog.Domain.Services;
 
 namespace Redhead.SitesCatalog.Domain.Entities;
 
@@ -8,15 +7,16 @@ public class ApplicationUser : IdentityUser
 {
     public bool IsActive { get; set; } = true;
     public bool MustChangePassword { get; set; } = true;
-    public string? FirstName { get; set; }
-    public string? LastName { get; set; }
+    public string? DisplayName { get; set; }
+    public DateTime? ActivatedAtUtc { get; set; }
+    public string? InvitationTokenHash { get; set; }
+    public DateTime? InvitationExpiresAtUtc { get; set; }
     public string? SuperAdminNote { get; set; }
 
-    public bool HasCompleteProfile =>
-        UserProfileNames.IsComplete(FirstName, LastName);
+    public bool HasCompleteProfile => !string.IsNullOrWhiteSpace(DisplayName);
 
-    public string DisplayName =>
-        UserProfileNames.GetDisplayName(FirstName, LastName, Email ?? UserName);
+    public string EffectiveDisplayName =>
+        HasCompleteProfile ? DisplayName!.Trim() : Email ?? UserName ?? string.Empty;
 
     /// <summary>
     /// Per-user export mode override. Null means inherit from role policy.

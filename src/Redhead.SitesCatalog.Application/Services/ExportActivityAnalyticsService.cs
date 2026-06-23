@@ -2,7 +2,6 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models.Analytics;
 using Redhead.SitesCatalog.Application.Services.Analytics;
-using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
@@ -73,13 +72,12 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
             .Select(candidate => new
             {
                 candidate.Email,
-                candidate.FirstName,
-                candidate.LastName
+                candidate.DisplayName
             })
             .SingleOrDefaultAsync(cancellationToken);
         var displayName = user == null
             ? null
-            : UserProfileNameValidator.GetDisplayName(user.FirstName, user.LastName, user.Email);
+            : string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName.Trim();
 
         return ExportLogDetailsMapper.Map(
             row,
@@ -192,7 +190,7 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
             rows.Add(new ExportActivityClientSummaryDto(
                 UserId: user.Id,
                 Email: user.Email ?? string.Empty,
-                DisplayName: UserProfileNameValidator.GetDisplayName(user.FirstName, user.LastName, user.Email),
+                DisplayName: user.EffectiveDisplayName,
                 SuccessfulExports: selected.SuccessfulExports,
                 PartialExports: selected.PartialExports,
                 BlockedExports: selected.BlockedExports,
@@ -257,7 +255,7 @@ public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsSer
                         : row.UserEmail,
                     DisplayName: user == null
                         ? null
-                        : UserProfileNameValidator.GetDisplayName(user.FirstName, user.LastName, user.Email),
+                        : user.EffectiveDisplayName,
                     Destination: row.Destination,
                     Status: row.Status,
                     RequestedRows: row.RequestedRows,

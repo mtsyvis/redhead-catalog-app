@@ -36,7 +36,10 @@ export class ApiClientError extends Error {
  */
 export class ApiClient {
   private static shouldNotifySessionExpired(endpoint: string): boolean {
-    return endpoint !== '/api/auth/login' && endpoint !== '/api/auth/me';
+    return endpoint !== '/api/auth/login'
+      && endpoint !== '/api/auth/me'
+      && !endpoint.startsWith('/api/auth/invitation')
+      && endpoint !== '/api/auth/activate-account';
   }
 
   private static isFieldErrorMap(value: unknown): value is Record<string, string[]> {

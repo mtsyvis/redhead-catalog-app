@@ -78,7 +78,7 @@ export const PageShell: React.FC<PageShellProps> = ({
     return false;
   };
 
-  const displayName = user?.displayName || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email;
+  const displayName = user?.displayName || user?.email;
   const isAdmin = user?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
   const isSuperAdmin = user?.roles?.includes('SuperAdmin');
   const isAdminPath = location.pathname.startsWith('/admin');

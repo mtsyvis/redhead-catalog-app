@@ -173,14 +173,13 @@ public sealed class ProfileControllerTests
 
         // Act
         var result = await sut.UpdateProfile(
-            new UpdateCurrentUserProfileRequest("  Grace  ", "  Hopper  "),
+            new UpdateCurrentUserProfileRequest("  Grace Hopper  "),
             CancellationToken.None);
 
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<CurrentUserProfileResponse>(ok.Value);
-        Assert.Equal("Grace", user.FirstName);
-        Assert.Equal("Hopper", user.LastName);
+        Assert.Equal("Grace Hopper", user.DisplayName);
         Assert.Equal("Grace Hopper", payload.DisplayName);
         Assert.False(payload.MustCompleteProfile);
         userManager.Verify(manager => manager.UpdateAsync(user), Times.Once);
@@ -270,8 +269,10 @@ public sealed class ProfileControllerTests
             Id = "user-1",
             UserName = "user@example.com",
             Email = "user@example.com",
-            FirstName = firstName,
-            LastName = lastName,
+            DisplayName = string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName)
+                ? null
+                : $"{firstName} {lastName}",
+            ActivatedAtUtc = DateTime.UtcNow,
             IsActive = true
         };
 }

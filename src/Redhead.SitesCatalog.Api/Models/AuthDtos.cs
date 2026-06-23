@@ -11,8 +11,6 @@ public record LoginResponse(
     string Email,
     bool MustChangePassword,
     bool MustCompleteProfile,
-    string? FirstName,
-    string? LastName,
     string DisplayName,
     IList<string> Roles);
 
@@ -23,15 +21,26 @@ public record ChangePasswordRequest(
 public record CompleteAccountSetupRequest(
     string? CurrentPassword,
     string? NewPassword,
-    string? FirstName,
-    string? LastName);
+    string? DisplayName);
 
 public record CompleteAccountSetupResponse(
     string Email,
     bool MustChangePassword,
     bool MustCompleteProfile,
-    string? FirstName,
-    string? LastName,
+    string DisplayName,
+    IList<string> Roles);
+
+public record InvitationStatusResponse(
+    string Email,
+    DateTime ExpiresAtUtc);
+
+public record ActivateAccountRequest(
+    [Required] string Token,
+    [Required] string DisplayName,
+    [Required, MinLength(8)] string Password);
+
+public record ActivateAccountResponse(
+    string Email,
     string DisplayName,
     IList<string> Roles);
 
@@ -42,8 +51,6 @@ public record UserInfoResponse(
     string Email,
     bool MustChangePassword,
     bool MustCompleteProfile,
-    string? FirstName,
-    string? LastName,
     string DisplayName,
     bool IsActive,
     IList<string> Roles,

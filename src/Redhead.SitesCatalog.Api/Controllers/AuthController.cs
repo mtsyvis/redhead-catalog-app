@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.AccountSetup;
 using Redhead.SitesCatalog.Api.Models;
+using Redhead.SitesCatalog.Api.Security;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 
@@ -116,12 +118,73 @@ public class AuthController : ControllerBase
             user.Email!,
             user.MustChangePassword,
             !user.HasCompleteProfile,
-            user.FirstName,
-            user.LastName,
-            user.DisplayName,
+            user.EffectiveDisplayName,
             user.IsActive,
             roles,
             limits.Mode == ExportLimitMode.Disabled));
+    }
+
+    [HttpGet("invitation")]
+    public async Task<ActionResult<InvitationStatusResponse>> GetInvitation([FromQuery] string token)
+    {
+        var user = FindInvitedUser(token);
+        if (user == null)
+        {
+            return NotFound(new MessageResponse("This invitation is invalid or has already been used."));
+        }
+
+        if (!user.IsActive ||
+            !user.InvitationExpiresAtUtc.HasValue ||
+            user.InvitationExpiresAtUtc.Value <= DateTime.UtcNow)
+        {
+            return BadRequest(new MessageResponse("This invitation has expired. Please contact an administrator."));
+        }
+
+        return Ok(new InvitationStatusResponse(user.Email!, user.InvitationExpiresAtUtc.Value));
+    }
+
+    [HttpPost("activate-account")]
+    public async Task<ActionResult<ActivateAccountResponse>> ActivateAccount(
+        [FromBody] ActivateAccountRequest request)
+    {
+        var displayNameValidation = UserDisplayNameValidator.Validate(request.DisplayName);
+        if (!displayNameValidation.IsValid)
+        {
+            return BadRequest(new ValidationProblemDetails(
+                displayNameValidation.Errors.ToDictionary(error => error.Key, error => error.Value)));
+        }
+
+        var user = FindInvitedUser(request.Token);
+        if (user == null)
+        {
+            return NotFound(new MessageResponse("This invitation is invalid or has already been used."));
+        }
+
+        if (!user.IsActive ||
+            !user.InvitationExpiresAtUtc.HasValue ||
+            user.InvitationExpiresAtUtc.Value <= DateTime.UtcNow)
+        {
+            return BadRequest(new MessageResponse("This invitation has expired. Please contact an administrator."));
+        }
+
+        user.DisplayName = displayNameValidation.DisplayName;
+        user.ActivatedAtUtc = DateTime.UtcNow;
+        user.InvitationTokenHash = null;
+        user.InvitationExpiresAtUtc = null;
+        user.EmailConfirmed = true;
+        user.MustChangePassword = false;
+
+        var passwordResult = await _userManager.AddPasswordAsync(user, request.Password);
+        if (!passwordResult.Succeeded)
+        {
+            return BadRequest(new { errors = passwordResult.Errors.Select(error => error.Description) });
+        }
+
+        await _signInManager.SignInAsync(user, isPersistent: false);
+
+        var roles = await _userManager.GetRolesAsync(user);
+        _logger.LogInformation("User activated account: {Email}", user.Email);
+        return Ok(new ActivateAccountResponse(user.Email!, user.EffectiveDisplayName, roles));
     }
 
     [HttpPost("complete-account-setup")]
@@ -179,10 +242,21 @@ public class AuthController : ControllerBase
             user.Email!,
             user.MustChangePassword,
             !user.HasCompleteProfile,
-            user.FirstName,
-            user.LastName,
-            user.DisplayName,
+            user.EffectiveDisplayName,
             roles);
+    }
+
+    private ApplicationUser? FindInvitedUser(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
+
+        var hash = UserInvitationToken.Hash(token);
+        return _userManager.Users.SingleOrDefault(user =>
+            user.ActivatedAtUtc == null &&
+            user.InvitationTokenHash == hash);
     }
 
     private ActionResult<CompleteAccountSetupResponse> ToActionResult(

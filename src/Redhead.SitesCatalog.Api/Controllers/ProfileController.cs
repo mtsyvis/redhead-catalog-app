@@ -70,15 +70,14 @@ public class ProfileController : ControllerBase
             return Unauthorized();
         }
 
-        var validation = UserProfileNameValidator.Validate(request.FirstName, request.LastName);
+        var validation = UserDisplayNameValidator.Validate(request.DisplayName);
         if (!validation.IsValid)
         {
             return BadRequest(new ValidationProblemDetails(
                 validation.Errors.ToDictionary(error => error.Key, error => error.Value)));
         }
 
-        user.FirstName = validation.FirstName;
-        user.LastName = validation.LastName;
+        user.DisplayName = validation.DisplayName;
 
         var updateResult = await _userManager.UpdateAsync(user);
         if (!updateResult.Succeeded)
@@ -113,9 +112,7 @@ public class ProfileController : ControllerBase
         return new CurrentUserProfileResponse(
             user.Email ?? string.Empty,
             role,
-            user.FirstName,
-            user.LastName,
-            user.DisplayName,
+            user.EffectiveDisplayName,
             !user.HasCompleteProfile,
             googleDrive,
             ToLimitsResponse(limits, usage));

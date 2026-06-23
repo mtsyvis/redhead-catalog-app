@@ -10,6 +10,9 @@ import { AccountSetupRequiredRoute } from './components/routing/AccountSetupRequ
 import { OAuthHome, PrivacyPolicy, TermsOfService } from './pages/OAuthVerificationPages';
 
 const Login = React.lazy(() => import('./pages/Login').then((module) => ({ default: module.Login })));
+const ActivateAccount = React.lazy(() =>
+  import('./pages/ActivateAccount').then((module) => ({ default: module.ActivateAccount }))
+);
 const ChangePassword = React.lazy(() =>
   import('./pages/ChangePassword').then((module) => ({ default: module.ChangePassword }))
 );
@@ -65,6 +68,7 @@ const App: React.FC = () => {
             <Routes>
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
+              <Route path="/activate-account" element={<ActivateAccount />} />
               <Route path="/oauth-home" element={<OAuthHome />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />

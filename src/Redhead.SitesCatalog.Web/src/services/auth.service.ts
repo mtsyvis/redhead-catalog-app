@@ -8,6 +8,9 @@ import type {
   CompleteAccountSetupResponse,
   CurrentUserProfile,
   UpdateCurrentUserProfileRequest,
+  InvitationStatusResponse,
+  ActivateAccountRequest,
+  ActivateAccountResponse,
 } from '../types/auth.types';
 
 /**
@@ -48,6 +51,19 @@ export const authService = {
   async completeAccountSetup(data: CompleteAccountSetupRequest): Promise<CompleteAccountSetupResponse> {
     return ApiClient.post<CompleteAccountSetupResponse, CompleteAccountSetupRequest>(
       '/api/auth/complete-account-setup',
+      data
+    );
+  },
+
+  getInvitation(token: string): Promise<InvitationStatusResponse> {
+    return ApiClient.get<InvitationStatusResponse>(
+      `/api/auth/invitation?token=${encodeURIComponent(token)}`
+    );
+  },
+
+  activateAccount(data: ActivateAccountRequest): Promise<ActivateAccountResponse> {
+    return ApiClient.post<ActivateAccountResponse, ActivateAccountRequest>(
+      '/api/auth/activate-account',
       data
     );
   },

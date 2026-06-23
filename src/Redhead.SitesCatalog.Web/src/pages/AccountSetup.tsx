@@ -45,9 +45,23 @@ export const AccountSetup: React.FC = () => {
   const mustCompleteProfile = Boolean(user?.mustCompleteProfile);
   const loginCurrentPassword = routeState?.currentPassword ?? '';
   const needsCurrentPasswordInput = mustChangePassword && !loginCurrentPassword;
+  const passwordOnly = mustChangePassword && !mustCompleteProfile;
+  const profileOnly = mustCompleteProfile && !mustChangePassword;
+  const pageTitle = passwordOnly
+    ? 'Create a new password'
+    : profileOnly
+      ? 'Complete your profile'
+      : 'Complete your account';
+  const pageDescription = passwordOnly
+    ? needsCurrentPasswordInput
+      ? 'Your password was reset by an administrator. Enter the temporary password you received and create a new password.'
+      : 'Your password was reset by an administrator. Create a new password to continue.'
+    : profileOnly
+      ? 'Add your display name before continuing to the catalog.'
+      : 'Finish the required account details before continuing to the catalog.';
+  const submitLabel = passwordOnly ? 'Save password' : 'Continue';
 
-  const [firstName, setFirstName] = useState(user?.firstName ?? '');
-  const [lastName, setLastName] = useState(user?.lastName ?? '');
+  const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -62,19 +76,17 @@ export const AccountSetup: React.FC = () => {
   }, [mustChangePassword, mustCompleteProfile, navigate, user]);
 
   useEffect(() => {
-    setFirstName(user?.firstName ?? '');
-    setLastName(user?.lastName ?? '');
-  }, [user?.firstName, user?.lastName]);
+    setDisplayName(user?.displayName ?? '');
+  }, [user?.displayName]);
 
   const passwordRules = useMemo(() => validatePassword(newPassword), [newPassword]);
   const isPasswordValid = Object.values(passwordRules).every(Boolean);
   const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
 
-  const trimmedFirstName = firstName.trim();
-  const trimmedLastName = lastName.trim();
+  const trimmedDisplayName = displayName.trim();
   const canSubmit =
     !saving &&
-    (!mustCompleteProfile || (trimmedFirstName.length > 0 && trimmedLastName.length > 0)) &&
+    (!mustCompleteProfile || trimmedDisplayName.length > 0) &&
     (!mustChangePassword ||
       (isPasswordValid && passwordsMatch && (!needsCurrentPasswordInput || currentPassword.length > 0)));
 
@@ -86,13 +98,12 @@ export const AccountSetup: React.FC = () => {
     const nextFieldErrors: Record<string, string[]> = {};
 
     if (mustCompleteProfile) {
-      if (!trimmedFirstName) nextFieldErrors.firstName = ['First name is required.'];
-      if (!trimmedLastName) nextFieldErrors.lastName = ['Last name is required.'];
+      if (!trimmedDisplayName) nextFieldErrors.displayName = ['Display name is required.'];
     }
 
     if (mustChangePassword) {
       if (needsCurrentPasswordInput && !currentPassword) {
-        nextFieldErrors.currentPassword = ['Current password is required.'];
+        nextFieldErrors.currentPassword = ['Temporary password is required.'];
       }
       if (!isPasswordValid) {
         nextFieldErrors.newPassword = ['Password does not meet requirements.'];
@@ -110,8 +121,7 @@ export const AccountSetup: React.FC = () => {
       await authService.completeAccountSetup({
         currentPassword: mustChangePassword ? loginCurrentPassword || currentPassword : null,
         newPassword: mustChangePassword ? newPassword : null,
-        firstName: mustCompleteProfile ? trimmedFirstName : null,
-        lastName: mustCompleteProfile ? trimmedLastName : null,
+        displayName: mustCompleteProfile ? trimmedDisplayName : null,
       });
       await refreshUser();
       navigate('/sites', { replace: true });
@@ -132,12 +142,12 @@ export const AccountSetup: React.FC = () => {
   };
 
   return (
-    <PageShell title="Complete your account" maxWidth="sm">
+    <PageShell title={pageTitle} maxWidth="sm">
       <Card>
         <CardContent sx={{ p: 4 }}>
           <Stack spacing={3}>
             <Typography variant="body2" color="text.secondary">
-              Finish the required account details before continuing to the catalog.
+              {pageDescription}
             </Typography>
 
             {generalError && <Alert severity="error">{generalError}</Alert>}
@@ -145,45 +155,28 @@ export const AccountSetup: React.FC = () => {
             <Box component="form" onSubmit={handleSubmit}>
               <Stack spacing={2}>
                 {mustCompleteProfile && (
-                  <>
-                    <TextField
-                      label="First name"
-                      required
-                      fullWidth
-                      value={firstName}
-                      onChange={(event) => {
-                        setFirstName(event.target.value);
-                        setFieldErrors((prev) => ({ ...prev, firstName: [] }));
-                      }}
-                      disabled={saving}
-                      error={Boolean(getFieldError(fieldErrors, 'firstName'))}
-                      helperText={getFieldError(fieldErrors, 'firstName')}
-                      autoComplete="given-name"
-                      autoFocus
-                    />
-                    <TextField
-                      label="Last name"
-                      required
-                      fullWidth
-                      value={lastName}
-                      onChange={(event) => {
-                        setLastName(event.target.value);
-                        setFieldErrors((prev) => ({ ...prev, lastName: [] }));
-                      }}
-                      disabled={saving}
-                      error={Boolean(getFieldError(fieldErrors, 'lastName'))}
-                      helperText={getFieldError(fieldErrors, 'lastName')}
-                      autoComplete="family-name"
-                      autoFocus={!mustCompleteProfile}
-                    />
-                  </>
+                  <TextField
+                    label="Display name"
+                    required
+                    fullWidth
+                    value={displayName}
+                    onChange={(event) => {
+                      setDisplayName(event.target.value);
+                      setFieldErrors((prev) => ({ ...prev, displayName: [] }));
+                    }}
+                    disabled={saving}
+                    error={Boolean(getFieldError(fieldErrors, 'displayName'))}
+                    helperText={getFieldError(fieldErrors, 'displayName')}
+                    autoComplete="name"
+                    autoFocus
+                  />
                 )}
 
                 {mustChangePassword && (
                   <>
                     {needsCurrentPasswordInput && (
                       <TextField
-                        label="Current password"
+                        label="Temporary password"
                         type="password"
                         required
                         fullWidth
@@ -258,7 +251,7 @@ export const AccountSetup: React.FC = () => {
                   disabled={!canSubmit}
                   sx={{ height: 52 }}
                 >
-                  {saving ? <CircularProgress size={22} color="inherit" /> : 'Continue'}
+                  {saving ? <CircularProgress size={22} color="inherit" /> : submitLabel}
                 </BrandButton>
               </Stack>
             </Box>

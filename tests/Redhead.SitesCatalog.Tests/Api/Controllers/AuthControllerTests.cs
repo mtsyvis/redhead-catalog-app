@@ -10,6 +10,7 @@ using Moq;
 using Redhead.SitesCatalog.Api.AccountSetup;
 using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.Models;
+using Redhead.SitesCatalog.Api.Security;
 using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -47,8 +48,6 @@ public sealed class AuthControllerTests
         var payload = Assert.IsType<LoginResponse>(ok.Value);
         Assert.True(payload.MustChangePassword);
         Assert.True(payload.MustCompleteProfile);
-        Assert.Null(payload.FirstName);
-        Assert.Null(payload.LastName);
         Assert.Equal(user.Email, payload.DisplayName);
     }
 
@@ -70,15 +69,13 @@ public sealed class AuthControllerTests
         var result = await sut.CompleteAccountSetup(new CompleteAccountSetupRequest(
             "Temp123!",
             "NewPassword123!",
-            "  Ada  ",
-            "  Lovelace  "));
+            "  Ada Lovelace  "));
 
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<CompleteAccountSetupResponse>(ok.Value);
         Assert.False(user.MustChangePassword);
-        Assert.Equal("Ada", user.FirstName);
-        Assert.Equal("Lovelace", user.LastName);
+        Assert.Equal("Ada Lovelace", user.DisplayName);
         Assert.False(payload.MustChangePassword);
         Assert.False(payload.MustCompleteProfile);
         Assert.Equal("Ada Lovelace", payload.DisplayName);
@@ -100,14 +97,12 @@ public sealed class AuthControllerTests
         var result = await sut.CompleteAccountSetup(new CompleteAccountSetupRequest(
             null,
             null,
-            "  Grace  ",
-            "  Hopper  "));
+            "  Grace Hopper  "));
 
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<CompleteAccountSetupResponse>(ok.Value);
-        Assert.Equal("Grace", user.FirstName);
-        Assert.Equal("Hopper", user.LastName);
+        Assert.Equal("Grace Hopper", user.DisplayName);
         Assert.False(payload.MustCompleteProfile);
         userManager.Verify(
             manager => manager.ChangePasswordAsync(
@@ -135,15 +130,13 @@ public sealed class AuthControllerTests
         var result = await sut.CompleteAccountSetup(new CompleteAccountSetupRequest(
             "Temp123!",
             "NewPassword123!",
-            null,
             null));
 
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<CompleteAccountSetupResponse>(ok.Value);
         Assert.False(user.MustChangePassword);
-        Assert.Equal("Jane", user.FirstName);
-        Assert.Equal("Smith", user.LastName);
+        Assert.Equal("Jane Smith", user.DisplayName);
         Assert.False(payload.MustCompleteProfile);
     }
 
@@ -165,14 +158,12 @@ public sealed class AuthControllerTests
         var result = await sut.CompleteAccountSetup(new CompleteAccountSetupRequest(
             "Temp123!",
             "NewPassword123!",
-            "Grace",
-            "Hopper"));
+            "Grace Hopper"));
 
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<CompleteAccountSetupResponse>(ok.Value);
-        Assert.Equal("Jane", user.FirstName);
-        Assert.Equal("Smith", user.LastName);
+        Assert.Equal("Jane Smith", user.DisplayName);
         Assert.Equal("Jane Smith", payload.DisplayName);
     }
 
@@ -190,14 +181,12 @@ public sealed class AuthControllerTests
         var result = await sut.CompleteAccountSetup(new CompleteAccountSetupRequest(
             "Temp123!",
             "NewPassword123!",
-            "Grace",
-            "Hopper"));
+            "Grace Hopper"));
 
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<CompleteAccountSetupResponse>(ok.Value);
-        Assert.Equal("Jane", user.FirstName);
-        Assert.Equal("Smith", user.LastName);
+        Assert.Equal("Jane Smith", user.DisplayName);
         Assert.False(payload.MustChangePassword);
         Assert.False(payload.MustCompleteProfile);
         userManager.Verify(manager => manager.UpdateAsync(It.IsAny<ApplicationUser>()), Times.Never);
@@ -221,14 +210,12 @@ public sealed class AuthControllerTests
         var result = await sut.CompleteAccountSetup(new CompleteAccountSetupRequest(
             null,
             null,
-            "   ",
             "   "));
 
         // Assert
         var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
         var problem = Assert.IsType<ValidationProblemDetails>(badRequest.Value);
-        Assert.Contains("firstName", problem.Errors.Keys);
-        Assert.Contains("lastName", problem.Errors.Keys);
+        Assert.Contains("displayName", problem.Errors.Keys);
     }
 
     [Fact]
@@ -259,6 +246,80 @@ public sealed class AuthControllerTests
         policyService.Verify(
             service => service.GetEffectivePolicyAsync(user, AppRoles.Client, It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task ActivateAccount_WhenInvitationIsValid_SetsPasswordProfileAndSignsIn()
+    {
+        // Arrange
+        const string token = "valid-invitation-token";
+        var user = new ApplicationUser
+        {
+            Id = "invited-user",
+            UserName = "invited@example.com",
+            Email = "invited@example.com",
+            IsActive = true,
+            InvitationTokenHash = UserInvitationToken.Hash(token),
+            InvitationExpiresAtUtc = DateTime.UtcNow.AddHours(1)
+        };
+        var userManager = CreateUserManager();
+        userManager.SetupGet(manager => manager.Users).Returns(new[] { user }.AsQueryable());
+        userManager.Setup(manager => manager.AddPasswordAsync(user, "NewPassword123!"))
+            .ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(manager => manager.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { AppRoles.Client });
+        var signInManager = CreateSignInManager(userManager);
+        signInManager.Setup(manager => manager.SignInAsync(user, false, null))
+            .Returns(Task.CompletedTask);
+        var sut = CreateController(userManager, signInManager);
+
+        // Act
+        var result = await sut.ActivateAccount(new ActivateAccountRequest(
+            token,
+            "  Ada Lovelace  ",
+            "NewPassword123!"));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ActivateAccountResponse>(ok.Value);
+        Assert.Equal("Ada Lovelace", payload.DisplayName);
+        Assert.Equal("Ada Lovelace", user.DisplayName);
+        Assert.NotNull(user.ActivatedAtUtc);
+        Assert.Null(user.InvitationTokenHash);
+        Assert.Null(user.InvitationExpiresAtUtc);
+        Assert.False(user.MustChangePassword);
+        signInManager.Verify(manager => manager.SignInAsync(user, false, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task ActivateAccount_WhenInvitationExpired_DoesNotSetPassword()
+    {
+        // Arrange
+        const string token = "expired-invitation-token";
+        var user = new ApplicationUser
+        {
+            Id = "invited-user",
+            UserName = "invited@example.com",
+            Email = "invited@example.com",
+            IsActive = true,
+            InvitationTokenHash = UserInvitationToken.Hash(token),
+            InvitationExpiresAtUtc = DateTime.UtcNow.AddMinutes(-1)
+        };
+        var userManager = CreateUserManager();
+        userManager.SetupGet(manager => manager.Users).Returns(new[] { user }.AsQueryable());
+        var sut = CreateController(userManager);
+
+        // Act
+        var result = await sut.ActivateAccount(new ActivateAccountRequest(
+            token,
+            "Ada Lovelace",
+            "NewPassword123!"));
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        userManager.Verify(
+            manager => manager.AddPasswordAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()),
+            Times.Never);
     }
 
     [Fact]
@@ -372,8 +433,10 @@ public sealed class AuthControllerTests
             UserName = "user@example.com",
             Email = "user@example.com",
             MustChangePassword = mustChangePassword,
-            FirstName = firstName,
-            LastName = lastName,
+            DisplayName = string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName)
+                ? null
+                : $"{firstName} {lastName}",
+            ActivatedAtUtc = DateTime.UtcNow,
             IsActive = true
         };
 }

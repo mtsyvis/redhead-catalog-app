@@ -4,12 +4,12 @@ import type { GoogleDriveStatus } from './googleDrive.types';
 export interface UserListItem {
   id: string;
   email: string;
-  firstName: string | null;
-  lastName: string | null;
   displayName: string;
   mustCompleteProfile: boolean;
   role: string;
   isActive: boolean;
+  accountStatus: UserAccountStatus;
+  invitationExpiresAtUtc: string | null;
   exportLimitOverrideMode: ExportLimitMode | null;
   exportLimitRowsOverride: number | null;
   effectiveExportLimitMode: ExportLimitMode;
@@ -46,13 +46,14 @@ export interface UserListResponse {
 export interface AdminUserDetails {
   id: string;
   email: string;
-  firstName: string | null;
-  lastName: string | null;
   displayName: string;
   mustCompleteProfile: boolean;
   mustChangePassword: boolean;
   role: string;
   isActive: boolean;
+  accountStatus: UserAccountStatus;
+  activatedAtUtc: string | null;
+  invitationExpiresAtUtc: string | null;
   exportLimitOverrideMode: ExportLimitMode | null;
   exportLimitRowsOverride: number | null;
   effectiveExportLimitMode: ExportLimitMode | null;
@@ -94,7 +95,8 @@ export interface CreateUserResponse {
   id: string;
   email: string;
   role: string;
-  temporaryPassword: string;
+  activationPath: string;
+  invitationExpiresAtUtc: string;
 }
 
 export interface ResetPasswordResponse {
@@ -110,8 +112,21 @@ export interface ReactivateUserRequest {
 }
 
 export interface ReactivateUserResponse {
-  temporaryPassword: string;
+  temporaryPassword: string | null;
+  activationPath: string | null;
+  invitationExpiresAtUtc: string | null;
 }
+
+export interface ReissueInvitationResponse {
+  activationPath: string;
+  invitationExpiresAtUtc: string;
+}
+
+export type UserAccountStatus =
+  | 'Active'
+  | 'PendingActivation'
+  | 'InvitationExpired'
+  | 'Disabled';
 
 export interface UpdateExportLimitRequest {
   overrideMode: ExportLimitMode | null;

@@ -446,8 +446,8 @@ public sealed class ExportActivityAnalyticsServiceTests
             UserName = email,
             Email = email,
             NormalizedEmail = email.ToUpperInvariant(),
-            FirstName = "Client",
-            LastName = userId
+            DisplayName = $"Client {userId}",
+            ActivatedAtUtc = DateTime.UtcNow
         };
         db.Users.Add(user);
         db.UserRoles.Add(new IdentityUserRole<string>

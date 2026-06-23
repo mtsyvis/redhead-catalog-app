@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.Models;
+using Redhead.SitesCatalog.Api.Security;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -69,14 +70,10 @@ public sealed class AdminUsersControllerTests
         // Assert
         var payload = GetOkPayload(result);
         var client = payload.Items.Single(item => item.Id == "client-1");
-        Assert.Equal("Ada", client.FirstName);
-        Assert.Equal("Lovelace", client.LastName);
         Assert.Equal("Ada Lovelace", client.DisplayName);
         Assert.False(client.MustCompleteProfile);
 
         var existingUserWithoutNames = payload.Items.Single(item => item.Id == "internal-1");
-        Assert.Null(existingUserWithoutNames.FirstName);
-        Assert.Null(existingUserWithoutNames.LastName);
         Assert.Equal("internal@example.com", existingUserWithoutNames.DisplayName);
         Assert.True(existingUserWithoutNames.MustCompleteProfile);
     }
@@ -170,8 +167,6 @@ public sealed class AdminUsersControllerTests
         Assert.Equal("client-1", payload.Id);
         Assert.Equal("client@example.com", payload.Email);
         Assert.Equal(AppRoles.Client, payload.Role);
-        Assert.Equal("Ada", payload.FirstName);
-        Assert.Equal("Lovelace", payload.LastName);
         Assert.Equal("Ada Lovelace", payload.DisplayName);
         Assert.False(payload.MustCompleteProfile);
         Assert.True(payload.MustChangePassword);
@@ -231,8 +226,6 @@ public sealed class AdminUsersControllerTests
 
         // Assert
         var payload = GetOkPayload(result);
-        Assert.Equal("Ada", payload.FirstName);
-        Assert.Equal(" ", payload.LastName);
         Assert.Equal("client@example.com", payload.DisplayName);
         Assert.True(payload.MustCompleteProfile);
     }
@@ -633,9 +626,49 @@ public sealed class AdminUsersControllerTests
         var payload = Assert.IsType<CreateUserResponse>(ok.Value);
         Assert.Equal("new-user@example.com", payload.Email);
         Assert.Equal(AppRoles.Client, payload.Role);
-        Assert.False(string.IsNullOrWhiteSpace(payload.TemporaryPassword));
-        Assert.Null(userManager.CreatedUser?.FirstName);
-        Assert.Null(userManager.CreatedUser?.LastName);
+        Assert.False(string.IsNullOrWhiteSpace(payload.ActivationPath));
+        Assert.Null(userManager.CreatedUser?.DisplayName);
+        Assert.Null(userManager.CreatedUser?.ActivatedAtUtc);
+        Assert.NotNull(userManager.CreatedUser?.InvitationTokenHash);
+        var token = Uri.UnescapeDataString(payload.ActivationPath.Split("token=", 2)[1]);
+        Assert.Equal(UserInvitationToken.Hash(token), userManager.CreatedUser?.InvitationTokenHash);
+        Assert.InRange(
+            payload.InvitationExpiresAtUtc,
+            DateTime.UtcNow.AddHours(71),
+            DateTime.UtcNow.AddHours(73));
+    }
+
+    [Fact]
+    public async Task ReissueInvitation_WhenUserIsPending_ReplacesTokenAndExpiry()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "pending-user",
+            Email = "pending@example.com",
+            IsActive = true,
+            InvitationTokenHash = UserInvitationToken.Hash("old-token"),
+            InvitationExpiresAtUtc = DateTime.UtcNow.AddHours(1)
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.ReissueInvitation(targetUser.Id);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ReissueInvitationResponse>(ok.Value);
+        var token = Uri.UnescapeDataString(payload.ActivationPath.Split("token=", 2)[1]);
+        Assert.Equal(UserInvitationToken.Hash(token), targetUser.InvitationTokenHash);
+        Assert.NotEqual(UserInvitationToken.Hash("old-token"), targetUser.InvitationTokenHash);
+        Assert.Equal(payload.InvitationExpiresAtUtc, targetUser.InvitationExpiresAtUtc);
     }
 
     [Fact]
@@ -917,8 +950,8 @@ public sealed class AdminUsersControllerTests
             Email = "client@example.com",
             IsActive = false,
             MustChangePassword = false,
-            FirstName = "Ada",
-            LastName = "Lovelace",
+            DisplayName = "Ada Lovelace",
+            ActivatedAtUtc = DateTime.UtcNow,
             SuperAdminNote = "Preserve note",
             ExportLimitOverrideMode = ExportLimitMode.Limited,
             ExportLimitRowsOverride = 300
@@ -945,8 +978,7 @@ public sealed class AdminUsersControllerTests
         Assert.False(string.IsNullOrWhiteSpace(payload.TemporaryPassword));
         Assert.True(targetUser.IsActive);
         Assert.True(targetUser.MustChangePassword);
-        Assert.Equal("Ada", targetUser.FirstName);
-        Assert.Equal("Lovelace", targetUser.LastName);
+        Assert.Equal("Ada Lovelace", targetUser.DisplayName);
         Assert.Equal("Preserve note", targetUser.SuperAdminNote);
         Assert.Equal([AppRoles.Client], userManager.RemovedRoles);
         Assert.Equal(AppRoles.Internal, userManager.AddedRole);
@@ -989,7 +1021,9 @@ public sealed class AdminUsersControllerTests
             Id = "superadmin-2",
             Email = "target@example.com",
             IsActive = false,
-            MustChangePassword = false
+            MustChangePassword = false,
+            DisplayName = "Second SuperAdmin",
+            ActivatedAtUtc = DateTime.UtcNow
         };
         var userManager = new StubUserManager
         {
@@ -1208,8 +1242,8 @@ public sealed class AdminUsersControllerTests
         {
             Id = "client-1",
             Email = "client@example.com",
-            FirstName = "Ada",
-            LastName = "Lovelace",
+            DisplayName = "Ada Lovelace",
+            ActivatedAtUtc = DateTime.UtcNow,
             ExportLimitOverrideMode = null,
             ExportLimitRowsOverride = null
         };
@@ -1229,8 +1263,7 @@ public sealed class AdminUsersControllerTests
 
         // Assert
         Assert.IsType<NoContentResult>(result);
-        Assert.Equal("Ada", targetUser.FirstName);
-        Assert.Equal("Lovelace", targetUser.LastName);
+        Assert.Equal("Ada Lovelace", targetUser.DisplayName);
         Assert.Equal(ExportLimitMode.Limited, targetUser.ExportLimitOverrideMode);
         Assert.Equal(500, targetUser.ExportLimitRowsOverride);
     }
@@ -1334,8 +1367,10 @@ public sealed class AdminUsersControllerTests
             NormalizedEmail = email.ToUpperInvariant(),
             EmailConfirmed = true,
             IsActive = isActive,
-            FirstName = firstName,
-            LastName = lastName,
+            DisplayName = string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName)
+                ? null
+                : $"{firstName} {lastName}",
+            ActivatedAtUtc = DateTime.UtcNow,
             SuperAdminNote = superAdminNote
         };
         db.Users.Add(user);
@@ -1402,7 +1437,7 @@ public sealed class AdminUsersControllerTests
         public override Task<ApplicationUser?> FindByIdAsync(string userId)
             => Task.FromResult(TargetUserById?.Id == userId ? TargetUserById : null);
 
-        public override Task<IdentityResult> CreateAsync(ApplicationUser user, string password)
+        public override Task<IdentityResult> CreateAsync(ApplicationUser user)
         {
             user.Id = "created-user-1";
             CreatedUser = user;

@@ -18,6 +18,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 [Authorize(Policy = AppPolicies.AdminAccess)]
 public class AdminUsersController : ControllerBase
 {
+    private static readonly TimeSpan InvitationLifetime = TimeSpan.FromHours(72);
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IAdminUsersListService _usersListService;
     private readonly ILogger<AdminUsersController> _logger;
@@ -63,18 +64,20 @@ public class AdminUsersController : ControllerBase
             return BadRequest(new MessageResponse(message));
         }
 
-        var temporaryPassword = PasswordGenerator.Generate();
+        var invitation = CreateInvitation();
         var user = new ApplicationUser
         {
             UserName = request.Email,
             Email = request.Email,
-            EmailConfirmed = true,
+            EmailConfirmed = false,
             IsActive = true,
-            MustChangePassword = true,
+            MustChangePassword = false,
+            InvitationTokenHash = invitation.TokenHash,
+            InvitationExpiresAtUtc = invitation.ExpiresAtUtc,
             SuperAdminNote = currentRoles.Contains(AppRoles.SuperAdmin) ? noteValidation.Value : null,
         };
 
-        var result = await _userManager.CreateAsync(user, temporaryPassword);
+        var result = await _userManager.CreateAsync(user);
         if (!result.Succeeded)
         {
             var errors = string.Join(" ", result.Errors.Select(e => e.Description));
@@ -91,7 +94,12 @@ public class AdminUsersController : ControllerBase
 
         _logger.LogInformation("User created: {Email}, role: {Role}", user.Email, request.Role);
 
-        return Ok(new CreateUserResponse(user.Id, user.Email!, request.Role, temporaryPassword));
+        return Ok(new CreateUserResponse(
+            user.Id,
+            user.Email!,
+            request.Role,
+            BuildActivationPath(invitation.Token),
+            invitation.ExpiresAtUtc));
     }
 
     [HttpGet]
@@ -132,6 +140,12 @@ public class AdminUsersController : ControllerBase
         if (target == null)
         {
             return NotFound(new MessageResponse("User not found."));
+        }
+
+        if (!target.ActivatedAtUtc.HasValue)
+        {
+            return BadRequest(new MessageResponse(
+                "This user has not activated their account. Reissue the invitation instead."));
         }
 
         var currentUser = await _userManager.GetUserAsync(User);
@@ -317,12 +331,26 @@ public class AdminUsersController : ControllerBase
             }
         }
 
-        var temporaryPassword = PasswordGenerator.Generate();
-        var token = await _userManager.GeneratePasswordResetTokenAsync(target);
-        var passwordResult = await _userManager.ResetPasswordAsync(target, token, temporaryPassword);
-        if (!passwordResult.Succeeded)
+        string? temporaryPassword = null;
+        InvitationData? invitation = null;
+        if (target.ActivatedAtUtc.HasValue)
         {
-            return BadRequest(new MessageResponse(FormatIdentityErrors(passwordResult)));
+            temporaryPassword = PasswordGenerator.Generate();
+            var token = await _userManager.GeneratePasswordResetTokenAsync(target);
+            var passwordResult = await _userManager.ResetPasswordAsync(target, token, temporaryPassword);
+            if (!passwordResult.Succeeded)
+            {
+                return BadRequest(new MessageResponse(FormatIdentityErrors(passwordResult)));
+            }
+
+            target.MustChangePassword = true;
+        }
+        else
+        {
+            invitation = CreateInvitation();
+            target.InvitationTokenHash = invitation.TokenHash;
+            target.InvitationExpiresAtUtc = invitation.ExpiresAtUtc;
+            target.MustChangePassword = false;
         }
 
         if (!string.Equals(currentRole, request.Role, StringComparison.Ordinal))
@@ -335,7 +363,6 @@ public class AdminUsersController : ControllerBase
         }
 
         target.IsActive = true;
-        target.MustChangePassword = true;
 
         var updateResult = await _userManager.UpdateAsync(target);
         if (!updateResult.Succeeded)
@@ -353,7 +380,46 @@ public class AdminUsersController : ControllerBase
             "User reactivated: {Email}, role: {Role}",
             target.Email, request.Role);
 
-        return Ok(new ReactivateUserResponse(temporaryPassword));
+        return Ok(new ReactivateUserResponse(
+            temporaryPassword,
+            invitation == null ? null : BuildActivationPath(invitation.Token),
+            invitation?.ExpiresAtUtc));
+    }
+
+    [HttpPost("{id}/reissue-invitation")]
+    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    public async Task<ActionResult<ReissueInvitationResponse>> ReissueInvitation(string id)
+    {
+        var target = await _userManager.FindByIdAsync(id);
+        if (target == null)
+        {
+            return NotFound(new MessageResponse("User not found."));
+        }
+
+        if (!target.IsActive)
+        {
+            return BadRequest(new MessageResponse("Reactivate this user before issuing an invitation."));
+        }
+
+        if (target.ActivatedAtUtc.HasValue)
+        {
+            return BadRequest(new MessageResponse("This user has already activated their account."));
+        }
+
+        var invitation = CreateInvitation();
+        target.InvitationTokenHash = invitation.TokenHash;
+        target.InvitationExpiresAtUtc = invitation.ExpiresAtUtc;
+
+        var updateResult = await _userManager.UpdateAsync(target);
+        if (!updateResult.Succeeded)
+        {
+            return BadRequest(new MessageResponse(FormatIdentityErrors(updateResult)));
+        }
+
+        _logger.LogInformation("Invitation reissued for user: {Email}", target.Email);
+        return Ok(new ReissueInvitationResponse(
+            BuildActivationPath(invitation.Token),
+            invitation.ExpiresAtUtc));
     }
 
     [HttpPut("{id}/export-limit")]
@@ -562,12 +628,12 @@ public class AdminUsersController : ControllerBase
         {
             Id = item.Id,
             Email = item.Email,
-            FirstName = item.FirstName,
-            LastName = item.LastName,
             DisplayName = item.DisplayName,
             MustCompleteProfile = item.MustCompleteProfile,
             Role = item.Role,
             IsActive = item.IsActive,
+            AccountStatus = item.AccountStatus,
+            InvitationExpiresAtUtc = item.InvitationExpiresAtUtc,
             ExportLimitOverrideMode = item.ExportLimitOverrideMode,
             ExportLimitRowsOverride = item.ExportLimitRowsOverride,
             EffectiveExportLimitMode = item.EffectiveExportLimitMode,
@@ -605,13 +671,14 @@ public class AdminUsersController : ControllerBase
         {
             Id = user.Id,
             Email = user.Email,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
             DisplayName = user.DisplayName,
             MustCompleteProfile = user.MustCompleteProfile,
             MustChangePassword = user.MustChangePassword,
             Role = user.Role,
             IsActive = user.IsActive,
+            AccountStatus = user.AccountStatus,
+            ActivatedAtUtc = user.ActivatedAtUtc,
+            InvitationExpiresAtUtc = user.InvitationExpiresAtUtc,
             ExportLimitOverrideMode = user.ExportLimitOverrideMode,
             ExportLimitRowsOverride = user.ExportLimitRowsOverride,
             EffectiveExportLimitMode = user.EffectiveExportLimitMode,
@@ -641,4 +708,18 @@ public class AdminUsersController : ControllerBase
             EffectiveWeeklyExportOperationsLimit = user.EffectiveWeeklyExportOperationsLimit
         };
     }
+
+    private static InvitationData CreateInvitation()
+    {
+        var token = UserInvitationToken.Generate();
+        return new InvitationData(
+            token,
+            UserInvitationToken.Hash(token),
+            DateTime.UtcNow.Add(InvitationLifetime));
+    }
+
+    private static string BuildActivationPath(string token)
+        => $"/activate-account?token={Uri.EscapeDataString(token)}";
+
+    private sealed record InvitationData(string Token, string TokenHash, DateTime ExpiresAtUtc);
 }

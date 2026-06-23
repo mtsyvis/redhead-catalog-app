@@ -92,8 +92,7 @@ const CLIENT_EXPORT_USAGE_ROWS: Array<{
 export const Profile: React.FC = () => {
   const { refreshUser } = useAuth();
   const [profile, setProfile] = useState<CurrentUserProfile | null>(null);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -105,8 +104,7 @@ export const Profile: React.FC = () => {
 
   const applyProfile = useCallback((nextProfile: CurrentUserProfile) => {
     setProfile(nextProfile);
-    setFirstName(nextProfile.firstName ?? '');
-    setLastName(nextProfile.lastName ?? '');
+    setDisplayName(nextProfile.displayName ?? '');
   }, []);
 
   const loadProfile = useCallback(async () => {
@@ -129,11 +127,9 @@ export const Profile: React.FC = () => {
     event.preventDefault();
     if (saving) return;
 
-    const trimmedFirstName = firstName.trim();
-    const trimmedLastName = lastName.trim();
+    const trimmedDisplayName = displayName.trim();
     const nextFieldErrors: Record<string, string[]> = {};
-    if (!trimmedFirstName) nextFieldErrors.firstName = ['First name is required.'];
-    if (!trimmedLastName) nextFieldErrors.lastName = ['Last name is required.'];
+    if (!trimmedDisplayName) nextFieldErrors.displayName = ['Display name is required.'];
 
     setSuccess(null);
     setError(null);
@@ -143,8 +139,7 @@ export const Profile: React.FC = () => {
     setSaving(true);
     try {
       applyProfile(await authService.updateCurrentProfile({
-        firstName: trimmedFirstName,
-        lastName: trimmedLastName,
+        displayName: trimmedDisplayName,
       }));
       await refreshUser();
       setSuccess('Profile updated.');
@@ -194,12 +189,9 @@ export const Profile: React.FC = () => {
   const exportDisabled = limits?.exportLimitMode === 'Disabled';
   const showClientExportUsage = profile?.role === 'Client' && hasClientExportUsage(limits);
   const connectedAt = formatConnectedAt(googleDrive?.connectedAtUtc ?? null);
-  const trimmedFirstName = firstName.trim();
-  const trimmedLastName = lastName.trim();
-  const profileChanged =
-    trimmedFirstName !== (profile?.firstName ?? '') ||
-    trimmedLastName !== (profile?.lastName ?? '');
-  const canSaveProfile = profileChanged && trimmedFirstName.length > 0 && trimmedLastName.length > 0;
+  const trimmedDisplayName = displayName.trim();
+  const profileChanged = trimmedDisplayName !== (profile?.displayName ?? '');
+  const canSaveProfile = profileChanged && trimmedDisplayName.length > 0;
 
   return (
     <PageShell title="Profile" maxWidth="md">
@@ -230,30 +222,17 @@ export const Profile: React.FC = () => {
                   <Stack spacing={2}>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                       <TextField
-                        label="First name"
+                        label="Display name"
                         required
-                        value={firstName}
+                        value={displayName}
                         onChange={(event) => {
-                          setFirstName(event.target.value);
-                          setFieldErrors((prev) => ({ ...prev, firstName: [] }));
+                          setDisplayName(event.target.value);
+                          setFieldErrors((prev) => ({ ...prev, displayName: [] }));
                         }}
                         disabled={saving}
-                        error={Boolean(getFieldError(fieldErrors, 'firstName'))}
-                        helperText={getFieldError(fieldErrors, 'firstName')}
-                        autoComplete="given-name"
-                      />
-                      <TextField
-                        label="Last name"
-                        required
-                        value={lastName}
-                        onChange={(event) => {
-                          setLastName(event.target.value);
-                          setFieldErrors((prev) => ({ ...prev, lastName: [] }));
-                        }}
-                        disabled={saving}
-                        error={Boolean(getFieldError(fieldErrors, 'lastName'))}
-                        helperText={getFieldError(fieldErrors, 'lastName')}
-                        autoComplete="family-name"
+                        error={Boolean(getFieldError(fieldErrors, 'displayName'))}
+                        helperText={getFieldError(fieldErrors, 'displayName')}
+                        autoComplete="name"
                       />
                       <TextField label="Email" value={profile?.email ?? ''} disabled />
                       <TextField label="Role" value={profile?.role ?? ''} disabled />
