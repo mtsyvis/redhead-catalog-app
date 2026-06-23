@@ -7,8 +7,6 @@ import type { ExportLimitMode } from '../utils/exportLimit';
 export interface UserInfo {
   id: string;
   email: string;
-  firstName: string | null;
-  lastName: string | null;
   displayName: string;
   mustCompleteProfile: boolean;
   mustChangePassword: boolean;
@@ -33,8 +31,6 @@ export interface LoginResponse {
   email: string;
   mustChangePassword: boolean;
   mustCompleteProfile: boolean;
-  firstName: string | null;
-  lastName: string | null;
   displayName: string;
   roles: string[];
 }
@@ -53,8 +49,7 @@ export interface ChangePasswordRequest {
 export interface CompleteAccountSetupRequest {
   currentPassword?: string | null;
   newPassword?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
+  displayName?: string | null;
 }
 
 export type CompleteAccountSetupResponse = Omit<UserInfo, 'id' | 'isActive' | 'isExportDisabled'>;
@@ -65,8 +60,6 @@ export type CompleteAccountSetupResponse = Omit<UserInfo, 'id' | 'isActive' | 'i
 export interface CurrentUserProfile {
   email: string;
   role: string;
-  firstName: string | null;
-  lastName: string | null;
   displayName: string;
   mustCompleteProfile: boolean;
   googleDrive: GoogleDriveStatus;
@@ -88,8 +81,24 @@ export interface CurrentUserProfileLimits {
 }
 
 export interface UpdateCurrentUserProfileRequest {
-  firstName: string;
-  lastName: string;
+  displayName: string;
+}
+
+export interface InvitationStatusResponse {
+  email: string;
+  expiresAtUtc: string;
+}
+
+export interface ActivateAccountRequest {
+  token: string;
+  displayName: string;
+  password: string;
+}
+
+export interface ActivateAccountResponse {
+  email: string;
+  displayName: string;
+  roles: string[];
 }
 
 /**

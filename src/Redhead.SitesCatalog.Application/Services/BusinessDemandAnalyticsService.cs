@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models.Analytics;
 using Redhead.SitesCatalog.Application.Services.Analytics;
-using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
@@ -55,8 +54,7 @@ public sealed class BusinessDemandAnalyticsService : IBusinessDemandAnalyticsSer
             {
                 user.Id,
                 Email = user.Email ?? string.Empty,
-                user.FirstName,
-                user.LastName
+                user.DisplayName
             })
             .ToListAsync(cancellationToken);
 
@@ -64,7 +62,7 @@ public sealed class BusinessDemandAnalyticsService : IBusinessDemandAnalyticsSer
             .Select(user => new AnalyticsClientOptionDto(
                 user.Id,
                 user.Email,
-                UserProfileNameValidator.GetDisplayName(user.FirstName, user.LastName, user.Email)))
+                string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName.Trim()))
             .ToArray();
     }
 

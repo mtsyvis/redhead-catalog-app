@@ -6,8 +6,6 @@ namespace Redhead.SitesCatalog.Api.Models;
 public record CurrentUserProfileResponse(
     string Email,
     string Role,
-    string? FirstName,
-    string? LastName,
     string DisplayName,
     bool MustCompleteProfile,
     GoogleDriveStatusResponse GoogleDrive,
@@ -26,6 +24,4 @@ public record CurrentUserProfileLimitsResponse(
     int? WeeklyExportOperationsUsed = null,
     int? WeeklyExportOperationsLimit = null);
 
-public record UpdateCurrentUserProfileRequest(
-    string? FirstName,
-    string? LastName);
+public record UpdateCurrentUserProfileRequest(string? DisplayName);

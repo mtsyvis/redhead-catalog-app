@@ -86,14 +86,15 @@ public sealed class AdminUsersListService : IAdminUsersListService
         {
             Id = listItem.Id,
             Email = listItem.Email,
-            FirstName = listItem.FirstName,
-            LastName = listItem.LastName,
             SuperAdminNote = listItem.SuperAdminNote,
             DisplayName = listItem.DisplayName,
             MustCompleteProfile = listItem.MustCompleteProfile,
             MustChangePassword = user.MustChangePassword,
             Role = listItem.Role,
             IsActive = listItem.IsActive,
+            AccountStatus = listItem.AccountStatus,
+            ActivatedAtUtc = user.ActivatedAtUtc,
+            InvitationExpiresAtUtc = listItem.InvitationExpiresAtUtc,
             ExportLimitOverrideMode = listItem.ExportLimitOverrideMode,
             ExportLimitRowsOverride = listItem.ExportLimitRowsOverride,
             DailyUniqueExportedDomainsLimitOverride = listItem.DailyUniqueExportedDomainsLimitOverride,
@@ -127,12 +128,13 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 Id = user.Id,
                 Email = user.Email ?? string.Empty,
                 NormalizedEmail = user.NormalizedEmail ?? user.Email ?? string.Empty,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
+                DisplayName = user.DisplayName,
                 SuperAdminNote = user.SuperAdminNote,
                 Role = role.Name ?? string.Empty,
                 IsActive = user.IsActive,
                 MustChangePassword = user.MustChangePassword,
+                ActivatedAtUtc = user.ActivatedAtUtc,
+                InvitationExpiresAtUtc = user.InvitationExpiresAtUtc,
                 ExportLimitOverrideMode = user.ExportLimitOverrideMode,
                 ExportLimitRowsOverride = user.ExportLimitRowsOverride,
                 DailyUniqueExportedDomainsLimitOverride = user.DailyUniqueExportedDomainsLimitOverride,
@@ -186,13 +188,17 @@ public sealed class AdminUsersListService : IAdminUsersListService
         {
             Id = user.Id,
             Email = user.Email,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
             SuperAdminNote = user.SuperAdminNote,
-            DisplayName = UserProfileNameValidator.GetDisplayName(user.FirstName, user.LastName, user.Email),
-            MustCompleteProfile = !UserProfileNameValidator.IsProfileComplete(user.FirstName, user.LastName),
+            DisplayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName.Trim(),
+            MustCompleteProfile = string.IsNullOrWhiteSpace(user.DisplayName),
             Role = role,
             IsActive = user.IsActive,
+            AccountStatus = UserAccountStatuses.Resolve(
+                user.IsActive,
+                user.ActivatedAtUtc,
+                user.InvitationExpiresAtUtc,
+                DateTime.UtcNow),
+            InvitationExpiresAtUtc = user.InvitationExpiresAtUtc,
             ExportLimitOverrideMode = isSuperAdmin ? null : user.ExportLimitOverrideMode,
             ExportLimitRowsOverride = isSuperAdmin ? null : user.ExportLimitRowsOverride,
             DailyUniqueExportedDomainsLimitOverride = isSuperAdmin ? null : user.DailyUniqueExportedDomainsLimitOverride,
@@ -245,12 +251,13 @@ public sealed class AdminUsersListService : IAdminUsersListService
         public string Id { get; init; } = string.Empty;
         public string Email { get; init; } = string.Empty;
         public string NormalizedEmail { get; init; } = string.Empty;
-        public string? FirstName { get; init; }
-        public string? LastName { get; init; }
+        public string? DisplayName { get; init; }
         public string? SuperAdminNote { get; init; }
         public string Role { get; init; } = string.Empty;
         public bool IsActive { get; init; }
         public bool MustChangePassword { get; init; }
+        public DateTime? ActivatedAtUtc { get; init; }
+        public DateTime? InvitationExpiresAtUtc { get; init; }
         public ExportLimitMode? ExportLimitOverrideMode { get; init; }
         public int? ExportLimitRowsOverride { get; init; }
         public int? DailyUniqueExportedDomainsLimitOverride { get; init; }

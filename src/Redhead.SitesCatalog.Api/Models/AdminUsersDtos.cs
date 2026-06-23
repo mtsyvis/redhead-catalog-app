@@ -15,18 +15,19 @@ public record CreateUserResponse(
     string Id,
     string Email,
     string Role,
-    string TemporaryPassword);
+    string ActivationPath,
+    DateTime InvitationExpiresAtUtc);
 
 public record UserListItem
 {
     public string Id { get; init; } = string.Empty;
     public string Email { get; init; } = string.Empty;
-    public string? FirstName { get; init; }
-    public string? LastName { get; init; }
     public string DisplayName { get; init; } = string.Empty;
     public bool MustCompleteProfile { get; init; }
     public string Role { get; init; } = string.Empty;
     public bool IsActive { get; init; }
+    public string AccountStatus { get; init; } = string.Empty;
+    public DateTime? InvitationExpiresAtUtc { get; init; }
     public ExportLimitMode? ExportLimitOverrideMode { get; init; }
     public int? ExportLimitRowsOverride { get; init; }
     public ExportLimitMode? EffectiveExportLimitMode { get; init; }
@@ -73,13 +74,14 @@ public record AdminUserDetailsResponse
 {
     public string Id { get; init; } = string.Empty;
     public string Email { get; init; } = string.Empty;
-    public string? FirstName { get; init; }
-    public string? LastName { get; init; }
     public string DisplayName { get; init; } = string.Empty;
     public bool MustCompleteProfile { get; init; }
     public bool MustChangePassword { get; init; }
     public string Role { get; init; } = string.Empty;
     public bool IsActive { get; init; }
+    public string AccountStatus { get; init; } = string.Empty;
+    public DateTime? ActivatedAtUtc { get; init; }
+    public DateTime? InvitationExpiresAtUtc { get; init; }
     public ExportLimitMode? ExportLimitOverrideMode { get; init; }
     public int? ExportLimitRowsOverride { get; init; }
     public ExportLimitMode? EffectiveExportLimitMode { get; init; }
@@ -122,7 +124,14 @@ public record UpdateUserRoleRequest(
 public record ReactivateUserRequest(
     [Required, MinLength(1)] string Role);
 
-public record ReactivateUserResponse(string TemporaryPassword);
+public record ReactivateUserResponse(
+    string? TemporaryPassword,
+    string? ActivationPath,
+    DateTime? InvitationExpiresAtUtc);
+
+public record ReissueInvitationResponse(
+    string ActivationPath,
+    DateTime InvitationExpiresAtUtc);
 
 public record UpdateUserExportLimitRequest(
     ExportLimitMode? OverrideMode,

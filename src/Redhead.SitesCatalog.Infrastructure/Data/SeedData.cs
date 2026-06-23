@@ -259,7 +259,9 @@ public static class SeedData
                 Email = superAdminEmail,
                 EmailConfirmed = true,
                 IsActive = true,
-                MustChangePassword = false // Dev user doesn't need to change password
+                MustChangePassword = false,
+                DisplayName = "Super Admin",
+                ActivatedAtUtc = DateTime.UtcNow
             };
 
             var result = await userManager.CreateAsync(superAdmin, superAdminPassword);
@@ -284,6 +286,13 @@ public static class SeedData
         }
         else
         {
+            if (string.IsNullOrWhiteSpace(superAdmin.DisplayName) || !superAdmin.ActivatedAtUtc.HasValue)
+            {
+                superAdmin.DisplayName = "Super Admin";
+                superAdmin.ActivatedAtUtc ??= DateTime.UtcNow;
+                await userManager.UpdateAsync(superAdmin);
+            }
+
             logger.LogDebug("SuperAdmin user already exists: {Email}", superAdminEmail);
         }
     }

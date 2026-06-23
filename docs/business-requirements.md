@@ -29,15 +29,15 @@ The app has four roles:
 General rules:
 
 * Users authenticate with email and password.
-* There is no public self-registration.
+* There is no public self-registration without a `SuperAdmin` invitation.
 * Each user has one role.
-* Each user stores `FirstName` and `LastName` as separate optional fields.
+* Each user stores one optional `DisplayName` field with a maximum length of 100 characters.
 * Each user may have an optional internal `SuperAdmin` note for identifying client accounts when email/name are not enough.
 * The internal `SuperAdmin` note is visible and editable only by `SuperAdmin`; `Admin`, `Internal`, `Client`, profile/current-user, auth, export analytics, audit context, and other non-SuperAdmin-specific responses must not expose it.
-* A user's profile is complete only when both `FirstName` and `LastName` are non-empty after trimming.
-* New and existing users with missing profile names must complete their profile after login.
-* Display name is derived from `FirstName` + `LastName` when both are present; otherwise email is used as the fallback display value.
-* Users can update only their own profile names.
+* A user's profile is complete only when `DisplayName` is non-empty after trimming.
+* Existing activated users with a missing display name must complete it after login.
+* Email is used as the fallback display value while `DisplayName` is missing.
+* Users can update only their own display name.
 * Disabled users cannot log in or access API endpoints.
 * When a user's authenticated session expires or becomes invalid during protected frontend workflows, the user is redirected to `/login`, shown a session-expired message, and returned to the original page after signing in again.
 * Users are soft-disabled with `IsActive = false`; physical deletion is not allowed.
@@ -97,27 +97,32 @@ Current rules:
 * Can export if export is enabled for the role or user.
 * Cannot access admin, import, user-management, or catalog-editing features.
 
-## Password provisioning
+## Account invitations and password provisioning
 
-New users are provisioned by an administrator flow, not by self-registration.
+New users are provisioned by a `SuperAdmin` invitation flow. Public registration without an invitation is not allowed.
 
 Rules:
 
-* The system generates a temporary password.
-* Temporary password is displayed once after creation or reset.
-* Temporary password must not be logged or stored in plain text.
-* New users must change password on first login.
+* Creating a user requires email, role, and an optional internal `SuperAdmin` note.
+* The system generates a cryptographically random single-use activation token and stores only its SHA-256 hash.
+* The activation link is displayed to `SuperAdmin` once and expires 72 hours after creation.
+* If the link is lost or expires, `SuperAdmin` may reissue it for a pending or expired invitation. Reissuing invalidates the previous link and starts a new 72-hour period.
+* Invitation tokens and activation links must not be logged.
+* Account status is exposed as `Active`, `PendingActivation`, `InvitationExpired`, or `Disabled`.
+* The invited user provides the required `DisplayName` and a password satisfying the normal Identity password policy.
+* Successful activation consumes the invitation, confirms the email, and signs the user in immediately.
 * If a new user is created with an email that belongs to an active user, creation is rejected.
 * If a new user is created with an email that belongs to a disabled user, creation is rejected and the disabled account should be reactivated instead.
-* New users are created without first or last name in the admin create-user flow and must complete profile names during account setup.
-* Account setup can complete password change, profile names, or both depending on the user's current required setup state.
+* New users are created without a password or display name and cannot sign in before activation.
+* Existing activated users may still use account setup to complete a required password change, display name, or both.
 * After password reset, `MustChangePassword` must be set to `true` again.
-* After reactivation, `MustChangePassword` must be set to `true` and the temporary password must be displayed once.
-* Reactivation preserves profile names, internal `SuperAdmin` note, Google Drive connection, saved filters, table views, and user history.
+* Reactivating an already activated user sets `MustChangePassword = true` and displays a temporary password once.
+* Reactivating a disabled, never-activated user issues a new activation link instead.
+* Reactivation preserves display name, internal `SuperAdmin` note, Google Drive connection, saved filters, table views, and user history.
 * Reactivation clears per-user export limit overrides.
 * Disabled `SuperAdmin` users can be reactivated only as `SuperAdmin`; disabled `Admin`, `Internal`, and `Client` users can be reactivated only as `Admin`, `Internal`, or `Client`.
-* While `MustChangePassword = true` or profile names are incomplete, the user must be forced to `/account-setup` and blocked from normal app pages.
-* Users can update their own profile names from `/profile`; admins must not edit another user's profile names.
+* While `MustChangePassword = true` or `DisplayName` is incomplete, an activated user must be forced to `/account-setup` and blocked from normal app pages.
+* Users can update their own display name from `/profile`; admins must not edit another user's display name.
 
 ## Export limits
 
@@ -795,12 +800,12 @@ Rules:
 * The Users page should keep creation out of the table flow by opening the create-user form from an `Add user` dialog.
 * User reactivation UI is available only to `SuperAdmin` for disabled users.
 * Role-change UI is available only to `SuperAdmin` for active non-`SuperAdmin` users.
-* Admin users list should show user profile name for completed profiles and profile completion status for incomplete profiles.
+* Admin users list should show `DisplayName` for completed profiles and activation/profile status otherwise.
 * Admin users list should show the user's name/profile status and email together in a single user-identification column.
-* `SuperAdmin` and `Admin` can view readonly admin user details, including account role, profile name fields, profile completion status, export-limit information, and Google Drive connection status.
+* `SuperAdmin` and `Admin` can view readonly admin user details, including account role, display name, activation/profile status, export-limit information, and Google Drive connection status.
 * For `Client` users, admin user details also show current rolling export-usage values for the last 24 hours and last 7 days.
 * `SuperAdmin` can view and edit the optional internal note in SuperAdmin user management responses.
-* Admins must not edit another user's `FirstName` or `LastName`.
+* Admins must not edit another user's `DisplayName`.
 * Admins must not see or edit the internal `SuperAdmin` note.
 * Role settings editing is available only to `SuperAdmin`.
 * Per-user export override editing is available only to `SuperAdmin`.

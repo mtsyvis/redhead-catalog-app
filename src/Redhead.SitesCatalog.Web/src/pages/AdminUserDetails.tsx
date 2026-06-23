@@ -7,7 +7,12 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
+  Snackbar,
   Stack,
   Typography,
 } from '@mui/material';
@@ -167,6 +172,17 @@ export const AdminUserDetails: React.FC = () => {
   const [user, setUser] = useState<AdminUserDetailsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reissuing, setReissuing] = useState(false);
+  const [invitationLink, setInvitationLink] = useState<string | null>(null);
+  const [copyNotification, setCopyNotification] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   const isAdmin = currentUser?.roles?.some((role) => role === 'Admin' || role === 'SuperAdmin');
   const isSuperAdmin = currentUser?.roles?.includes('SuperAdmin');
@@ -193,6 +209,37 @@ export const AdminUserDetails: React.FC = () => {
   useEffect(() => {
     void loadUser();
   }, [loadUser]);
+
+  const handleReissueInvitation = async () => {
+    if (!user) return;
+
+    setReissuing(true);
+    setError(null);
+    try {
+      const response = await adminUsersService.reissueInvitation(user.id);
+      setInvitationLink(`${window.location.origin}${response.activationPath}`);
+      await loadUser();
+    } catch (reissueError) {
+      setError(reissueError instanceof ApiClientError ? reissueError.message : 'Failed to reissue invitation.');
+    } finally {
+      setReissuing(false);
+    }
+  };
+
+  const handleCopyInvitation = async () => {
+    if (!invitationLink) return;
+
+    try {
+      await navigator.clipboard.writeText(invitationLink);
+      setCopyNotification({ open: true, message: 'Copied', severity: 'success' });
+    } catch {
+      setCopyNotification({
+        open: true,
+        message: 'Could not copy. Please copy the value manually.',
+        severity: 'error',
+      });
+    }
+  };
 
   const displayName = useMemo(() => {
     if (!user) return '';
@@ -221,6 +268,13 @@ export const AdminUserDetails: React.FC = () => {
           <BrandButton kind="outline" startIcon={<ArrowBackIcon />} onClick={() => navigate('/admin/users')}>
             Back to users
           </BrandButton>
+          {isSuperAdmin && user && (
+            user.accountStatus === 'PendingActivation' || user.accountStatus === 'InvitationExpired'
+          ) && (
+            <BrandButton kind="primary" onClick={() => void handleReissueInvitation()} disabled={reissuing}>
+              {reissuing ? <CircularProgress size={20} color="inherit" /> : 'Reissue invitation'}
+            </BrandButton>
+          )}
         </Box>
 
         {loading ? (
@@ -261,7 +315,13 @@ export const AdminUserDetails: React.FC = () => {
                   </Box>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <Chip label={user.role || 'Role unavailable'} color="primary" size="small" />
-                    {user.mustCompleteProfile && (
+                    {user.accountStatus === 'PendingActivation' && (
+                      <Chip label="Pending activation" color="info" variant="outlined" size="small" />
+                    )}
+                    {user.accountStatus === 'InvitationExpired' && (
+                      <Chip label="Invitation expired" color="warning" variant="outlined" size="small" />
+                    )}
+                    {user.mustCompleteProfile && user.accountStatus === 'Active' && (
                       <Chip label="Profile incomplete" color="warning" variant="outlined" size="small" />
                     )}
                     {user.isActive === false && (
@@ -279,11 +339,16 @@ export const AdminUserDetails: React.FC = () => {
                     Account information
                   </Typography>
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                    <DetailRow label="First name" value={cleanText(user.firstName)} />
-                    <DetailRow label="Last name" value={cleanText(user.lastName)} />
-                    <DetailRow label="Name" value={cleanText(user.displayName)} />
+                    <DetailRow label="Display name" value={cleanText(user.displayName)} />
                     <DetailRow label="Email" value={cleanText(user.email)} />
                     <DetailRow label="Role" value={cleanText(user.role)} />
+                    <DetailRow label="Account status" value={user.accountStatus} />
+                    {user.invitationExpiresAtUtc && (
+                      <DetailRow
+                        label="Invitation expires"
+                        value={formatDateTime(user.invitationExpiresAtUtc)}
+                      />
+                    )}
                     <DetailRow label="Profile status" value={profileStatus} />
                     <DetailRow label="Password change required" value={user.mustChangePassword ? 'Yes' : 'No'} />
                     {isSuperAdmin && <DetailRow label="Super Admin note" value={cleanText(user.superAdminNote) ?? '—'} />}
@@ -473,6 +538,40 @@ export const AdminUserDetails: React.FC = () => {
           </>
         ) : null}
       </Stack>
+      <Dialog open={Boolean(invitationLink)} onClose={() => setInvitationLink(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Invitation reissued</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This activation link is shown only once. Copy it now and share it securely.
+          </Alert>
+          <Box sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1, wordBreak: 'break-all' }}>
+            {invitationLink}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <BrandButton
+            kind="outline"
+            onClick={() => void handleCopyInvitation()}
+          >
+            Copy link
+          </BrandButton>
+          <BrandButton onClick={() => setInvitationLink(null)}>Done</BrandButton>
+        </DialogActions>
+      </Dialog>
+      <Snackbar
+        open={copyNotification.open}
+        autoHideDuration={2000}
+        onClose={() => setCopyNotification((current) => ({ ...current, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={copyNotification.severity}
+          onClose={() => setCopyNotification((current) => ({ ...current, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {copyNotification.message}
+        </Alert>
+      </Snackbar>
     </PageShell>
   );
 };

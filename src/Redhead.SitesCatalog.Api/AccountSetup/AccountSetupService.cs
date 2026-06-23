@@ -97,7 +97,7 @@ public sealed class AccountSetupService : IAccountSetupService
 
         if (parts.ShouldUpdateProfile)
         {
-            var profileValidation = UserProfileNameValidator.Validate(request.FirstName, request.LastName);
+            var profileValidation = UserDisplayNameValidator.Validate(request.DisplayName);
             foreach (var error in profileValidation.Errors)
             {
                 errors[error.Key] = error.Value;
@@ -126,9 +126,8 @@ public sealed class AccountSetupService : IAccountSetupService
         ApplicationUser user,
         CompleteAccountSetupRequest request)
     {
-        var profileValidation = UserProfileNameValidator.Validate(request.FirstName, request.LastName);
-        user.FirstName = profileValidation.FirstName;
-        user.LastName = profileValidation.LastName;
+        var profileValidation = UserDisplayNameValidator.Validate(request.DisplayName);
+        user.DisplayName = profileValidation.DisplayName;
     }
 
     private static CompleteAccountSetupResponse ToResponse(
@@ -139,9 +138,7 @@ public sealed class AccountSetupService : IAccountSetupService
             user.Email!,
             user.MustChangePassword,
             !user.HasCompleteProfile,
-            user.FirstName,
-            user.LastName,
-            user.DisplayName,
+            user.EffectiveDisplayName,
             roles);
     }
 

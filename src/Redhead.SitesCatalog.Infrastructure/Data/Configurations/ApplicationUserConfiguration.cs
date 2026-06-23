@@ -62,12 +62,21 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
         builder.Property(u => u.WeeklyExportOperationsLimitOverride)
             .IsRequired(false);
 
-        builder.Property(u => u.FirstName)
+        builder.Property(u => u.DisplayName)
             .HasMaxLength(100)
             .IsRequired(false);
 
-        builder.Property(u => u.LastName)
-            .HasMaxLength(100)
+        builder.Property(u => u.ActivatedAtUtc)
+            .IsRequired(false);
+
+        builder.Property(u => u.InvitationTokenHash)
+            .HasMaxLength(64)
+            .IsRequired(false);
+
+        builder.HasIndex(u => u.InvitationTokenHash)
+            .IsUnique();
+
+        builder.Property(u => u.InvitationExpiresAtUtc)
             .IsRequired(false);
 
         builder.Property(u => u.SuperAdminNote)

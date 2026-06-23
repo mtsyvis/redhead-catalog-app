@@ -19,6 +19,7 @@ import {
   Chip,
   IconButton,
   Menu,
+  Snackbar,
   Tooltip,
   ToggleButton,
   ToggleButtonGroup,
@@ -126,12 +127,8 @@ function formatEffectiveNumber(value: number | null | undefined): string {
 }
 
 function getProfileName(user: UserListItemType): string | null {
-  const firstName = user.firstName?.trim();
-  const lastName = user.lastName?.trim();
-
-  if (!firstName || !lastName) return null;
-
-  return `${firstName} ${lastName}`;
+  const displayName = user.displayName?.trim();
+  return user.mustCompleteProfile ? null : displayName || null;
 }
 
 export const AdminUsers: React.FC = () => {
@@ -155,11 +152,21 @@ export const AdminUsers: React.FC = () => {
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const [tempPasswordDialog, setTempPasswordDialog] = useState<{
+  const [secretDialog, setSecretDialog] = useState<{
     title: string;
     email: string;
-    password: string;
+    value: string;
+    kind: 'invitation' | 'password';
   } | null>(null);
+  const [copyNotification, setCopyNotification] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   const [disableConfirmUser, setDisableConfirmUser] = useState<UserListItemType | null>(null);
   const [resetPasswordConfirmUser, setResetPasswordConfirmUser] = useState<UserListItemType | null>(null);
@@ -265,10 +272,11 @@ export const AdminUsers: React.FC = () => {
       });
       setCreateDialogOpen(false);
       resetCreateForm();
-      setTempPasswordDialog({
+      setSecretDialog({
         title: 'User created',
         email: res.email,
-        password: res.temporaryPassword,
+        value: `${window.location.origin}${res.activationPath}`,
+        kind: 'invitation',
       });
       await loadUsers();
     } catch (err) {
@@ -291,10 +299,11 @@ export const AdminUsers: React.FC = () => {
     try {
       const res = await adminUsersService.resetPassword(user.id);
       setResetPasswordConfirmUser(null);
-      setTempPasswordDialog({
+      setSecretDialog({
         title: 'Password reset',
         email: user.email,
-        password: res.temporaryPassword,
+        value: res.temporaryPassword,
+        kind: 'password',
       });
       await loadUsers(true);
     } catch {
@@ -390,11 +399,21 @@ export const AdminUsers: React.FC = () => {
     try {
       const res = await adminUsersService.reactivate(reactivateUser.id, { role: reactivateRoleValue });
       setReactivateUser(null);
-      setTempPasswordDialog({
-        title: 'User reactivated',
-        email: reactivateUser.email,
-        password: res.temporaryPassword,
-      });
+      if (res.activationPath) {
+        setSecretDialog({
+          title: 'User reactivated',
+          email: reactivateUser.email,
+          value: `${window.location.origin}${res.activationPath}`,
+          kind: 'invitation',
+        });
+      } else if (res.temporaryPassword) {
+        setSecretDialog({
+          title: 'User reactivated',
+          email: reactivateUser.email,
+          value: res.temporaryPassword,
+          kind: 'password',
+        });
+      }
       await loadUsers(true);
     } catch (err) {
       setReactivateError(err instanceof ApiClientError ? err.message : 'Failed to reactivate user');
@@ -603,11 +622,40 @@ export const AdminUsers: React.FC = () => {
     );
   }, [currentUser?.id, isSuperAdmin, normalRoles]);
 
-  const copyPassword = () => {
-    if (tempPasswordDialog) {
-      void navigator.clipboard.writeText(tempPasswordDialog.password);
+  const copySecret = async () => {
+    if (!secretDialog) return;
+
+    try {
+      await navigator.clipboard.writeText(secretDialog.value);
+      setCopyNotification({ open: true, message: 'Copied', severity: 'success' });
+    } catch {
+      setCopyNotification({
+        open: true,
+        message: 'Could not copy. Please copy the value manually.',
+        severity: 'error',
+      });
     }
   };
+
+  const handleReissueInvitation = useCallback(async (user: UserListItemType) => {
+    setRowActionsAnchor(null);
+    setRowActionsUser(null);
+    setActionLoadingId(user.id);
+    try {
+      const response = await adminUsersService.reissueInvitation(user.id);
+      setSecretDialog({
+        title: 'Invitation reissued',
+        email: user.email,
+        value: `${window.location.origin}${response.activationPath}`,
+        kind: 'invitation',
+      });
+      await loadUsers(true);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to reissue invitation');
+    } finally {
+      setActionLoadingId(null);
+    }
+  }, [loadUsers]);
 
   const getExportLimitPreview = (): string | null => {
     if (!editExportLimitUser) return null;
@@ -700,21 +748,28 @@ export const AdminUsers: React.FC = () => {
         renderCell: (params) => {
           const profileName = getProfileName(params.row);
           const isCurrentUserRow = params.row.id === currentUser?.id;
+          const missingNameLabel = params.row.accountStatus === 'InvitationExpired'
+            ? 'Invitation expired'
+            : params.row.accountStatus === 'PendingActivation'
+              ? null
+              : 'Profile incomplete';
 
           return (
             <Box sx={{ py: 0.75, minWidth: 0 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flexWrap: 'wrap' }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 600,
-                    color: profileName ? 'text.primary' : 'warning.dark',
-                    wordBreak: 'break-word',
-                    minWidth: 0,
-                  }}
-                >
-                  {profileName ?? 'Profile incomplete'}
-                </Typography>
+                {(profileName || missingNameLabel) && (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 600,
+                      color: profileName ? 'text.primary' : 'warning.dark',
+                      wordBreak: 'break-word',
+                      minWidth: 0,
+                    }}
+                  >
+                    {profileName ?? missingNameLabel}
+                  </Typography>
+                )}
                 {isCurrentUserRow && (
                   <Chip
                     label="You"
@@ -743,18 +798,26 @@ export const AdminUsers: React.FC = () => {
         sortable: false,
       },
       {
-        field: 'isActive',
+        field: 'accountStatus',
         headerName: 'Status',
-        width: 130,
+        width: 170,
         sortable: false,
-        renderCell: (params) => (
-          <Chip
-            label={params.row.isActive ? 'Active' : 'Disabled'}
-            color={params.row.isActive ? 'success' : 'default'}
-            size="small"
-            variant={params.row.isActive ? 'filled' : 'outlined'}
-          />
-        ),
+        renderCell: (params) => {
+          const status = params.row.accountStatus;
+          const label = status === 'PendingActivation'
+            ? 'Pending activation'
+            : status === 'InvitationExpired'
+              ? 'Invitation expired'
+              : status;
+          const color = status === 'Active'
+            ? 'success'
+            : status === 'PendingActivation'
+              ? 'info'
+            : status === 'InvitationExpired'
+              ? 'warning'
+              : 'default';
+          return <Chip label={label} color={color} size="small" variant={status === 'Active' ? 'filled' : 'outlined'} />;
+        },
       },
       {
         field: 'effectiveExportLimitMode',
@@ -874,6 +937,15 @@ export const AdminUsers: React.FC = () => {
   const rowActionsCanReactivate = Boolean(isSuperAdmin && rowActionsUser && !rowActionsUser.isActive);
   const rowActionsCanEditLimit = Boolean(rowActionsUser?.isActive && rowActionsUser.isExportLimitEditable);
   const rowActionsCanEditNote = Boolean(isSuperAdmin && rowActionsUser?.isActive);
+  const rowActionsCanReissueInvitation = Boolean(
+    isSuperAdmin
+      && rowActionsUser?.isActive
+      && (rowActionsUser.accountStatus === 'PendingActivation'
+        || rowActionsUser.accountStatus === 'InvitationExpired')
+  );
+  const rowActionsCanResetPassword = Boolean(
+    rowActionsCanModify && rowActionsUser?.accountStatus === 'Active'
+  );
 
   if (!isAdmin) {
     return <Navigate to="/sites" replace />;
@@ -1017,7 +1089,12 @@ export const AdminUsers: React.FC = () => {
             Reactivate
           </MenuItem>
         )}
-        {rowActionsCanModify && rowActionsUser && (
+        {rowActionsCanReissueInvitation && rowActionsUser && (
+          <MenuItem onClick={() => void handleReissueInvitation(rowActionsUser)}>
+            Reissue invitation
+          </MenuItem>
+        )}
+        {rowActionsCanResetPassword && rowActionsUser && (
           <MenuItem onClick={() => handleResetPasswordClick(rowActionsUser)}>
             Reset password
           </MenuItem>
@@ -1100,6 +1177,21 @@ export const AdminUsers: React.FC = () => {
           </DialogActions>
         </Box>
       </Dialog>
+
+      <Snackbar
+        open={copyNotification.open}
+        autoHideDuration={2000}
+        onClose={() => setCopyNotification((current) => ({ ...current, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={copyNotification.severity}
+          onClose={() => setCopyNotification((current) => ({ ...current, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {copyNotification.message}
+        </Alert>
+      </Snackbar>
 
       <Dialog
         open={!!changeRoleUser}
@@ -1196,7 +1288,7 @@ export const AdminUsers: React.FC = () => {
               )}
 
               <Typography variant="body2" color="text.secondary">
-                A new temporary password will be generated and shown only once.
+                The new activation link or temporary password will be shown only once.
               </Typography>
               {reactivateError && <Alert severity="error">{reactivateError}</Alert>}
             </Box>
@@ -1295,16 +1387,17 @@ export const AdminUsers: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={!!tempPasswordDialog} onClose={() => setTempPasswordDialog(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>{tempPasswordDialog?.title}</DialogTitle>
+      <Dialog open={!!secretDialog} onClose={() => setSecretDialog(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>{secretDialog?.title}</DialogTitle>
         <DialogContent>
-          {tempPasswordDialog && (
+          {secretDialog && (
             <>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                {tempPasswordDialog.email}
+                {secretDialog.email}
               </Typography>
               <Alert severity="warning" sx={{ mt: 1 }}>
-                This password is shown only once. Copy it now and share it securely with the user.
+                This {secretDialog.kind === 'invitation' ? 'activation link' : 'password'} is shown only once.
+                Copy it now and share it securely with the user.
               </Alert>
               <Box
                 sx={{
@@ -1316,16 +1409,16 @@ export const AdminUsers: React.FC = () => {
                   wordBreak: 'break-all',
                 }}
               >
-                {tempPasswordDialog.password}
+                {secretDialog.value}
               </Box>
             </>
           )}
         </DialogContent>
         <DialogActions>
-          <BrandButton kind="outline" onClick={copyPassword}>
-            Copy password
+          <BrandButton kind="outline" onClick={copySecret}>
+            Copy {secretDialog?.kind === 'invitation' ? 'link' : 'password'}
           </BrandButton>
-          <BrandButton onClick={() => setTempPasswordDialog(null)}>Done</BrandButton>
+          <BrandButton onClick={() => setSecretDialog(null)}>Done</BrandButton>
         </DialogActions>
       </Dialog>
 
