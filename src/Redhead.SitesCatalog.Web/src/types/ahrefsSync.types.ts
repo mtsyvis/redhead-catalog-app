@@ -67,6 +67,7 @@ export interface AhrefsSyncRunDetails {
 export interface AhrefsSyncStatus {
   schedulerEnabled: boolean;
   cron: string;
+  notBeforeUtc: string | null;
   nextScheduledRunUtc: string | null;
   isDueNow: boolean;
   isWaitingForUsageReset: boolean;

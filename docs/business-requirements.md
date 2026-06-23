@@ -351,15 +351,20 @@ Rules:
 
 ### Ahrefs monthly metrics sync
 
-Once per UTC month, the backend updates `Traffic` and `DR` for non-quarantined sites from Ahrefs Batch Analysis using target mode `subdomains` and stores one Ahrefs snapshot per domain and month. Zero traffic is valid. Failed or missing Ahrefs rows preserve existing site values. Ahrefs updates set `AhrefsLastSyncedAt` but do not change the normal site audit fields `UpdatedAtUtc` or `UpdatedBy`.
+Once per UTC month, at 01:00 UTC on the first day by default, the backend updates `Traffic` and `DR` for non-quarantined sites from Ahrefs Batch Analysis using target mode `subdomains`. Zero traffic is valid. Failed or missing Ahrefs rows preserve existing site values. Ahrefs updates set `AhrefsLastSyncedAt` but do not change the normal site audit fields `UpdatedAtUtc` or `UpdatedBy`.
 
-The sync is budget-aware, checks Ahrefs workspace/API-key usage before each real run, and may process only the affordable highest-traffic sites. Scheduled and manual full runs save monthly snapshots by default; limited manual runs do not unless requested. Existing site values are not backfilled into snapshot history.
+Metric history stores at most one snapshot per domain and actual UTC snapshot date. Scheduled and manual full runs save snapshots by default; limited manual runs do not unless requested. If a scheduled run waits for the Ahrefs usage reset and starts on a later date, the history records that actual run date rather than the configured cron date.
+
+The catalog values known to have been refreshed for all sites on June 4, 2026 are imported once into history with source `AhrefsBaselineImport`. This is historical data only and does not create an Ahrefs sync run. The initial rollout sets `NotBeforeUtc` to July 1, 2026 at 01:00 UTC, so the first real scheduled run starts at that occurrence without relying on a manual production configuration change.
+
+The sync is budget-aware, checks Ahrefs workspace/API-key usage before each real run, and may process only the affordable highest-traffic sites.
 The configured safety buffer is used both when selecting affordable sites before the run and as the
 minimum remaining-units threshold checked between batches.
 
-Before a scheduled monthly run starts, the limits response must confirm a new Ahrefs usage period
-by returning a future `usage_reset_date`. If Ahrefs still reports an expired reset date, the
-scheduler waits and checks again hourly without creating an audit run or calling Batch Analysis.
+Before a scheduled monthly run starts, the limits response must confirm a usable Ahrefs period.
+The `usage_reset_date` must be in the future. When a previous real API sync exists, it must also
+differ from that run's reset date. If Ahrefs reports an expired or previously used reset period,
+the scheduler waits and checks again hourly without creating an audit run or calling Batch Analysis.
 An unavailable, invalid, or expired API key creates a failed audit run with the API error and does
 not call Batch Analysis. Repeated identical limits failures reuse the existing failed run instead
 of adding hourly duplicates.

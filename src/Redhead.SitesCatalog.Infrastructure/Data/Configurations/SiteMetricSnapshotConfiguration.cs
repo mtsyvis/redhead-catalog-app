@@ -14,14 +14,14 @@ public sealed class SiteMetricSnapshotConfiguration : IEntityTypeConfiguration<S
         builder.Property(snapshot => snapshot.Domain)
             .IsRequired()
             .HasMaxLength(SiteFieldLimits.DomainMaxLength);
-        builder.Property(snapshot => snapshot.SnapshotMonth)
+        builder.Property(snapshot => snapshot.SnapshotDate)
             .HasColumnType("date")
             .IsRequired();
         builder.Property(snapshot => snapshot.Source)
             .IsRequired()
             .HasMaxLength(64);
         builder.Property(snapshot => snapshot.FetchedAt).IsRequired();
-        builder.HasIndex(snapshot => new { snapshot.Domain, snapshot.SnapshotMonth })
+        builder.HasIndex(snapshot => new { snapshot.Domain, snapshot.SnapshotDate })
             .IsUnique();
         builder.HasOne(snapshot => snapshot.AhrefsSyncRun)
             .WithMany(run => run.Snapshots)

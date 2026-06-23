@@ -130,7 +130,7 @@ public sealed class AhrefsSyncControllerTests
             new AhrefsSyncOptions
             {
                 Enabled = true,
-                Cron = "0 1 14 * *"
+                Cron = AhrefsSyncOptions.DefaultCron
             });
 
         // Act
@@ -141,11 +141,51 @@ public sealed class AhrefsSyncControllerTests
         var payload = Assert.IsType<AhrefsSyncStatusResponse>(ok.Value);
         Assert.True(payload.IsDueNow);
         Assert.Equal(
-            new DateTime(2026, 6, 14, 1, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 6, 1, 1, 0, 0, DateTimeKind.Utc),
             payload.DueOccurrenceUtc);
         Assert.Equal(
-            new DateTime(2026, 7, 14, 1, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 7, 1, 1, 0, 0, DateTimeKind.Utc),
             payload.NextScheduledRunUtc);
+    }
+
+    [Fact]
+    public async Task GetStatus_BeforeNotBeforeUtc_ReturnsFutureStartWithoutDueState()
+    {
+        // Arrange
+        var checkedAt = new DateTime(2026, 6, 21, 0, 0, 0, DateTimeKind.Utc);
+        var notBeforeUtc = new DateTimeOffset(
+            2026,
+            7,
+            1,
+            1,
+            0,
+            0,
+            TimeSpan.Zero);
+        var service = new Mock<IAhrefsSyncService>();
+        service.Setup(candidate => candidate.GetMonitoringDataAsync(
+                false,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateMonitoringData(checkedAt));
+        var sut = CreateController(
+            service.Object,
+            new AhrefsSyncOptions
+            {
+                Enabled = true,
+                Cron = AhrefsSyncOptions.DefaultCron,
+                NotBeforeUtc = notBeforeUtc
+            });
+
+        // Act
+        var response = await sut.GetStatus(refresh: false);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<AhrefsSyncStatusResponse>(ok.Value);
+        Assert.False(payload.IsDueNow);
+        Assert.False(payload.IsWaitingForUsageReset);
+        Assert.False(payload.CanStartRun);
+        Assert.Equal(notBeforeUtc.UtcDateTime, payload.NotBeforeUtc);
+        Assert.Equal(notBeforeUtc.UtcDateTime, payload.NextScheduledRunUtc);
     }
 
     [Fact]
@@ -163,7 +203,7 @@ public sealed class AhrefsSyncControllerTests
             new AhrefsSyncOptions
             {
                 Enabled = false,
-                Cron = "0 1 14 * *"
+                Cron = AhrefsSyncOptions.DefaultCron
             });
 
         // Act
@@ -175,7 +215,7 @@ public sealed class AhrefsSyncControllerTests
         Assert.False(payload.SchedulerEnabled);
         Assert.False(payload.IsDueNow);
         Assert.Equal(
-            new DateTime(2026, 7, 14, 1, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 7, 1, 1, 0, 0, DateTimeKind.Utc),
             payload.NextScheduledRunUtc);
     }
 
@@ -196,7 +236,7 @@ public sealed class AhrefsSyncControllerTests
             new AhrefsSyncOptions
             {
                 Enabled = true,
-                Cron = "0 1 14 * *"
+                Cron = AhrefsSyncOptions.DefaultCron
             });
 
         // Act
@@ -378,6 +418,8 @@ public sealed class AhrefsSyncControllerTests
             checkedAt,
             ActiveRun: null,
             HasCompletedMonthlyRunForSnapshotMonth: false,
+            IsWaitingForUsageReset:
+                (usageResetDate ?? checkedAt.AddDays(10)) <= checkedAt,
             new DateOnly(checkedAt.Year, checkedAt.Month, 1),
             EligibleSitesCount: eligibleSitesCount,
             FullEstimatedUnits: AhrefsSyncCostCalculator.EstimateUnits(

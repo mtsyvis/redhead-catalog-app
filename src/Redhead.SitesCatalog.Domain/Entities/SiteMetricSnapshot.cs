@@ -6,7 +6,7 @@ public class SiteMetricSnapshot
 {
     public Guid Id { get; set; }
     public string Domain { get; set; } = string.Empty;
-    public DateOnly SnapshotMonth { get; set; }
+    public DateOnly SnapshotDate { get; set; }
     public long Traffic { get; set; }
     public double DomainRating { get; set; }
     public string Source { get; set; } = string.Empty;

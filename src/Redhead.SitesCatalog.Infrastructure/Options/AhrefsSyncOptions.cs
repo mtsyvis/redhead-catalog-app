@@ -3,10 +3,11 @@ namespace Redhead.SitesCatalog.Infrastructure.Options;
 public sealed class AhrefsSyncOptions
 {
     public const string SectionName = "AhrefsSync";
-    public const string DefaultCron = "0 1 14 * *";
+    public const string DefaultCron = "0 1 1 * *";
 
     public bool Enabled { get; set; } = true;
     public string Cron { get; set; } = DefaultCron;
+    public DateTimeOffset? NotBeforeUtc { get; set; }
     public int BatchSize { get; set; } = 100;
     public int MaxSitesPerRun { get; set; } = 100000;
     public string TargetMode { get; set; } = "subdomains";

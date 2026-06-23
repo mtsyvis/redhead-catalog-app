@@ -61,6 +61,13 @@ public sealed class AhrefsSyncHostedService : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             var now = _utcNow();
+            var notBeforeUtc = _options.NotBeforeUtc?.UtcDateTime;
+            if (notBeforeUtc.HasValue && now < notBeforeUtc.Value)
+            {
+                await _delay(notBeforeUtc.Value - now, stoppingToken);
+                continue;
+            }
+
             var due = schedule.GetDueOccurrenceUtc(now);
             if (due.HasValue)
             {

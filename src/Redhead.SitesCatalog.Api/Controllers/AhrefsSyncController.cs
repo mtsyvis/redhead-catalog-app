@@ -97,16 +97,28 @@ public sealed class AhrefsSyncController : ControllerBase
     {
         var data = await _syncService.GetMonitoringDataAsync(refresh, cancellationToken);
         AhrefsSyncCronSchedule.TryParse(_options.Cron, out var schedule);
+        var notBeforeUtc = _options.NotBeforeUtc?.UtcDateTime;
+        var scheduleIsActive = !notBeforeUtc.HasValue ||
+            data.LimitsCheckedAt >= notBeforeUtc.Value;
         var dueOccurrence = schedule?.GetDueOccurrenceUtc(data.LimitsCheckedAt);
+        var nextScheduledRun = schedule?.GetNextOccurrenceUtc(data.LimitsCheckedAt);
+        if (notBeforeUtc.HasValue &&
+            nextScheduledRun.HasValue &&
+            nextScheduledRun.Value < notBeforeUtc.Value)
+        {
+            nextScheduledRun = schedule?.GetNextOccurrenceUtc(
+                notBeforeUtc.Value.AddTicks(-1));
+        }
         var isWaitingForUsageReset =
             _options.Enabled &&
+            scheduleIsActive &&
             dueOccurrence.HasValue &&
             data.ActiveRun == null &&
             !data.HasCompletedMonthlyRunForSnapshotMonth &&
-            AhrefsSyncService.IsWaitingForUsageReset(
-                new AhrefsLimitsSnapshot(data.Limits, data.LimitsCheckedAt));
+            data.IsWaitingForUsageReset;
         var isDueNow =
             _options.Enabled &&
+            scheduleIsActive &&
             dueOccurrence.HasValue &&
             data.ActiveRun == null &&
             !data.HasCompletedMonthlyRunForSnapshotMonth &&
@@ -128,7 +140,8 @@ public sealed class AhrefsSyncController : ControllerBase
         return Ok(new AhrefsSyncStatusResponse(
             _options.Enabled,
             _options.Cron,
-            schedule?.GetNextOccurrenceUtc(data.LimitsCheckedAt),
+            notBeforeUtc,
+            nextScheduledRun,
             isDueNow,
             isWaitingForUsageReset,
             dueOccurrence,
@@ -147,6 +160,7 @@ public sealed class AhrefsSyncController : ControllerBase
             AhrefsSyncCostCalculator.EstimateUnits(plannedSitesCount, data.BatchSize),
             plannedSitesCount > 0 &&
                 data.ActiveRun == null &&
+                scheduleIsActive &&
                 !isWaitingForUsageReset &&
                 !data.HasCompletedMonthlyRunForSnapshotMonth,
             fullCatalogFitsBudget,

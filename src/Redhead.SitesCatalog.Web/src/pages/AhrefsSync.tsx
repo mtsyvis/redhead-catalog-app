@@ -476,6 +476,7 @@ function StatusOverview({
           >
             <ConfigRow label="Scheduler" value={status.schedulerEnabled ? 'Enabled' : 'Disabled'} />
             <ConfigRow label="Cron (UTC)" value={status.cron} />
+            <ConfigRow label="Not before" value={formatUtcDateTime(status.notBeforeUtc)} />
             <ConfigRow label="Target mode" value={status.targetMode} />
             <ConfigRow label="Protocol" value={status.protocol} />
             <ConfigRow label="Volume mode" value={status.volumeMode} />

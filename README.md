@@ -243,6 +243,7 @@ Ahrefs__ApiKey
 Ahrefs__BaseUrl
 AhrefsSync__Enabled
 AhrefsSync__Cron
+AhrefsSync__NotBeforeUtc
 AhrefsSync__BatchSize
 AhrefsSync__MaxSitesPerRun
 AhrefsSync__TargetMode
@@ -273,6 +274,7 @@ EmergencySitesExport__FilePrefix
 EmergencySitesExport__UploadTimeoutMinutes
 Ahrefs__ApiKey
 AhrefsSync__Cron
+AhrefsSync__NotBeforeUtc
 Frontend__BaseUrl
 ASPNETCORE_ENVIRONMENT
 ASPNETCORE_URLS

@@ -51,8 +51,9 @@ services:
       ExportedDomainAccessCleanup__IntervalHours: ${ExportedDomainAccessCleanup__IntervalHours:-24}
       Ahrefs__ApiKey: ${Ahrefs__ApiKey:-}
       Ahrefs__BaseUrl: ${Ahrefs__BaseUrl:-https://api.ahrefs.com/v3}
-      AhrefsSync__Enabled: ${AhrefsSync__Enabled:-true}
-      AhrefsSync__Cron: ${AhrefsSync__Cron:-0 1 14 * *}
+      AhrefsSync__Enabled: ${AhrefsSync__Enabled:-false}
+      AhrefsSync__Cron: ${AhrefsSync__Cron:-0 1 1 * *}
+      AhrefsSync__NotBeforeUtc: ${AhrefsSync__NotBeforeUtc:-2026-07-01T01:00:00Z}
       AhrefsSync__BatchSize: ${AhrefsSync__BatchSize:-100}
       AhrefsSync__MaxSitesPerRun: ${AhrefsSync__MaxSitesPerRun:-100000}
       AhrefsSync__TargetMode: ${AhrefsSync__TargetMode:-subdomains}

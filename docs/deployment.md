@@ -135,7 +135,8 @@ ExportedDomainAccessCleanup__IntervalHours=24
 Ahrefs__ApiKey=<Ahrefs API v3 key>
 Ahrefs__BaseUrl=https://api.ahrefs.com/v3
 AhrefsSync__Enabled=true
-AhrefsSync__Cron=0 1 14 * *
+AhrefsSync__Cron=0 1 1 * *
+AhrefsSync__NotBeforeUtc=2026-07-01T01:00:00Z
 AhrefsSync__BatchSize=100
 AhrefsSync__MaxSitesPerRun=100000
 AhrefsSync__TargetMode=subdomains
@@ -145,6 +146,12 @@ AhrefsSync__MonthlyAppBudgetUnits=975000
 AhrefsSync__SafetyBufferUnits=25000
 FRONTEND_BASE_URL=https://catalog.rhda.us
 ```
+
+The default Ahrefs schedule is 01:00 UTC on the first day of each month.
+`AhrefsSync__NotBeforeUtc` prevents any scheduled invocation before the initial July 1, 2026
+occurrence. The baseline migration stores the current catalog Traffic/DR values as history dated
+June 4, 2026 but does not create a sync run. After the initial rollout, the not-before value may
+remain configured because it has no effect once the date has passed.
 
 `EmergencySitesExport__ScheduleCron` uses standard five-field cron in UTC: `minute hour day-of-month month day-of-week`.
 `ExportedDomainAccessCleanup__RetentionDays` must be at least `7` because client weekly unique-domain limits use a rolling 7-day window.
@@ -186,6 +193,7 @@ Ahrefs__ApiKey=${Ahrefs__ApiKey}
 Ahrefs__BaseUrl=${Ahrefs__BaseUrl}
 AhrefsSync__Enabled=${AhrefsSync__Enabled}
 AhrefsSync__Cron=${AhrefsSync__Cron}
+AhrefsSync__NotBeforeUtc=${AhrefsSync__NotBeforeUtc}
 AhrefsSync__BatchSize=${AhrefsSync__BatchSize}
 AhrefsSync__MaxSitesPerRun=${AhrefsSync__MaxSitesPerRun}
 AhrefsSync__TargetMode=${AhrefsSync__TargetMode}

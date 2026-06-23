@@ -327,7 +327,7 @@ public sealed class AhrefsSyncServiceTests
     }
 
     [Fact]
-    public async Task Run_UpsertsSnapshotForSameDomainAndMonth()
+    public async Task Run_UpsertsSnapshotForSameDomainAndDate()
     {
         // Arrange
         await using var context = CreateContext();
@@ -365,6 +365,7 @@ public sealed class AhrefsSyncServiceTests
         Assert.Equal(30, snapshot.Traffic);
         Assert.Equal(40, snapshot.DomainRating);
         Assert.Equal(AhrefsSyncService.SnapshotSource, snapshot.Source);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow), snapshot.SnapshotDate);
     }
 
     [Fact]
@@ -498,6 +499,60 @@ public sealed class AhrefsSyncServiceTests
         Assert.True(result.WaitingForUsageReset);
         Assert.Null(result.Run);
         Assert.Empty(context.AhrefsSyncRuns);
+        api.Verify(
+            client => client.RunBatchAnalysisAsync(
+                It.IsAny<IReadOnlyList<AhrefsBatchTarget>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ScheduledRun_WhenPreviousSyncUsedSameUsagePeriod_WaitsWithoutCreatingRun()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        var currentMonth = CurrentSnapshotMonth();
+        var usageResetDate = DateTime.UtcNow.AddDays(10);
+        context.Sites.Add(CreateSite("example.com"));
+        context.AhrefsSyncRuns.Add(new AhrefsSyncRun
+        {
+            Id = Guid.NewGuid(),
+            StartedAt = DateTime.UtcNow.AddMonths(-1),
+            FinishedAt = DateTime.UtcNow.AddMonths(-1),
+            Status = AhrefsSyncRunStatus.Succeeded,
+            RunKind = AhrefsSyncRunKind.Scheduled,
+            SnapshotMonth = currentMonth.AddMonths(-1),
+            UsageResetDate = usageResetDate,
+            TargetMode = "subdomains",
+            Protocol = "both",
+            VolumeMode = "monthly"
+        });
+        await context.SaveChangesAsync();
+        var api = CreateApiMock(availableUnits: 100_000);
+        api.Setup(client => client.GetLimitsAndUsageAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AhrefsLimitsAndUsage(
+                100_000,
+                50_000,
+                100_000,
+                50_000,
+                usageResetDate));
+        var sut = CreateService(context, api.Object);
+
+        // Act
+        var result = await sut.RunAsync(
+            new AhrefsSyncRequest(
+                AhrefsSyncRunKind.Scheduled,
+                null,
+                null,
+                SaveSnapshots: true,
+                Force: false),
+            CancellationToken.None);
+
+        // Assert
+        Assert.True(result.WaitingForUsageReset);
+        Assert.Null(result.Run);
+        Assert.Single(context.AhrefsSyncRuns);
         api.Verify(
             client => client.RunBatchAnalysisAsync(
                 It.IsAny<IReadOnlyList<AhrefsBatchTarget>>(),

@@ -152,7 +152,10 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
         }
 
         if (request.RunKind == AhrefsSyncRunKind.Scheduled &&
-            IsWaitingForUsageReset(limitsSnapshot))
+            await IsWaitingForUsageResetAsync(
+                limitsSnapshot,
+                snapshotMonth,
+                cancellationToken))
         {
             return AhrefsSyncRunResult.WaitForUsageReset(
                 limitsSnapshot.Limits.UsageResetDate);
@@ -322,6 +325,10 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
         var hasCompletedMonthlyRun = await HasCompletedMonthlyRunAsync(
             snapshotMonth,
             cancellationToken);
+        var isWaitingForUsageReset = await IsWaitingForUsageResetAsync(
+            limitsSnapshot,
+            snapshotMonth,
+            cancellationToken);
         var apiKeyRemaining = Math.Max(
             0,
             limits.UnitsLimitApiKey - limits.UnitsUsageApiKey);
@@ -337,6 +344,7 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
             checkedAt,
             activeRun,
             hasCompletedMonthlyRun,
+            isWaitingForUsageReset,
             snapshotMonth,
             eligibleCount,
             AhrefsSyncCostCalculator.EstimateUnits(eligibleCount, _options.BatchSize),
@@ -404,8 +412,9 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
                         run.VolumeMode,
                         cancellationToken);
                     var returnedRows = MapRowsByIndex(result.Rows, availableSites.Count);
+                    var snapshotDate = DateOnly.FromDateTime(run.StartedAt);
                     var snapshots = saveSnapshots
-                        ? await LoadSnapshotsAsync(run.SnapshotMonth, availableSites, cancellationToken)
+                        ? await LoadSnapshotsAsync(snapshotDate, availableSites, cancellationToken)
                         : null;
 
                     for (var index = 0; index < availableSites.Count; index++)
@@ -502,7 +511,7 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
                 {
                     Id = Guid.NewGuid(),
                     Domain = site.Domain,
-                    SnapshotMonth = run.SnapshotMonth
+                    SnapshotDate = DateOnly.FromDateTime(run.StartedAt)
                 };
                 _context.SiteMetricSnapshots.Add(snapshot);
                 snapshots.Add(site.Domain, snapshot);
@@ -521,14 +530,14 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
     }
 
     private async Task<Dictionary<string, SiteMetricSnapshot>> LoadSnapshotsAsync(
-        DateOnly snapshotMonth,
+        DateOnly snapshotDate,
         IReadOnlyCollection<Site> sites,
         CancellationToken cancellationToken)
     {
         var domains = sites.Select(site => site.Domain).ToList();
         return await _context.SiteMetricSnapshots
             .Where(snapshot =>
-                snapshot.SnapshotMonth == snapshotMonth &&
+                snapshot.SnapshotDate == snapshotDate &&
                 domains.Contains(snapshot.Domain))
             .ToDictionaryAsync(snapshot => snapshot.Domain, cancellationToken);
     }
@@ -742,9 +751,36 @@ public sealed class AhrefsSyncService : IAhrefsSyncService
                     run.Status == AhrefsSyncRunStatus.StoppedInsufficientUnits),
             cancellationToken);
 
-    public static bool IsWaitingForUsageReset(AhrefsLimitsSnapshot snapshot)
-        => !snapshot.Limits.UsageResetDate.HasValue ||
-            snapshot.Limits.UsageResetDate.Value <= snapshot.CheckedAt;
+    private async Task<bool> IsWaitingForUsageResetAsync(
+        AhrefsLimitsSnapshot snapshot,
+        DateOnly snapshotMonth,
+        CancellationToken cancellationToken)
+    {
+        var currentResetDate = snapshot.Limits.UsageResetDate;
+        if (!currentResetDate.HasValue ||
+            currentResetDate.Value <= snapshot.CheckedAt)
+        {
+            return true;
+        }
+
+        var previousResetDate = await _context.AhrefsSyncRuns
+            .AsNoTracking()
+            .Where(run =>
+                run.SnapshotMonth < snapshotMonth &&
+                run.UsageResetDate.HasValue &&
+                (run.RunKind == AhrefsSyncRunKind.Scheduled ||
+                    run.RunKind == AhrefsSyncRunKind.ManualFull) &&
+                (run.Status == AhrefsSyncRunStatus.Succeeded ||
+                    run.Status == AhrefsSyncRunStatus.SucceededPartial ||
+                    run.Status == AhrefsSyncRunStatus.StoppedInsufficientUnits))
+            .OrderByDescending(run => run.SnapshotMonth)
+            .ThenByDescending(run => run.StartedAt)
+            .Select(run => run.UsageResetDate)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return previousResetDate.HasValue &&
+            previousResetDate.Value == currentResetDate.Value;
+    }
 
     private static bool IsFullRun(AhrefsSyncRunKind runKind)
         => runKind is AhrefsSyncRunKind.Scheduled or AhrefsSyncRunKind.ManualFull;

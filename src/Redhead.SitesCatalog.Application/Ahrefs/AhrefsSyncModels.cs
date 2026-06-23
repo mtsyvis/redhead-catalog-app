@@ -70,6 +70,7 @@ public sealed record AhrefsSyncMonitoringData(
     DateTime LimitsCheckedAt,
     AhrefsSyncRun? ActiveRun,
     bool HasCompletedMonthlyRunForSnapshotMonth,
+    bool IsWaitingForUsageReset,
     DateOnly SnapshotMonth,
     int EligibleSitesCount,
     long FullEstimatedUnits,

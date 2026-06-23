@@ -10,6 +10,7 @@ public sealed record AhrefsSyncRunRequest(
 public sealed record AhrefsSyncStatusResponse(
     bool SchedulerEnabled,
     string Cron,
+    DateTime? NotBeforeUtc,
     DateTime? NextScheduledRunUtc,
     bool IsDueNow,
     bool IsWaitingForUsageReset,

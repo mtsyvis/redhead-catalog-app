@@ -13,20 +13,20 @@ namespace Redhead.SitesCatalog.Tests.Api.BackgroundJobs.AhrefsSync;
 public sealed class AhrefsSyncCronScheduleTests
 {
     [Fact]
-    public void DefaultCron_RunsAt0100UtcOnFourteenth()
+    public void DefaultCron_RunsAt0100UtcOnFirst()
     {
         // Arrange
-        var now = new DateTime(2026, 7, 14, 2, 0, 0, DateTimeKind.Utc);
+        var now = new DateTime(2026, 7, 1, 2, 0, 0, DateTimeKind.Utc);
 
         // Act
-        var parsed = AhrefsSyncCronSchedule.TryParse("0 1 14 * *", out var schedule);
+        var parsed = AhrefsSyncCronSchedule.TryParse(AhrefsSyncOptions.DefaultCron, out var schedule);
         var due = schedule.GetDueOccurrenceUtc(now);
         var next = schedule.GetNextOccurrenceUtc(now);
 
         // Assert
         Assert.True(parsed);
-        Assert.Equal(new DateTime(2026, 7, 14, 1, 0, 0, DateTimeKind.Utc), due);
-        Assert.Equal(new DateTime(2026, 8, 14, 1, 0, 0, DateTimeKind.Utc), next);
+        Assert.Equal(new DateTime(2026, 7, 1, 1, 0, 0, DateTimeKind.Utc), due);
+        Assert.Equal(new DateTime(2026, 8, 1, 1, 0, 0, DateTimeKind.Utc), next);
     }
 
     [Theory]
@@ -75,10 +75,61 @@ public sealed class AhrefsSyncCronScheduleTests
     }
 
     [Fact]
+    public async Task RunLoop_BeforeNotBeforeUtc_WaitsWithoutStartingSync()
+    {
+        // Arrange
+        var currentUtc = new DateTime(2026, 6, 22, 0, 0, 0, DateTimeKind.Utc);
+        var notBeforeUtc = new DateTimeOffset(
+            2026,
+            7,
+            1,
+            1,
+            0,
+            0,
+            TimeSpan.Zero);
+        var syncService = new Mock<IAhrefsSyncService>();
+        var services = new ServiceCollection();
+        services.AddScoped(_ => syncService.Object);
+        await using var provider = services.BuildServiceProvider();
+        using var cancellation = new CancellationTokenSource();
+        TimeSpan? capturedDelay = null;
+        Task Delay(TimeSpan delay, CancellationToken cancellationToken)
+        {
+            capturedDelay = delay;
+            cancellation.Cancel();
+            return Task.FromCanceled(cancellationToken);
+        }
+
+        var sut = new AhrefsSyncHostedService(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new AhrefsSyncOptions
+            {
+                Enabled = true,
+                Cron = AhrefsSyncOptions.DefaultCron,
+                NotBeforeUtc = notBeforeUtc
+            }),
+            NullLogger<AhrefsSyncHostedService>.Instance,
+            () => currentUtc,
+            Delay);
+
+        // Act
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.RunLoopAsync(cancellation.Token));
+
+        // Assert
+        Assert.Equal(notBeforeUtc.UtcDateTime - currentUtc, capturedDelay);
+        syncService.Verify(
+            service => service.RunAsync(
+                It.IsAny<AhrefsSyncRequest>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task RunLoop_WhenUsageHasNotReset_RetriesAfterHourThenCompletesRun()
     {
         // Arrange
-        var currentUtc = new DateTime(2026, 7, 14, 2, 0, 0, DateTimeKind.Utc);
+        var currentUtc = new DateTime(2026, 7, 1, 2, 0, 0, DateTimeKind.Utc);
         var delays = new List<TimeSpan>();
         using var cancellation = new CancellationTokenSource();
         var syncService = new Mock<IAhrefsSyncService>();
@@ -89,7 +140,7 @@ public sealed class AhrefsSyncCronScheduleTests
                 It.IsAny<AhrefsSyncRequest>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(AhrefsSyncRunResult.WaitForUsageReset(
-                new DateTime(2026, 7, 14, 0, 0, 0, DateTimeKind.Utc)))
+                new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc)))
             .ReturnsAsync(AhrefsSyncRunResult.Completed(new AhrefsSyncRun
             {
                 Id = Guid.NewGuid(),
@@ -121,7 +172,7 @@ public sealed class AhrefsSyncCronScheduleTests
             Options.Create(new AhrefsSyncOptions
             {
                 Enabled = true,
-                Cron = "0 1 14 * *"
+                Cron = AhrefsSyncOptions.DefaultCron
             }),
             NullLogger<AhrefsSyncHostedService>.Instance,
             () => currentUtc,
