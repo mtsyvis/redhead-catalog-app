@@ -1,4 +1,5 @@
 import { Typography, Tabs, Tab } from '@mui/material';
+import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { PageShell } from '../components/layout/PageShell';
 import {
@@ -6,6 +7,7 @@ import {
   importSitesUpdate,
   importLastPublished,
   type SitesImportResult,
+  type UpdateImportResult,
   MAX_IMPORT_FILE_SIZE_BYTES,
   FILE_TOO_LARGE_MESSAGE,
   ACCEPT_FILES,
@@ -25,6 +27,7 @@ import {
 } from '../components/imports/SitesUpdateImportInstructions';
 import { SitesImportInstructions } from '../components/imports/SitesImportInstructions';
 import { useAuth } from '../contexts/AuthContext';
+import { UpdateImportResultCard } from '../components/imports/UpdateImportResultCard';
 
 const IMPORT_RESULT_STORAGE_PREFIX = 'redhead.importResults.v1';
 
@@ -55,6 +58,10 @@ type ImportRoute = (typeof IMPORT_ROUTES)[number];
 
 function buildPersistedStateKey(userId: string, importKey: string) {
   return `${IMPORT_RESULT_STORAGE_PREFIX}.${userId}.${importKey}`;
+}
+
+function getTodayUtcDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function SitesImportTab({ persistedStateKey }: { readonly persistedStateKey: string }) {
@@ -110,6 +117,70 @@ function SitesImportTab({ persistedStateKey }: { readonly persistedStateKey: str
   );
 }
 
+function SitesUpdateImportTab({ persistedStateKey }: { readonly persistedStateKey: string }) {
+  const [snapshotDate, setSnapshotDate] = useState(getTodayUtcDateInputValue);
+  const {
+    file,
+    fileInputKey,
+    loading,
+    error,
+    result,
+    persistedResult,
+    setError,
+    clearImportState,
+    handleFileChange,
+    handleSubmit,
+  } = useImportTab<UpdateImportResult>((selectedFile) => importSitesUpdate(selectedFile, snapshotDate), {
+    maxFileSizeBytes: MAX_IMPORT_FILE_SIZE_BYTES,
+    fileTooLargeMessage: FILE_TOO_LARGE_MESSAGE,
+    persistedStateKey,
+  });
+
+  const handleStartNewImport = () => {
+    clearImportState();
+    setSnapshotDate(getTodayUtcDateInputValue());
+  };
+
+  const uploadSection = (
+    <ImportUploadSection
+      file={file}
+      fileInputKey={fileInputKey}
+      loading={loading}
+      accept={ACCEPT_FILES}
+      maxFileSizeBytes={MAX_IMPORT_FILE_SIZE_BYTES}
+      helperContent={
+        <SitesUpdateImportUploadNotes
+          snapshotDate={snapshotDate}
+          onSnapshotDateChange={setSnapshotDate}
+        />
+      }
+      onFileChange={handleFileChange}
+      onSubmit={handleSubmit}
+    />
+  );
+
+  const resultContent = result ? (
+    <UpdateImportResultCard
+      title="Sites update import result"
+      result={result}
+      fileName={persistedResult?.fileName}
+      fileSize={persistedResult?.fileSize}
+      completedAtUtc={persistedResult?.completedAtUtc}
+      onStartNewImport={handleStartNewImport}
+    />
+  ) : null;
+
+  return (
+    <ImportTabContent
+      instructions={<SitesUpdateImportInstructions />}
+      uploadSection={uploadSection}
+      error={error}
+      onClearError={() => setError(null)}
+      result={resultContent}
+    />
+  );
+}
+
 function ImportRouteContent({
   activeImport,
   persistedStateKey,
@@ -122,15 +193,7 @@ function ImportRouteContent({
   }
 
   if (activeImport.key === 'sites-update-import') {
-    return (
-      <UpdateImportTab
-        resultTitle="Sites update import result"
-        runImport={importSitesUpdate}
-        persistedStateKey={persistedStateKey}
-        instructionsContent={<SitesUpdateImportInstructions />}
-        uploadHelper={<SitesUpdateImportUploadNotes />}
-      />
-    );
+    return <SitesUpdateImportTab persistedStateKey={persistedStateKey} />;
   }
 
   if (activeImport.key === 'quarantine-import') {

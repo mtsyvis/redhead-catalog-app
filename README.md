@@ -239,18 +239,6 @@ EmergencySitesExport__ServiceAccountJsonPath
 EmergencySitesExport__RetentionWeeks
 EmergencySitesExport__FilePrefix
 EmergencySitesExport__UploadTimeoutMinutes
-Ahrefs__ApiKey
-Ahrefs__BaseUrl
-AhrefsSync__Enabled
-AhrefsSync__Cron
-AhrefsSync__NotBeforeUtc
-AhrefsSync__BatchSize
-AhrefsSync__MaxSitesPerRun
-AhrefsSync__TargetMode
-AhrefsSync__Protocol
-AhrefsSync__VolumeMode
-AhrefsSync__MonthlyAppBudgetUnits
-AhrefsSync__SafetyBufferUnits
 FRONTEND_BASE_URL
 ```
 
@@ -272,9 +260,6 @@ EmergencySitesExport__ServiceAccountJsonPath
 EmergencySitesExport__RetentionWeeks
 EmergencySitesExport__FilePrefix
 EmergencySitesExport__UploadTimeoutMinutes
-Ahrefs__ApiKey
-AhrefsSync__Cron
-AhrefsSync__NotBeforeUtc
 Frontend__BaseUrl
 ASPNETCORE_ENVIRONMENT
 ASPNETCORE_URLS
@@ -283,6 +268,8 @@ ASPNETCORE_URLS
 Google Drive integration is an optional connection for authenticated users, not Google login. Use the minimal Drive scope `https://www.googleapis.com/auth/drive.file`; do not configure the broad Drive scope.
 
 The emergency Sites export is disabled by default. When enabled, it uses a Google service account JSON file mounted into the app container and uploads to the configured Google Shared Drive folder; it does not use user OAuth tokens.
+
+Ahrefs sync is inactive by default and not part of the active production workflow. Traffic/DR history is saved through Sites update import.
 
 ## Quality gates
 

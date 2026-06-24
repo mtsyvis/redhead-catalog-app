@@ -27,6 +27,8 @@ internal static class SitesUpdateImportHeaderValidator
         var seenPriceTypes = new HashSet<PriceType>();
         var priceColumns = new List<SitesImportPriceColumn>();
         var hasDomain = false;
+        var hasDrHeader = false;
+        var hasTrafficHeader = false;
         var hasTermHeader = false;
         var updateColumnCount = 0;
 
@@ -83,6 +85,8 @@ internal static class SitesUpdateImportHeaderValidator
             }
             else
             {
+                hasDrHeader |= string.Equals(header, ImportConstants.SitesImportColumns.DR, StringComparison.OrdinalIgnoreCase);
+                hasTrafficHeader |= string.Equals(header, ImportConstants.SitesImportColumns.Traffic, StringComparison.OrdinalIgnoreCase);
                 updateColumnCount++;
             }
         }

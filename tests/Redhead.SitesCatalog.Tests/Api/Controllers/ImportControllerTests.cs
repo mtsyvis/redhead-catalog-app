@@ -33,8 +33,42 @@ public sealed class ImportControllerTests
         var sitesUpdateService = new StubSitesUpdateImportService();
         var sut = CreateController(new StubImportArtifactStorageService(), sitesUpdateImportService: sitesUpdateService);
 
-        var result = await sut.ImportSitesUpdate(CreateUnsupportedFile("sites-update.xlsx"), CancellationToken.None);
+        var result = await sut.ImportSitesUpdate(CreateUnsupportedFile("sites-update.xlsx"), null, CancellationToken.None);
 
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Equal(400, badRequest.StatusCode);
+        Assert.Equal(0, sitesUpdateService.CallCount);
+    }
+
+    [Fact]
+    public async Task ImportSitesUpdate_WhenSnapshotDateValid_CallsServiceWithParsedSnapshotDate()
+    {
+        // Arrange
+        var sitesUpdateService = new StubSitesUpdateImportService();
+        var sut = CreateController(new StubImportArtifactStorageService(), sitesUpdateImportService: sitesUpdateService);
+        AttachUser(sut);
+
+        // Act
+        var result = await sut.ImportSitesUpdate(CreateCsvFile("sites-update.csv"), "2026-06-24", CancellationToken.None);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(1, sitesUpdateService.CallCount);
+        Assert.Equal(new DateOnly(2026, 6, 24), sitesUpdateService.LastMetricSnapshotDate);
+    }
+
+    [Fact]
+    public async Task ImportSitesUpdate_WhenSnapshotDateInvalid_ReturnsBadRequest_AndDoesNotCallService()
+    {
+        // Arrange
+        var sitesUpdateService = new StubSitesUpdateImportService();
+        var sut = CreateController(new StubImportArtifactStorageService(), sitesUpdateImportService: sitesUpdateService);
+        AttachUser(sut);
+
+        // Act
+        var result = await sut.ImportSitesUpdate(CreateCsvFile("sites-update.csv"), "24.06.2026", CancellationToken.None);
+
+        // Assert
         var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
         Assert.Equal(400, badRequest.StatusCode);
         Assert.Equal(0, sitesUpdateService.CallCount);
@@ -266,10 +300,19 @@ public sealed class ImportControllerTests
     private sealed class StubSitesUpdateImportService : ISitesUpdateImportService
     {
         public int CallCount { get; private set; }
+        public DateOnly? LastMetricSnapshotDate { get; private set; }
 
-        public Task<SitesUpdateImportResult> ImportAsync(Stream fileStream, string fileName, string? contentType, string userId, string userEmail, CancellationToken cancellationToken = default)
+        public Task<SitesUpdateImportResult> ImportAsync(
+            Stream fileStream,
+            string fileName,
+            string? contentType,
+            string userId,
+            string userEmail,
+            DateOnly? metricSnapshotDate = null,
+            CancellationToken cancellationToken = default)
         {
             CallCount++;
+            LastMetricSnapshotDate = metricSnapshotDate;
             return Task.FromResult(new SitesUpdateImportResult());
         }
     }

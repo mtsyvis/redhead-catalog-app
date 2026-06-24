@@ -78,6 +78,152 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportAsync_TrafficAndDrWithoutSnapshotDate_SavesMetricSnapshotWithImportUtcDate()
+    {
+        // Arrange
+        var expectedSnapshotDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        using var stream = Utf8Csv(
+            "Domain,DR,Traffic\n" +
+            "existing.com,55,12000\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.MetricSnapshotsSavedCount);
+        Assert.Equal(expectedSnapshotDate, result.MetricSnapshotDate);
+        Assert.Null(result.MetricHistorySkippedReason);
+
+        var snapshot = Assert.Single(_context.SiteMetricSnapshots);
+        Assert.Equal("existing.com", snapshot.Domain);
+        Assert.Equal(expectedSnapshotDate, snapshot.SnapshotDate);
+        Assert.Equal(12000, snapshot.Traffic);
+        Assert.Equal(55, snapshot.DomainRating);
+        Assert.Equal("SitesUpdateImport", snapshot.Source);
+        Assert.Null(snapshot.AhrefsSyncRunId);
+    }
+
+    [Fact]
+    public async Task ImportAsync_TrafficAndDrWithMetricSnapshotDate_SavesMetricSnapshotForProvidedDate()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain,DR,Traffic\n" +
+            "existing.com,55,12000\n");
+
+        // Act
+        var result = await ImportAsync(stream, new DateOnly(2026, 6, 24));
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.MetricSnapshotsSavedCount);
+        Assert.Equal(new DateOnly(2026, 6, 24), result.MetricSnapshotDate);
+
+        var snapshot = Assert.Single(_context.SiteMetricSnapshots);
+        Assert.Equal(new DateOnly(2026, 6, 24), snapshot.SnapshotDate);
+        Assert.Equal(12000, snapshot.Traffic);
+        Assert.Equal(55, snapshot.DomainRating);
+        Assert.Equal("SitesUpdateImport", snapshot.Source);
+    }
+
+    [Fact]
+    public async Task ImportAsync_TrafficAndDrWithExistingSnapshot_OverwritesSnapshot()
+    {
+        // Arrange
+        _context.SiteMetricSnapshots.Add(new SiteMetricSnapshot
+        {
+            Id = Guid.NewGuid(),
+            Domain = "existing.com",
+            SnapshotDate = new DateOnly(2026, 6, 24),
+            Traffic = 100,
+            DomainRating = 10,
+            Source = "AhrefsMonthlySync",
+            FetchedAt = new DateTime(2026, 6, 24, 1, 0, 0, DateTimeKind.Utc)
+        });
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv(
+            "Domain,DR,Traffic\n" +
+            "existing.com,55,12000\n");
+
+        // Act
+        var result = await ImportAsync(stream, new DateOnly(2026, 6, 24));
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.MetricSnapshotsSavedCount);
+
+        var snapshot = Assert.Single(_context.SiteMetricSnapshots);
+        Assert.Equal(new DateOnly(2026, 6, 24), snapshot.SnapshotDate);
+        Assert.Equal(12000, snapshot.Traffic);
+        Assert.Equal(55, snapshot.DomainRating);
+        Assert.Equal("SitesUpdateImport", snapshot.Source);
+        Assert.Null(snapshot.AhrefsSyncRunId);
+    }
+
+    [Theory]
+    [InlineData("Domain,Traffic\nexisting.com,12000\n")]
+    [InlineData("Domain,DR\nexisting.com,55\n")]
+    public async Task ImportAsync_PartialMetricUpdate_DoesNotSaveMetricSnapshot(string csv)
+    {
+        // Arrange
+        using var stream = Utf8Csv(csv);
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Null(result.MetricSnapshotsSavedCount);
+        Assert.Null(result.MetricSnapshotDate);
+        Assert.Equal("File did not include both Traffic and DR.", result.MetricHistorySkippedReason);
+        Assert.Empty(_context.SiteMetricSnapshots);
+    }
+
+    [Fact]
+    public async Task ImportAsync_UnmatchedDomain_DoesNotSaveMetricSnapshot()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain,DR,Traffic\n" +
+            "missing.com,55,12000\n");
+
+        // Act
+        var result = await ImportAsync(stream, new DateOnly(2026, 6, 24));
+
+        // Assert
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.UnmatchedRowsCount);
+        Assert.Equal(0, result.MetricSnapshotsSavedCount);
+        Assert.Equal(new DateOnly(2026, 6, 24), result.MetricSnapshotDate);
+        Assert.Empty(_context.SiteMetricSnapshots);
+    }
+
+    [Fact]
+    public async Task ImportAsync_DuplicateMetricRows_SavesLastValidRowSnapshot()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain,DR,Traffic\n" +
+            "existing.com,45,10000\n" +
+            "existing.com,55,12000\n");
+
+        // Act
+        var result = await ImportAsync(stream, new DateOnly(2026, 6, 24));
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+        Assert.Equal(1, result.MetricSnapshotsSavedCount);
+
+        var snapshot = Assert.Single(_context.SiteMetricSnapshots);
+        Assert.Equal(new DateOnly(2026, 6, 24), snapshot.SnapshotDate);
+        Assert.Equal(12000, snapshot.Traffic);
+        Assert.Equal(55, snapshot.DomainRating);
+    }
+
+    [Fact]
     public async Task ImportAsync_MainPriceColumnWithNumericValue_UpsertsTermPrice()
     {
         // Arrange
@@ -363,7 +509,9 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
         Assert.Contains("existing.com,1 year,abc,2,Invalid PriceUsd value.", invalidLines);
     }
 
-    private async Task<SitesUpdateImportResult> ImportAsync(Stream stream)
+    private async Task<SitesUpdateImportResult> ImportAsync(
+        Stream stream,
+        DateOnly? metricSnapshotDate = null)
     {
         return await _sut.ImportAsync(
             stream,
@@ -371,6 +519,7 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
             CsvContentType,
             UserId,
             UserEmail,
+            metricSnapshotDate,
             CancellationToken.None);
     }
 
