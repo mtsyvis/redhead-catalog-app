@@ -1,4 +1,4 @@
-import { Alert, Stack } from '@mui/material';
+import { Alert, Box, Stack, TextField, Typography } from '@mui/material';
 import { SITES_UPDATE_IMPORT_INSTRUCTIONS } from '../../constants/imports.constants';
 import { ImportInstructionsPanel } from './ImportInstructionsPanel';
 
@@ -11,8 +11,9 @@ const RULES = [
   'Only included columns are updated.',
   'Missing columns stay unchanged.',
   'Empty cells are treated as explicit values.',
+  'Traffic/DR history is saved automatically only when both Traffic and DR columns are included.',
+  'Snapshot Date is selected once in the upload form and applies to all saved Traffic/DR history rows.',
   'Unknown column names are rejected.',
-  'Duplicate domains: last valid row wins.',
 ];
 
 const EXAMPLES = [
@@ -30,9 +31,15 @@ const EXAMPLES = [
     note: 'Empty included price cells clear those exact price options for the row Term.',
   },
   {
+    title: 'Update Traffic/DR and save history',
+    csv: 'Domain,DR,Traffic,Location\nexample.com,55,12000,US',
+    note:
+      'When both Traffic and DR are included, a history snapshot is saved using the Snapshot Date selected in the upload form.',
+  },
+  {
     title: 'Update language only',
     csv: 'Domain,Language\nexample.com,EN\nanother-site.com,UNKNOWN',
-    note: 'Only Language changes. Other site fields remain unchanged.',
+    note: 'Only Language changes. Other site fields remain unchanged and Traffic/DR history is not saved.',
   },
 ];
 
@@ -52,30 +59,70 @@ export function SitesUpdateImportInstructions() {
       requiredColumnsNote="Domain is required. Add at least one supported update column to change data."
       supportedColumnsTitle="Supported base update columns"
       supportedColumns={SITES_UPDATE_IMPORT_INSTRUCTIONS.optionalColumns}
-      supportedColumnsNote="Only columns included in the file are updated."
+      supportedColumnsNote="Only columns included in the file are updated. Snapshot Date is selected in the upload form, not in the CSV."
       pricingColumns={SITES_UPDATE_IMPORT_INSTRUCTIONS.pricingColumns}
       pricingColumnsNote="Supported Term values: No term, 1 year, 2 years, n years, permanent. An empty cell is treated as No term."
       rules={RULES}
       examples={EXAMPLES}
       exampleDownload={EXAMPLE_DOWNLOAD}
       alerts={[
-        'Domains not found in the catalog will be reported as unmatched.',
-        'YES means available with unknown price. If you know the price, put the numeric value in the service column instead.',
+        'Domains not found in the catalog are reported as unmatched. Duplicate domains use the last valid row.',
+        'Traffic/DR history is saved only when both Traffic and DR are included. Use the upload form Snapshot Date; do not add SnapshotDate to the CSV.',
+        'YES means available with unknown price. Use a numeric value when you know the price.',
       ]}
     />
   );
 }
 
-export function SitesUpdateImportUploadNotes() {
+export interface SitesUpdateImportUploadNotesProps {
+  readonly snapshotDate: string;
+  readonly onSnapshotDateChange: (value: string) => void;
+}
+
+export function SitesUpdateImportUploadNotes({
+  snapshotDate,
+  onSnapshotDateChange,
+}: SitesUpdateImportUploadNotesProps) {
   return (
-    <Stack spacing={1}>
-      <Alert severity="warning">
-        Empty cells in columns you include are treated as intentional updates. For some fields this
-        clears the value; for required fields it may create an invalid row.
-      </Alert>
-      <Alert severity="info">
-        If the same domain appears more than once, the last valid row is applied.
-      </Alert>
+    <Stack spacing={1.5}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: '220px 1fr' },
+          gap: { xs: 0.75, sm: 2 },
+          alignItems: 'center',
+        }}
+      >
+        <TextField
+          label="Snapshot Date"
+          type="date"
+          value={snapshotDate}
+          onChange={(event) => onSnapshotDateChange(event.target.value)}
+          size="small"
+          slotProps={{
+            inputLabel: {
+              shrink: true,
+            },
+          }}
+        />
+        <Typography variant="body2" color="text.secondary">
+          Used for Traffic/DR history when both columns are included. Applies to the whole import.
+        </Typography>
+      </Box>
+
+      <Stack spacing={1}>
+        <Alert
+          severity="warning"
+          sx={{
+            alignItems: 'flex-start',
+            borderRadius: 1,
+            py: 1,
+          }}
+        >
+          Empty cells in included columns are intentional updates and may clear values or make
+          required fields invalid.
+        </Alert>
+      </Stack>
     </Stack>
   );
 }

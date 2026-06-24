@@ -33,6 +33,12 @@ export function UpdateImportResultCard({
   const duplicateDomainsPreview = result.duplicateDomainsPreview ?? [];
   const invalidRowsCount = result.invalidRowsCount ?? 0;
   const savedWithWarningsCount = result.savedWithWarningsCount ?? 0;
+  const metricSnapshotsSavedCount = result.metricSnapshotsSavedCount;
+  const metricSnapshotDate = result.metricSnapshotDate;
+  const metricHistorySkippedReason = result.metricHistorySkippedReason;
+  const shouldShowMetricHistory =
+    (metricSnapshotsSavedCount !== undefined && metricSnapshotsSavedCount !== null) ||
+    !!metricHistorySkippedReason;
   const invalidRowsDownload = result.downloads?.invalidRows;
   const unmatchedRowsDownload = result.downloads?.unmatchedRows;
   const warningRowsDownload = result.downloads?.warningRows;
@@ -101,7 +107,7 @@ export function UpdateImportResultCard({
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(5, minmax(0, 1fr))' },
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fit, minmax(140px, 1fr))' },
               gap: 1.5,
             }}
           >
@@ -135,8 +141,29 @@ export function UpdateImportResultCard({
               </Typography>
               <Typography variant="h6">{savedWithWarningsCount}</Typography>
             </Box>
+            {shouldShowMetricHistory && (
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Traffic/DR history
+                </Typography>
+                <Typography variant="h6">{metricSnapshotsSavedCount ?? 0}</Typography>
+              </Box>
+            )}
           </Box>
         </Stack>
+
+        {metricSnapshotsSavedCount !== undefined && metricSnapshotsSavedCount !== null && (
+          <Alert severity="success">
+            Traffic/DR history saved: {metricSnapshotsSavedCount} snapshots
+            {metricSnapshotDate ? ` for ${metricSnapshotDate}` : ''}.
+          </Alert>
+        )}
+
+        {metricHistorySkippedReason && (
+          <Alert severity="info">
+            Traffic/DR history not saved: {metricHistorySkippedReason}
+          </Alert>
+        )}
 
         {savedWithWarningsCount > 0 && (
           <Alert severity="warning">

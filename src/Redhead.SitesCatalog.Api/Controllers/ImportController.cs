@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Models;
@@ -245,7 +246,10 @@ public class ImportController : ControllerBase
     /// </summary>
     [HttpPost("sites-update")]
     [RequestSizeLimit((int)ImportConstants.MaxSitesImportFileSizeBytes)]
-    public async Task<ActionResult<SitesUpdateImportResult>> ImportSitesUpdate(IFormFile? file, CancellationToken cancellationToken)
+    public async Task<ActionResult<SitesUpdateImportResult>> ImportSitesUpdate(
+        IFormFile? file,
+        [FromForm] string? snapshotDate,
+        CancellationToken cancellationToken)
     {
         if (file == null || file.Length == 0)
         {
@@ -272,6 +276,11 @@ public class ImportController : ControllerBase
             return unauthorizedResult;
         }
 
+        if (!TryParseOptionalSnapshotDate(snapshotDate, out var parsedSnapshotDate, out var snapshotDateError))
+        {
+            return BadRequest(new ApiErrorResponse(snapshotDateError, StatusCodes.Status400BadRequest));
+        }
+
         var (stream, fileReadError) = await ReadFileToMemoryStreamAsync("Sites update import", file, cancellationToken);
         if (fileReadError != null)
         {
@@ -287,6 +296,7 @@ public class ImportController : ControllerBase
                 file.ContentType,
                 userId,
                 userEmail,
+                parsedSnapshotDate,
                 cancellationToken);
 
             _logger.LogInformation(
@@ -375,6 +385,34 @@ public class ImportController : ControllerBase
 
         action = SiteAvailabilityImportAction.MarkUnavailable;
         error = "Unsupported availability import action. Supported actions: markUnavailable, restoreAvailable.";
+        return false;
+    }
+
+    private static bool TryParseOptionalSnapshotDate(
+        string? value,
+        out DateOnly? snapshotDate,
+        out string error)
+    {
+        snapshotDate = null;
+        error = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        if (DateOnly.TryParseExact(
+                value.Trim(),
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed))
+        {
+            snapshotDate = parsed;
+            return true;
+        }
+
+        error = "Snapshot date must use yyyy-MM-dd format.";
         return false;
     }
 }

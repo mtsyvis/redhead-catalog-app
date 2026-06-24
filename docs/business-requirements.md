@@ -354,13 +354,21 @@ Rules:
 * When quarantine is turned off manually, `QuarantineReason` should be cleared.
 * Quarantined sites remain in the catalog and can still appear in filtered results depending on the selected quarantine filter.
 
-### Ahrefs monthly metrics sync
+### Traffic/DR metric history
 
-Once per UTC month, at 01:00 UTC on the first day by default, the backend updates `Traffic` and `DR` for non-quarantined sites from Ahrefs Batch Analysis using target mode `subdomains`. Zero traffic is valid. Failed or missing Ahrefs rows preserve existing site values. Ahrefs updates set `AhrefsLastSyncedAt` but do not change the normal site audit fields `UpdatedAtUtc` or `UpdatedBy`.
+Metric history stores at most one complete `Traffic`/`DR` snapshot per domain and snapshot date.
+
+Sites update import is the active workflow for saving metric history. When an import file contains both `Traffic` and `DR`, the backend saves a `SiteMetricSnapshots` row with source `SitesUpdateImport`. The import form has one optional Snapshot Date for the whole file; if it is empty, the import-start UTC date is used. Re-importing the same domain and snapshot date overwrites the existing snapshot. Partial metric imports with only `Traffic` or only `DR` update the current site value but do not create history.
+
+The catalog values known to have been refreshed for all sites on June 4, 2026 are imported once into history with source `AhrefsBaselineImport`. This is historical data only and does not create an Ahrefs sync run.
+
+### Inactive Ahrefs monthly metrics sync
+
+Ahrefs sync is currently inactive and hidden from the normal admin UI. The existing backend code and `SiteMetricSnapshots` table remain so the job can be re-enabled later if needed.
+
+When enabled, the backend updates `Traffic` and `DR` for non-quarantined sites from Ahrefs Batch Analysis using target mode `subdomains`. Zero traffic is valid. Failed or missing Ahrefs rows preserve existing site values. Ahrefs updates set `AhrefsLastSyncedAt` but do not change the normal site audit fields `UpdatedAtUtc` or `UpdatedBy`.
 
 Metric history stores at most one snapshot per domain and actual UTC snapshot date. Scheduled and manual full runs save snapshots by default; limited manual runs do not unless requested. If a scheduled run waits for the Ahrefs usage reset and starts on a later date, the history records that actual run date rather than the configured cron date.
-
-The catalog values known to have been refreshed for all sites on June 4, 2026 are imported once into history with source `AhrefsBaselineImport`. This is historical data only and does not create an Ahrefs sync run. The initial rollout sets `NotBeforeUtc` to July 1, 2026 at 01:00 UTC, so the first real scheduled run starts at that occurrence without relying on a manual production configuration change.
 
 The sync is budget-aware, checks Ahrefs workspace/API-key usage before each real run, and may process only the affordable highest-traffic sites.
 The configured safety buffer is used both when selecting affordable sites before the run and as the
@@ -379,17 +387,10 @@ site cap allowed only partial catalog coverage. It is not automatically repeated
 snapshot month, because another run would process the same priority-ordered sites again. The run
 audit and monitoring UI must clearly show selected versus eligible sites when coverage is partial.
 
-Ahrefs sync administration is SuperAdmin-only. Run details expose audit items through paginated backend responses so large catalog runs do not return every site item in one response.
-
-SuperAdmin has a read-only Ahrefs monitoring UI showing current API/workspace/app-budget
-availability, usage reset date, scheduler state, next scheduled run, recent sync runs, and
-paginated site-level run results. The UI does not start, force, or otherwise mutate Ahrefs runs.
-The monitoring status also shows spendable units after the safety buffer, the affordable and
-configured next-run capacity, the limiting budget or max-sites constraint, and any full-catalog
-budget shortfall. Schedule occurrences and snapshot months are displayed as human-readable UTC
-dates. Run outcome is presented separately from its scope so a successful limited run is not
-reported as an operational failure. Detailed budget and job configuration values are available in
-a collapsed technical-details section.
+If Ahrefs sync is re-enabled, administration must remain SuperAdmin-only. Run details should expose
+audit items through paginated backend responses so large catalog runs do not return every site item
+in one response. Any monitoring UI should remain read-only and must not start, force, or otherwise
+mutate Ahrefs runs.
 
 ### LastPublishedDate
 
@@ -673,6 +674,11 @@ Rules:
 * Empty `Language` values overwrite existing language with empty/null.
 * Present empty nullable fields clear existing values according to the field storage convention.
 * Present empty required fields such as `DR` and `Traffic` are row-level errors.
+* `SnapshotDate` is not a supported CSV column; the import form's Snapshot Date field applies one date to the whole file.
+* The import form Snapshot Date accepts `yyyy-MM-dd`; if it is empty, metric history uses the import-start UTC date.
+* When both `Traffic` and `DR` are present, the import saves complete metric history snapshots to `SiteMetricSnapshots` with source `SitesUpdateImport`.
+* Re-importing the same domain and `SnapshotDate` overwrites the existing metric snapshot.
+* Traffic-only or DR-only update imports update the current catalog field but do not save metric history.
 * If the `Location` column is missing, existing canonical location fields are unchanged.
 * If the `Location` column is present, empty values set canonical `UNKNOWN`, recognized values set the mapped canonical `LocationKey`, and non-empty unrecognized values set null `LocationKey` (`Other`) with a warning row.
 * Unknown domains are reported as unmatched; they are not inserted.

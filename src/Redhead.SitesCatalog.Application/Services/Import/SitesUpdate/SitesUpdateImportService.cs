@@ -21,6 +21,7 @@ namespace Redhead.SitesCatalog.Application.Services.Import.SitesUpdate;
 public sealed class SitesUpdateImportService : ISitesUpdateImportService
 {
     private const int BatchSize = 1000;
+    private const string MetricSnapshotSource = "SitesUpdateImport";
 
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SitesUpdateImportService> _logger;
@@ -48,6 +49,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         string? contentType,
         string userId,
         string userEmail,
+        DateOnly? metricSnapshotDate = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
@@ -68,6 +70,7 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         var validRowsByDomain = new Dictionary<string, List<UnmatchedImportRowRecord>>(StringComparer.Ordinal);
         var duplicateDomainOccurrences = new Dictionary<string, int>(StringComparer.Ordinal);
         var duplicateDomainsInOrder = new List<string>();
+        var shouldSaveMetricSnapshots = false;
 
         await using (var session = await CsvImportSession.OpenAsync(
                          fileStream,
@@ -79,6 +82,9 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             unmatchedRowsPayload.Headers = session.Header.ToArray();
             var updateHeaderInfo = SitesUpdateImportHeaderValidator.Parse(session.Header);
             var presentColumns = SitesUpdateImportHeaderValidator.BuildPresentColumnSet(session.Header);
+            shouldSaveMetricSnapshots =
+                presentColumns.Contains(ImportConstants.SitesImportColumns.Traffic)
+                && presentColumns.Contains(ImportConstants.SitesImportColumns.DR);
 
             await foreach (var (row, rawValues) in SitesImportCsvRowReader.ReadRowsAsync(session.Csv, session.Header.Length, updateHeaderInfo, cancellationToken))
             {
@@ -119,6 +125,16 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
 
         var sitesByDomain = await LoadSitesByDomainAsync(updateCandidatesByDomain.Keys.ToList(), cancellationToken);
         var now = DateTime.UtcNow;
+        var effectiveMetricSnapshotDate = metricSnapshotDate ?? DateOnly.FromDateTime(now);
+        var metricSnapshots = shouldSaveMetricSnapshots
+            ? await LoadMetricSnapshotsAsync(updateCandidatesByDomain, sitesByDomain, effectiveMetricSnapshotDate, cancellationToken)
+            : new Dictionary<string, SiteMetricSnapshot>(StringComparer.Ordinal);
+        if (shouldSaveMetricSnapshots)
+        {
+            result.MetricSnapshotsSavedCount = 0;
+            result.MetricSnapshotDate = effectiveMetricSnapshotDate;
+        }
+
         var auditUser = AuditUserFormatter.Format(userEmail);
         var shouldInvalidateNicheOptions = false;
         var shouldInvalidateLocationOptions = false;
@@ -153,6 +169,12 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
             shouldInvalidateTermOptions |= update.PriceOperations.Count > 0 || update.AvailabilityOperations.Count > 0;
 
             SitesUpdateImportApplier.Apply(site, update, now);
+            if (shouldSaveMetricSnapshots)
+            {
+                UpsertMetricSnapshot(site, effectiveMetricSnapshotDate, now, metricSnapshots);
+                result.MetricSnapshotsSavedCount = (result.MetricSnapshotsSavedCount ?? 0) + 1;
+            }
+
             site.UpdatedAtUtc = now;
             site.UpdatedBy = auditUser;
             result.UpdatedCount++;
@@ -165,6 +187,11 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         }
 
         AddImportLog(result.UpdatedCount, unmatchedDomainsCount, invalidRowsCount, duplicateRowsCount, userId, userEmail);
+        if (!shouldSaveMetricSnapshots)
+        {
+            result.MetricHistorySkippedReason = "File did not include both Traffic and DR.";
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
         if (result.UpdatedCount > 0)
         {
@@ -244,6 +271,77 @@ public sealed class SitesUpdateImportService : ISitesUpdateImportService
         }
 
         return sitesByDomain;
+    }
+
+    private async Task<Dictionary<string, SiteMetricSnapshot>> LoadMetricSnapshotsAsync(
+        IReadOnlyDictionary<string, List<SitesUpdateImportRow>> updateCandidatesByDomain,
+        IReadOnlyDictionary<string, Site> sitesByDomain,
+        DateOnly metricSnapshotDate,
+        CancellationToken cancellationToken)
+    {
+        var snapshotDomains = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (domain, candidates) in updateCandidatesByDomain)
+        {
+            if (!sitesByDomain.ContainsKey(domain))
+            {
+                continue;
+            }
+
+            var update = SelectLastValidCandidate(candidates);
+            if (update is null)
+            {
+                continue;
+            }
+
+            snapshotDomains.Add(domain);
+        }
+
+        var snapshotsByDomain = new Dictionary<string, SiteMetricSnapshot>(StringComparer.Ordinal);
+        if (snapshotDomains.Count == 0)
+        {
+            return snapshotsByDomain;
+        }
+
+        foreach (var domainChunk in ImportBatchingHelper.Chunk(snapshotDomains.ToList(), BatchSize))
+        {
+            var snapshots = await _context.SiteMetricSnapshots
+                .Where(snapshot =>
+                    domainChunk.Contains(snapshot.Domain)
+                    && snapshot.SnapshotDate == metricSnapshotDate)
+                .ToListAsync(cancellationToken);
+
+            foreach (var snapshot in snapshots)
+            {
+                snapshotsByDomain[snapshot.Domain] = snapshot;
+            }
+        }
+
+        return snapshotsByDomain;
+    }
+
+    private void UpsertMetricSnapshot(
+        Site site,
+        DateOnly metricSnapshotDate,
+        DateTime now,
+        IDictionary<string, SiteMetricSnapshot> metricSnapshots)
+    {
+        if (!metricSnapshots.TryGetValue(site.Domain, out var snapshot))
+        {
+            snapshot = new SiteMetricSnapshot
+            {
+                Id = Guid.NewGuid(),
+                Domain = site.Domain,
+                SnapshotDate = metricSnapshotDate
+            };
+            _context.SiteMetricSnapshots.Add(snapshot);
+            metricSnapshots[site.Domain] = snapshot;
+        }
+
+        snapshot.Traffic = site.Traffic;
+        snapshot.DomainRating = site.DR;
+        snapshot.Source = MetricSnapshotSource;
+        snapshot.AhrefsSyncRunId = null;
+        snapshot.FetchedAt = now;
     }
 
     private static SitesUpdateImportRow? SelectLastValidCandidate(IEnumerable<SitesUpdateImportRow> candidates)

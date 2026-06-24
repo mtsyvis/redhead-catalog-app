@@ -17,5 +17,6 @@ public interface ISitesUpdateImportService
         string? contentType,
         string userId,
         string userEmail,
+        DateOnly? metricSnapshotDate = null,
         CancellationToken cancellationToken = default);
 }

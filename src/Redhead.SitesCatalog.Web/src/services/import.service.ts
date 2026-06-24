@@ -32,6 +32,9 @@ export interface SitesImportResult extends ImportResultBase, DuplicateDomainsImp
 export interface UpdateImportResult extends ImportResultBase, DuplicateDomainsImportResult {
   updatedCount?: number;
   unmatchedRowsCount?: number;
+  metricSnapshotsSavedCount?: number | null;
+  metricSnapshotDate?: string | null;
+  metricHistorySkippedReason?: string | null;
 }
 
 export type AvailabilityImportAction = 'markUnavailable' | 'restoreAvailable';
@@ -90,8 +93,12 @@ export function importSites(file: File) {
 /**
  * Mass-update existing sites from CSV. Domain is lookup key; included update columns are applied.
  */
-export function importSitesUpdate(file: File) {
-  return runImportRequest<UpdateImportResult>('/api/import/sites-update', file);
+export function importSitesUpdate(file: File, snapshotDate?: string) {
+  return runImportRequest<UpdateImportResult>(
+    '/api/import/sites-update',
+    file,
+    snapshotDate ? { snapshotDate } : undefined,
+  );
 }
 
 /**

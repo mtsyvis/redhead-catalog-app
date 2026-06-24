@@ -11,5 +11,8 @@ public class SitesUpdateImportResult
     public List<string> DuplicateDomainsPreview { get; set; } = new();
     public int InvalidRowsCount { get; set; }
     public int SavedWithWarningsCount { get; set; }
+    public int? MetricSnapshotsSavedCount { get; set; }
+    public DateOnly? MetricSnapshotDate { get; set; }
+    public string? MetricHistorySkippedReason { get; set; }
     public ImportDownloadsInfo? Downloads { get; set; }
 }
