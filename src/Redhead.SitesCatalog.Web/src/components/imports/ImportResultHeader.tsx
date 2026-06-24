@@ -55,24 +55,27 @@ export function ImportResultHeader({
   return (
     <Box
       sx={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto' },
+        alignItems: 'start',
         gap: 2,
-        flexWrap: 'wrap',
       }}
     >
-      <Stack spacing={0.5}>
+      <Stack spacing={0.5} sx={{ minWidth: 0 }}>
         <Typography variant="h6">{title}</Typography>
         {metadata.length > 0 && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
             {metadata.join(' | ')}
           </Typography>
         )}
       </Stack>
 
       {onStartNewImport && (
-        <BrandButton startIcon={<RestartAltIcon />} onClick={onStartNewImport}>
+        <BrandButton
+          startIcon={<RestartAltIcon />}
+          onClick={onStartNewImport}
+          sx={{ justifySelf: { xs: 'start', sm: 'end' }, whiteSpace: 'nowrap' }}
+        >
           Start new import
         </BrandButton>
       )}

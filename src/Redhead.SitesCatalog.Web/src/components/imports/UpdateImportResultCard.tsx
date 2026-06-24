@@ -14,6 +14,33 @@ export interface UpdateImportResultCardProps {
   readonly onStartNewImport?: () => void;
 }
 
+interface ResultMetricProps {
+  readonly label: string;
+  readonly value: number;
+  readonly tone?: 'default' | 'warning' | 'error';
+}
+
+function ResultMetric({ label, value, tone = 'default' }: ResultMetricProps) {
+  const activeIssue = value > 0 && tone !== 'default';
+  const color =
+    activeIssue && tone === 'error'
+      ? 'error.main'
+      : activeIssue && tone === 'warning'
+        ? 'warning.main'
+        : 'text.primary';
+
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="h6" sx={{ color }}>
+        {value}
+      </Typography>
+    </Box>
+  );
+}
+
 export function UpdateImportResultCard({
   title,
   result,
@@ -36,9 +63,6 @@ export function UpdateImportResultCard({
   const metricSnapshotsSavedCount = result.metricSnapshotsSavedCount;
   const metricSnapshotDate = result.metricSnapshotDate;
   const metricHistorySkippedReason = result.metricHistorySkippedReason;
-  const shouldShowMetricHistory =
-    (metricSnapshotsSavedCount !== undefined && metricSnapshotsSavedCount !== null) ||
-    !!metricHistorySkippedReason;
   const invalidRowsDownload = result.downloads?.invalidRows;
   const unmatchedRowsDownload = result.downloads?.unmatchedRows;
   const warningRowsDownload = result.downloads?.warningRows;
@@ -94,8 +118,8 @@ export function UpdateImportResultCard({
   };
 
   return (
-    <Paper sx={{ p: 3 }}>
-      <Stack spacing={3}>
+    <Paper sx={{ p: { xs: 2.5, sm: 3 } }}>
+      <Stack spacing={2.5}>
         <Stack spacing={1.5}>
           <ImportResultHeader
             title={title}
@@ -107,49 +131,25 @@ export function UpdateImportResultCard({
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fit, minmax(140px, 1fr))' },
+              gridTemplateColumns: {
+                xs: 'repeat(2, minmax(0, 1fr))',
+                sm: 'repeat(3, minmax(0, 1fr))',
+                md: 'repeat(5, minmax(0, 1fr))',
+              },
               gap: 1.5,
             }}
           >
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Updated
-              </Typography>
-              <Typography variant="h6">{updatedCount}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Unmatched domains
-              </Typography>
-              <Typography variant="h6">{unmatchedRowsCount}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Duplicate domains in file
-              </Typography>
-              <Typography variant="h6">{duplicateDomainsCount}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Invalid rows
-              </Typography>
-              <Typography variant="h6">{invalidRowsCount}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Saved with warnings
-              </Typography>
-              <Typography variant="h6">{savedWithWarningsCount}</Typography>
-            </Box>
-            {shouldShowMetricHistory && (
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Traffic/DR history
-                </Typography>
-                <Typography variant="h6">{metricSnapshotsSavedCount ?? 0}</Typography>
-              </Box>
-            )}
+            <ResultMetric label="Updated" value={updatedCount} />
+            <ResultMetric label="Unmatched" value={unmatchedRowsCount} tone="warning" />
+            <ResultMetric label="Duplicates" value={duplicateDomainsCount} tone="warning" />
+            <ResultMetric label="Invalid rows" value={invalidRowsCount} tone="error" />
+            <ResultMetric label="Warnings" value={savedWithWarningsCount} tone="warning" />
           </Box>
+
+          <DuplicateDomainsPreview
+            duplicateDomainsCount={duplicateDomainsCount}
+            duplicateDomainsPreview={duplicateDomainsPreview}
+          />
         </Stack>
 
         {metricSnapshotsSavedCount !== undefined && metricSnapshotsSavedCount !== null && (
@@ -175,10 +175,8 @@ export function UpdateImportResultCard({
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 360px))' },
-              gap: 2,
-              alignItems: 'stretch',
-              justifyContent: 'start',
+              gridTemplateColumns: '1fr',
+              gap: 1,
             }}
           >
             {canDownloadInvalidRows && (
@@ -207,11 +205,6 @@ export function UpdateImportResultCard({
             )}
           </Box>
         )}
-
-        <DuplicateDomainsPreview
-          duplicateDomainsCount={duplicateDomainsCount}
-          duplicateDomainsPreview={duplicateDomainsPreview}
-        />
 
         {downloadError && <Typography color="error">{downloadError}</Typography>}
       </Stack>
