@@ -4,6 +4,7 @@ import { downloadImportArtifactCsv, type UpdateImportResult } from '../../servic
 import { DuplicateDomainsPreview } from './DuplicateDomainsPreview';
 import { ImportResultDownloadAction } from './ImportResultDownloadAction';
 import { ImportResultHeader } from './ImportResultHeader';
+import { ImportResultMetric } from './ImportResultMetric';
 
 export interface UpdateImportResultCardProps {
   readonly title: string;
@@ -12,33 +13,6 @@ export interface UpdateImportResultCardProps {
   readonly fileSize?: number;
   readonly completedAtUtc?: string;
   readonly onStartNewImport?: () => void;
-}
-
-interface ResultMetricProps {
-  readonly label: string;
-  readonly value: number;
-  readonly tone?: 'default' | 'warning' | 'error';
-}
-
-function ResultMetric({ label, value, tone = 'default' }: ResultMetricProps) {
-  const activeIssue = value > 0 && tone !== 'default';
-  const color =
-    activeIssue && tone === 'error'
-      ? 'error.main'
-      : activeIssue && tone === 'warning'
-        ? 'warning.main'
-        : 'text.primary';
-
-  return (
-    <Box sx={{ minWidth: 0 }}>
-      <Typography variant="caption" color="text.secondary">
-        {label}
-      </Typography>
-      <Typography variant="h6" sx={{ color }}>
-        {value}
-      </Typography>
-    </Box>
-  );
 }
 
 export function UpdateImportResultCard({
@@ -139,11 +113,11 @@ export function UpdateImportResultCard({
               gap: 1.5,
             }}
           >
-            <ResultMetric label="Updated" value={updatedCount} />
-            <ResultMetric label="Unmatched" value={unmatchedRowsCount} tone="warning" />
-            <ResultMetric label="Duplicates" value={duplicateDomainsCount} tone="warning" />
-            <ResultMetric label="Invalid rows" value={invalidRowsCount} tone="error" />
-            <ResultMetric label="Warnings" value={savedWithWarningsCount} tone="warning" />
+            <ImportResultMetric label="Updated" value={updatedCount} />
+            <ImportResultMetric label="Unmatched" value={unmatchedRowsCount} tone="warning" />
+            <ImportResultMetric label="Duplicates" value={duplicateDomainsCount} tone="warning" />
+            <ImportResultMetric label="Invalid rows" value={invalidRowsCount} tone="error" />
+            <ImportResultMetric label="Warnings" value={savedWithWarningsCount} tone="warning" />
           </Box>
 
           <DuplicateDomainsPreview

@@ -4,6 +4,7 @@ import { downloadImportArtifactCsv, type SitesImportResult } from '../../service
 import { DuplicateDomainsPreview } from './DuplicateDomainsPreview';
 import { ImportResultDownloadAction } from './ImportResultDownloadAction';
 import { ImportResultHeader } from './ImportResultHeader';
+import { ImportResultMetric } from './ImportResultMetric';
 
 export interface SitesImportResultCardProps {
   readonly result: SitesImportResult;
@@ -73,8 +74,8 @@ export function SitesImportResultCard({
   };
 
   return (
-    <Paper sx={{ p: 3 }}>
-      <Stack spacing={3}>
+    <Paper sx={{ p: { xs: 2.5, sm: 3 } }}>
+      <Stack spacing={2.5}>
         <Stack spacing={1.5}>
           <ImportResultHeader
             title="Import result"
@@ -86,41 +87,25 @@ export function SitesImportResultCard({
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(5, minmax(0, 1fr))' },
+              gridTemplateColumns: {
+                xs: 'repeat(2, minmax(0, 1fr))',
+                sm: 'repeat(3, minmax(0, 1fr))',
+                md: 'repeat(5, minmax(0, 1fr))',
+              },
               gap: 1.5,
             }}
           >
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Inserted
-              </Typography>
-              <Typography variant="h6">{insertedCount}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Skipped existing domains
-              </Typography>
-              <Typography variant="h6">{skippedExistingCount}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Duplicate domains in file
-              </Typography>
-              <Typography variant="h6">{duplicateDomainsCount}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Invalid rows
-              </Typography>
-              <Typography variant="h6">{invalidRowsCount}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                Saved with warnings
-              </Typography>
-              <Typography variant="h6">{savedWithWarningsCount}</Typography>
-            </Box>
+            <ImportResultMetric label="Inserted" value={insertedCount} />
+            <ImportResultMetric label="Skipped existing" value={skippedExistingCount} tone="warning" />
+            <ImportResultMetric label="Duplicates" value={duplicateDomainsCount} tone="warning" />
+            <ImportResultMetric label="Invalid rows" value={invalidRowsCount} tone="error" />
+            <ImportResultMetric label="Warnings" value={savedWithWarningsCount} tone="warning" />
           </Box>
+
+          <DuplicateDomainsPreview
+            duplicateDomainsCount={duplicateDomainsCount}
+            duplicateDomainsPreview={duplicateDomainsPreview}
+          />
         </Stack>
 
         {savedWithWarningsCount > 0 && (
@@ -133,10 +118,8 @@ export function SitesImportResultCard({
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 360px))' },
-              gap: 2,
-              alignItems: 'stretch',
-              justifyContent: 'start',
+              gridTemplateColumns: '1fr',
+              gap: 1,
             }}
           >
             {canDownloadInvalidRows && (
@@ -157,11 +140,6 @@ export function SitesImportResultCard({
             )}
           </Box>
         )}
-
-        <DuplicateDomainsPreview
-          duplicateDomainsCount={duplicateDomainsCount}
-          duplicateDomainsPreview={duplicateDomainsPreview}
-        />
 
         {downloadError && <Typography color="error">{downloadError}</Typography>}
       </Stack>
