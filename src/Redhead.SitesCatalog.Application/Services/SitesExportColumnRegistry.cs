@@ -121,7 +121,8 @@ internal static class SitesExportColumnRegistry
     private static bool AllowAllRoles(string _) => true;
 
     private static bool NonClientOnly(string role)
-        => !string.Equals(role, AppRoles.Client, StringComparison.Ordinal);
+        => !string.Equals(role, AppRoles.Client, StringComparison.Ordinal) &&
+           !string.Equals(role, AppRoles.Lite, StringComparison.Ordinal);
 
     private static string FormatLastPublishedDate(Site site)
     {

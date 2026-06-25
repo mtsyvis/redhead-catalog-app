@@ -32,15 +32,17 @@ public class RoleSettingsController : ControllerBase
         var result = list.Select(rs =>
         {
             var isSuperAdmin = string.Equals(rs.RoleName, AppRoles.SuperAdmin, StringComparison.Ordinal);
+            var isLite = string.Equals(rs.RoleName, AppRoles.Lite, StringComparison.Ordinal);
+            var isFixed = isSuperAdmin || isLite;
             return new RoleSettingItemDto(
                 Role: rs.RoleName,
                 ExportLimitMode: isSuperAdmin ? ExportLimitMode.Unlimited : rs.ExportLimitMode,
                 ExportLimitRows: isSuperAdmin ? null : rs.ExportLimitRows,
-                IsEditable: !isSuperAdmin,
-                DailyUniqueExportedDomainsLimit: isSuperAdmin ? null : rs.DailyUniqueExportedDomainsLimit,
-                WeeklyUniqueExportedDomainsLimit: isSuperAdmin ? null : rs.WeeklyUniqueExportedDomainsLimit,
-                DailyExportOperationsLimit: isSuperAdmin ? null : rs.DailyExportOperationsLimit,
-                WeeklyExportOperationsLimit: isSuperAdmin ? null : rs.WeeklyExportOperationsLimit);
+                IsEditable: !isFixed,
+                DailyUniqueExportedDomainsLimit: isFixed ? null : rs.DailyUniqueExportedDomainsLimit,
+                WeeklyUniqueExportedDomainsLimit: isFixed ? null : rs.WeeklyUniqueExportedDomainsLimit,
+                DailyExportOperationsLimit: isFixed ? null : rs.DailyExportOperationsLimit,
+                WeeklyExportOperationsLimit: isFixed ? null : rs.WeeklyExportOperationsLimit);
         }).ToList();
 
         return Ok(result);

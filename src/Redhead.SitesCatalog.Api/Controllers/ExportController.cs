@@ -65,6 +65,11 @@ public class ExportController : ControllerBase
         try
         {
             var userContext = GetRequiredUserContext();
+            if (string.Equals(userContext.UserRole, AppRoles.Lite, StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+
             var result = request.SearchText != null
                 ? await ExportMultiSearchToGoogleDriveAsync(request, userContext, cancellationToken)
                 : await ExportSitesToGoogleDriveAsync(request, userContext, cancellationToken);
@@ -104,6 +109,11 @@ public class ExportController : ControllerBase
         try
         {
             var userContext = GetRequiredUserContext();
+            if (string.Equals(userContext.UserRole, AppRoles.Lite, StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+
             var query = ToMultiSearchQuery(request);
             var result = await _exportService.ExportMultiSearchAsExcelAsync(
                 request.SearchText,
@@ -135,6 +145,11 @@ public class ExportController : ControllerBase
         try
         {
             var userContext = GetRequiredUserContext();
+            if (string.Equals(userContext.UserRole, AppRoles.Lite, StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+
             var query = ToSitesQuery(request);
             var result = await _exportService.ExportSitesAsExcelAsync(
                 query,

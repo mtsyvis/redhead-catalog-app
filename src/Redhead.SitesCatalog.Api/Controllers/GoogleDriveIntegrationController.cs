@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Redhead.SitesCatalog.Api.Options;
 using Redhead.SitesCatalog.Application.Exceptions;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Infrastructure.Exceptions;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
@@ -31,6 +32,11 @@ public class GoogleDriveIntegrationController : ControllerBase
     [HttpGet("status")]
     public async Task<ActionResult<GoogleDriveStatusResponse>> Status(CancellationToken cancellationToken)
     {
+        if (IsLiteUser())
+        {
+            return Forbid();
+        }
+
         var userId = GetUserId();
         if (userId == null)
         {
@@ -43,6 +49,11 @@ public class GoogleDriveIntegrationController : ControllerBase
     [HttpPost("connect/start")]
     public ActionResult<GoogleDriveConnectStartResponse> StartConnection()
     {
+        if (IsLiteUser())
+        {
+            return Forbid();
+        }
+
         var userId = GetUserId();
         if (userId == null)
         {
@@ -71,7 +82,7 @@ public class GoogleDriveIntegrationController : ControllerBase
         CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        if (userId == null || !string.IsNullOrWhiteSpace(error))
+        if (userId == null || IsLiteUser() || !string.IsNullOrWhiteSpace(error))
         {
             return RedirectToSites("error");
         }
@@ -96,6 +107,11 @@ public class GoogleDriveIntegrationController : ControllerBase
     [HttpPost("disconnect")]
     public async Task<IActionResult> Disconnect(CancellationToken cancellationToken)
     {
+        if (IsLiteUser())
+        {
+            return Forbid();
+        }
+
         var userId = GetUserId();
         if (userId == null)
         {
@@ -107,7 +123,10 @@ public class GoogleDriveIntegrationController : ControllerBase
     }
 
     private string? GetUserId()
-        => User.FindFirstValue(ClaimTypes.NameIdentifier);
+        => HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    private bool IsLiteUser()
+        => HttpContext?.User?.IsInRole(AppRoles.Lite) == true;
 
     private RedirectResult RedirectToSites(string googleDriveStatus)
     {

@@ -27,6 +27,7 @@ const GOOGLE_DRIVE_CONFIGURATION_MISSING = 'GoogleDriveConfigurationMissing';
 interface UseSitesExportOptions {
   buildSitesQueryParams: (page: number, pageSize: number) => SitesQueryParams;
   isClient: boolean;
+  enabled?: boolean;
   multiSearchResult: MultiSearchResponse | null;
   searchText: string;
   visibleColumnKeys: string[];
@@ -72,6 +73,7 @@ function buildPartialExportDetail(
 export function useSitesExport({
   buildSitesQueryParams,
   isClient,
+  enabled = true,
   multiSearchResult,
   searchText,
   visibleColumnKeys,
@@ -89,6 +91,11 @@ export function useSitesExport({
   const [exportUsageLimits, setExportUsageLimits] = useState<CurrentUserProfileLimits | null>(null);
 
   const loadGoogleDriveStatus = useCallback(async () => {
+    if (!enabled) {
+      setGoogleDriveStatus(null);
+      return;
+    }
+
     try {
       const status = await googleDriveService.getStatus();
       setGoogleDriveStatus(status);
@@ -96,10 +103,10 @@ export function useSitesExport({
       console.error('Failed to load Google Drive status:', error);
       setGoogleDriveStatus(null);
     }
-  }, []);
+  }, [enabled]);
 
   const loadExportUsageLimits = useCallback(async (): Promise<CurrentUserProfileLimits | null> => {
-    if (!isClient) {
+    if (!enabled || !isClient) {
       setExportUsageLimits(null);
       return null;
     }
@@ -113,7 +120,7 @@ export function useSitesExport({
       setExportUsageLimits(null);
       return null;
     }
-  }, [isClient]);
+  }, [enabled, isClient]);
 
   useEffect(() => {
     void loadGoogleDriveStatus();

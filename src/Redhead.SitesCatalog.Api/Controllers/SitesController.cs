@@ -16,10 +16,14 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 public class SitesController : ControllerBase
 {
     private readonly ISitesService _sitesService;
+    private readonly ILiteMultiSearchUsageService _liteMultiSearchUsageService;
 
-    public SitesController(ISitesService sitesService)
+    public SitesController(
+        ISitesService sitesService,
+        ILiteMultiSearchUsageService liteMultiSearchUsageService)
     {
         _sitesService = sitesService;
+        _liteMultiSearchUsageService = liteMultiSearchUsageService;
     }
 
     /// <summary>
@@ -30,6 +34,11 @@ public class SitesController : ControllerBase
         [FromBody] SitesQueryRequest request,
         CancellationToken cancellationToken)
     {
+        if (IsLiteUser())
+        {
+            return Forbid();
+        }
+
         if (request == null)
         {
             return BadRequest("Request body is required.");
@@ -68,6 +77,23 @@ public class SitesController : ControllerBase
         }
 
         var parseResult = MultiSearchParser.Parse(request.QueryText);
+        if (IsLiteUser())
+        {
+            var userId = HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return Unauthorized();
+            }
+
+            var usage = await _liteMultiSearchUsageService.TryConsumeAsync(
+                userId,
+                parseResult.UniqueDomains.Count,
+                cancellationToken);
+            if (!usage.Allowed)
+            {
+                return LiteMultiSearchUsageProblem(usage);
+            }
+        }
 
         var result = await _sitesService.MultiSearchSitesAsync(
             parseResult.UniqueDomains,
@@ -111,6 +137,11 @@ public class SitesController : ControllerBase
     [HttpGet("locations")]
     public async Task<ActionResult<LocationsResponse>> GetLocations(CancellationToken cancellationToken)
     {
+        if (IsLiteUser())
+        {
+            return Forbid();
+        }
+
         var locations = await _sitesService.GetLocationsAsync(cancellationToken);
 
         return Ok(new LocationsResponse
@@ -125,6 +156,11 @@ public class SitesController : ControllerBase
     [HttpGet("filter-options")]
     public async Task<ActionResult<FilterOptionsResponse>> GetFilterOptions(CancellationToken cancellationToken)
     {
+        if (IsLiteUser())
+        {
+            return Forbid();
+        }
+
         var filterOptions = await _sitesService.GetFilterOptionsAsync(cancellationToken);
 
         return Ok(new FilterOptionsResponse
@@ -267,5 +303,40 @@ public class SitesController : ControllerBase
     }
 
     private bool CanViewInternalSiteFields()
-        => !User.IsInRole(AppRoles.Client);
+    {
+        var user = HttpContext?.User;
+        return user is not null
+            && !user.IsInRole(AppRoles.Client)
+            && !user.IsInRole(AppRoles.Lite);
+    }
+
+    private bool IsLiteUser()
+        => HttpContext?.User?.IsInRole(AppRoles.Lite) == true;
+
+    private BadRequestObjectResult LiteMultiSearchUsageProblem(LiteMultiSearchUsageResult usage)
+    {
+        var status = usage.Status == LiteMultiSearchUsageStatus.MonthlyLimitExceeded
+            ? StatusCodes.Status429TooManyRequests
+            : StatusCodes.Status400BadRequest;
+        var detail = usage.Status == LiteMultiSearchUsageStatus.MonthlyLimitExceeded
+            ? LiteMultiSearchConstants.MonthlyLimitMessage
+            : LiteMultiSearchConstants.PerRequestLimitMessage;
+
+        return new BadRequestObjectResult(new ProblemDetails
+        {
+            Title = "Validation Error",
+            Status = status,
+            Detail = detail,
+            Extensions =
+            {
+                ["domainsRequested"] = usage.DomainsRequested,
+                ["domainsUsed"] = usage.DomainsUsed,
+                ["monthlyLimit"] = usage.MonthlyLimit,
+                ["remainingAfterRequest"] = usage.RemainingAfterRequest
+            }
+        })
+        {
+            StatusCode = status
+        };
+    }
 }

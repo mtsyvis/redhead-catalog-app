@@ -19,12 +19,13 @@ Legacy planning files and old specs are historical context only. They must not o
 
 ## Users and roles
 
-The app has four roles:
+The app has five roles:
 
 * `SuperAdmin`
 * `Admin`
 * `Internal`
 * `Client`
+* `Lite`
 
 General rules:
 
@@ -33,7 +34,7 @@ General rules:
 * Each user has one role.
 * Each user stores one optional `DisplayName` field with a maximum length of 100 characters.
 * Each user may have an optional internal `SuperAdmin` note for identifying client accounts when email/name are not enough.
-* The internal `SuperAdmin` note is visible and editable only by `SuperAdmin`; `Admin`, `Internal`, `Client`, profile/current-user, auth, export analytics, audit context, and other non-SuperAdmin-specific responses must not expose it.
+* The internal `SuperAdmin` note is visible and editable only by `SuperAdmin`; `Admin`, `Internal`, `Client`, `Lite`, profile/current-user, auth, export analytics, audit context, and other non-SuperAdmin-specific responses must not expose it.
 * A user's profile is complete only when `DisplayName` is non-empty after trimming.
 * Existing activated users with a missing display name must complete it after login.
 * Email is used as the fallback display value while `DisplayName` is missing.
@@ -44,7 +45,8 @@ General rules:
 * Disabled users may be reactivated only by `SuperAdmin`.
 * Authorization must be enforced server-side. UI hiding is only a convenience layer.
 * The admin users list is paginated and can be filtered by all users, client users, or internal users.
-* Internal users in the admin users list means any user whose role is not `Client`.
+* Client users in the admin users list means users whose role is `Client` or `Lite`.
+* Internal users in the admin users list means any user whose role is neither `Client` nor `Lite`.
 
 ### SuperAdmin
 
@@ -57,7 +59,7 @@ Current rules:
 * Only `SuperAdmin` can update per-user export limit overrides.
 * Only `SuperAdmin` can create or update the internal `SuperAdmin` note on user accounts.
 * Only `SuperAdmin` can change user roles.
-* `SuperAdmin` can change roles only between `Admin`, `Internal`, and `Client`; `SuperAdmin` is a protected role and cannot be promoted or demoted through normal role editing.
+* `SuperAdmin` can change roles only between `Admin`, `Internal`, `Client`, and `Lite`; `SuperAdmin` is a protected role and cannot be promoted or demoted through normal role editing.
 * `SuperAdmin` cannot change their own role.
 * Changing a user's role preserves any per-user export limit override; removing or changing that override is a separate explicit action.
 * `SuperAdmin` export access is unlimited and must not be editable in the UI.
@@ -97,6 +99,20 @@ Current rules:
 * Can export if export is enabled for the role or user.
 * Cannot access admin, import, user-management, or catalog-editing features.
 
+### Lite
+
+`Lite` is a restricted external/client role for Multi-search checks only.
+
+Current rules:
+
+* Can access `/sites` only in Multi-search mode.
+* Can paste domains or URLs, run Multi-search, see found and not-found results, and see found/not-found counts.
+* Sees the same client-safe site fields as `Client`; internal audit fields and `QuarantineReason` are hidden.
+* Can use system table views and create, update, rename, duplicate, and delete their own custom table views for client-safe columns.
+* Cannot use Single search, advanced filters, saved filters, stop list, imports, admin pages, analytics, catalog editing, exports, Google Drive export, Google Drive integration, or price-column copy actions.
+* Export is always disabled and cannot be enabled by role settings or per-user overrides.
+* May use account maintenance pages for profile, change password, and logout.
+
 ## Account invitations and password provisioning
 
 New users are provisioned by a `SuperAdmin` invitation flow. Public registration without an invitation is not allowed.
@@ -120,7 +136,7 @@ Rules:
 * Reactivating a disabled, never-activated user issues a new activation link instead.
 * Reactivation preserves display name, internal `SuperAdmin` note, Google Drive connection, saved filters, table views, and user history.
 * Reactivation clears per-user export limit overrides.
-* Disabled `SuperAdmin` users can be reactivated only as `SuperAdmin`; disabled `Admin`, `Internal`, and `Client` users can be reactivated only as `Admin`, `Internal`, or `Client`.
+* Disabled `SuperAdmin` users can be reactivated only as `SuperAdmin`; disabled `Admin`, `Internal`, `Client`, and `Lite` users can be reactivated only as `Admin`, `Internal`, `Client`, or `Lite`.
 * While `MustChangePassword = true` or `DisplayName` is incomplete, an activated user must be forced to `/account-setup` and blocked from normal app pages.
 * Users can update their own display name from `/profile`; admins must not edit another user's display name.
 
@@ -148,6 +164,7 @@ Rules:
 * If export is disabled for the current user, `/profile` must hide the Google Drive export connection card.
 * If export is disabled for the current user, `/sites` must hide the export menu.
 * If export is truncated by a limit, the user should receive clear feedback.
+* `Lite` export is fixed as disabled. Role-level settings and per-user export overrides must not enable export for `Lite`.
 
 Client-role exports also have rolling usage limits:
 
@@ -545,6 +562,7 @@ Multi-search lets users paste many domains/URLs and see which ones exist in the 
 Availability:
 
 * Available to all authenticated users.
+* `Lite` users can access only Multi-search on `/sites`; they cannot switch to Single search or load advanced filter/saved-filter controls.
 
 Input rules:
 
@@ -554,6 +572,11 @@ Input rules:
 * Inputs are normalized before matching.
 * Matching is exact normalized `Domain` equality, not substring search.
 * Duplicate inputs after normalization are detected, removed from search execution, and reported to the user.
+* For `Lite` users, one Multi-search request can include at most 50 unique normalized domains.
+* For `Lite` users, monthly usage is capped at 1,000 unique normalized domains per calendar month in UTC.
+* For `Lite` usage counting, found and not-found domains both count.
+* For `Lite` usage counting, duplicates inside the same request do not count after normalization.
+* For `Lite` usage counting, monthly usage is a simple counter of accepted request domain counts; domains are not deduplicated across the whole month.
 
 Display rules:
 
@@ -567,7 +590,7 @@ Display rules:
 * Applying a new Multi-search resets table pagination to the first page and updates the pagination count for the new result set.
 * Domain/default sorting in Multi-search means normalized input order.
 * Sorting by a non-domain column sorts found rows by that column and appends not found rows afterward in normalized input order.
-* Internal users can copy values from visible price-column headers in Multi-search. Client-role users must not see or access price-column copy actions.
+* Internal users can copy values from visible price-column headers in Multi-search. `Client` and `Lite` users must not see or access price-column copy actions.
 * Price-column copying uses all unique Multi-search result rows in normalized input order after duplicate removal.
 * Price-column copying is not affected by table sorting, filters, or pagination.
 * Copied price-column values are newline-separated for spreadsheet paste. Numeric prices are copied as plain numbers without currency symbols or display formatting, `YES` and `NO` are copied as text, and unknown or not-found values are copied as blank lines to preserve row alignment with the pasted Multi-search input.
@@ -580,6 +603,7 @@ Export rules:
 * The `Not found` sheet always preserves normalized input order after duplicate removal.
 * Filters apply only to found rows in the `Sites` sheet. Not found domains remain included in the `Not found` sheet.
 * Effective export limits apply to found rows.
+* `Lite` users cannot export Multi-search results.
 
 ## Imports
 
@@ -755,6 +779,7 @@ Rules:
 * The backend must validate requested export column keys and reject unknown, blank, UI-only/action, non-exportable, or role-forbidden columns.
 * Duplicate requested export column keys are normalized to the first occurrence.
 * Client-role users must not be able to export internal-only columns by manually editing export requests.
+* `Lite` users must not be able to export by manually editing export or Google Drive export requests.
 * Export workbooks should remain editable to the right of exported site columns in spreadsheet tools.
 * Export workbooks include a `Sites` sheet and an `Export info` sheet.
 * The `Export info` sheet explains term-aware price selection. With no selected term, it states that no term was applied and the minimum available price was selected for each price column. With a selected term, it states the selected term label and that only prices for that term were selected.
@@ -793,6 +818,7 @@ Rules:
 * Exports must fail clearly instead of silently saving to Drive root when the dedicated folder cannot be ensured.
 * Shared Drive support is out of scope.
 * Folder picker support is out of scope.
+* `Lite` users cannot connect Google Drive for export or use Google Drive export endpoints.
 
 ## Admin UI
 
@@ -806,6 +832,7 @@ Rules:
 * The Users page should keep creation out of the table flow by opening the create-user form from an `Add user` dialog.
 * User reactivation UI is available only to `SuperAdmin` for disabled users.
 * Role-change UI is available only to `SuperAdmin` for active non-`SuperAdmin` users.
+* Role selectors include `Lite` as a non-`SuperAdmin` role.
 * Admin users list should show `DisplayName` for completed profiles and activation/profile status otherwise.
 * Admin users list should show the user's name/profile status and email together in a single user-identification column.
 * `SuperAdmin` and `Admin` can view readonly admin user details, including account role, display name, activation/profile status, export-limit information, and Google Drive connection status.
@@ -816,6 +843,7 @@ Rules:
 * Role settings editing is available only to `SuperAdmin`.
 * Per-user export override editing is available only to `SuperAdmin`.
 * `SuperAdmin` export settings are shown as unlimited and not editable.
+* `Lite` export settings are shown as disabled and are not editable at role or user level.
 * `SuperAdmin` can access an Analytics page for Business Demand based on Client export requests.
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
 * Business Demand price range analytics are based on the `priceUsd` main-price filter stored in export analytics snapshots. Term-aware pricing adds selected term demand and price-range-by-term demand; export logs without `termKey` are counted as `Any term`.

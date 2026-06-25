@@ -80,7 +80,8 @@ public class RoleSettingsConfiguration : IEntityTypeConfiguration<RoleSettings>
                 WeeklyUniqueExportedDomainsLimit = ExportConstants.TrustedClientWeeklyUniqueExportedDomainsLimit,
                 DailyExportOperationsLimit = ExportConstants.TrustedClientDailyExportOperationsLimit,
                 WeeklyExportOperationsLimit = ExportConstants.TrustedClientWeeklyExportOperationsLimit
-            }
+            },
+            new RoleSettings { RoleName = "Lite", ExportLimitMode = ExportLimitMode.Disabled, ExportLimitRows = null }
         );
     }
 }

@@ -19,6 +19,7 @@ import type { SitesColumnMetadata, SitesSystemView } from './sitesTableColumns';
 
 interface UseSitesTableViewsOptions {
   isClient: boolean;
+  enabled?: boolean;
 }
 
 interface ActiveView {
@@ -27,8 +28,8 @@ interface ActiveView {
   name: string;
 }
 
-export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
-  const [loading, setLoading] = useState(true);
+export function useSitesTableViews({ isClient, enabled = true }: UseSitesTableViewsOptions) {
+  const [loading, setLoading] = useState(enabled);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeView, setActiveViewState] = useState<ActiveView>({
     type: 'system',
@@ -118,6 +119,22 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
     let ignore = false;
 
     async function loadPreferences() {
+      if (!enabled) {
+        const fallback = getSystemView('default');
+        const fallbackSettings = createSanitizedSettings(
+          fallback.visibleColumnIds,
+          fallback.density
+        );
+        setCustomViews([]);
+        setActiveViewState({ type: 'system', key: fallback.key, name: fallback.name });
+        setDraftVisibleColumnIds(fallbackSettings.visibleColumnIds);
+        setDraftDensity(fallbackSettings.density);
+        setDraftColumnWidths(fallbackSettings.columnWidths);
+        setLoadError(null);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setLoadError(null);
       try {
@@ -161,7 +178,7 @@ export function useSitesTableViews({ isClient }: UseSitesTableViewsOptions) {
     return () => {
       ignore = true;
     };
-  }, [createSanitizedSettings, getSystemView, resolveView]);
+  }, [createSanitizedSettings, enabled, getSystemView, resolveView]);
 
   const columnVisibilityModel = useMemo<GridColumnVisibilityModel>(() => {
     const visible = new Set(normalizeSitesVisibleColumnIds(draftVisibleColumnIds, allowedViewColumns));

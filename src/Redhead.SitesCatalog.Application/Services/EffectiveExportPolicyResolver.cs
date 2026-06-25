@@ -29,6 +29,19 @@ public static class EffectiveExportPolicyResolver
                 WeeklyExportOperationsLimit: null);
         }
 
+        if (string.Equals(userRole, AppRoles.Lite, StringComparison.Ordinal))
+        {
+            return new EffectiveExportPolicy(
+                Mode: ExportLimitMode.Disabled,
+                Rows: null,
+                IsOverridden: false,
+                Source: EffectivePolicySource.Role,
+                DailyUniqueExportedDomainsLimit: null,
+                WeeklyUniqueExportedDomainsLimit: null,
+                DailyExportOperationsLimit: null,
+                WeeklyExportOperationsLimit: null);
+        }
+
         var isClient = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
         var hasUsageOverride = isClient && HasUsageLimitOverride(user);
 

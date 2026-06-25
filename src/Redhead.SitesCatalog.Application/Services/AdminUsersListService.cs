@@ -150,8 +150,10 @@ public sealed class AdminUsersListService : IAdminUsersListService
     {
         return userType switch
         {
-            AdminUsersListUserTypes.Clients => query.Where(user => user.Role == AppRoles.Client),
-            AdminUsersListUserTypes.Internal => query.Where(user => user.Role != AppRoles.Client),
+            AdminUsersListUserTypes.Clients => query.Where(user =>
+                user.Role == AppRoles.Client || user.Role == AppRoles.Lite),
+            AdminUsersListUserTypes.Internal => query.Where(user =>
+                user.Role != AppRoles.Client && user.Role != AppRoles.Lite),
             _ => query
         };
     }
@@ -165,6 +167,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 user.Role == AppRoles.Admin ? 1 :
                 user.Role == AppRoles.Internal ? 2 :
                 user.Role == AppRoles.Client ? 3 :
+                user.Role == AppRoles.Lite ? 4 :
                 int.MaxValue)
             .ThenBy(user => user.NormalizedEmail)
             .ThenBy(user => user.Id);
@@ -212,7 +215,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
             EffectiveDailyExportOperationsLimit = effectivePolicy.DailyExportOperationsLimit,
             EffectiveWeeklyExportOperationsLimit = effectivePolicy.WeeklyExportOperationsLimit,
             IsExportLimitOverridden = effectivePolicy.IsOverridden,
-            IsExportLimitEditable = !isSuperAdmin
+            IsExportLimitEditable = !isSuperAdmin && !string.Equals(role, AppRoles.Lite, StringComparison.Ordinal)
         };
     }
 

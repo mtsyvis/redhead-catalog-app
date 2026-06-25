@@ -72,6 +72,7 @@ interface SitesFiltersProps {
   onApply: (filters?: SitesFilters) => void;
   multiSearchMode?: boolean;
   onMultiSearchModeChange?: (enabled: boolean) => void;
+  liteMode?: boolean;
   canFilterQuarantine?: boolean;
   filterOptionsRefreshKey?: number;
   savedFilterSets?: SavedFilterSet[];
@@ -226,6 +227,7 @@ export function SitesFilters({
   onApply,
   multiSearchMode = false,
   onMultiSearchModeChange,
+  liteMode = false,
   filterOptionsRefreshKey = 0,
   savedFilterSets = [],
   activeSavedFilterSetId = null,
@@ -262,6 +264,15 @@ export function SitesFilters({
 
   useEffect(() => {
     const loadFilterOptions = async () => {
+      if (liteMode) {
+        setLocationOptions(null);
+        setNicheOptions([]);
+        setTermOptions(createTermFilterOptions(null));
+        setLocationOptionsError(null);
+        setLocationOptionsLoading(false);
+        return;
+      }
+
       setLocationOptionsLoading(true);
       setLocationOptionsError(null);
       try {
@@ -280,7 +291,7 @@ export function SitesFilters({
     };
 
     loadFilterOptions();
-  }, [filterOptionsRefreshKey]);
+  }, [filterOptionsRefreshKey, liteMode]);
 
   const handleChange = <K extends keyof SitesFilters>(
     field: K,
@@ -697,7 +708,9 @@ export function SitesFilters({
       maxRows={multiSearchMode ? 8 : 1}
       placeholder={
         multiSearchMode
-          ? 'Paste domains or URLs (one per line or space-separated, max 5,000)'
+          ? liteMode
+            ? 'Paste up to 50 domains or URLs'
+            : 'Paste domains or URLs (one per line or space-separated, max 5,000)'
           : 'Search by domain (example.com or https://www.example.com/path)'
       }
       value={searchValue}
@@ -726,6 +739,21 @@ export function SitesFilters({
       sx={multiSearchMode ? undefined : { flex: '1 1 360px', minWidth: { xs: '100%', md: 320 } }}
     />
   );
+
+  if (liteMode) {
+    return (
+      <Box sx={{ mb: 1.5 }}>
+        <Stack spacing={0.75}>
+          {searchInput}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <BrandButton kind="primary" onClick={handleApply} sx={{ minWidth: 120 }}>
+              Search
+            </BrandButton>
+          </Box>
+        </Stack>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ mb: 1.5 }}>

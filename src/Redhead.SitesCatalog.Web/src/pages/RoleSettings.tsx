@@ -26,7 +26,7 @@ import { ApiClientError } from '../services/api.client';
 import type { RoleSettingItem, RoleSettingUpdateItem } from '../types/roleSettings.types';
 import type { ExportLimitMode } from '../utils/exportLimit';
 
-const ROLE_ORDER = ['SuperAdmin', 'Admin', 'Internal', 'Client'] as const;
+const ROLE_ORDER = ['SuperAdmin', 'Admin', 'Internal', 'Client', 'Lite'] as const;
 const CLIENT_ROLE = 'Client';
 const DEFAULT_CLIENT_USAGE_LIMITS: ClientUsageLimitLocalState = {
   dailyUniqueExportedDomainsLimit: '1000',
