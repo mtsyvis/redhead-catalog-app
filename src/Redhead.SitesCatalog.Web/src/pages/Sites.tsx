@@ -169,7 +169,14 @@ function buildLocationFilterRequestFields(
 }
 
 export function Sites() {
-  const { isAdmin, isClient, isLite } = useUserRoles();
+  const {
+    canBrowseSites,
+    canEditSites,
+    canExportSites,
+    canManageTableViews,
+    isClient,
+    isLite,
+  } = useUserRoles();
   const clientSafeRole = isClient || isLite;
   const [sites, setSites] = useState<Site[]>([]);
   const [total, setTotal] = useState(0);
@@ -195,9 +202,9 @@ export function Sites() {
   });
 
   const { user } = useAuth();
-  const canExport = !isLite && !user?.isExportDisabled;
-  const tableViews = useSitesTableViews({ isClient: clientSafeRole });
-  const savedFilters = useSitesSavedFilters({ enabled: !isLite });
+  const canExport = canExportSites && !user?.isExportDisabled;
+  const tableViews = useSitesTableViews({ isClient: clientSafeRole, enabled: canManageTableViews });
+  const savedFilters = useSitesSavedFilters({ enabled: canBrowseSites });
   const { updateDraftColumnWidth } = tableViews;
 
   useEffect(() => {
@@ -613,7 +620,7 @@ export function Sites() {
   );
 
   const columns = useSitesColumns({
-    isAdmin,
+    isAdmin: canEditSites,
     isClient: clientSafeRole,
     isMultiSearchView,
     visibleColumnIds: tableViews.visibleColumnIds,
@@ -810,18 +817,18 @@ export function Sites() {
           onMultiSearchModeChange={isLite ? undefined : handleMultiSearchModeChange}
           liteMode={isLite}
           filterOptionsRefreshKey={filterOptionsRefreshKey}
-          savedFilterSets={isLite ? [] : savedFilters.filterSets}
-          activeSavedFilterSetId={isLite ? null : savedFilters.activeFilterSetId}
-          savedFiltersLoading={isLite ? false : savedFilters.loading}
-          savedFilterSetChanged={isLite ? false : savedFilterSetChanged}
+          savedFilterSets={canBrowseSites ? savedFilters.filterSets : []}
+          activeSavedFilterSetId={canBrowseSites ? savedFilters.activeFilterSetId : null}
+          savedFiltersLoading={canBrowseSites ? savedFilters.loading : false}
+          savedFilterSetChanged={canBrowseSites ? savedFilterSetChanged : false}
           onClearSavedFilterSetSelection={
-            isLite ? undefined : () => savedFilters.setActiveFilterSetId(null)
+            canBrowseSites ? () => savedFilters.setActiveFilterSetId(null) : undefined
           }
-          onApplySavedFilterSet={isLite ? undefined : handleApplySavedFilterSet}
-          onCreateSavedFilterSet={isLite ? undefined : handleCreateSavedFilterSet}
-          onUpdateSavedFilterSet={isLite ? undefined : handleUpdateSavedFilterSet}
-          onRenameSavedFilterSet={isLite ? undefined : handleRenameSavedFilterSet}
-          onDeleteSavedFilterSet={isLite ? undefined : handleDeleteSavedFilterSet}
+          onApplySavedFilterSet={canBrowseSites ? handleApplySavedFilterSet : undefined}
+          onCreateSavedFilterSet={canBrowseSites ? handleCreateSavedFilterSet : undefined}
+          onUpdateSavedFilterSet={canBrowseSites ? handleUpdateSavedFilterSet : undefined}
+          onRenameSavedFilterSet={canBrowseSites ? handleRenameSavedFilterSet : undefined}
+          onDeleteSavedFilterSet={canBrowseSites ? handleDeleteSavedFilterSet : undefined}
         />
 
         {multiSearchResult && multiSearchResult.duplicates.length > 0 && (
@@ -1042,7 +1049,7 @@ export function Sites() {
 
         <SitesSnackbar snackbar={snackbar} onClose={handleCloseSnackbar} />
 
-        {!isLite && (
+        {canExportSites && (
           <GoogleDriveConnectionDialog
             dialog={googleDriveDialog}
             status={googleDriveStatus}

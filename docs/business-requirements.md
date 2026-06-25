@@ -27,6 +27,8 @@ The app has five roles:
 * `Client`
 * `Lite`
 
+`Editor` is a planned future role for internal catalog maintenance, but it is not an active role and must not appear in role selectors until implemented.
+
 General rules:
 
 * Users authenticate with email and password.
@@ -44,9 +46,18 @@ General rules:
 * Users are soft-disabled with `IsActive = false`; physical deletion is not allowed.
 * Disabled users may be reactivated only by `SuperAdmin`.
 * Authorization must be enforced server-side. UI hiding is only a convenience layer.
+* Authorization uses a centralized static role-permission matrix. Endpoint access is granted by positive permissions, not by scattered role-deny checks.
 * The admin users list is paginated and can be filtered by all users, client users, or internal users.
 * Client users in the admin users list means users whose role is `Client` or `Lite`.
 * Internal users in the admin users list means any user whose role is neither `Client` nor `Lite`.
+
+Current static permission model:
+
+* `SuperAdmin`: all permissions.
+* `Admin`: sites browse, Multi-search, site editing, exports, imports, user read, role settings read, analytics read, table views, and Ahrefs sync management.
+* `Internal`: sites browse, Multi-search, exports, and table views.
+* `Client`: sites browse, Multi-search, exports, and client-safe table views.
+* `Lite`: Multi-search and client-safe table views only.
 
 ### SuperAdmin
 
@@ -75,9 +86,11 @@ Current rules:
 
 * `Admin` can access admin areas allowed by backend policies.
 * `Admin` can run catalog imports and update catalog data where backend policies allow it.
+* `Admin` can read Business Demand and Export Activity analytics.
 * `Admin` must not be able to create users.
 * `Admin` must not be able to change role export limits.
 * `Admin` must not be able to change per-user export limit overrides.
+* `Admin` must not be able to change user roles, reset passwords, disable users, reactivate users, reissue invitations, or edit internal `SuperAdmin` notes.
 
 ### Internal
 
@@ -844,7 +857,7 @@ Rules:
 * Per-user export override editing is available only to `SuperAdmin`.
 * `SuperAdmin` export settings are shown as unlimited and not editable.
 * `Lite` export settings are shown as disabled and are not editable at role or user level.
-* `SuperAdmin` can access an Analytics page for Business Demand based on Client export requests.
+* `SuperAdmin` and `Admin` can access an Analytics page for Business Demand based on Client export requests.
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
 * Business Demand price range analytics are based on the `priceUsd` main-price filter stored in export analytics snapshots. Term-aware pricing adds selected term demand and price-range-by-term demand; export logs without `termKey` are counted as `Any term`.
 * Business Demand analytics are based on export requests, not all UI searches, and must not expose raw export logs or raw filter/sort/search snapshot JSON in the page.

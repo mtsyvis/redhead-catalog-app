@@ -12,7 +12,7 @@ namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 public sealed class AnalyticsControllerTests
 {
     [Fact]
-    public void AnalyticsController_UsesSuperAdminOnlyAuthorizationPolicy()
+    public void AnalyticsController_UsesAnalyticsReadAuthorizationPolicy()
     {
         // Arrange
         var controllerType = typeof(AnalyticsController);
@@ -32,8 +32,8 @@ public sealed class AnalyticsControllerTests
             .ToList();
 
         // Assert
-        Assert.Contains(AppPolicies.SuperAdminOnly, controllerPolicies);
-        Assert.DoesNotContain(AppPolicies.AdminAccess, controllerPolicies);
+        Assert.Contains(AppPolicies.AnalyticsReadAccess, controllerPolicies);
+        Assert.DoesNotContain(AppPolicies.UsersReadAccess, controllerPolicies);
         foreach (var method in methods)
         {
             Assert.NotNull(method);

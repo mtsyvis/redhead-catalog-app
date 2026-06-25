@@ -15,7 +15,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
 [Route("api/admin/users")]
-[Authorize(Policy = AppPolicies.AdminAccess)]
+[Authorize(Policy = AppPolicies.UsersReadAccess)]
 public class AdminUsersController : ControllerBase
 {
     private static readonly TimeSpan InvitationLifetime = TimeSpan.FromHours(72);
@@ -34,7 +34,7 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    [Authorize(Policy = AppPolicies.UsersManageAccess)]
     public async Task<ActionResult<CreateUserResponse>> CreateUser([FromBody] CreateUserRequest request)
     {
         if (!AppRoles.All.Contains(request.Role))
@@ -134,6 +134,7 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpPost("{id}/reset-password")]
+    [Authorize(Policy = AppPolicies.UsersManageAccess)]
     public async Task<ActionResult<ResetPasswordResponse>> ResetPassword(string id)
     {
         var target = await _userManager.FindByIdAsync(id);
@@ -175,6 +176,7 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpPost("{id}/disable")]
+    [Authorize(Policy = AppPolicies.UsersManageAccess)]
     public async Task<ActionResult<MessageResponse>> DisableUser(string id)
     {
         var target = await _userManager.FindByIdAsync(id);
@@ -215,7 +217,7 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpPut("{id}/role")]
-    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    [Authorize(Policy = AppPolicies.UsersManageAccess)]
     public async Task<ActionResult> UpdateUserRole(string id, [FromBody] UpdateUserRoleRequest request)
     {
         if (!AppRoles.All.Contains(request.Role))
@@ -289,7 +291,7 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpPost("{id}/reactivate")]
-    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    [Authorize(Policy = AppPolicies.UsersManageAccess)]
     public async Task<ActionResult<ReactivateUserResponse>> ReactivateUser(
         string id,
         [FromBody] ReactivateUserRequest request)
@@ -387,7 +389,7 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpPost("{id}/reissue-invitation")]
-    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    [Authorize(Policy = AppPolicies.UsersManageAccess)]
     public async Task<ActionResult<ReissueInvitationResponse>> ReissueInvitation(string id)
     {
         var target = await _userManager.FindByIdAsync(id);
@@ -423,7 +425,7 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpPut("{id}/export-limit")]
-    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    [Authorize(Policy = AppPolicies.UsersManageAccess)]
     public async Task<ActionResult> UpdateUserExportLimit(
         string id,
         [FromBody] UpdateUserExportLimitRequest request,
@@ -491,7 +493,7 @@ public class AdminUsersController : ControllerBase
     }
 
     [HttpPut("{id}/super-admin-note")]
-    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    [Authorize(Policy = AppPolicies.UsersManageAccess)]
     public async Task<ActionResult> UpdateUserSuperAdminNote(
         string id,
         [FromBody] UpdateUserSuperAdminNoteRequest request,

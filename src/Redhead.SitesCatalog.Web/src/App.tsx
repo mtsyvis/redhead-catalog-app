@@ -32,6 +32,12 @@ const RoleSettings = React.lazy(() =>
   import('./pages/RoleSettings').then((module) => ({ default: module.RoleSettings }))
 );
 const Analytics = React.lazy(() => import('./pages/Analytics').then((module) => ({ default: module.Analytics })));
+const AhrefsSync = React.lazy(() =>
+  import('./pages/AhrefsSync').then((module) => ({ default: module.AhrefsSync }))
+);
+const AhrefsSyncRunDetails = React.lazy(() =>
+  import('./pages/AhrefsSyncRunDetails').then((module) => ({ default: module.AhrefsSyncRunDetails }))
+);
 
 const PageLoadingFallback: React.FC = () => (
   <Box
@@ -137,6 +143,28 @@ const App: React.FC = () => {
                   <ProtectedRoute>
                     <AccountSetupRequiredRoute>
                       <Analytics />
+                    </AccountSetupRequiredRoute>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/ahrefs-sync"
+                element={
+                  <ProtectedRoute>
+                    <AccountSetupRequiredRoute>
+                      <AhrefsSync />
+                    </AccountSetupRequiredRoute>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/ahrefs-sync/runs/:id"
+                element={
+                  <ProtectedRoute>
+                    <AccountSetupRequiredRoute>
+                      <AhrefsSyncRunDetails />
                     </AccountSetupRequiredRoute>
                   </ProtectedRoute>
                 }

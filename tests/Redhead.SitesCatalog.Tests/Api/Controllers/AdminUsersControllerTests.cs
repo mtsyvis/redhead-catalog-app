@@ -405,7 +405,7 @@ public sealed class AdminUsersControllerTests
     }
 
     [Fact]
-    public void GetUser_UsesAdminAccessAuthorizationPolicy()
+    public void GetUser_UsesUsersReadAuthorizationPolicy()
     {
         // Arrange
         var controllerType = typeof(AdminUsersController);
@@ -422,7 +422,7 @@ public sealed class AdminUsersControllerTests
             .Any() == true;
 
         // Assert
-        Assert.Contains(AppPolicies.AdminAccess, controllerPolicies);
+        Assert.Contains(AppPolicies.UsersReadAccess, controllerPolicies);
         Assert.False(allowsAnonymous);
     }
 

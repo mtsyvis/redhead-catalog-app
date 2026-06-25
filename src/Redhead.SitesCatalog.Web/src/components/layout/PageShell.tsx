@@ -18,6 +18,7 @@ import ArrowDropDown from '@mui/icons-material/ArrowDropDown';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logoLockup from '../../assets/brand/redhead-lockup.svg';
+import { useUserRoles } from '../../hooks/useUserRoles';
 
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   background: theme.palette.background.paper,
@@ -42,6 +43,13 @@ export const PageShell: React.FC<PageShellProps> = ({
   maxWidth = 'lg',
 }) => {
   const { user, logout } = useAuth();
+  const {
+    canRunImports,
+    canReadUsers,
+    canReadRoleSettings,
+    canReadAnalytics,
+    canManageAhrefsSync,
+  } = useUserRoles();
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -79,8 +87,8 @@ export const PageShell: React.FC<PageShellProps> = ({
   };
 
   const displayName = user?.displayName || user?.email;
-  const isAdmin = user?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
-  const isSuperAdmin = user?.roles?.includes('SuperAdmin');
+  const canOpenAdminMenu =
+    canReadAnalytics || canReadUsers || canReadRoleSettings || canManageAhrefsSync;
   const isAdminPath = location.pathname.startsWith('/admin');
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
@@ -142,9 +150,9 @@ export const PageShell: React.FC<PageShellProps> = ({
                   }}
                 >
                   <Tab label="Sites" value="/sites" />
-                  {isAdmin && <Tab label="Imports" value="/imports" />}
+                  {canRunImports && <Tab label="Imports" value="/imports" />}
                 </Tabs>
-                {isAdmin && (
+                {canOpenAdminMenu && (
                   <>
                     <Button
                       color="inherit"
@@ -166,15 +174,24 @@ export const PageShell: React.FC<PageShellProps> = ({
                       anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
                       transformOrigin={{ vertical: 'top', horizontal: 'left' }}
                     >
-                      {isSuperAdmin && (
+                      {canReadAnalytics && (
                         <MenuItem onClick={() => handleAdminNav('/admin/analytics')}>
                           Analytics
                         </MenuItem>
                       )}
-                      <MenuItem onClick={() => handleAdminNav('/admin/users')}>Users</MenuItem>
-                      <MenuItem onClick={() => handleAdminNav('/admin/role-settings')}>
-                        Role Settings
-                      </MenuItem>
+                      {canManageAhrefsSync && (
+                        <MenuItem onClick={() => handleAdminNav('/admin/ahrefs-sync')}>
+                          Ahrefs Sync
+                        </MenuItem>
+                      )}
+                      {canReadUsers && (
+                        <MenuItem onClick={() => handleAdminNav('/admin/users')}>Users</MenuItem>
+                      )}
+                      {canReadRoleSettings && (
+                        <MenuItem onClick={() => handleAdminNav('/admin/role-settings')}>
+                          Role Settings
+                        </MenuItem>
+                      )}
                     </Menu>
                   </>
                 )}

@@ -20,13 +20,13 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 import { BrandButton } from '../components/common/BrandButton';
 import { PageShell } from '../components/layout/PageShell';
-import { useAuth } from '../contexts/AuthContext';
 import { ApiClientError } from '../services/api.client';
 import { adminUsersService } from '../services/adminUsers.service';
 import type { AdminUserDetails as AdminUserDetailsType } from '../types/adminUsers.types';
 import type { ExportLimitMode } from '../utils/exportLimit';
 import { formatExportLimit } from '../utils/exportLimit';
 import { formatUsageLimitPair } from '../utils/exportUsageLimits';
+import { useUserRoles } from '../hooks/useUserRoles';
 
 const emptyValue = 'Not completed yet';
 
@@ -166,7 +166,7 @@ const DetailRow: React.FC<DetailRowProps> = ({ label, value }) => (
 );
 
 export const AdminUserDetails: React.FC = () => {
-  const { user: currentUser } = useAuth();
+  const { canReadUsers, canManageUsers, isSuperAdmin } = useUserRoles();
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const [user, setUser] = useState<AdminUserDetailsType | null>(null);
@@ -183,9 +183,6 @@ export const AdminUserDetails: React.FC = () => {
     message: '',
     severity: 'success',
   });
-
-  const isAdmin = currentUser?.roles?.some((role) => role === 'Admin' || role === 'SuperAdmin');
-  const isSuperAdmin = currentUser?.roles?.includes('SuperAdmin');
 
   const loadUser = useCallback(async () => {
     if (!userId) {
@@ -257,7 +254,7 @@ export const AdminUserDetails: React.FC = () => {
   const googleDriveConnected = user ? user.googleDriveConnected : null;
   const connectedAt = formatDateTime(googleDrive?.connectedAtUtc);
 
-  if (!isAdmin) {
+  if (!canReadUsers) {
     return <Navigate to="/sites" replace />;
   }
 
@@ -268,7 +265,7 @@ export const AdminUserDetails: React.FC = () => {
           <BrandButton kind="outline" startIcon={<ArrowBackIcon />} onClick={() => navigate('/admin/users')}>
             Back to users
           </BrandButton>
-          {isSuperAdmin && user && (
+          {canManageUsers && user && (
             user.accountStatus === 'PendingActivation' || user.accountStatus === 'InvitationExpired'
           ) && (
             <BrandButton kind="primary" onClick={() => void handleReissueInvitation()} disabled={reissuing}>

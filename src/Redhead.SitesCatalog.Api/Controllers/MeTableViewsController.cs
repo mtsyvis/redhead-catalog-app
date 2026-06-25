@@ -4,12 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Models.TableViews;
 using Redhead.SitesCatalog.Application.Models.TableViews;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Policy = AppPolicies.TableViewsManageAccess)]
 [Route("api/me/table-views")]
 public sealed class MeTableViewsController : ControllerBase
 {

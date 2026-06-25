@@ -17,7 +17,7 @@ namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 public sealed class AhrefsSyncControllerTests
 {
     [Fact]
-    public void Controller_UsesSuperAdminOnlyPolicy()
+    public void Controller_UsesAhrefsSyncManagePolicy()
     {
         // Arrange
 
@@ -28,7 +28,7 @@ public sealed class AhrefsSyncControllerTests
             .Select(attribute => attribute.Policy);
 
         // Assert
-        Assert.Contains(AppPolicies.SuperAdminOnly, policies);
+        Assert.Contains(AppPolicies.AhrefsSyncManageAccess, policies);
     }
 
     [Theory]

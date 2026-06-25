@@ -50,7 +50,7 @@ const EMPTY_RUNS: AhrefsSyncRunsPage = {
 };
 
 export const AhrefsSync: React.FC = () => {
-  const { isSuperAdmin } = useUserRoles();
+  const { canManageAhrefsSync } = useUserRoles();
   const navigate = useNavigate();
   const [status, setStatus] = useState<AhrefsSyncStatus | null>(null);
   const [runs, setRuns] = useState<AhrefsSyncRunsPage>(EMPTY_RUNS);
@@ -66,7 +66,7 @@ export const AhrefsSync: React.FC = () => {
 
   const loadData = useCallback(
     async (refreshLimits = false) => {
-      if (!isSuperAdmin) return;
+      if (!canManageAhrefsSync) return;
       const [statusResult, runsResult] = await Promise.allSettled([
         ahrefsSyncService.getStatus(refreshLimits),
         ahrefsSyncService.listRuns(
@@ -99,7 +99,7 @@ export const AhrefsSync: React.FC = () => {
       setRunsLoading(false);
       setRefreshing(false);
     },
-    [isSuperAdmin, paginationModel.page, paginationModel.pageSize]
+    [canManageAhrefsSync, paginationModel.page, paginationModel.pageSize]
   );
 
   useEffect(() => {
@@ -202,7 +202,7 @@ export const AhrefsSync: React.FC = () => {
     setPaginationModel(model);
   }, []);
 
-  if (!isSuperAdmin) {
+  if (!canManageAhrefsSync) {
     return <Navigate to="/sites" replace />;
   }
 

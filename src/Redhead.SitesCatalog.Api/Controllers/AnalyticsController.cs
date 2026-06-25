@@ -11,7 +11,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
 [Route("api/admin/analytics")]
-[Authorize(Policy = AppPolicies.SuperAdminOnly)]
+[Authorize(Policy = AppPolicies.AnalyticsReadAccess)]
 public sealed class AnalyticsController : ControllerBase
 {
     private readonly IBusinessDemandAnalyticsService _businessDemandAnalyticsService;
