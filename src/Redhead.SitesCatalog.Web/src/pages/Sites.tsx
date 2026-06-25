@@ -196,7 +196,7 @@ export function Sites() {
 
   const { user } = useAuth();
   const canExport = !isLite && !user?.isExportDisabled;
-  const tableViews = useSitesTableViews({ isClient: clientSafeRole, enabled: !isLite });
+  const tableViews = useSitesTableViews({ isClient: clientSafeRole });
   const savedFilters = useSitesSavedFilters({ enabled: !isLite });
   const { updateDraftColumnWidth } = tableViews;
 
@@ -857,47 +857,25 @@ export function Sites() {
             flexDirection: 'column',
           }}
         >
-          {isLite ? (
-            <Box
-              sx={{
-                alignItems: 'center',
-                borderBottom: 1,
-                borderColor: 'divider',
-                display: 'flex',
-                minHeight: 48,
-                px: 1.5,
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                {gridSearchedRowCount > 0
-                  ? `${gridSearchedRowCount.toLocaleString()} searched · ${Math.max(
-                      0,
-                      gridSearchedRowCount - gridNotFoundRowCount
-                    ).toLocaleString()} found · ${gridNotFoundRowCount.toLocaleString()} not found`
-                  : `${gridRowCount.toLocaleString()} results`}
-              </Typography>
-            </Box>
-          ) : (
-            <SitesTableViewToolbar
-              tableViews={tableViews}
-              hiddenFilteredColumns={hiddenFilteredColumns}
-              canExport={canExport}
-              exporting={exporting}
-              loading={loading || tableViews.loading}
-              exportUsageLimits={exportUsageLimits}
-              resultCount={gridRowCount}
-              resultSearchedCount={gridSearchedRowCount}
-              resultNotFoundCount={gridNotFoundRowCount}
-              resultHiddenNotFoundCount={hiddenNotFoundRowCount}
-              resultLoading={gridLoading}
-              onShowFilteredColumns={handleShowFilteredColumns}
-              onClearHiddenFilters={handleClearHiddenFilters}
-              onDownloadExcel={handleDownloadExport}
-              onSaveToGoogleDrive={handleSaveToGoogleDrive}
-              onSuccess={(message) => setSnackbar({ open: true, message, severity: 'success' })}
-              onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
-            />
-          )}
+          <SitesTableViewToolbar
+            tableViews={tableViews}
+            hiddenFilteredColumns={hiddenFilteredColumns}
+            canExport={canExport}
+            exporting={exporting}
+            loading={loading || tableViews.loading}
+            exportUsageLimits={exportUsageLimits}
+            resultCount={gridRowCount}
+            resultSearchedCount={gridSearchedRowCount}
+            resultNotFoundCount={gridNotFoundRowCount}
+            resultHiddenNotFoundCount={hiddenNotFoundRowCount}
+            resultLoading={gridLoading}
+            onShowFilteredColumns={handleShowFilteredColumns}
+            onClearHiddenFilters={handleClearHiddenFilters}
+            onDownloadExcel={handleDownloadExport}
+            onSaveToGoogleDrive={handleSaveToGoogleDrive}
+            onSuccess={(message) => setSnackbar({ open: true, message, severity: 'success' })}
+            onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
+          />
 
           <Box
             sx={{

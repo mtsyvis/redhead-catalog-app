@@ -113,6 +113,16 @@ function normalizeOptionalText(value: string): string | null {
   return trimmed ? trimmed : null;
 }
 
+function getExportLimitCaption(user: UserListItemType): string {
+  if (!user.isExportLimitEditable) {
+    if (user.role === 'SuperAdmin') return 'Fixed for SuperAdmin';
+    if (user.role === 'Lite') return 'Fixed for Lite';
+    return 'Fixed setting';
+  }
+
+  return user.isExportLimitOverridden ? 'Personal override' : 'Inherited from role';
+}
+
 function createEmptyClientUsageLimitInputs(): ClientUsageLimitInputs {
   return {
     dailyUniqueExportedDomainsLimit: '',
@@ -833,11 +843,7 @@ export const AdminUsers: React.FC = () => {
                 {formatExportLimit(u.effectiveExportLimitMode, u.effectiveExportLimitRows)}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {!u.isExportLimitEditable
-                  ? 'Fixed for SuperAdmin'
-                  : u.isExportLimitOverridden
-                    ? 'Personal override'
-                    : 'Inherited from role'}
+                {getExportLimitCaption(u)}
               </Typography>
             </Box>
           );

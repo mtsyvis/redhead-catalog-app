@@ -108,7 +108,8 @@ Current rules:
 * Can access `/sites` only in Multi-search mode.
 * Can paste domains or URLs, run Multi-search, see found and not-found results, and see found/not-found counts.
 * Sees the same client-safe site fields as `Client`; internal audit fields and `QuarantineReason` are hidden.
-* Cannot use Single search, advanced filters, saved filters, table views, stop list, imports, admin pages, analytics, catalog editing, exports, Google Drive export, Google Drive integration, or price-column copy actions.
+* Can use system table views and create, update, rename, duplicate, and delete their own custom table views for client-safe columns.
+* Cannot use Single search, advanced filters, saved filters, stop list, imports, admin pages, analytics, catalog editing, exports, Google Drive export, Google Drive integration, or price-column copy actions.
 * Export is always disabled and cannot be enabled by role settings or per-user overrides.
 * May use account maintenance pages for profile, change password, and logout.
 
@@ -561,7 +562,7 @@ Multi-search lets users paste many domains/URLs and see which ones exist in the 
 Availability:
 
 * Available to all authenticated users.
-* `Lite` users can access only Multi-search on `/sites`; they cannot switch to Single search or load advanced filter/table-view/saved-filter controls.
+* `Lite` users can access only Multi-search on `/sites`; they cannot switch to Single search or load advanced filter/saved-filter controls.
 
 Input rules:
 

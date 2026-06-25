@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Models.TableViews;
 using Redhead.SitesCatalog.Application.Models.TableViews;
 using Redhead.SitesCatalog.Application.Services;
-using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
@@ -30,11 +29,6 @@ public sealed class MeTableViewsController : ControllerBase
         string tableKey,
         CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -55,11 +49,6 @@ public sealed class MeTableViewsController : ControllerBase
         [FromBody] SetActiveTableViewRequest request,
         CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -82,11 +71,6 @@ public sealed class MeTableViewsController : ControllerBase
         [FromBody] CreateTableCustomViewRequest request,
         CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -113,11 +97,6 @@ public sealed class MeTableViewsController : ControllerBase
         [FromBody] UpdateTableCustomViewRequest request,
         CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -141,11 +120,6 @@ public sealed class MeTableViewsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -160,7 +134,4 @@ public sealed class MeTableViewsController : ControllerBase
 
         return NoContent();
     }
-
-    private bool IsLiteUser()
-        => HttpContext?.User?.IsInRole(AppRoles.Lite) == true;
 }
