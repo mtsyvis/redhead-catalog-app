@@ -10,12 +10,28 @@ public class RoleSettingsValidationTests
     [Fact]
     public void ValidateUpdateItem_SuperAdmin_ReturnsError()
     {
+        // Arrange
         var item = new RoleSettingUpdateItemDto(AppRoles.SuperAdmin, ExportLimitMode.Unlimited, null);
 
+        // Act
         var error = RoleSettingsValidation.ValidateUpdateItem(item);
 
+        // Assert
         Assert.NotNull(error);
         Assert.Contains("SuperAdmin", error);
+    }
+
+    [Fact]
+    public void ValidateUpdateItem_Lite_ReturnsError()
+    {
+        // Arrange
+        var item = new RoleSettingUpdateItemDto(AppRoles.Lite, ExportLimitMode.Unlimited, null);
+
+        // Act
+        var error = RoleSettingsValidation.ValidateUpdateItem(item);
+
+        // Assert
+        Assert.Equal("Lite role settings cannot be changed.", error);
     }
 
     [Fact]

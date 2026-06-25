@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Redhead.SitesCatalog.Api.Controllers;
@@ -78,7 +79,7 @@ public class SitesControllerTests
                     }
                 ]
             });
-        var controller = new SitesController(sitesService.Object);
+        var controller = CreateController(sitesService);
 
         // Act
         var result = await controller.GetFilterOptions(CancellationToken.None);
@@ -98,7 +99,7 @@ public class SitesControllerTests
     public async Task MultiSearch_WithStopList_ReturnsBadRequest_AndDoesNotCallService()
     {
         var sitesService = new Mock<ISitesService>();
-        var controller = new SitesController(sitesService.Object);
+        var controller = CreateController(sitesService);
         var request = new MultiSearchRequest
         {
             QueryText = "example.com",
@@ -122,7 +123,7 @@ public class SitesControllerTests
     public async Task MultiSearch_WithFilterStopList_ReturnsBadRequest_AndDoesNotCallService()
     {
         var sitesService = new Mock<ISitesService>();
-        var controller = new SitesController(sitesService.Object);
+        var controller = CreateController(sitesService);
         var request = new MultiSearchRequest
         {
             QueryText = "example.com",
@@ -170,7 +171,7 @@ public class SitesControllerTests
                 NotFound = ["missing.com"],
                 Duplicates = []
             });
-        var controller = new SitesController(sitesService.Object);
+        var controller = CreateController(sitesService);
         SetUser(controller, AppRoles.Admin, "admin@test.com");
         var request = new MultiSearchRequest
         {
@@ -193,10 +194,165 @@ public class SitesControllerTests
     }
 
     [Fact]
+    public async Task SearchSites_LiteUser_ReturnsForbid()
+    {
+        // Arrange
+        var sitesService = new Mock<ISitesService>();
+        var controller = CreateController(sitesService);
+        SetUser(controller, AppRoles.Lite, "lite@test.com");
+
+        // Act
+        var result = await controller.SearchSites(new SitesQueryRequest(), CancellationToken.None);
+
+        // Assert
+        Assert.IsType<ForbidResult>(result.Result);
+        sitesService.Verify(
+            service => service.GetSitesAsync(
+                It.IsAny<SitesQuery>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetFilterOptions_LiteUser_ReturnsForbid()
+    {
+        // Arrange
+        var sitesService = new Mock<ISitesService>();
+        var controller = CreateController(sitesService);
+        SetUser(controller, AppRoles.Lite, "lite@test.com");
+
+        // Act
+        var result = await controller.GetFilterOptions(CancellationToken.None);
+
+        // Assert
+        Assert.IsType<ForbidResult>(result.Result);
+        sitesService.Verify(
+            service => service.GetFilterOptionsAsync(It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task MultiSearch_LiteUser_ReturnsClientSafeFields()
+    {
+        // Arrange
+        var sitesService = new Mock<ISitesService>();
+        sitesService
+            .Setup(service => service.MultiSearchSitesAsync(
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MultiSearchSitesResult
+            {
+                Found =
+                [
+                    new SiteDto
+                    {
+                        Domain = "example.com",
+                        CreatedAtUtc = new DateTime(2025, 1, 2, 0, 0, 0, DateTimeKind.Utc),
+                        UpdatedAtUtc = new DateTime(2025, 2, 3, 0, 0, 0, DateTimeKind.Utc),
+                        CreatedBy = "creator@test.com",
+                        UpdatedBy = "updater@test.com",
+                        QuarantineReason = "internal note"
+                    }
+                ],
+                NotFound = [],
+                Duplicates = []
+            });
+        var controller = CreateController(sitesService);
+        SetUser(controller, AppRoles.Lite, "lite@test.com");
+
+        // Act
+        var result = await controller.MultiSearch(
+            new MultiSearchRequest { QueryText = "example.com" },
+            CancellationToken.None);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<MultiSearchResponse>(ok.Value);
+        var site = Assert.Single(response.Found);
+        Assert.Equal(new DateTime(2025, 1, 2, 0, 0, 0, DateTimeKind.Utc), site.CreatedAtUtc);
+        Assert.Equal(default, site.UpdatedAtUtc);
+        Assert.Null(site.CreatedBy);
+        Assert.Null(site.UpdatedBy);
+        Assert.Null(site.QuarantineReason);
+    }
+
+    [Fact]
+    public async Task MultiSearch_LiteUser_WhenRequestLimitExceeded_ReturnsBadRequest()
+    {
+        // Arrange
+        var sitesService = new Mock<ISitesService>();
+        var liteUsageService = new Mock<ILiteMultiSearchUsageService>();
+        liteUsageService
+            .Setup(service => service.TryConsumeAsync("user-1", 51, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LiteMultiSearchUsageResult(
+                LiteMultiSearchUsageStatus.RequestLimitExceeded,
+                DomainsRequested: 51,
+                DomainsUsed: 0,
+                MonthlyLimit: LiteMultiSearchConstants.MonthlyDomainLimit,
+                RemainingAfterRequest: LiteMultiSearchConstants.MonthlyDomainLimit));
+        var controller = CreateController(sitesService, liteUsageService);
+        SetUser(controller, AppRoles.Lite, "lite@test.com");
+        var queryText = string.Join(' ', Enumerable.Range(1, 51).Select(index => $"site-{index}.com"));
+
+        // Act
+        var result = await controller.MultiSearch(
+            new MultiSearchRequest { QueryText = queryText },
+            CancellationToken.None);
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, badRequest.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(badRequest.Value);
+        Assert.Equal(LiteMultiSearchConstants.PerRequestLimitMessage, problem.Detail);
+        sitesService.Verify(
+            service => service.MultiSearchSitesAsync(
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task MultiSearch_LiteUser_WhenMonthlyLimitExceeded_ReturnsTooManyRequests()
+    {
+        // Arrange
+        var sitesService = new Mock<ISitesService>();
+        var liteUsageService = new Mock<ILiteMultiSearchUsageService>();
+        liteUsageService
+            .Setup(service => service.TryConsumeAsync("user-1", 1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LiteMultiSearchUsageResult(
+                LiteMultiSearchUsageStatus.MonthlyLimitExceeded,
+                DomainsRequested: 1,
+                DomainsUsed: LiteMultiSearchConstants.MonthlyDomainLimit,
+                MonthlyLimit: LiteMultiSearchConstants.MonthlyDomainLimit,
+                RemainingAfterRequest: 0));
+        var controller = CreateController(sitesService, liteUsageService);
+        SetUser(controller, AppRoles.Lite, "lite@test.com");
+
+        // Act
+        var result = await controller.MultiSearch(
+            new MultiSearchRequest { QueryText = "example.com" },
+            CancellationToken.None);
+
+        // Assert
+        var objectResult = Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status429TooManyRequests, objectResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
+        Assert.Equal(LiteMultiSearchConstants.MonthlyLimitMessage, problem.Detail);
+        sitesService.Verify(
+            service => service.MultiSearchSitesAsync(
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task SearchSites_WithInvalidStopList_ThrowsValidationException_AndDoesNotCallService()
     {
         var sitesService = new Mock<ISitesService>();
-        var controller = new SitesController(sitesService.Object);
+        var controller = CreateController(sitesService);
         var request = new SitesQueryRequest
         {
             StopListDomains = new List<string> { "example.com", "https:///path" }
@@ -237,7 +393,7 @@ public class SitesControllerTests
                 ],
                 Total = 1
             });
-        var controller = new SitesController(sitesService.Object);
+        var controller = CreateController(sitesService);
         SetUser(controller, AppRoles.Client, "client@test.com");
 
         // Act
@@ -277,7 +433,7 @@ public class SitesControllerTests
                 ],
                 Total = 1
             });
-        var controller = new SitesController(sitesService.Object);
+        var controller = CreateController(sitesService);
         SetUser(controller, AppRoles.Admin, "admin@test.com");
 
         // Act
@@ -371,7 +527,7 @@ public class SitesControllerTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-        var controller = new SitesController(sitesService.Object);
+        var controller = CreateController(sitesService);
         var request = BuildValidUpdateRequest();
         request.Language = "english";
 
@@ -388,7 +544,7 @@ public class SitesControllerTests
     public async Task UpdateSite_WithInvalidLanguage_ReturnsValidationErrorAndDoesNotCallService()
     {
         var sitesService = new Mock<ISitesService>();
-        var controller = new SitesController(sitesService.Object);
+        var controller = CreateController(sitesService);
         var request = BuildValidUpdateRequest();
         request.Language = "english-us";
 
@@ -427,7 +583,7 @@ public class SitesControllerTests
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow
             });
-        var controller = new SitesController(sitesService.Object);
+        var controller = CreateController(sitesService);
         var request = BuildValidUpdateRequest();
         request.PriceUsd = null;
         request.Pricing = new Redhead.SitesCatalog.Api.Models.Sites.UpdateSitePricingRequest
@@ -474,6 +630,29 @@ public class SitesControllerTests
                     "Test"))
             }
         };
+    }
+
+    private static SitesController CreateController(
+        Mock<ISitesService> sitesService,
+        Mock<ILiteMultiSearchUsageService>? liteUsageService = null)
+    {
+        if (liteUsageService == null)
+        {
+            liteUsageService = new Mock<ILiteMultiSearchUsageService>();
+            liteUsageService
+                .Setup(service => service.TryConsumeAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<int>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string _, int count, CancellationToken _) => new LiteMultiSearchUsageResult(
+                    LiteMultiSearchUsageStatus.Allowed,
+                    count,
+                    count,
+                    LiteMultiSearchConstants.MonthlyDomainLimit,
+                    LiteMultiSearchConstants.MonthlyDomainLimit - count));
+        }
+
+        return new SitesController(sitesService.Object, liteUsageService.Object);
     }
 
     private static ApiUpdateSiteRequest BuildValidUpdateRequest()

@@ -171,7 +171,7 @@ public static class SitesMapper
             NicheTokens = dto.NicheTokens,
             Categories = dto.Categories,
             IsQuarantined = dto.IsQuarantined,
-            QuarantineReason = dto.QuarantineReason,
+            QuarantineReason = includeInternalFields ? dto.QuarantineReason : null,
             QuarantineUpdatedAtUtc = dto.QuarantineUpdatedAtUtc,
             CreatedAtUtc = dto.CreatedAtUtc,
             UpdatedAtUtc = includeInternalFields ? dto.UpdatedAtUtc : default,

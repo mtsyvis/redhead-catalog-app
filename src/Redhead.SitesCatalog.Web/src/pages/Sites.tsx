@@ -169,12 +169,14 @@ function buildLocationFilterRequestFields(
 }
 
 export function Sites() {
+  const { isAdmin, isClient, isLite } = useUserRoles();
+  const clientSafeRole = isClient || isLite;
   const [sites, setSites] = useState<Site[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState<FiltersType>(INITIAL_FILTERS);
   const [debouncedFilters, setDebouncedFilters] = useState<FiltersType>(INITIAL_FILTERS);
-  const [multiSearchMode, setMultiSearchMode] = useState(false);
+  const [multiSearchMode, setMultiSearchMode] = useState(() => isLite);
   const [multiSearchResult, setMultiSearchResult] = useState<MultiSearchResponse | null>(null);
   const [multiSearchAppliedText, setMultiSearchAppliedText] = useState('');
   const [multiSearchLoading, setMultiSearchLoading] = useState(false);
@@ -192,11 +194,10 @@ export function Sites() {
     severity: 'success',
   });
 
-  const { isAdmin, isClient } = useUserRoles();
   const { user } = useAuth();
-  const canExport = !user?.isExportDisabled;
-  const tableViews = useSitesTableViews({ isClient });
-  const savedFilters = useSitesSavedFilters();
+  const canExport = !isLite && !user?.isExportDisabled;
+  const tableViews = useSitesTableViews({ isClient: clientSafeRole, enabled: !isLite });
+  const savedFilters = useSitesSavedFilters({ enabled: !isLite });
   const { updateDraftColumnWidth } = tableViews;
 
   useEffect(() => {
@@ -206,6 +207,12 @@ export function Sites() {
       // Ignore unavailable browser storage; stop-list state is no longer persisted.
     }
   }, []);
+
+  useEffect(() => {
+    if (isLite && !multiSearchMode) {
+      setMultiSearchMode(true);
+    }
+  }, [isLite, multiSearchMode]);
 
   useEffect(() => {
     if (!tableViews.loadError) return;
@@ -341,6 +348,7 @@ export function Sites() {
   } = useSitesExport({
     buildSitesQueryParams,
     isClient,
+    enabled: canExport,
     multiSearchResult,
     searchText: multiSearchAppliedText,
     visibleColumnKeys: tableViews.visibleColumnIds,
@@ -476,6 +484,10 @@ export function Sites() {
   };
 
   const handleMultiSearchModeChange = (enabled: boolean) => {
+    if (isLite && !enabled) {
+      return;
+    }
+
     setMultiSearchMode(enabled);
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
     if (enabled) {
@@ -571,7 +583,7 @@ export function Sites() {
 
   const handleCopyPriceColumn = useCallback(
     async (field: CopyablePriceColumn) => {
-      if (!isMultiSearchView || isClient) return;
+      if (!isMultiSearchView || clientSafeRole) return;
 
       const label = COPYABLE_PRICE_COLUMN_LABELS[field];
       try {
@@ -597,18 +609,18 @@ export function Sites() {
         });
       }
     },
-    [isClient, isMultiSearchView, multiSearchResult]
+    [clientSafeRole, isMultiSearchView, multiSearchResult]
   );
 
   const columns = useSitesColumns({
     isAdmin,
-    isClient,
+    isClient: clientSafeRole,
     isMultiSearchView,
     visibleColumnIds: tableViews.visibleColumnIds,
     columnWidths: tableViews.columnWidths,
     density: tableViews.density,
     onEdit: handleOpenEdit,
-    onCopyPriceColumn: isMultiSearchView && !isClient ? handleCopyPriceColumn : undefined,
+    onCopyPriceColumn: isMultiSearchView && !clientSafeRole ? handleCopyPriceColumn : undefined,
     onViewPricing: handleOpenPricingDetails,
   });
 
@@ -795,18 +807,21 @@ export function Sites() {
           onFiltersChange={handleFiltersChange}
           onApply={handleFiltersApply}
           multiSearchMode={multiSearchMode}
-          onMultiSearchModeChange={handleMultiSearchModeChange}
+          onMultiSearchModeChange={isLite ? undefined : handleMultiSearchModeChange}
+          liteMode={isLite}
           filterOptionsRefreshKey={filterOptionsRefreshKey}
-          savedFilterSets={savedFilters.filterSets}
-          activeSavedFilterSetId={savedFilters.activeFilterSetId}
-          savedFiltersLoading={savedFilters.loading}
-          savedFilterSetChanged={savedFilterSetChanged}
-          onClearSavedFilterSetSelection={() => savedFilters.setActiveFilterSetId(null)}
-          onApplySavedFilterSet={handleApplySavedFilterSet}
-          onCreateSavedFilterSet={handleCreateSavedFilterSet}
-          onUpdateSavedFilterSet={handleUpdateSavedFilterSet}
-          onRenameSavedFilterSet={handleRenameSavedFilterSet}
-          onDeleteSavedFilterSet={handleDeleteSavedFilterSet}
+          savedFilterSets={isLite ? [] : savedFilters.filterSets}
+          activeSavedFilterSetId={isLite ? null : savedFilters.activeFilterSetId}
+          savedFiltersLoading={isLite ? false : savedFilters.loading}
+          savedFilterSetChanged={isLite ? false : savedFilterSetChanged}
+          onClearSavedFilterSetSelection={
+            isLite ? undefined : () => savedFilters.setActiveFilterSetId(null)
+          }
+          onApplySavedFilterSet={isLite ? undefined : handleApplySavedFilterSet}
+          onCreateSavedFilterSet={isLite ? undefined : handleCreateSavedFilterSet}
+          onUpdateSavedFilterSet={isLite ? undefined : handleUpdateSavedFilterSet}
+          onRenameSavedFilterSet={isLite ? undefined : handleRenameSavedFilterSet}
+          onDeleteSavedFilterSet={isLite ? undefined : handleDeleteSavedFilterSet}
         />
 
         {multiSearchResult && multiSearchResult.duplicates.length > 0 && (
@@ -842,25 +857,47 @@ export function Sites() {
             flexDirection: 'column',
           }}
         >
-          <SitesTableViewToolbar
-            tableViews={tableViews}
-            hiddenFilteredColumns={hiddenFilteredColumns}
-            canExport={canExport}
-            exporting={exporting}
-            loading={loading || tableViews.loading}
-            exportUsageLimits={exportUsageLimits}
-            resultCount={gridRowCount}
-            resultSearchedCount={gridSearchedRowCount}
-            resultNotFoundCount={gridNotFoundRowCount}
-            resultHiddenNotFoundCount={hiddenNotFoundRowCount}
-            resultLoading={gridLoading}
-            onShowFilteredColumns={handleShowFilteredColumns}
-            onClearHiddenFilters={handleClearHiddenFilters}
-            onDownloadExcel={handleDownloadExport}
-            onSaveToGoogleDrive={handleSaveToGoogleDrive}
-            onSuccess={(message) => setSnackbar({ open: true, message, severity: 'success' })}
-            onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
-          />
+          {isLite ? (
+            <Box
+              sx={{
+                alignItems: 'center',
+                borderBottom: 1,
+                borderColor: 'divider',
+                display: 'flex',
+                minHeight: 48,
+                px: 1.5,
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                {gridSearchedRowCount > 0
+                  ? `${gridSearchedRowCount.toLocaleString()} searched · ${Math.max(
+                      0,
+                      gridSearchedRowCount - gridNotFoundRowCount
+                    ).toLocaleString()} found · ${gridNotFoundRowCount.toLocaleString()} not found`
+                  : `${gridRowCount.toLocaleString()} results`}
+              </Typography>
+            </Box>
+          ) : (
+            <SitesTableViewToolbar
+              tableViews={tableViews}
+              hiddenFilteredColumns={hiddenFilteredColumns}
+              canExport={canExport}
+              exporting={exporting}
+              loading={loading || tableViews.loading}
+              exportUsageLimits={exportUsageLimits}
+              resultCount={gridRowCount}
+              resultSearchedCount={gridSearchedRowCount}
+              resultNotFoundCount={gridNotFoundRowCount}
+              resultHiddenNotFoundCount={hiddenNotFoundRowCount}
+              resultLoading={gridLoading}
+              onShowFilteredColumns={handleShowFilteredColumns}
+              onClearHiddenFilters={handleClearHiddenFilters}
+              onDownloadExcel={handleDownloadExport}
+              onSaveToGoogleDrive={handleSaveToGoogleDrive}
+              onSuccess={(message) => setSnackbar({ open: true, message, severity: 'success' })}
+              onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
+            />
+          )}
 
           <Box
             sx={{
@@ -1027,13 +1064,15 @@ export function Sites() {
 
         <SitesSnackbar snackbar={snackbar} onClose={handleCloseSnackbar} />
 
-        <GoogleDriveConnectionDialog
-          dialog={googleDriveDialog}
-          status={googleDriveStatus}
-          connecting={connectingGoogleDrive}
-          onClose={closeGoogleDriveDialog}
-          onConnect={handleConnectGoogleDrive}
-        />
+        {!isLite && (
+          <GoogleDriveConnectionDialog
+            dialog={googleDriveDialog}
+            status={googleDriveStatus}
+            connecting={connectingGoogleDrive}
+            onClose={closeGoogleDriveDialog}
+            onConnect={handleConnectGoogleDrive}
+          />
+        )}
 
         <EditSiteDialog
           open={Boolean(editSite)}

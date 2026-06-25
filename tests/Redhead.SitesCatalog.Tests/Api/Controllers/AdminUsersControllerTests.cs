@@ -467,26 +467,27 @@ public sealed class AdminUsersControllerTests
         await AddUserAsync(db, "admin-1", "admin@example.com", AppRoles.Admin);
         await AddUserAsync(db, "internal-1", "internal@example.com", AppRoles.Internal);
         await AddUserAsync(db, "client-1", "client@example.com", AppRoles.Client);
+        await AddUserAsync(db, "lite-1", "lite@example.com", AppRoles.Lite);
 
         var sut = CreateController(db);
 
         var result = await sut.ListUsers(new UserListRequest { UserType = "all" }, CancellationToken.None);
 
         var payload = GetOkPayload(result);
-        Assert.Equal(4, payload.TotalCount);
+        Assert.Equal(5, payload.TotalCount);
         Assert.Equal(
-            [AppRoles.SuperAdmin, AppRoles.Admin, AppRoles.Internal, AppRoles.Client],
+            [AppRoles.SuperAdmin, AppRoles.Admin, AppRoles.Internal, AppRoles.Client, AppRoles.Lite],
             payload.Items.Select(item => item.Role));
     }
 
     [Fact]
-    public async Task ListUsers_WithClientsFilter_ReturnsOnlyClientUsers()
+    public async Task ListUsers_WithClientsFilter_ReturnsClientAndLiteUsers()
     {
         await using var db = CreateDbContext();
         await SeedRoleSettingsAsync(db);
         await AddUserAsync(db, "admin-1", "admin@example.com", AppRoles.Admin);
         await AddUserAsync(db, "client-1", "client-a@example.com", AppRoles.Client);
-        await AddUserAsync(db, "client-2", "client-b@example.com", AppRoles.Client);
+        await AddUserAsync(db, "lite-1", "lite@example.com", AppRoles.Lite);
 
         var sut = CreateController(db);
 
@@ -494,7 +495,7 @@ public sealed class AdminUsersControllerTests
 
         var payload = GetOkPayload(result);
         Assert.Equal(2, payload.TotalCount);
-        Assert.All(payload.Items, item => Assert.Equal(AppRoles.Client, item.Role));
+        Assert.Equal([AppRoles.Client, AppRoles.Lite], payload.Items.Select(item => item.Role));
     }
 
     [Fact]
@@ -507,6 +508,7 @@ public sealed class AdminUsersControllerTests
         await AddUserAsync(db, "internal-1", "internal@example.com", AppRoles.Internal);
         await AddUserAsync(db, "future-1", "future-role@example.com", "FutureInternal");
         await AddUserAsync(db, "client-1", "client@example.com", AppRoles.Client);
+        await AddUserAsync(db, "lite-1", "lite@example.com", AppRoles.Lite);
 
         var sut = CreateController(db);
 
@@ -515,6 +517,7 @@ public sealed class AdminUsersControllerTests
         var payload = GetOkPayload(result);
         Assert.Equal(4, payload.TotalCount);
         Assert.DoesNotContain(payload.Items, item => item.Role == AppRoles.Client);
+        Assert.DoesNotContain(payload.Items, item => item.Role == AppRoles.Lite);
         Assert.Contains(payload.Items, item => item.Role == "FutureInternal");
     }
 
@@ -636,6 +639,28 @@ public sealed class AdminUsersControllerTests
             payload.InvitationExpiresAtUtc,
             DateTime.UtcNow.AddHours(71),
             DateTime.UtcNow.AddHours(73));
+    }
+
+    [Fact]
+    public async Task CreateUser_WhenRoleIsLite_ReturnsOk()
+    {
+        // Arrange
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.CreateUser(new CreateUserRequest("lite@example.com", AppRoles.Lite));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<CreateUserResponse>(ok.Value);
+        Assert.Equal(AppRoles.Lite, payload.Role);
+        Assert.Equal(AppRoles.Lite, userManager.AddedRole);
     }
 
     [Fact]
@@ -803,6 +828,33 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(AppRoles.Internal, userManager.AddedRole);
         Assert.Equal(ExportLimitMode.Limited, targetUser.ExportLimitOverrideMode);
         Assert.Equal(250, targetUser.ExportLimitRowsOverride);
+        Assert.Equal(1, userManager.SecurityStampUpdateCount);
+    }
+
+    [Fact]
+    public async Task UpdateUserRole_WhenRequestedRoleIsLite_UpdatesRole()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser { Id = "client-1", Email = "client@example.com", IsActive = true };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserRole(
+            targetUser.Id,
+            new UpdateUserRoleRequest(AppRoles.Lite));
+
+        // Assert
+        Assert.IsType<NoContentResult>(result);
+        Assert.Equal([AppRoles.Client], userManager.RemovedRoles);
+        Assert.Equal(AppRoles.Lite, userManager.AddedRole);
         Assert.Equal(1, userManager.SecurityStampUpdateCount);
     }
 
@@ -983,6 +1035,41 @@ public sealed class AdminUsersControllerTests
         Assert.Equal([AppRoles.Client], userManager.RemovedRoles);
         Assert.Equal(AppRoles.Internal, userManager.AddedRole);
         Assert.Equal(1, userManager.ResetPasswordCount);
+        Assert.Equal(1, userManager.SecurityStampUpdateCount);
+    }
+
+    [Fact]
+    public async Task ReactivateUser_WhenRequestedRoleIsLite_ActivatesWithLiteRole()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            IsActive = false,
+            ActivatedAtUtc = DateTime.UtcNow
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client },
+            ExistingUserByEmail = targetUser
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.ReactivateUser(
+            targetUser.Id,
+            new ReactivateUserRequest(AppRoles.Lite));
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.True(targetUser.IsActive);
+        Assert.Equal([AppRoles.Client], userManager.RemovedRoles);
+        Assert.Equal(AppRoles.Lite, userManager.AddedRole);
         Assert.Equal(1, userManager.SecurityStampUpdateCount);
     }
 
@@ -1331,6 +1418,11 @@ public sealed class AdminUsersControllerTests
                 WeeklyUniqueExportedDomainsLimit = 3000,
                 DailyExportOperationsLimit = 20,
                 WeeklyExportOperationsLimit = 60
+            },
+            new RoleSettings
+            {
+                RoleName = AppRoles.Lite,
+                ExportLimitMode = ExportLimitMode.Disabled
             });
 
         await db.SaveChangesAsync();

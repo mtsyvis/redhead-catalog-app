@@ -22,6 +22,11 @@ public static class RoleSettingsValidation
             return "SuperAdmin role settings cannot be changed.";
         }
 
+        if (string.Equals(item.Role, AppRoles.Lite, StringComparison.Ordinal))
+        {
+            return "Lite role settings cannot be changed.";
+        }
+
         if (!AppRoles.All.Contains(item.Role))
         {
             return $"Invalid role: {item.Role}.";

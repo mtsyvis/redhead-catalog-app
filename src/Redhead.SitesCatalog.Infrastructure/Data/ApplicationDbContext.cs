@@ -23,6 +23,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<UserTablePreference> UserTablePreferences => Set<UserTablePreference>();
     public DbSet<UserTableCustomView> UserTableCustomViews => Set<UserTableCustomView>();
     public DbSet<UserSavedFilterSet> UserSavedFilterSets => Set<UserSavedFilterSet>();
+    public DbSet<LiteMultiSearchUsage> LiteMultiSearchUsages => Set<LiteMultiSearchUsage>();
     public DbSet<CanonicalLocation> CanonicalLocations => Set<CanonicalLocation>();
     public DbSet<LocationGroup> LocationGroups => Set<LocationGroup>();
     public DbSet<LocationGroupItem> LocationGroupItems => Set<LocationGroupItem>();

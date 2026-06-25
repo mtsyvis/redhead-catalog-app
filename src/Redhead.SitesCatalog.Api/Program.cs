@@ -47,7 +47,9 @@ builder.Services.AddProblemDetails();
 
 builder.Services.AddScoped<ISitesQueryBuilder, SitesQueryBuilder>();
 builder.Services.AddSingleton<ISitesCatalogCache, SitesCatalogCache>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ISitesService, SitesService>();
+builder.Services.AddScoped<ILiteMultiSearchUsageService, LiteMultiSearchUsageService>();
 builder.Services.AddScoped<IAdminUsersListService, AdminUsersListService>();
 builder.Services.AddScoped<IBusinessDemandAnalyticsService, BusinessDemandAnalyticsService>();
 builder.Services.AddScoped<IExportActivityAnalyticsService, ExportActivityAnalyticsService>();

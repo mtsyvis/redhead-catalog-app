@@ -6,8 +6,8 @@ import type {
 } from '../../../types/savedFilters.types';
 import { SITES_TABLE_KEY } from '../table-views/sitesTableColumns';
 
-export function useSitesSavedFilters() {
-  const [loading, setLoading] = useState(true);
+export function useSitesSavedFilters({ enabled = true }: { enabled?: boolean } = {}) {
+  const [loading, setLoading] = useState(enabled);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filterSets, setFilterSets] = useState<SavedFilterSet[]>([]);
   const [activeFilterSetId, setActiveFilterSetId] = useState<string | null>(null);
@@ -16,6 +16,14 @@ export function useSitesSavedFilters() {
     let ignore = false;
 
     async function loadFilterSets() {
+      if (!enabled) {
+        setLoading(false);
+        setLoadError(null);
+        setFilterSets([]);
+        setActiveFilterSetId(null);
+        return;
+      }
+
       setLoading(true);
       setLoadError(null);
       try {
@@ -40,7 +48,7 @@ export function useSitesSavedFilters() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [enabled]);
 
   const activeFilterSet = useMemo(
     () => filterSets.find((filterSet) => filterSet.id === activeFilterSetId) ?? null,

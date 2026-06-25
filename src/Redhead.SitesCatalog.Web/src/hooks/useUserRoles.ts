@@ -11,6 +11,7 @@ export function useUserRoles() {
   const isAdmin = hasAnyRole(['Admin', 'SuperAdmin']);
   const isInternal = hasRole('Internal');
   const isClient = hasRole('Client');
+  const isLite = hasRole('Lite');
 
   return {
     roles,
@@ -18,8 +19,8 @@ export function useUserRoles() {
     isAdmin,
     isInternal,
     isClient,
+    isLite,
     hasRole,
     hasAnyRole,
   };
 }
-

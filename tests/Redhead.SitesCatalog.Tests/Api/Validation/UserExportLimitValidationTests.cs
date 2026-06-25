@@ -12,10 +12,25 @@ public class UserExportLimitValidationTests
     [Fact]
     public void ValidateTargetRole_SuperAdmin_ReturnsError()
     {
+        // Arrange & Act
         var error = UserExportLimitValidation.ValidateTargetRole(AppRoles.SuperAdmin);
 
+        // Assert
         Assert.NotNull(error);
         Assert.Contains("SuperAdmin", error);
+    }
+
+    [Fact]
+    public void ValidateTargetRole_Lite_ReturnsError()
+    {
+        // Arrange
+        var targetRole = AppRoles.Lite;
+
+        // Act
+        var error = UserExportLimitValidation.ValidateTargetRole(targetRole);
+
+        // Assert
+        Assert.Equal("Lite export limit cannot be changed.", error);
     }
 
     [Theory]

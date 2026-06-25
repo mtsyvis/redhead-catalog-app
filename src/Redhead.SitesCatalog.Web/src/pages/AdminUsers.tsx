@@ -51,7 +51,7 @@ type ClientUsageLimitInputs = Record<ClientUsageLimitInputName, string>;
 const USER_TYPE_OPTIONS: Array<{ value: UserTypeFilter; label: string; emptyMessage: string }> = [
   { value: 'all', label: 'All users', emptyMessage: 'No users found.' },
   { value: 'internal', label: 'Internal users', emptyMessage: 'No internal users found.' },
-  { value: 'clients', label: 'Clients', emptyMessage: 'No clients found.' },
+  { value: 'clients', label: 'Clients / Lite', emptyMessage: 'No client or Lite users found.' },
 ];
 
 const SUPER_ADMIN_NOTE_MAX_LENGTH = 1000;
