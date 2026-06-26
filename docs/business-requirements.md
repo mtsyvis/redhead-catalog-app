@@ -586,7 +586,7 @@ Input rules:
 * Matching is exact normalized `Domain` equality, not substring search.
 * Duplicate inputs after normalization are detected, removed from search execution, and reported to the user.
 * For `Lite` users, one Multi-search request can include at most 50 unique normalized domains.
-* For `Lite` users, monthly usage is capped at 1,000 unique normalized domains per calendar month in UTC.
+* For `Lite` users, monthly usage is capped at 3,000 unique normalized domains per calendar month in UTC.
 * For `Lite` usage counting, found and not-found domains both count.
 * For `Lite` usage counting, duplicates inside the same request do not count after normalization.
 * For `Lite` usage counting, monthly usage is a simple counter of accepted request domain counts; domains are not deduplicated across the whole month.

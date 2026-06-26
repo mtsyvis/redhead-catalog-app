@@ -62,7 +62,7 @@ public class LiteMultiSearchUsageServiceTests
         {
             UserId = "user-1",
             MonthStartUtc = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc),
-            DomainsUsed = 999,
+            DomainsUsed = LiteMultiSearchConstants.MonthlyDomainLimit - 1,
             CreatedAtUtc = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc),
             UpdatedAtUtc = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc)
         });
@@ -76,11 +76,11 @@ public class LiteMultiSearchUsageServiceTests
 
         // Assert
         Assert.Equal(LiteMultiSearchUsageStatus.MonthlyLimitExceeded, result.Status);
-        Assert.Equal(999, result.DomainsUsed);
+        Assert.Equal(LiteMultiSearchConstants.MonthlyDomainLimit - 1, result.DomainsUsed);
         Assert.Equal(1, result.RemainingAfterRequest);
 
         var usage = await db.LiteMultiSearchUsages.SingleAsync();
-        Assert.Equal(999, usage.DomainsUsed);
+        Assert.Equal(LiteMultiSearchConstants.MonthlyDomainLimit - 1, usage.DomainsUsed);
     }
 
     [Fact]
