@@ -7,6 +7,8 @@ import {
   Alert,
   CircularProgress,
   Box,
+  IconButton,
+  InputAdornment,
   List,
   ListItem,
   ListItemIcon,
@@ -14,6 +16,8 @@ import {
 } from '@mui/material';
 import Check from '@mui/icons-material/Check';
 import Close from '@mui/icons-material/Close';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { BrandButton } from '../components/common/BrandButton';
@@ -45,6 +49,9 @@ export const ChangePassword: React.FC = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -128,7 +135,7 @@ export const ChangePassword: React.FC = () => {
               <form onSubmit={handleSubmit}>
             <TextField
               label="Current Password"
-              type="password"
+              type={showCurrentPassword ? 'text' : 'password'}
               fullWidth
               required
               value={currentPassword}
@@ -137,11 +144,28 @@ export const ChangePassword: React.FC = () => {
               sx={{ mb: 2 }}
               autoComplete="current-password"
               autoFocus
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setShowCurrentPassword((value) => !value)}
+                        edge="end"
+                        aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                        sx={{ color: 'rgba(38,38,38,0.55)' }}
+                      >
+                        {showCurrentPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
 
             <TextField
               label="New Password"
-              type="password"
+              type={showNewPassword ? 'text' : 'password'}
               fullWidth
               required
               value={newPassword}
@@ -149,6 +173,23 @@ export const ChangePassword: React.FC = () => {
               disabled={isLoading}
               sx={{ mb: 1 }}
               autoComplete="new-password"
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setShowNewPassword((value) => !value)}
+                        edge="end"
+                        aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                        sx={{ color: 'rgba(38,38,38,0.55)' }}
+                      >
+                        {showNewPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
 
             {newPassword && (
@@ -178,7 +219,7 @@ export const ChangePassword: React.FC = () => {
 
             <TextField
               label="Confirm New Password"
-              type="password"
+              type={showConfirmPassword ? 'text' : 'password'}
               fullWidth
               required
               value={confirmPassword}
@@ -192,6 +233,23 @@ export const ChangePassword: React.FC = () => {
               }
               sx={{ mb: 3 }}
               autoComplete="new-password"
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setShowConfirmPassword((value) => !value)}
+                        edge="end"
+                        aria-label={showConfirmPassword ? 'Hide confirmation password' : 'Show confirmation password'}
+                        sx={{ color: 'rgba(38,38,38,0.55)' }}
+                      >
+                        {showConfirmPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
 
             <BrandButton

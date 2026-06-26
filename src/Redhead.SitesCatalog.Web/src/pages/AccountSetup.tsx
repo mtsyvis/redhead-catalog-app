@@ -5,6 +5,8 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  IconButton,
+  InputAdornment,
   List,
   ListItem,
   ListItemIcon,
@@ -15,6 +17,8 @@ import {
 } from '@mui/material';
 import Check from '@mui/icons-material/Check';
 import Close from '@mui/icons-material/Close';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { BrandButton } from '../components/common/BrandButton';
@@ -65,6 +69,9 @@ export const AccountSetup: React.FC = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -177,7 +184,7 @@ export const AccountSetup: React.FC = () => {
                     {needsCurrentPasswordInput && (
                       <TextField
                         label="Temporary password"
-                        type="password"
+                        type={showCurrentPassword ? 'text' : 'password'}
                         required
                         fullWidth
                         value={currentPassword}
@@ -190,12 +197,33 @@ export const AccountSetup: React.FC = () => {
                         helperText={getFieldError(fieldErrors, 'currentPassword')}
                         autoComplete="current-password"
                         autoFocus={!mustCompleteProfile}
+                        slotProps={{
+                          input: {
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => setShowCurrentPassword((value) => !value)}
+                                  edge="end"
+                                  aria-label={showCurrentPassword ? 'Hide temporary password' : 'Show temporary password'}
+                                  sx={{ color: 'rgba(38,38,38,0.55)' }}
+                                >
+                                  {showCurrentPassword ? (
+                                    <VisibilityOff fontSize="small" />
+                                  ) : (
+                                    <Visibility fontSize="small" />
+                                  )}
+                                </IconButton>
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
                       />
                     )}
 
                     <TextField
                       label="New password"
-                      type="password"
+                      type={showNewPassword ? 'text' : 'password'}
                       required
                       fullWidth
                       value={newPassword}
@@ -208,6 +236,27 @@ export const AccountSetup: React.FC = () => {
                       helperText={getFieldError(fieldErrors, 'newPassword')}
                       autoComplete="new-password"
                       autoFocus={!mustCompleteProfile && !needsCurrentPasswordInput}
+                      slotProps={{
+                        input: {
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                size="small"
+                                onClick={() => setShowNewPassword((value) => !value)}
+                                edge="end"
+                                aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                                sx={{ color: 'rgba(38,38,38,0.55)' }}
+                              >
+                                {showNewPassword ? (
+                                  <VisibilityOff fontSize="small" />
+                                ) : (
+                                  <Visibility fontSize="small" />
+                                )}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        },
+                      }}
                     />
 
                     {newPassword && (
@@ -227,7 +276,7 @@ export const AccountSetup: React.FC = () => {
 
                     <TextField
                       label="Confirm password"
-                      type="password"
+                      type={showConfirmPassword ? 'text' : 'password'}
                       required
                       fullWidth
                       value={confirmPassword}
@@ -239,6 +288,27 @@ export const AccountSetup: React.FC = () => {
                       error={Boolean(getFieldError(fieldErrors, 'confirmPassword'))}
                       helperText={getFieldError(fieldErrors, 'confirmPassword')}
                       autoComplete="new-password"
+                      slotProps={{
+                        input: {
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                size="small"
+                                onClick={() => setShowConfirmPassword((value) => !value)}
+                                edge="end"
+                                aria-label={showConfirmPassword ? 'Hide confirmation password' : 'Show confirmation password'}
+                                sx={{ color: 'rgba(38,38,38,0.55)' }}
+                              >
+                                {showConfirmPassword ? (
+                                  <VisibilityOff fontSize="small" />
+                                ) : (
+                                  <Visibility fontSize="small" />
+                                )}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        },
+                      }}
                     />
                   </>
                 )}
