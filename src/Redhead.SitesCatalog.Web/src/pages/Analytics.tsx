@@ -28,7 +28,7 @@ import type {
 type AnalyticsTabValue = 'businessDemand' | 'exportActivity';
 
 export const Analytics: React.FC = () => {
-  const { isSuperAdmin } = useUserRoles();
+  const { canReadAnalytics } = useUserRoles();
   const [activeTab, setActiveTab] = useState<AnalyticsTabValue>('businessDemand');
   const [datePreset, setDatePreset] = useState<DateRangePreset>('last30');
   const [customFrom, setCustomFrom] = useState<Dayjs | null>(() => getPresetRange('last30').from);
@@ -100,7 +100,7 @@ export const Analytics: React.FC = () => {
   }, [clientId, dateRangeError, destination, selectedRange, status]);
 
   const loadBusinessDemand = useCallback(async () => {
-    if (!isSuperAdmin || !analyticsQueryParams) return;
+    if (!canReadAnalytics || !analyticsQueryParams) return;
 
     setBusinessDemandLoading(true);
     setBusinessDemandError(null);
@@ -112,10 +112,10 @@ export const Analytics: React.FC = () => {
     } finally {
       setBusinessDemandLoading(false);
     }
-  }, [analyticsQueryParams, isSuperAdmin]);
+  }, [analyticsQueryParams, canReadAnalytics]);
 
   const loadExportActivity = useCallback(async () => {
-    if (!isSuperAdmin || !analyticsQueryParams) return;
+    if (!canReadAnalytics || !analyticsQueryParams) return;
 
     setExportActivityLoading(true);
     setExportActivityError(null);
@@ -131,7 +131,7 @@ export const Analytics: React.FC = () => {
     } finally {
       setExportActivityLoading(false);
     }
-  }, [analyticsQueryParams, isSuperAdmin, recentExportsPaginationModel]);
+  }, [analyticsQueryParams, canReadAnalytics, recentExportsPaginationModel]);
 
   const loadActiveTab = useCallback(() => {
     if (activeTab === 'businessDemand') {
@@ -171,7 +171,7 @@ export const Analytics: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!canReadAnalytics) return;
 
     setClientsLoading(true);
     setClientsError(null);
@@ -182,13 +182,13 @@ export const Analytics: React.FC = () => {
         setClientsError(err instanceof Error ? err.message : 'Failed to load clients.')
       )
       .finally(() => setClientsLoading(false));
-  }, [isSuperAdmin]);
+  }, [canReadAnalytics]);
 
   useEffect(() => {
     loadActiveTab();
   }, [loadActiveTab]);
 
-  if (!isSuperAdmin) {
+  if (!canReadAnalytics) {
     return <Navigate to="/sites" replace />;
   }
 

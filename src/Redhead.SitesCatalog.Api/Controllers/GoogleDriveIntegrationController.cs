@@ -11,7 +11,7 @@ using Redhead.SitesCatalog.Infrastructure.Exceptions;
 namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Policy = AppPolicies.SitesExportAccess)]
 [Route("api/integrations/google-drive")]
 public class GoogleDriveIntegrationController : ControllerBase
 {
@@ -32,11 +32,6 @@ public class GoogleDriveIntegrationController : ControllerBase
     [HttpGet("status")]
     public async Task<ActionResult<GoogleDriveStatusResponse>> Status(CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var userId = GetUserId();
         if (userId == null)
         {
@@ -49,11 +44,6 @@ public class GoogleDriveIntegrationController : ControllerBase
     [HttpPost("connect/start")]
     public ActionResult<GoogleDriveConnectStartResponse> StartConnection()
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var userId = GetUserId();
         if (userId == null)
         {
@@ -82,7 +72,7 @@ public class GoogleDriveIntegrationController : ControllerBase
         CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        if (userId == null || IsLiteUser() || !string.IsNullOrWhiteSpace(error))
+        if (userId == null || !string.IsNullOrWhiteSpace(error))
         {
             return RedirectToSites("error");
         }
@@ -107,11 +97,6 @@ public class GoogleDriveIntegrationController : ControllerBase
     [HttpPost("disconnect")]
     public async Task<IActionResult> Disconnect(CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var userId = GetUserId();
         if (userId == null)
         {
@@ -124,9 +109,6 @@ public class GoogleDriveIntegrationController : ControllerBase
 
     private string? GetUserId()
         => HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-
-    private bool IsLiteUser()
-        => HttpContext?.User?.IsInRole(AppRoles.Lite) == true;
 
     private RedirectResult RedirectToSites(string googleDriveStatus)
     {

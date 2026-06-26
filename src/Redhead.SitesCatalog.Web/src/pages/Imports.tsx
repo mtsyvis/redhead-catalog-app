@@ -28,6 +28,7 @@ import {
 import { SitesImportInstructions } from '../components/imports/SitesImportInstructions';
 import { useAuth } from '../contexts/AuthContext';
 import { UpdateImportResultCard } from '../components/imports/UpdateImportResultCard';
+import { useUserRoles } from '../hooks/useUserRoles';
 
 const IMPORT_RESULT_STORAGE_PREFIX = 'redhead.importResults.v1';
 
@@ -239,9 +240,14 @@ function ImportRouteContent({
 
 export function Imports() {
   const { user } = useAuth();
+  const { canRunImports } = useUserRoles();
   const location = useLocation();
   const navigate = useNavigate();
   const activeImport = IMPORT_ROUTES.find((route) => route.path === location.pathname);
+
+  if (!canRunImports) {
+    return <Navigate to="/sites" replace />;
+  }
 
   if (!activeImport || !user) {
     return <Navigate to="/imports/sites-import" replace />;

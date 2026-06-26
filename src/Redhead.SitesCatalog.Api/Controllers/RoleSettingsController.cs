@@ -22,7 +22,7 @@ public class RoleSettingsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = AppPolicies.AdminAccess)]
+    [Authorize(Policy = AppPolicies.RoleSettingsReadAccess)]
     public async Task<ActionResult<IReadOnlyList<RoleSettingItemDto>>> GetRoleSettings(CancellationToken cancellationToken)
     {
         var list = await _context.RoleSettings
@@ -49,7 +49,7 @@ public class RoleSettingsController : ControllerBase
     }
 
     [HttpPut]
-    [Authorize(Policy = AppPolicies.SuperAdminOnly)]
+    [Authorize(Policy = AppPolicies.RoleSettingsManageAccess)]
     public async Task<ActionResult> UpdateRoleSettings(
         [FromBody] IReadOnlyList<RoleSettingUpdateItemDto> request,
         CancellationToken cancellationToken)

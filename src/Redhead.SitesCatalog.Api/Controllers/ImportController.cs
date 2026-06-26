@@ -16,7 +16,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.AdminAccess)]
+[Authorize(Policy = AppPolicies.ImportsRunAccess)]
 public class ImportController : ControllerBase
 {
     private readonly ISitesImportService _sitesImportService;

@@ -43,6 +43,8 @@ import type { ExportLimitMode } from '../utils/exportLimit';
 import { formatExportLimit } from '../utils/exportLimit';
 import { dataGridLocaleText } from '../utils/numberFormat';
 import { ApiClientError } from '../services/api.client';
+import { ROLE_METADATA, isAppRole } from '../constants/rbac.constants';
+import { useUserRoles } from '../hooks/useUserRoles';
 
 type ExportLimitOverrideOption = 'role-default' | ExportLimitMode;
 type ClientUsageLimitInputName = keyof ClientExportUsageLimitOverridesRequest;
@@ -141,8 +143,18 @@ function getProfileName(user: UserListItemType): string | null {
   return user.mustCompleteProfile ? null : displayName || null;
 }
 
+function getRoleCapabilityHelp(role: string): string {
+  if (!isAppRole(role)) {
+    return '';
+  }
+
+  const metadata = ROLE_METADATA[role];
+  return `${metadata.description} ${metadata.capabilities}`;
+}
+
 export const AdminUsers: React.FC = () => {
   const { user: currentUser } = useAuth();
+  const { canReadUsers, canManageUsers, isSuperAdmin } = useUserRoles();
   const navigate = useNavigate();
   const [users, setUsers] = useState<UserListItemType[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -206,9 +218,7 @@ export const AdminUsers: React.FC = () => {
   const [editNoteSaveLoading, setEditNoteSaveLoading] = useState(false);
   const [editNoteError, setEditNoteError] = useState<string | null>(null);
 
-  const isAdmin = currentUser?.roles?.some((r) => r === 'Admin' || r === 'SuperAdmin');
-  const isSuperAdmin = currentUser?.roles?.includes('SuperAdmin');
-  const allowedRoles = isSuperAdmin ? ROLES : ROLES.filter((r) => r !== 'SuperAdmin');
+  const allowedRoles = canManageUsers ? ROLES : ROLES.filter((r) => r !== 'SuperAdmin');
   const normalRoles = NON_SUPER_ADMIN_ROLES;
 
   const loadUsers = useCallback(async (fallbackToPreviousPage = false) => {
@@ -620,17 +630,17 @@ export const AdminUsers: React.FC = () => {
   };
 
   const canModifyUser = useCallback((targetUser: UserListItemType): boolean => {
-    return Boolean(isSuperAdmin && targetUser.id !== currentUser?.id);
-  }, [currentUser?.id, isSuperAdmin]);
+    return Boolean(canManageUsers && targetUser.id !== currentUser?.id);
+  }, [canManageUsers, currentUser?.id]);
 
   const canChangeUserRole = useCallback((targetUser: UserListItemType): boolean => {
     return Boolean(
-      isSuperAdmin &&
+      canManageUsers &&
       targetUser.isActive &&
       targetUser.id !== currentUser?.id &&
       normalRoles.includes(targetUser.role as (typeof normalRoles)[number]),
     );
-  }, [currentUser?.id, isSuperAdmin, normalRoles]);
+  }, [canManageUsers, currentUser?.id, normalRoles]);
 
   const copySecret = async () => {
     if (!secretDialog) return;
@@ -884,7 +894,7 @@ export const AdminUsers: React.FC = () => {
             } satisfies GridColDef<UserListItemType>,
           ]
         : []),
-      ...(isSuperAdmin
+      ...(canManageUsers
         ? [
             {
               field: 'actions',
@@ -896,8 +906,8 @@ export const AdminUsers: React.FC = () => {
               renderCell: (params: { row: UserListItemType }) => {
                 const u = params.row;
                 const hasActions =
-                  (u.isActive && (canModifyUser(u) || u.isExportLimitEditable || isSuperAdmin)) ||
-                  (!u.isActive && isSuperAdmin);
+                  (u.isActive && (canModifyUser(u) || u.isExportLimitEditable || canManageUsers)) ||
+                  (!u.isActive && canManageUsers);
                 return (
                   <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
                     <Tooltip title="Actions">
@@ -933,6 +943,7 @@ export const AdminUsers: React.FC = () => {
     [
       actionLoadingId,
       canModifyUser,
+      canManageUsers,
       currentUser?.id,
       handleOpenRowActions,
       isSuperAdmin,
@@ -940,11 +951,11 @@ export const AdminUsers: React.FC = () => {
   );
   const rowActionsCanModify = rowActionsUser ? rowActionsUser.isActive && canModifyUser(rowActionsUser) : false;
   const rowActionsCanChangeRole = rowActionsUser ? canChangeUserRole(rowActionsUser) : false;
-  const rowActionsCanReactivate = Boolean(isSuperAdmin && rowActionsUser && !rowActionsUser.isActive);
+  const rowActionsCanReactivate = Boolean(canManageUsers && rowActionsUser && !rowActionsUser.isActive);
   const rowActionsCanEditLimit = Boolean(rowActionsUser?.isActive && rowActionsUser.isExportLimitEditable);
-  const rowActionsCanEditNote = Boolean(isSuperAdmin && rowActionsUser?.isActive);
+  const rowActionsCanEditNote = Boolean(canManageUsers && isSuperAdmin && rowActionsUser?.isActive);
   const rowActionsCanReissueInvitation = Boolean(
-    isSuperAdmin
+    canManageUsers
       && rowActionsUser?.isActive
       && (rowActionsUser.accountStatus === 'PendingActivation'
         || rowActionsUser.accountStatus === 'InvitationExpired')
@@ -953,7 +964,7 @@ export const AdminUsers: React.FC = () => {
     rowActionsCanModify && rowActionsUser?.accountStatus === 'Active'
   );
 
-  if (!isAdmin) {
+  if (!canReadUsers) {
     return <Navigate to="/sites" replace />;
   }
 
@@ -965,7 +976,7 @@ export const AdminUsers: React.FC = () => {
       title="Users"
       maxWidth="lg"
       actions={
-        isSuperAdmin ? (
+        canManageUsers ? (
           <BrandButton kind="primary" onClick={handleOpenCreateDialog}>
             Add user
           </BrandButton>
@@ -1152,6 +1163,9 @@ export const AdminUsers: React.FC = () => {
                   ))}
                 </Select>
               </FormControl>
+              <Typography variant="body2" color="text.secondary">
+                {getRoleCapabilityHelp(createRole)}
+              </Typography>
               {isSuperAdmin && (
                 <TextField
                   label="Super Admin note"
@@ -1234,6 +1248,9 @@ export const AdminUsers: React.FC = () => {
                   ))}
                 </Select>
               </FormControl>
+              <Typography variant="body2" color="text.secondary">
+                {getRoleCapabilityHelp(changeRoleValue)}
+              </Typography>
               {changeRoleError && <Alert severity="error">{changeRoleError}</Alert>}
             </Box>
           )}
@@ -1292,6 +1309,9 @@ export const AdminUsers: React.FC = () => {
                   </Select>
                 </FormControl>
               )}
+              <Typography variant="body2" color="text.secondary">
+                {getRoleCapabilityHelp(reactivateRoleValue)}
+              </Typography>
 
               <Typography variant="body2" color="text.secondary">
                 The new activation link or temporary password will be shown only once.

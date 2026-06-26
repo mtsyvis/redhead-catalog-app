@@ -14,7 +14,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
 [Route("api/admin/ahrefs-sync")]
-[Authorize(Policy = AppPolicies.SuperAdminOnly)]
+[Authorize(Policy = AppPolicies.AhrefsSyncManageAccess)]
 public sealed class AhrefsSyncController : ControllerBase
 {
     private readonly IAhrefsSyncService _syncService;

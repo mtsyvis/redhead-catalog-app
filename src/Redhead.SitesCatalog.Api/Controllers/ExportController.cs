@@ -17,7 +17,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = AppPolicies.SitesExportAccess)]
 public class ExportController : ControllerBase
 {
     private readonly IExportService _exportService;
@@ -65,10 +65,6 @@ public class ExportController : ControllerBase
         try
         {
             var userContext = GetRequiredUserContext();
-            if (string.Equals(userContext.UserRole, AppRoles.Lite, StringComparison.Ordinal))
-            {
-                return Forbid();
-            }
 
             var result = request.SearchText != null
                 ? await ExportMultiSearchToGoogleDriveAsync(request, userContext, cancellationToken)
@@ -109,10 +105,6 @@ public class ExportController : ControllerBase
         try
         {
             var userContext = GetRequiredUserContext();
-            if (string.Equals(userContext.UserRole, AppRoles.Lite, StringComparison.Ordinal))
-            {
-                return Forbid();
-            }
 
             var query = ToMultiSearchQuery(request);
             var result = await _exportService.ExportMultiSearchAsExcelAsync(
@@ -145,10 +137,6 @@ public class ExportController : ControllerBase
         try
         {
             var userContext = GetRequiredUserContext();
-            if (string.Equals(userContext.UserRole, AppRoles.Lite, StringComparison.Ordinal))
-            {
-                return Forbid();
-            }
 
             var query = ToSitesQuery(request);
             var result = await _exportService.ExportSitesAsExcelAsync(

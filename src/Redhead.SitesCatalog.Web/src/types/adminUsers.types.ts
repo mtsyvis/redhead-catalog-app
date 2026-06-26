@@ -1,5 +1,11 @@
 import type { ExportLimitMode } from '../utils/exportLimit';
 import type { GoogleDriveStatus } from './googleDrive.types';
+import {
+  APP_ROLES,
+  NON_SUPER_ADMIN_ROLES,
+  type AppRole,
+  type NonSuperAdminRole,
+} from '../constants/rbac.constants';
 
 export interface UserListItem {
   id: string;
@@ -145,7 +151,7 @@ export interface UpdateSuperAdminNoteRequest {
   superAdminNote: string | null;
 }
 
-export const ROLES = ['SuperAdmin', 'Admin', 'Internal', 'Client', 'Lite'] as const;
-export type Role = (typeof ROLES)[number];
-export const NON_SUPER_ADMIN_ROLES = ['Admin', 'Internal', 'Client', 'Lite'] as const;
-export type NonSuperAdminRole = (typeof NON_SUPER_ADMIN_ROLES)[number];
+export const ROLES = APP_ROLES;
+export type Role = AppRole;
+export { NON_SUPER_ADMIN_ROLES };
+export type { NonSuperAdminRole };

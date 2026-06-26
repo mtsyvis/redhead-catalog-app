@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
@@ -194,41 +195,37 @@ public class SitesControllerTests
     }
 
     [Fact]
-    public async Task SearchSites_LiteUser_ReturnsForbid()
+    public void SearchSites_UsesSitesBrowseAuthorizationPolicy()
     {
         // Arrange
-        var sitesService = new Mock<ISitesService>();
-        var controller = CreateController(sitesService);
-        SetUser(controller, AppRoles.Lite, "lite@test.com");
+        var method = typeof(SitesController).GetMethod(nameof(SitesController.SearchSites));
 
         // Act
-        var result = await controller.SearchSites(new SitesQueryRequest(), CancellationToken.None);
+        var policies = method!
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>()
+            .Select(attribute => attribute.Policy);
 
         // Assert
-        Assert.IsType<ForbidResult>(result.Result);
-        sitesService.Verify(
-            service => service.GetSitesAsync(
-                It.IsAny<SitesQuery>(),
-                It.IsAny<CancellationToken>()),
-            Times.Never);
+        Assert.NotNull(method);
+        Assert.Contains(AppPolicies.SitesBrowseAccess, policies);
     }
 
     [Fact]
-    public async Task GetFilterOptions_LiteUser_ReturnsForbid()
+    public void GetFilterOptions_UsesSitesBrowseAuthorizationPolicy()
     {
         // Arrange
-        var sitesService = new Mock<ISitesService>();
-        var controller = CreateController(sitesService);
-        SetUser(controller, AppRoles.Lite, "lite@test.com");
+        var method = typeof(SitesController).GetMethod(nameof(SitesController.GetFilterOptions));
 
         // Act
-        var result = await controller.GetFilterOptions(CancellationToken.None);
+        var policies = method!
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>()
+            .Select(attribute => attribute.Policy);
 
         // Assert
-        Assert.IsType<ForbidResult>(result.Result);
-        sitesService.Verify(
-            service => service.GetFilterOptionsAsync(It.IsAny<CancellationToken>()),
-            Times.Never);
+        Assert.NotNull(method);
+        Assert.Contains(AppPolicies.SitesBrowseAccess, policies);
     }
 
     [Fact]

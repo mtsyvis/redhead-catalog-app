@@ -148,14 +148,11 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy(AppPolicies.SuperAdminOnly, policy =>
-        policy.RequireRole(AppRoles.SuperAdmin));
-
-    options.AddPolicy(AppPolicies.AdminAccess, policy =>
-        policy.RequireRole(AppRoles.SuperAdmin, AppRoles.Admin));
-
-    options.AddPolicy(AppPolicies.ReadOnlyAccess, policy =>
-        policy.RequireRole(AppRoles.Internal, AppRoles.Client));
+    foreach (var (permission, policyName) in AppPolicies.PermissionPolicies)
+    {
+        options.AddPolicy(policyName, policy =>
+            policy.RequireRole(RolePermissionMatrix.GetRolesForPermission(permission)));
+    }
 });
 
 builder.Services.AddCors(options =>

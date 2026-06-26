@@ -30,15 +30,11 @@ public class SitesController : ControllerBase
     /// Get sites with filtering, pagination, sorting, and body-only filters such as Stop list.
     /// </summary>
     [HttpPost("search")]
+    [Authorize(Policy = AppPolicies.SitesBrowseAccess)]
     public async Task<ActionResult<SitesListResponse>> SearchSites(
         [FromBody] SitesQueryRequest request,
         CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         if (request == null)
         {
             return BadRequest("Request body is required.");
@@ -56,6 +52,7 @@ public class SitesController : ControllerBase
     /// Multi-search by domains/URLs: exact match on normalized Domain. Max 5000 inputs.
     /// </summary>
     [HttpPost("multi-search")]
+    [Authorize(Policy = AppPolicies.SitesMultiSearchAccess)]
     public async Task<ActionResult<MultiSearchResponse>> MultiSearch(
         [FromBody] MultiSearchRequest request,
         CancellationToken cancellationToken)
@@ -135,13 +132,9 @@ public class SitesController : ControllerBase
     /// Get distinct location values for filter dropdown
     /// </summary>
     [HttpGet("locations")]
+    [Authorize(Policy = AppPolicies.SitesBrowseAccess)]
     public async Task<ActionResult<LocationsResponse>> GetLocations(CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var locations = await _sitesService.GetLocationsAsync(cancellationToken);
 
         return Ok(new LocationsResponse
@@ -154,13 +147,9 @@ public class SitesController : ControllerBase
     /// Get filter options derived from current catalog data.
     /// </summary>
     [HttpGet("filter-options")]
+    [Authorize(Policy = AppPolicies.SitesBrowseAccess)]
     public async Task<ActionResult<FilterOptionsResponse>> GetFilterOptions(CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var filterOptions = await _sitesService.GetFilterOptionsAsync(cancellationToken);
 
         return Ok(new FilterOptionsResponse
@@ -225,7 +214,7 @@ public class SitesController : ControllerBase
     /// Domain is read-only (route parameter). When IsQuarantined is false, reason is cleared.
     /// </summary>
     [HttpPut("{domain}")]
-    [Authorize(Policy = AppPolicies.AdminAccess)]
+    [Authorize(Policy = AppPolicies.SitesEditAccess)]
     public async Task<ActionResult<SiteResponse>> UpdateSite(string domain, [FromBody] Models.Sites.UpdateSiteRequest request, CancellationToken cancellationToken)
     {
         var validationResult = SiteWriteValidator.ValidateAndNormalize(new SiteWriteInput

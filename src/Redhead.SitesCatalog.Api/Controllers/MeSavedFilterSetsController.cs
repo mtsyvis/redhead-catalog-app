@@ -10,7 +10,7 @@ using Redhead.SitesCatalog.Domain.Entities;
 namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Policy = AppPolicies.SitesBrowseAccess)]
 [Route("api/me/saved-filter-sets")]
 public sealed class MeSavedFilterSetsController : ControllerBase
 {
@@ -30,11 +30,6 @@ public sealed class MeSavedFilterSetsController : ControllerBase
         string tableKey,
         CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -55,11 +50,6 @@ public sealed class MeSavedFilterSetsController : ControllerBase
         [FromBody] CreateSavedFilterSetRequest request,
         CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -86,11 +76,6 @@ public sealed class MeSavedFilterSetsController : ControllerBase
         [FromBody] UpdateSavedFilterSetRequest request,
         CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -114,11 +99,6 @@ public sealed class MeSavedFilterSetsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (IsLiteUser())
-        {
-            return Forbid();
-        }
-
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -133,7 +113,4 @@ public sealed class MeSavedFilterSetsController : ControllerBase
 
         return NoContent();
     }
-
-    private bool IsLiteUser()
-        => HttpContext?.User?.IsInRole(AppRoles.Lite) == true;
 }

@@ -39,7 +39,7 @@ import {
 } from '../utils/ahrefsSyncDisplay';
 
 export const AhrefsSyncRunDetails: React.FC = () => {
-  const { isSuperAdmin } = useUserRoles();
+  const { canManageAhrefsSync } = useUserRoles();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [details, setDetails] = useState<RunDetails | null>(null);
@@ -52,7 +52,7 @@ export const AhrefsSyncRunDetails: React.FC = () => {
 
   const loadDetails = useCallback(
     async (background = false) => {
-      if (!isSuperAdmin || !id) return;
+      if (!canManageAhrefsSync || !id) return;
       if (!background) setLoading(true);
       setError(null);
       try {
@@ -69,7 +69,7 @@ export const AhrefsSyncRunDetails: React.FC = () => {
         setLoading(false);
       }
     },
-    [id, isSuperAdmin, paginationModel.page, paginationModel.pageSize]
+    [id, canManageAhrefsSync, paginationModel.page, paginationModel.pageSize]
   );
 
   useEffect(() => {
@@ -163,7 +163,7 @@ export const AhrefsSyncRunDetails: React.FC = () => {
     []
   );
 
-  if (!isSuperAdmin) {
+  if (!canManageAhrefsSync) {
     return <Navigate to="/sites" replace />;
   }
 

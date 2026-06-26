@@ -99,8 +99,8 @@ function toClientUsageLimitLocalState(row?: RoleSettingItem): ClientUsageLimitLo
 }
 
 export const RoleSettings: React.FC = () => {
-  const { isAdmin, isSuperAdmin } = useUserRoles();
-  const canEditRoleSettings = isSuperAdmin;
+  const { canReadRoleSettings, canManageRoleSettings } = useUserRoles();
+  const canEditRoleSettings = canManageRoleSettings;
   const [loading, setLoading] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -257,7 +257,7 @@ export const RoleSettings: React.FC = () => {
     }
   };
 
-  if (!isAdmin) {
+  if (!canReadRoleSettings) {
     return <Navigate to="/sites" replace />;
   }
 
@@ -274,7 +274,7 @@ export const RoleSettings: React.FC = () => {
         Configure export access per role. Row limits apply to each individual export.
       </Typography>
 
-      {isAdmin && !canEditRoleSettings && (
+      {canReadRoleSettings && !canEditRoleSettings && (
         <Alert severity="info" sx={{ mb: 2 }}>
           View only. Only a Super Admin can change these settings.
         </Alert>
