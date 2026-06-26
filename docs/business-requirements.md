@@ -593,6 +593,8 @@ Input rules:
 
 Display rules:
 
+* In Multi-search mode, the input shows a live counter matching backend limits: non-`Lite` users see raw input count against 5,000 inputs; `Lite` users see unique normalized domains against 50 domains, while the global 5,000 raw-input cap still applies.
+* `Lite` users see the `/sites` page as `Domain Check`; before the first search, the grid area shows a compact empty state instead of table controls and empty pagination.
 * Found rows are shown in the same sites grid as normal search results.
 * By default, found and not found rows are shown together in normalized input order after duplicate removal.
 * Multi-search uses `All Sites` as the default quarantine filter, consistent with Single search, so found unavailable sites remain visible unless the user explicitly filters them out.

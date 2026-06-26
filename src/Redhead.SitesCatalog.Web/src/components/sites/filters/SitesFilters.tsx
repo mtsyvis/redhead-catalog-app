@@ -65,6 +65,7 @@ import {
 } from './ActiveFiltersSummary';
 import { buildAdvancedActiveFilterSummaries } from './ActiveFiltersSummary.helpers';
 import { buildSavedFilterSettings } from '../saved-filters/savedFilters.helpers';
+import { normalizeDomainInput } from '../../../utils/stopList';
 
 interface SitesFiltersProps {
   filters: SitesFilters;
@@ -122,6 +123,8 @@ function getDefaultQuarantineFilter(multiSearchMode: boolean): SitesFilters['qua
 }
 
 const FILTER_GROUP_GAP = 2.5;
+const LITE_MULTI_SEARCH_LIMIT = 50;
+const DEFAULT_MULTI_SEARCH_LIMIT = 5000;
 
 type SavedFilterDialogMode = 'create' | 'update' | 'rename';
 
@@ -138,6 +141,25 @@ function areStringArraysEqual(left: string[], right: string[]): boolean {
 
 function hasAvailabilityFilter(filter: ServiceAvailabilityFilter): boolean {
   return normalizeServiceAvailabilityFilter(filter).length > 0;
+}
+
+function countMultiSearchInputs(value: string): number {
+  return getMultiSearchTokens(value).length;
+}
+
+function getMultiSearchTokens(value: string): string[] {
+  const trimmed = value.trim();
+  return trimmed ? trimmed.split(/\s+/) : [];
+}
+
+function countUniqueMultiSearchDomains(value: string): number {
+  const domains = new Set(
+    getMultiSearchTokens(value)
+      .map(normalizeDomainInput)
+      .filter((domain) => domain !== '')
+  );
+
+  return domains.size;
 }
 
 function renderAvailabilityValue(
@@ -449,6 +471,28 @@ export function SitesFilters({
         ? `${stopListCount} ${pluralize(stopListCount, 'domain')} saved`
         : `${stopListCount} ${pluralize(stopListCount, 'domain')} excluded`;
   const searchValue = multiSearchMode ? searchDraft : filters.search;
+  const rawMultiSearchInputCount = multiSearchMode ? countMultiSearchInputs(searchValue) : 0;
+  const uniqueMultiSearchDomainCount =
+    multiSearchMode && liteMode ? countUniqueMultiSearchDomains(searchValue) : 0;
+  const multiSearchDisplayCount = liteMode
+    ? uniqueMultiSearchDomainCount
+    : rawMultiSearchInputCount;
+  const multiSearchDisplayLimit = liteMode
+    ? LITE_MULTI_SEARCH_LIMIT
+    : DEFAULT_MULTI_SEARCH_LIMIT;
+  const multiSearchDisplayLabel = liteMode ? 'unique domains' : 'inputs';
+  const globalMultiSearchLimitExceeded =
+    multiSearchMode && rawMultiSearchInputCount > DEFAULT_MULTI_SEARCH_LIMIT;
+  const roleMultiSearchLimitExceeded =
+    multiSearchMode && multiSearchDisplayCount > multiSearchDisplayLimit;
+  const multiSearchLimitExceeded =
+    globalMultiSearchLimitExceeded || roleMultiSearchLimitExceeded;
+  const multiSearchHelperText = globalMultiSearchLimitExceeded
+    ? `Too many inputs. Limit is ${DEFAULT_MULTI_SEARCH_LIMIT.toLocaleString('en-US')}.`
+    : roleMultiSearchLimitExceeded && liteMode
+      ? `Too many unique domains. Limit is ${LITE_MULTI_SEARCH_LIMIT.toLocaleString('en-US')}.`
+      : `${multiSearchDisplayCount.toLocaleString('en-US')} / ${multiSearchDisplayLimit.toLocaleString('en-US')} ${multiSearchDisplayLabel}`;
+  const multiSearchActionLabel = liteMode ? 'Check' : 'Search';
 
   const handleOpenStopListDialog = () => {
     setStopListDialogOpen(true);
@@ -708,11 +752,10 @@ export function SitesFilters({
       maxRows={multiSearchMode ? 8 : 1}
       placeholder={
         multiSearchMode
-          ? liteMode
-            ? 'Paste up to 50 domains or URLs'
-            : 'Paste domains or URLs (one per line or space-separated, max 5,000)'
+          ? 'Enter domains or URLs'
           : 'Search by domain (example.com or https://www.example.com/path)'
       }
+      helperText={multiSearchMode ? multiSearchHelperText : undefined}
       value={searchValue}
       onChange={(e) => handleSearchChange(e.target.value)}
       onKeyDown={(e) => {
@@ -736,6 +779,13 @@ export function SitesFilters({
           </IconButton>
         ) : undefined,
       }}
+      FormHelperTextProps={{
+        sx: {
+          mx: 1.5,
+          textAlign: 'right',
+          color: multiSearchLimitExceeded ? 'error.main' : 'text.secondary',
+        },
+      }}
       sx={multiSearchMode ? undefined : { flex: '1 1 360px', minWidth: { xs: '100%', md: 320 } }}
     />
   );
@@ -746,8 +796,13 @@ export function SitesFilters({
         <Stack spacing={0.75}>
           {searchInput}
           <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <BrandButton kind="primary" onClick={handleApply} sx={{ minWidth: 120 }}>
-              Search
+            <BrandButton
+              kind="primary"
+              disabled={multiSearchLimitExceeded}
+              onClick={handleApply}
+              sx={{ minWidth: 120 }}
+            >
+              {multiSearchActionLabel}
             </BrandButton>
           </Box>
         </Stack>
@@ -764,8 +819,13 @@ export function SitesFilters({
             {searchModeControl}
             {searchInput}
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <BrandButton kind="primary" onClick={handleApply} sx={{ minWidth: 120 }}>
-                Search
+              <BrandButton
+                kind="primary"
+                disabled={multiSearchLimitExceeded}
+                onClick={handleApply}
+                sx={{ minWidth: 120 }}
+              >
+                {multiSearchActionLabel}
               </BrandButton>
             </Box>
           </Stack>

@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { DataGrid } from '@mui/x-data-grid';
+import SearchIcon from '@mui/icons-material/Search';
 import type {
   GridColumnResizeParams,
   GridPaginationModel,
@@ -587,6 +588,7 @@ export function Sites() {
   const hiddenNotFoundRowCount =
     multiSearchResult !== null && gridFiltersActive ? multiSearchResult.notFound.length : 0;
   const gridSearchedRowCount = multiSearchResult?.results.length ?? 0;
+  const showLiteStartState = isLite && multiSearchMode && multiSearchResult === null && !multiSearchLoading;
 
   const handleCopyPriceColumn = useCallback(
     async (field: CopyablePriceColumn) => {
@@ -806,7 +808,7 @@ export function Sites() {
     <PageShell maxWidth="xl">
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0, flexDirection: 'column' }}>
         <Box sx={{ mb: 1 }}>
-          <Typography variant="h4">Sites Catalog</Typography>
+          <Typography variant="h4">{isLite ? 'Domain Check' : 'Sites Catalog'}</Typography>
         </Box>
 
         <SitesFilters
@@ -859,64 +861,100 @@ export function Sites() {
           sx={{
             display: 'flex',
             flex: 1,
-            minHeight: { xs: 520, md: 420 },
+            minHeight: showLiteStartState ? { xs: 240, md: 280 } : { xs: 520, md: 420 },
             overflow: 'hidden',
             flexDirection: 'column',
           }}
         >
-          <SitesTableViewToolbar
-            tableViews={tableViews}
-            hiddenFilteredColumns={hiddenFilteredColumns}
-            canExport={canExport}
-            exporting={exporting}
-            loading={loading || tableViews.loading}
-            exportUsageLimits={exportUsageLimits}
-            resultCount={gridRowCount}
-            resultSearchedCount={gridSearchedRowCount}
-            resultNotFoundCount={gridNotFoundRowCount}
-            resultHiddenNotFoundCount={hiddenNotFoundRowCount}
-            resultLoading={gridLoading}
-            onShowFilteredColumns={handleShowFilteredColumns}
-            onClearHiddenFilters={handleClearHiddenFilters}
-            onDownloadExcel={handleDownloadExport}
-            onSaveToGoogleDrive={handleSaveToGoogleDrive}
-            onSuccess={(message) => setSnackbar({ open: true, message, severity: 'success' })}
-            onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
-          />
-
-          <Box
-            sx={{
-              flex: 1,
-              minHeight: { xs: 440, md: 360 },
-            }}
-          >
-            <DataGrid
-              key={isMultiSearchView ? `multi-search-${multiSearchRunId}` : 'sites'}
-              rows={gridRows}
-              columns={columns}
-              getRowId={(row) => (isNotFoundRow(row) ? `notfound:${row.domain}` : row.domain)}
-              getRowClassName={(params) => {
-                if (isNotFoundRow(params.row)) return 'SitesGrid-notFoundRow';
-                return params.row.isQuarantined ? 'SitesGrid-unavailableRow' : '';
-              }}
-              rowCount={gridRowCount}
-              loading={gridLoading}
-              pageSizeOptions={[10, 25, 50, 100]}
-              paginationModel={paginationModel}
-              paginationMode={isMultiSearchView ? 'client' : 'server'}
-              onPaginationModelChange={setPaginationModel}
-              sortingMode="server"
-              sortModel={sortModel}
-              onSortModelChange={setSortModel}
-              onColumnWidthChange={handleColumnWidthChange}
-              density={tableViews.density}
-              columnVisibilityModel={tableViews.columnVisibilityModel}
-              localeText={dataGridLocaleText}
-              disableRowSelectionOnClick
-              disableColumnMenu
-              // Keep manually pinned Domain cells mounted while users scroll across Full view columns.
-              disableVirtualization
+          {showLiteStartState ? (
+            <Box
               sx={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 1,
+                px: 3,
+                py: 5,
+                textAlign: 'center',
+              }}
+            >
+              <Box
+                sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: 'primary.main',
+                  bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                }}
+              >
+                <SearchIcon />
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                No domains checked yet
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 420 }}>
+                Enter domains above and press Check.
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              <SitesTableViewToolbar
+                tableViews={tableViews}
+                hiddenFilteredColumns={hiddenFilteredColumns}
+                canExport={canExport}
+                exporting={exporting}
+                loading={loading || tableViews.loading}
+                exportUsageLimits={exportUsageLimits}
+                resultCount={gridRowCount}
+                resultSearchedCount={gridSearchedRowCount}
+                resultNotFoundCount={gridNotFoundRowCount}
+                resultHiddenNotFoundCount={hiddenNotFoundRowCount}
+                resultLoading={gridLoading}
+                onShowFilteredColumns={handleShowFilteredColumns}
+                onClearHiddenFilters={handleClearHiddenFilters}
+                onDownloadExcel={handleDownloadExport}
+                onSaveToGoogleDrive={handleSaveToGoogleDrive}
+                onSuccess={(message) => setSnackbar({ open: true, message, severity: 'success' })}
+                onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
+              />
+
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: { xs: 440, md: 360 },
+                }}
+              >
+                <DataGrid
+                  key={isMultiSearchView ? `multi-search-${multiSearchRunId}` : 'sites'}
+                  rows={gridRows}
+                  columns={columns}
+                  getRowId={(row) => (isNotFoundRow(row) ? `notfound:${row.domain}` : row.domain)}
+                  getRowClassName={(params) => {
+                    if (isNotFoundRow(params.row)) return 'SitesGrid-notFoundRow';
+                    return params.row.isQuarantined ? 'SitesGrid-unavailableRow' : '';
+                  }}
+                  rowCount={gridRowCount}
+                  loading={gridLoading}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  paginationModel={paginationModel}
+                  paginationMode={isMultiSearchView ? 'client' : 'server'}
+                  onPaginationModelChange={setPaginationModel}
+                  sortingMode="server"
+                  sortModel={sortModel}
+                  onSortModelChange={setSortModel}
+                  onColumnWidthChange={handleColumnWidthChange}
+                  density={tableViews.density}
+                  columnVisibilityModel={tableViews.columnVisibilityModel}
+                  localeText={dataGridLocaleText}
+                  disableRowSelectionOnClick
+                  disableColumnMenu
+                  // Keep manually pinned Domain cells mounted while users scroll across Full view columns.
+                  disableVirtualization
+                  sx={{
                 borderTopLeftRadius: 0,
                 borderTopRightRadius: 0,
                 backgroundColor: 'background.paper',
@@ -1026,9 +1064,11 @@ export function Sites() {
                 '& .SitesGrid-notFoundRow:hover .SitesGrid-domainCell': {
                   bgcolor: '#ffedda',
                 },
-              }}
-            />
-          </Box>
+                  }}
+                />
+              </Box>
+            </>
+          )}
         </Paper>
 
         <Popover
