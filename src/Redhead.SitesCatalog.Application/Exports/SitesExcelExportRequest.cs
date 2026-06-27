@@ -15,4 +15,11 @@ public sealed record SitesExcelExportRequest(
     bool Truncated,
     int? LimitRows,
     bool NotFoundIncluded,
-    string? TruncationReason = null);
+    string? TruncationReason = null,
+    SitesExcelPriceCellMode PriceCellMode = SitesExcelPriceCellMode.Contextual);
+
+public enum SitesExcelPriceCellMode
+{
+    Contextual = 0,
+    AllTerms = 1
+}

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Application.Exports;
@@ -37,6 +38,8 @@ public sealed class EmergencySitesExportService : IEmergencySitesExportService
             .OrderBy(site => site.Domain)
             .ToListAsync(cancellationToken);
 
+        await AttachPricingAsync(sites, cancellationToken);
+
         var stream = _excelExportGenerator.Generate(new SitesExcelExportRequest(
             sites,
             [],
@@ -49,7 +52,8 @@ public sealed class EmergencySitesExportService : IEmergencySitesExportService
             sites.Count,
             Truncated: false,
             LimitRows: null,
-            NotFoundIncluded: false));
+            NotFoundIncluded: false,
+            PriceCellMode: SitesExcelPriceCellMode.AllTerms));
 
         return new EmergencySitesExportResult(
             CreateFileName(filePrefix, DateTime.UtcNow),
@@ -64,4 +68,42 @@ public sealed class EmergencySitesExportService : IEmergencySitesExportService
 
     internal static string CreateFileName(string filePrefix, DateTime utcNow)
         => $"{filePrefix.Trim()}-{utcNow:yyyy-MM-dd}.xlsx";
+
+    private async Task AttachPricingAsync(
+        IReadOnlyList<Site> sites,
+        CancellationToken cancellationToken)
+    {
+        if (sites.Count == 0)
+        {
+            return;
+        }
+
+        var domains = sites
+            .Select(site => site.Domain)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        var priceOptions = await _context.SitePriceOptions
+            .AsNoTracking()
+            .Where(priceOption => domains.Contains(priceOption.SiteDomain))
+            .ToListAsync(cancellationToken);
+
+        var serviceAvailabilities = await _context.SiteServiceAvailabilities
+            .AsNoTracking()
+            .Where(availability => domains.Contains(availability.SiteDomain))
+            .ToListAsync(cancellationToken);
+
+        var priceOptionsByDomain = priceOptions.ToLookup(
+            priceOption => priceOption.SiteDomain,
+            StringComparer.Ordinal);
+        var serviceAvailabilitiesByDomain = serviceAvailabilities.ToLookup(
+            availability => availability.SiteDomain,
+            StringComparer.Ordinal);
+
+        foreach (var site in sites)
+        {
+            site.PriceOptions = priceOptionsByDomain[site.Domain].ToList();
+            site.ServiceAvailabilities = serviceAvailabilitiesByDomain[site.Domain].ToList();
+        }
+    }
 }
