@@ -49,7 +49,8 @@ Target location:
 Purpose:
 
 - Give employees access to the latest full sites catalog if the application is temporarily unavailable.
-- This is a business snapshot, not a full system backup.
+- This is a working business snapshot, not a full system backup.
+- Price columns include all term-specific prices in each price cell, for example `No term: 100; 1 year: 150; Permanent: 300`, so employees can continue catalog work from the file.
 
 The Excel export should not contain technical/internal database data unless explicitly intended.
 

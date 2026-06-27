@@ -1,4 +1,5 @@
 using System.Globalization;
+using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -12,7 +13,7 @@ internal sealed record SitesExportColumnDefinition(
     string Header,
     bool Exportable,
     Func<string, bool> IsAllowedForRole,
-    Func<Site, string?, XlsxCell> CreateCell,
+    Func<Site, string?, SitesExcelPriceCellMode, XlsxCell> CreateCell,
     double Width);
 
 internal static class SitesExportColumnRegistry
@@ -23,12 +24,12 @@ internal static class SitesExportColumnRegistry
         Exportable("dr", "DR", site => XlsxCell.Number(Convert.ToDecimal(site.DR, CultureInfo.InvariantCulture), XlsxCellStyle.Integer), 8),
         Exportable("traffic", "Traffic", site => XlsxCell.Number(site.Traffic, XlsxCellStyle.Integer), 14),
         Exportable("location", "Location", site => XlsxCell.Text(LocationDisplayFormatter.Format(site.LocationKey, site.CanonicalLocation?.DisplayName, site.Location)), 14),
-        ExportableWithTerm("priceUsd", "Price USD", (site, selectedTermKey) => FormatMainPrice(site, selectedTermKey), 24),
-        ExportableWithTerm("priceCasino", "Casino", (site, selectedTermKey) => FormatOptionalService(site, PriceType.Casino, selectedTermKey), 24),
-        ExportableWithTerm("priceCrypto", "Crypto", (site, selectedTermKey) => FormatOptionalService(site, PriceType.Crypto, selectedTermKey), 24),
-        ExportableWithTerm("priceLinkInsert", "Link Insert", (site, selectedTermKey) => FormatOptionalService(site, PriceType.LinkInsertion, selectedTermKey), 24),
-        ExportableWithTerm("priceLinkInsertCasino", "Link Insert Casino", (site, selectedTermKey) => FormatOptionalService(site, PriceType.LinkInsertionCasino, selectedTermKey), 28),
-        ExportableWithTerm("priceDating", "Dating", (site, selectedTermKey) => FormatOptionalService(site, PriceType.Dating, selectedTermKey), 24),
+        ExportableWithTerm("priceUsd", "Price USD", (site, selectedTermKey, priceCellMode) => FormatMainPrice(site, selectedTermKey, priceCellMode), 24),
+        ExportableWithTerm("priceCasino", "Casino", (site, selectedTermKey, priceCellMode) => FormatOptionalService(site, PriceType.Casino, selectedTermKey, priceCellMode), 24),
+        ExportableWithTerm("priceCrypto", "Crypto", (site, selectedTermKey, priceCellMode) => FormatOptionalService(site, PriceType.Crypto, selectedTermKey, priceCellMode), 24),
+        ExportableWithTerm("priceLinkInsert", "Link Insert", (site, selectedTermKey, priceCellMode) => FormatOptionalService(site, PriceType.LinkInsertion, selectedTermKey, priceCellMode), 24),
+        ExportableWithTerm("priceLinkInsertCasino", "Link Insert Casino", (site, selectedTermKey, priceCellMode) => FormatOptionalService(site, PriceType.LinkInsertionCasino, selectedTermKey, priceCellMode), 28),
+        ExportableWithTerm("priceDating", "Dating", (site, selectedTermKey, priceCellMode) => FormatOptionalService(site, PriceType.Dating, selectedTermKey, priceCellMode), 24),
         Exportable("niche", "Niche", site => XlsxCell.Text(site.Niche), 20),
         Exportable("categories", "Categories", site => XlsxCell.Text(site.Categories), 28),
         Exportable("numberDFLinks", "DF Links", site => XlsxCell.Number(site.NumberDFLinks, XlsxCellStyle.Integer), 16),
@@ -105,18 +106,18 @@ internal static class SitesExportColumnRegistry
         Func<Site, XlsxCell> createCell,
         double width,
         Func<string, bool>? isAllowedForRole = null)
-        => new(key, header, Exportable: true, isAllowedForRole ?? AllowAllRoles, (site, _) => createCell(site), width);
+        => new(key, header, Exportable: true, isAllowedForRole ?? AllowAllRoles, (site, _, _) => createCell(site), width);
 
     private static SitesExportColumnDefinition ExportableWithTerm(
         string key,
         string header,
-        Func<Site, string?, XlsxCell> createCell,
+        Func<Site, string?, SitesExcelPriceCellMode, XlsxCell> createCell,
         double width,
         Func<string, bool>? isAllowedForRole = null)
         => new(key, header, Exportable: true, isAllowedForRole ?? AllowAllRoles, createCell, width);
 
     private static SitesExportColumnDefinition NonExportable(string key, string header)
-        => new(key, header, Exportable: false, AllowAllRoles, (_, _) => XlsxCell.Blank(), 12);
+        => new(key, header, Exportable: false, AllowAllRoles, (_, _, _) => XlsxCell.Blank(), 12);
 
     private static bool AllowAllRoles(string _) => true;
 
@@ -141,16 +142,32 @@ internal static class SitesExportColumnRegistry
             ? value.Value.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)
             : "—";
 
-    private static XlsxCell FormatMainPrice(Site site, string? selectedTermKey)
-        => FormatPriceAmount(SelectExportPrice(
-            site.PriceOptions.Where(price => price.PriceType == PriceType.Main),
-            selectedTermKey));
-
-    private static XlsxCell FormatOptionalService(Site site, PriceType serviceType, string? selectedTermKey)
+    private static XlsxCell FormatMainPrice(
+        Site site,
+        string? selectedTermKey,
+        SitesExcelPriceCellMode priceCellMode)
     {
+        var prices = site.PriceOptions.Where(price => price.PriceType == PriceType.Main);
+        return priceCellMode == SitesExcelPriceCellMode.AllTerms
+            ? FormatAllTermPrices(prices)
+            : FormatPriceAmount(SelectExportPrice(prices, selectedTermKey));
+    }
+
+    private static XlsxCell FormatOptionalService(
+        Site site,
+        PriceType serviceType,
+        string? selectedTermKey,
+        SitesExcelPriceCellMode priceCellMode)
+    {
+        var servicePrices = site.PriceOptions.Where(price => price.PriceType == serviceType);
+        if (priceCellMode == SitesExcelPriceCellMode.AllTerms)
+        {
+            return FormatAllTermPrices(servicePrices);
+        }
+
         var normalizedTermKey = NormalizeSelectedTermKey(selectedTermKey);
         var selectedPrice = SelectExportPrice(
-            site.PriceOptions.Where(price => price.PriceType == serviceType),
+            servicePrices,
             normalizedTermKey);
         if (selectedPrice.HasValue)
         {
@@ -203,6 +220,24 @@ internal static class SitesExportColumnRegistry
             ? XlsxCell.Number(amount.Value, XlsxCellStyle.Decimal)
             : XlsxCell.Text(EmptyPricingLabel);
 
+    private static XlsxCell FormatAllTermPrices(IEnumerable<SitePriceOption> priceOptions)
+    {
+        var values = priceOptions
+            .Where(price => price.AmountUsd > 0)
+            .OrderBy(GetTermSortOrder)
+            .ThenBy(price => price.TermValue ?? int.MaxValue)
+            .ThenBy(price => price.TermKey, StringComparer.Ordinal)
+            .Select(price => $"{FormatPriceTermLabel(price)}: {FormatPriceText(price.AmountUsd)}")
+            .ToArray();
+
+        return values.Length == 0
+            ? XlsxCell.Text(EmptyPricingLabel)
+            : XlsxCell.Text(string.Join("; ", values));
+    }
+
+    private static string FormatPriceText(decimal amount)
+        => amount.ToString("0.##", CultureInfo.InvariantCulture);
+
     private static string? NormalizeSelectedTermKey(string? selectedTermKey)
         => string.IsNullOrWhiteSpace(selectedTermKey) ? null : selectedTermKey.Trim();
 
@@ -214,6 +249,29 @@ internal static class SitesExportColumnRegistry
             PricingTerm.PermanentKey => 2,
             _ => 3
         };
+
+    private static string FormatPriceTermLabel(SitePriceOption priceOption)
+    {
+        if (string.Equals(priceOption.TermKey, PricingTerm.UnknownKey, StringComparison.Ordinal))
+        {
+            return "No term";
+        }
+
+        if (priceOption.TermType == TermType.Permanent
+            || string.Equals(priceOption.TermKey, PricingTerm.PermanentKey, StringComparison.Ordinal))
+        {
+            return "Permanent";
+        }
+
+        if (priceOption.TermType == TermType.Finite
+            && priceOption.TermValue is > 0
+            && priceOption.TermUnit == TermUnit.Year)
+        {
+            return priceOption.TermValue.Value == 1 ? "1 year" : $"{priceOption.TermValue.Value} years";
+        }
+
+        return priceOption.TermKey;
+    }
 
     private static string FormatTerm(TermType? termType, int? termValue, TermUnit? termUnit)
     {

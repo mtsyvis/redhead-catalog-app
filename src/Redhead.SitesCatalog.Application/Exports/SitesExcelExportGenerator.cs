@@ -17,7 +17,11 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
             new(
                 "Sites",
                 siteColumns.Select(column => column.Header).ToArray(),
-                request.Sites.Select(site => CreateSiteRow(site, siteColumns, request.SelectedTermKey)).ToList(),
+                request.Sites.Select(site => CreateSiteRow(
+                    site,
+                    siteColumns,
+                    request.SelectedTermKey,
+                    request.PriceCellMode)).ToList(),
                 siteColumns.Select(column => column.Width).ToArray())
         };
 
@@ -42,6 +46,7 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
                     request.Truncated,
                     request.LimitRows,
                     request.SelectedTermKey,
+                    request.PriceCellMode,
                     request.NotFoundDomains.Count,
                     request.NotFoundIncluded,
                     request.TruncationReason),
@@ -55,8 +60,9 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
     private static IReadOnlyList<XlsxCell> CreateSiteRow(
         Site site,
         IReadOnlyList<SitesExportColumnDefinition> siteColumns,
-        string? selectedTermKey)
-        => siteColumns.Select(column => column.CreateCell(site, selectedTermKey)).ToList();
+        string? selectedTermKey,
+        SitesExcelPriceCellMode priceCellMode)
+        => siteColumns.Select(column => column.CreateCell(site, selectedTermKey, priceCellMode)).ToList();
 
     private static IReadOnlyList<IReadOnlyList<XlsxCell>> CreateExportInfoRows(
         string generatedBy,
@@ -66,6 +72,7 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
         bool truncated,
         int? limitRows,
         string? selectedTermKey,
+        SitesExcelPriceCellMode priceCellMode,
         int notFoundRows,
         bool notFoundIncluded,
         string? truncationReason)
@@ -81,7 +88,7 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
             InfoRow("Export limit rows", limitRows.HasValue
                 ? XlsxCell.Number(limitRows.Value, XlsxCellStyle.Integer)
                 : XlsxCell.Text("Unlimited")),
-            InfoRow("Term pricing", XlsxCell.Text(FormatTermPricingNote(selectedTermKey)))
+            InfoRow("Term pricing", XlsxCell.Text(FormatTermPricingNote(selectedTermKey, priceCellMode)))
         };
 
         if (notFoundRows > 0)
@@ -101,8 +108,15 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
     private static IReadOnlyList<XlsxCell> InfoRow(string label, XlsxCell value)
         => [XlsxCell.InfoLabel(label), value];
 
-    private static string FormatTermPricingNote(string? selectedTermKey)
+    private static string FormatTermPricingNote(
+        string? selectedTermKey,
+        SitesExcelPriceCellMode priceCellMode)
     {
+        if (priceCellMode == SitesExcelPriceCellMode.AllTerms)
+        {
+            return "All term-specific prices are included in each price column.";
+        }
+
         if (string.IsNullOrWhiteSpace(selectedTermKey))
         {
             return "Term is not applied. Selected minimum available price for each price column.";

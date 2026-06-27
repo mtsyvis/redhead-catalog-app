@@ -813,6 +813,12 @@ Rules:
 * Exported-domain access rows are retained only for rolling usage checks and may be cleaned up after the configured retention period, which must not be shorter than 7 days.
 * Client-role analytics snapshots of filters, sorting, and search context remain separate from exported-domain access records.
 
+Emergency Sites Excel export rules:
+
+* The weekly emergency Sites Excel export is a working business snapshot for continuity when the application is unavailable.
+* Emergency price cells include all term-specific prices for the matching price type in one cell, for example `No term: 100; 1 year: 150; Permanent: 300`.
+* Emergency price cells use `SitePriceOptions` as the source of truth and do not fall back to legacy flat site price columns.
+
 ### Google Drive export connection
 
 Users may optionally connect their own Google Drive account after logging in with their Redhead account. This is separate from authentication and must not be implemented as Google sign-in, Google registration, or external login.
