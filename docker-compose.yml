@@ -62,6 +62,12 @@ services:
       AhrefsSync__MonthlyAppBudgetUnits: ${AhrefsSync__MonthlyAppBudgetUnits:-975000}
       AhrefsSync__SafetyBufferUnits: ${AhrefsSync__SafetyBufferUnits:-25000}
       Frontend__BaseUrl: ${FRONTEND_BASE_URL}
+      Email__Enabled: ${Email__Enabled:-false}
+      Email__SmtpHost: ${Email__SmtpHost:-}
+      Email__SmtpPort: ${Email__SmtpPort:-587}
+      Email__FromAddress: ${Email__FromAddress:-}
+      Email__FromName: ${Email__FromName:-}
+      Email__SendTimeoutSeconds: ${Email__SendTimeoutSeconds:-10}
     volumes:
       - dataprotection_keys:/root/.aspnet/DataProtection-Keys
       - /etc/redhead/secrets/google-service-account.json:/run/secrets/google-service-account.json:ro

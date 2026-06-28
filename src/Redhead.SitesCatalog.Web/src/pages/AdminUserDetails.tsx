@@ -7,22 +7,21 @@ import {
   CardContent,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
-  Snackbar,
   Stack,
   Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 import { BrandButton } from '../components/common/BrandButton';
+import { InvitationResultDialog } from '../components/admin/InvitationResultDialog';
 import { PageShell } from '../components/layout/PageShell';
 import { ApiClientError } from '../services/api.client';
 import { adminUsersService } from '../services/adminUsers.service';
-import type { AdminUserDetails as AdminUserDetailsType } from '../types/adminUsers.types';
+import type {
+  AdminUserDetails as AdminUserDetailsType,
+  InvitationEmailDeliveryStatus,
+} from '../types/adminUsers.types';
 import type { ExportLimitMode } from '../utils/exportLimit';
 import { formatExportLimit } from '../utils/exportLimit';
 import { formatUsageLimitPair } from '../utils/exportUsageLimits';
@@ -173,16 +172,10 @@ export const AdminUserDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reissuing, setReissuing] = useState(false);
-  const [invitationLink, setInvitationLink] = useState<string | null>(null);
-  const [copyNotification, setCopyNotification] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error';
-  }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
+  const [invitationResult, setInvitationResult] = useState<{
+    activationUrl: string;
+    emailDeliveryStatus: InvitationEmailDeliveryStatus;
+  } | null>(null);
 
   const loadUser = useCallback(async () => {
     if (!userId) {
@@ -214,27 +207,15 @@ export const AdminUserDetails: React.FC = () => {
     setError(null);
     try {
       const response = await adminUsersService.reissueInvitation(user.id);
-      setInvitationLink(`${window.location.origin}${response.activationPath}`);
+      setInvitationResult({
+        activationUrl: response.activationUrl,
+        emailDeliveryStatus: response.emailDeliveryStatus,
+      });
       await loadUser();
     } catch (reissueError) {
       setError(reissueError instanceof ApiClientError ? reissueError.message : 'Failed to reissue invitation.');
     } finally {
       setReissuing(false);
-    }
-  };
-
-  const handleCopyInvitation = async () => {
-    if (!invitationLink) return;
-
-    try {
-      await navigator.clipboard.writeText(invitationLink);
-      setCopyNotification({ open: true, message: 'Copied', severity: 'success' });
-    } catch {
-      setCopyNotification({
-        open: true,
-        message: 'Could not copy. Please copy the value manually.',
-        severity: 'error',
-      });
     }
   };
 
@@ -535,40 +516,17 @@ export const AdminUserDetails: React.FC = () => {
           </>
         ) : null}
       </Stack>
-      <Dialog open={Boolean(invitationLink)} onClose={() => setInvitationLink(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>Invitation reissued</DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            This activation link is shown only once. Copy it now and share it securely.
-          </Alert>
-          <Box sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1, wordBreak: 'break-all' }}>
-            {invitationLink}
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <BrandButton
-            kind="outline"
-            onClick={() => void handleCopyInvitation()}
-          >
-            Copy link
-          </BrandButton>
-          <BrandButton onClick={() => setInvitationLink(null)}>Done</BrandButton>
-        </DialogActions>
-      </Dialog>
-      <Snackbar
-        open={copyNotification.open}
-        autoHideDuration={2000}
-        onClose={() => setCopyNotification((current) => ({ ...current, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          severity={copyNotification.severity}
-          onClose={() => setCopyNotification((current) => ({ ...current, open: false }))}
-          sx={{ width: '100%' }}
-        >
-          {copyNotification.message}
-        </Alert>
-      </Snackbar>
+      {invitationResult && user ? (
+        <InvitationResultDialog
+          key={invitationResult.activationUrl}
+          title="Invitation reissued"
+          email={user.email}
+          activationUrl={invitationResult.activationUrl}
+          emailDeliveryStatus={invitationResult.emailDeliveryStatus}
+          invitationAction="reissued"
+          onClose={() => setInvitationResult(null)}
+        />
+      ) : null}
     </PageShell>
   );
 };

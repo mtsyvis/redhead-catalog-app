@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Api.AccountSetup;
 using Redhead.SitesCatalog.Api.DependencyInjection;
 using Redhead.SitesCatalog.Api.Middleware;
-using Redhead.SitesCatalog.Api.Options;
 using Redhead.SitesCatalog.Application.Ahrefs;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
@@ -39,8 +38,7 @@ builder.Services.Configure<GoogleDriveOptions>(
 builder.Services.AddEmergencySitesExportOptions(builder.Configuration);
 builder.Services.AddExportedDomainAccessCleanup(builder.Configuration);
 builder.Services.AddAhrefsSync(builder.Configuration);
-builder.Services.Configure<FrontendOptions>(
-    builder.Configuration.GetSection(FrontendOptions.SectionName));
+builder.Services.AddInvitationEmail(builder.Configuration, builder.Environment);
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();

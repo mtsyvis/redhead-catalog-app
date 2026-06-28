@@ -133,6 +133,12 @@ ExportedDomainAccessCleanup__RetentionDays=30
 ExportedDomainAccessCleanup__BatchSize=1000
 ExportedDomainAccessCleanup__IntervalHours=24
 FRONTEND_BASE_URL=https://catalog.rhda.us
+Email__Enabled=true
+Email__SmtpHost=smtp-relay.gmail.com
+Email__SmtpPort=587
+Email__FromAddress=noreply@redheaddigital.agency
+Email__FromName=Redhead Catalog
+Email__SendTimeoutSeconds=10
 ```
 
 Ahrefs sync is inactive by default and no longer part of the active production workflow. The
@@ -167,16 +173,32 @@ ExportedDomainAccessCleanup__RetentionDays=${ExportedDomainAccessCleanup__Retent
 ExportedDomainAccessCleanup__BatchSize=${ExportedDomainAccessCleanup__BatchSize}
 ExportedDomainAccessCleanup__IntervalHours=${ExportedDomainAccessCleanup__IntervalHours}
 Frontend__BaseUrl=${FRONTEND_BASE_URL}
+Email__Enabled=${Email__Enabled}
+Email__SmtpHost=${Email__SmtpHost}
+Email__SmtpPort=${Email__SmtpPort}
+Email__FromAddress=${Email__FromAddress}
+Email__FromName=${Email__FromName}
+Email__SendTimeoutSeconds=${Email__SendTimeoutSeconds}
 ```
 
 Security rules:
 
 * Never commit `.env`.
 * Never commit production passwords or database dumps.
+* Invitation email uses Google Workspace SMTP Relay on port 587 with required STARTTLS and no SMTP authentication. Do not add SMTP passwords, Gmail OAuth, service accounts, or App Passwords.
+* Before enabling invitation email, confirm that `noreply@redheaddigital.agency` is permitted as a sender and that VPS public IP remains allowlisted in Google Workspace.
 * Do not reuse weak seed passwords.
 * Google Drive OAuth uses `https://www.googleapis.com/auth/drive.file`; do not configure broad Drive access.
 * The emergency Sites export uses a Google service account JSON file for the configured Shared Drive folder. Mount `/etc/redhead/secrets/google-service-account.json` into the app container as `/run/secrets/google-service-account.json:ro` before setting `EmergencySitesExport__Enabled=true`.
 * After first successful production setup, rotate or remove temporary bootstrap credentials if the application flow allows it.
+
+Invitation email is synchronous and best-effort after the invitation has been saved. A temporary SMTP
+failure does not make `/api/health` unhealthy and does not roll back the account or invitation. The
+admin UI reports the failure without exposing the SMTP response and keeps the activation link available.
+
+After deployment, create an invitation for a controlled test inbox and verify the From address,
+subject, activation, and reissue behavior. Check application logs to confirm that invitation tokens,
+activation URLs, and email bodies are absent.
 
 ## First deployment checklist
 

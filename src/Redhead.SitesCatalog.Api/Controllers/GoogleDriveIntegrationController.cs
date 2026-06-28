@@ -2,9 +2,9 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Redhead.SitesCatalog.Api.Options;
 using Redhead.SitesCatalog.Application.Exceptions;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Infrastructure.Options;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Infrastructure.Exceptions;
 
