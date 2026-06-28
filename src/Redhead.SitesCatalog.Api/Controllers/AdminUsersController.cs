@@ -5,11 +5,13 @@ using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Security;
 using Redhead.SitesCatalog.Api.Validation;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Invitations;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Domain.Invitations;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -18,24 +20,28 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 [Authorize(Policy = AppPolicies.UsersReadAccess)]
 public class AdminUsersController : ControllerBase
 {
-    private static readonly TimeSpan InvitationLifetime = TimeSpan.FromHours(72);
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IAdminUsersListService _usersListService;
+    private readonly IInvitationDeliveryService _invitationDeliveryService;
     private readonly ILogger<AdminUsersController> _logger;
 
     public AdminUsersController(
         UserManager<ApplicationUser> userManager,
         IAdminUsersListService usersListService,
+        IInvitationDeliveryService invitationDeliveryService,
         ILogger<AdminUsersController> logger)
     {
         _userManager = userManager;
         _usersListService = usersListService;
+        _invitationDeliveryService = invitationDeliveryService;
         _logger = logger;
     }
 
     [HttpPost]
     [Authorize(Policy = AppPolicies.UsersManageAccess)]
-    public async Task<ActionResult<CreateUserResponse>> CreateUser([FromBody] CreateUserRequest request)
+    public async Task<ActionResult<CreateUserResponse>> CreateUser(
+        [FromBody] CreateUserRequest request,
+        CancellationToken cancellationToken = default)
     {
         if (!AppRoles.All.Contains(request.Role))
         {
@@ -92,14 +98,26 @@ public class AdminUsersController : ControllerBase
             return BadRequest(new MessageResponse(errors));
         }
 
-        _logger.LogInformation("User created: {Email}, role: {Role}", user.Email, request.Role);
+        var activationPath = BuildActivationPath(invitation.Token);
+        var delivery = await _invitationDeliveryService.DeliverAsync(
+            new InvitationDeliveryRequest(
+                user.Id,
+                user.Email!,
+                activationPath,
+                invitation.ExpiresAtUtc,
+                InvitationEventType.Create),
+            cancellationToken);
+
+        _logger.LogInformation("User created. UserId={UserId}, Role={Role}", user.Id, request.Role);
 
         return Ok(new CreateUserResponse(
             user.Id,
             user.Email!,
             request.Role,
-            BuildActivationPath(invitation.Token),
-            invitation.ExpiresAtUtc));
+            activationPath,
+            invitation.ExpiresAtUtc,
+            delivery.ActivationUrl,
+            delivery.EmailDeliveryStatus.ToString()));
     }
 
     [HttpGet]
@@ -294,7 +312,8 @@ public class AdminUsersController : ControllerBase
     [Authorize(Policy = AppPolicies.UsersManageAccess)]
     public async Task<ActionResult<ReactivateUserResponse>> ReactivateUser(
         string id,
-        [FromBody] ReactivateUserRequest request)
+        [FromBody] ReactivateUserRequest request,
+        CancellationToken cancellationToken = default)
     {
         if (!AppRoles.All.Contains(request.Role))
         {
@@ -379,18 +398,37 @@ public class AdminUsersController : ControllerBase
         }
 
         _logger.LogInformation(
-            "User reactivated: {Email}, role: {Role}",
-            target.Email, request.Role);
+            "User reactivated. UserId={UserId}, Role={Role}",
+            target.Id, request.Role);
+
+        string? activationPath = null;
+        InvitationDeliveryResult? delivery = null;
+        if (invitation != null)
+        {
+            activationPath = BuildActivationPath(invitation.Token);
+            delivery = await _invitationDeliveryService.DeliverAsync(
+                new InvitationDeliveryRequest(
+                    target.Id,
+                    target.Email!,
+                    activationPath,
+                    invitation.ExpiresAtUtc,
+                    InvitationEventType.ReactivateNeverActivated),
+                cancellationToken);
+        }
 
         return Ok(new ReactivateUserResponse(
             temporaryPassword,
-            invitation == null ? null : BuildActivationPath(invitation.Token),
-            invitation?.ExpiresAtUtc));
+            activationPath,
+            invitation?.ExpiresAtUtc,
+            delivery?.ActivationUrl,
+            delivery?.EmailDeliveryStatus.ToString()));
     }
 
     [HttpPost("{id}/reissue-invitation")]
     [Authorize(Policy = AppPolicies.UsersManageAccess)]
-    public async Task<ActionResult<ReissueInvitationResponse>> ReissueInvitation(string id)
+    public async Task<ActionResult<ReissueInvitationResponse>> ReissueInvitation(
+        string id,
+        CancellationToken cancellationToken = default)
     {
         var target = await _userManager.FindByIdAsync(id);
         if (target == null)
@@ -418,10 +456,22 @@ public class AdminUsersController : ControllerBase
             return BadRequest(new MessageResponse(FormatIdentityErrors(updateResult)));
         }
 
-        _logger.LogInformation("Invitation reissued for user: {Email}", target.Email);
+        var activationPath = BuildActivationPath(invitation.Token);
+        var delivery = await _invitationDeliveryService.DeliverAsync(
+            new InvitationDeliveryRequest(
+                target.Id,
+                target.Email!,
+                activationPath,
+                invitation.ExpiresAtUtc,
+                InvitationEventType.Reissue),
+            cancellationToken);
+
+        _logger.LogInformation("Invitation reissued. UserId={UserId}", target.Id);
         return Ok(new ReissueInvitationResponse(
-            BuildActivationPath(invitation.Token),
-            invitation.ExpiresAtUtc));
+            activationPath,
+            invitation.ExpiresAtUtc,
+            delivery.ActivationUrl,
+            delivery.EmailDeliveryStatus.ToString()));
     }
 
     [HttpPut("{id}/export-limit")]
@@ -717,7 +767,7 @@ public class AdminUsersController : ControllerBase
         return new InvitationData(
             token,
             UserInvitationToken.Hash(token),
-            DateTime.UtcNow.Add(InvitationLifetime));
+            DateTime.UtcNow.Add(InvitationPolicy.Lifetime));
     }
 
     private static string BuildActivationPath(string token)

@@ -16,7 +16,9 @@ public record CreateUserResponse(
     string Email,
     string Role,
     string ActivationPath,
-    DateTime InvitationExpiresAtUtc);
+    DateTime InvitationExpiresAtUtc,
+    string ActivationUrl,
+    string EmailDeliveryStatus);
 
 public record UserListItem
 {
@@ -127,11 +129,15 @@ public record ReactivateUserRequest(
 public record ReactivateUserResponse(
     string? TemporaryPassword,
     string? ActivationPath,
-    DateTime? InvitationExpiresAtUtc);
+    DateTime? InvitationExpiresAtUtc,
+    string? ActivationUrl,
+    string? EmailDeliveryStatus);
 
 public record ReissueInvitationResponse(
     string ActivationPath,
-    DateTime InvitationExpiresAtUtc);
+    DateTime InvitationExpiresAtUtc,
+    string ActivationUrl,
+    string EmailDeliveryStatus);
 
 public record UpdateUserExportLimitRequest(
     ExportLimitMode? OverrideMode,

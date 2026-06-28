@@ -19,7 +19,6 @@ import {
   Chip,
   IconButton,
   Menu,
-  Snackbar,
   Tooltip,
   ToggleButton,
   ToggleButtonGroup,
@@ -29,11 +28,14 @@ import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridPaginationModel, GridRowParams } from '@mui/x-data-grid';
 import { PageShell } from '../components/layout/PageShell';
 import { BrandButton } from '../components/common/BrandButton';
+import { InvitationResultDialog } from '../components/admin/InvitationResultDialog';
+import { OneTimeValueDialog } from '../components/admin/OneTimeValueDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { adminUsersService } from '../services/adminUsers.service';
 import { roleSettingsService } from '../services/roleSettings.service';
 import type {
   ClientExportUsageLimitOverridesRequest,
+  InvitationEmailDeliveryStatus,
   UserListItem as UserListItemType,
   UserTypeFilter,
 } from '../types/adminUsers.types';
@@ -179,17 +181,9 @@ export const AdminUsers: React.FC = () => {
     email: string;
     value: string;
     kind: 'invitation' | 'password';
+    emailDeliveryStatus?: InvitationEmailDeliveryStatus;
+    invitationAction?: 'created' | 'reissued';
   } | null>(null);
-  const [copyNotification, setCopyNotification] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error';
-  }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
-
   const [disableConfirmUser, setDisableConfirmUser] = useState<UserListItemType | null>(null);
   const [resetPasswordConfirmUser, setResetPasswordConfirmUser] = useState<UserListItemType | null>(null);
   const [changeRoleUser, setChangeRoleUser] = useState<UserListItemType | null>(null);
@@ -293,10 +287,12 @@ export const AdminUsers: React.FC = () => {
       setCreateDialogOpen(false);
       resetCreateForm();
       setSecretDialog({
-        title: 'User created',
+        title: 'Invitation created',
         email: res.email,
-        value: `${window.location.origin}${res.activationPath}`,
+        value: res.activationUrl,
         kind: 'invitation',
+        emailDeliveryStatus: res.emailDeliveryStatus,
+        invitationAction: 'created',
       });
       await loadUsers();
     } catch (err) {
@@ -419,12 +415,14 @@ export const AdminUsers: React.FC = () => {
     try {
       const res = await adminUsersService.reactivate(reactivateUser.id, { role: reactivateRoleValue });
       setReactivateUser(null);
-      if (res.activationPath) {
+      if (res.activationUrl && res.emailDeliveryStatus) {
         setSecretDialog({
-          title: 'User reactivated',
+          title: 'Invitation created',
           email: reactivateUser.email,
-          value: `${window.location.origin}${res.activationPath}`,
+          value: res.activationUrl,
           kind: 'invitation',
+          emailDeliveryStatus: res.emailDeliveryStatus,
+          invitationAction: 'created',
         });
       } else if (res.temporaryPassword) {
         setSecretDialog({
@@ -642,21 +640,6 @@ export const AdminUsers: React.FC = () => {
     );
   }, [canManageUsers, currentUser?.id, normalRoles]);
 
-  const copySecret = async () => {
-    if (!secretDialog) return;
-
-    try {
-      await navigator.clipboard.writeText(secretDialog.value);
-      setCopyNotification({ open: true, message: 'Copied', severity: 'success' });
-    } catch {
-      setCopyNotification({
-        open: true,
-        message: 'Could not copy. Please copy the value manually.',
-        severity: 'error',
-      });
-    }
-  };
-
   const handleReissueInvitation = useCallback(async (user: UserListItemType) => {
     setRowActionsAnchor(null);
     setRowActionsUser(null);
@@ -666,8 +649,10 @@ export const AdminUsers: React.FC = () => {
       setSecretDialog({
         title: 'Invitation reissued',
         email: user.email,
-        value: `${window.location.origin}${response.activationPath}`,
+        value: response.activationUrl,
         kind: 'invitation',
+        emailDeliveryStatus: response.emailDeliveryStatus,
+        invitationAction: 'reissued',
       });
       await loadUsers(true);
     } catch (err) {
@@ -1198,21 +1183,6 @@ export const AdminUsers: React.FC = () => {
         </Box>
       </Dialog>
 
-      <Snackbar
-        open={copyNotification.open}
-        autoHideDuration={2000}
-        onClose={() => setCopyNotification((current) => ({ ...current, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          severity={copyNotification.severity}
-          onClose={() => setCopyNotification((current) => ({ ...current, open: false }))}
-          sx={{ width: '100%' }}
-        >
-          {copyNotification.message}
-        </Alert>
-      </Snackbar>
-
       <Dialog
         open={!!changeRoleUser}
         onClose={handleCloseChangeRole}
@@ -1413,40 +1383,38 @@ export const AdminUsers: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={!!secretDialog} onClose={() => setSecretDialog(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>{secretDialog?.title}</DialogTitle>
-        <DialogContent>
-          {secretDialog && (
-            <>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                {secretDialog.email}
-              </Typography>
-              <Alert severity="warning" sx={{ mt: 1 }}>
-                This {secretDialog.kind === 'invitation' ? 'activation link' : 'password'} is shown only once.
-                Copy it now and share it securely with the user.
-              </Alert>
-              <Box
-                sx={{
-                  mt: 2,
-                  p: 2,
-                  bgcolor: 'grey.100',
-                  borderRadius: 1,
-                  fontFamily: 'monospace',
-                  wordBreak: 'break-all',
-                }}
-              >
-                {secretDialog.value}
-              </Box>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <BrandButton kind="outline" onClick={copySecret}>
-            Copy {secretDialog?.kind === 'invitation' ? 'link' : 'password'}
-          </BrandButton>
-          <BrandButton onClick={() => setSecretDialog(null)}>Done</BrandButton>
-        </DialogActions>
-      </Dialog>
+      {secretDialog?.kind === 'invitation' &&
+      secretDialog.emailDeliveryStatus &&
+      secretDialog.invitationAction ? (
+        <InvitationResultDialog
+          key={secretDialog.value}
+          title={secretDialog.invitationAction === 'reissued' ? 'Invitation reissued' : 'Invitation created'}
+          email={secretDialog.email}
+          activationUrl={secretDialog.value}
+          emailDeliveryStatus={secretDialog.emailDeliveryStatus}
+          invitationAction={secretDialog.invitationAction}
+          onClose={() => setSecretDialog(null)}
+        />
+      ) : null}
+
+      {secretDialog?.kind === 'password' ? (
+        <OneTimeValueDialog
+          key={secretDialog.value}
+          title={secretDialog.title}
+          email={secretDialog.email}
+          notice={
+            <Alert severity="warning">
+              This temporary password is shown only once. Copy it now and share it securely with the user.
+            </Alert>
+          }
+          valueLabel="Temporary password"
+          value={secretDialog.value}
+          helperText="The user must change this password on their next sign-in."
+          copyLabel="Copy password"
+          copyErrorMessage="Could not copy. Please copy the password manually."
+          onClose={() => setSecretDialog(null)}
+        />
+      ) : null}
 
       <Dialog
         open={!!editExportLimitUser}

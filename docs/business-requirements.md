@@ -134,8 +134,12 @@ Rules:
 
 * Creating a user requires email, role, and an optional internal `SuperAdmin` note.
 * The system generates a cryptographically random single-use activation token and stores only its SHA-256 hash.
-* The activation link is displayed to `SuperAdmin` once and expires 72 hours after creation.
-* If the link is lost or expires, `SuperAdmin` may reissue it for a pending or expired invitation. Reissuing invalidates the previous link and starts a new 72-hour period.
+* The activation link is displayed to `SuperAdmin` once and expires 24 hours after creation.
+* After a new invitation, reissue, or reactivation of a never-activated user is persisted, the system attempts to send the activation link to the invited email address.
+* Invitation email failure must not roll back or invalidate the saved invitation. The `SuperAdmin` must receive a safe warning and retain the one-time activation-link fallback.
+* Reactivating an already activated user continues to use the temporary-password flow and must not send an invitation email.
+* Invitation emails contain HTML and plain-text content, identify links as single-use with a 24-hour expiry, and must not contain passwords, roles, internal notes, or technical SMTP details.
+* If the link is lost or expires, `SuperAdmin` may reissue it for a pending or expired invitation. Reissuing invalidates the previous link and starts a new 24-hour period.
 * Invitation tokens and activation links must not be logged.
 * Account status is exposed as `Active`, `PendingActivation`, `InvitationExpired`, or `Disabled`.
 * The invited user provides the required `DisplayName` and a password satisfying the normal Identity password policy.

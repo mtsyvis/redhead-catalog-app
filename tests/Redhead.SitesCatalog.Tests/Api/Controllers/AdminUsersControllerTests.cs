@@ -11,10 +11,12 @@ using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Security;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Application.Invitations;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Domain.Invitations;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Infrastructure.Options;
@@ -598,8 +600,9 @@ public sealed class AdminUsersControllerTests
             CurrentUser = new ApplicationUser { Id = "admin-1", Email = "admin@example.com" },
             CurrentRoles = new List<string> { AppRoles.Admin }
         };
+        var deliveryService = new RecordingInvitationDeliveryService(InvitationEmailSendStatus.Sent);
         await using var db = CreateDbContext();
-        var sut = CreateController(db, userManager);
+        var sut = CreateController(db, userManager, deliveryService);
 
         // Act
         var result = await sut.CreateUser(new CreateUserRequest(
@@ -610,6 +613,7 @@ public sealed class AdminUsersControllerTests
         // Assert
         Assert.IsType<ForbidResult>(result.Result);
         Assert.Null(userManager.CreatedUser);
+        Assert.Empty(deliveryService.Requests);
     }
 
     [Fact]
@@ -637,8 +641,37 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(UserInvitationToken.Hash(token), userManager.CreatedUser?.InvitationTokenHash);
         Assert.InRange(
             payload.InvitationExpiresAtUtc,
-            DateTime.UtcNow.AddHours(71),
-            DateTime.UtcNow.AddHours(73));
+            DateTime.UtcNow.AddHours(23),
+            DateTime.UtcNow.AddHours(25));
+    }
+
+    [Fact]
+    public async Task CreateUser_WhenEmailDeliveryFails_PersistsInvitationBeforeReturningWarning()
+    {
+        // Arrange
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin }
+        };
+        var deliveryService = new RecordingInvitationDeliveryService(
+            InvitationEmailSendStatus.Failed,
+            () => userManager.Operations.Add("DeliverInvitation"));
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager, deliveryService);
+
+        // Act
+        var result = await sut.CreateUser(new CreateUserRequest("new-user@example.com", AppRoles.Client));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<CreateUserResponse>(ok.Value);
+        Assert.Equal(nameof(InvitationEmailSendStatus.Failed), payload.EmailDeliveryStatus);
+        Assert.Equal(["CreateUser", "AddRole", "DeliverInvitation"], userManager.Operations);
+        Assert.NotNull(userManager.CreatedUser?.InvitationTokenHash);
+        var token = Uri.UnescapeDataString(payload.ActivationPath.Split("token=", 2)[1]);
+        Assert.Equal(UserInvitationToken.Hash(token), userManager.CreatedUser!.InvitationTokenHash);
+        Assert.Equal($"https://catalog.rhda.us{payload.ActivationPath}", payload.ActivationUrl);
     }
 
     [Fact]
@@ -694,6 +727,44 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(UserInvitationToken.Hash(token), targetUser.InvitationTokenHash);
         Assert.NotEqual(UserInvitationToken.Hash("old-token"), targetUser.InvitationTokenHash);
         Assert.Equal(payload.InvitationExpiresAtUtc, targetUser.InvitationExpiresAtUtc);
+        Assert.InRange(
+            payload.InvitationExpiresAtUtc,
+            DateTime.UtcNow.AddHours(23),
+            DateTime.UtcNow.AddHours(25));
+    }
+
+    [Fact]
+    public async Task ReissueInvitation_WhenEmailDeliveryFails_KeepsNewInvitation()
+    {
+        // Arrange
+        var oldHash = UserInvitationToken.Hash("old-token");
+        var targetUser = new ApplicationUser
+        {
+            Id = "pending-user",
+            Email = "pending@example.com",
+            IsActive = true,
+            InvitationTokenHash = oldHash,
+            InvitationExpiresAtUtc = DateTime.UtcNow.AddHours(1)
+        };
+        var userManager = new StubUserManager
+        {
+            TargetUserById = targetUser
+        };
+        var deliveryService = new RecordingInvitationDeliveryService(InvitationEmailSendStatus.Failed);
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager, deliveryService);
+
+        // Act
+        var result = await sut.ReissueInvitation(targetUser.Id);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ReissueInvitationResponse>(ok.Value);
+        Assert.Equal(nameof(InvitationEmailSendStatus.Failed), payload.EmailDeliveryStatus);
+        Assert.NotEqual(oldHash, targetUser.InvitationTokenHash);
+        var token = Uri.UnescapeDataString(payload.ActivationPath.Split("token=", 2)[1]);
+        Assert.Equal(UserInvitationToken.Hash(token), targetUser.InvitationTokenHash);
+        Assert.Single(deliveryService.Requests);
     }
 
     [Fact]
@@ -1016,8 +1087,9 @@ public sealed class AdminUsersControllerTests
             TargetRoles = new List<string> { AppRoles.Client },
             ExistingUserByEmail = targetUser
         };
+        var deliveryService = new RecordingInvitationDeliveryService(InvitationEmailSendStatus.Sent);
         await using var db = CreateDbContext();
-        var sut = CreateController(db, userManager);
+        var sut = CreateController(db, userManager, deliveryService);
 
         // Act
         var result = await sut.ReactivateUser(
@@ -1036,6 +1108,55 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(AppRoles.Internal, userManager.AddedRole);
         Assert.Equal(1, userManager.ResetPasswordCount);
         Assert.Equal(1, userManager.SecurityStampUpdateCount);
+        Assert.Empty(deliveryService.Requests);
+    }
+
+    [Fact]
+    public async Task ReactivateUser_WhenUserWasNeverActivated_IssuesAndSendsNewInvitation()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "pending-client",
+            Email = "pending@example.com",
+            IsActive = false,
+            ActivatedAtUtc = null,
+            InvitationTokenHash = UserInvitationToken.Hash("disabled-token"),
+            InvitationExpiresAtUtc = DateTime.UtcNow.AddHours(-1)
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client },
+            ExistingUserByEmail = targetUser
+        };
+        var deliveryService = new RecordingInvitationDeliveryService(InvitationEmailSendStatus.Sent);
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager, deliveryService);
+
+        // Act
+        var result = await sut.ReactivateUser(
+            targetUser.Id,
+            new ReactivateUserRequest(AppRoles.Internal));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
+        Assert.Null(payload.TemporaryPassword);
+        Assert.NotNull(payload.ActivationPath);
+        Assert.Equal(nameof(InvitationEmailSendStatus.Sent), payload.EmailDeliveryStatus);
+        Assert.True(targetUser.IsActive);
+        Assert.False(targetUser.MustChangePassword);
+        Assert.Single(deliveryService.Requests);
+        Assert.Equal(InvitationEventType.ReactivateNeverActivated, deliveryService.Requests[0].EventType);
+        var token = Uri.UnescapeDataString(payload.ActivationPath!.Split("token=", 2)[1]);
+        Assert.Equal(UserInvitationToken.Hash(token), targetUser.InvitationTokenHash);
+        Assert.InRange(
+            payload.InvitationExpiresAtUtc!.Value,
+            DateTime.UtcNow.AddHours(23),
+            DateTime.UtcNow.AddHours(25));
     }
 
     [Fact]
@@ -1370,7 +1491,8 @@ public sealed class AdminUsersControllerTests
 
     private static AdminUsersController CreateController(
         ApplicationDbContext db,
-        StubUserManager userManager)
+        StubUserManager userManager,
+        IInvitationDeliveryService? invitationDeliveryService = null)
     {
         return new AdminUsersController(
             userManager,
@@ -1378,6 +1500,7 @@ public sealed class AdminUsersControllerTests
                 db,
                 CreateGoogleDriveIntegrationService(db),
                 new ExportUsageLimitService(db)),
+            invitationDeliveryService ?? new StubInvitationDeliveryService(),
             NullLogger<AdminUsersController>.Instance);
     }
 
@@ -1487,6 +1610,7 @@ public sealed class AdminUsersControllerTests
         public ApplicationUser? TargetUserById { get; init; }
         public ApplicationUser? CreatedUser { get; private set; }
         public List<string> RemovedRoles { get; } = [];
+        public List<string> Operations { get; } = [];
         public string? AddedRole { get; private set; }
         public int SecurityStampUpdateCount { get; private set; }
         public int ResetPasswordCount { get; private set; }
@@ -1533,12 +1657,14 @@ public sealed class AdminUsersControllerTests
         {
             user.Id = "created-user-1";
             CreatedUser = user;
+            Operations.Add("CreateUser");
             return Task.FromResult(IdentityResult.Success);
         }
 
         public override Task<IdentityResult> AddToRoleAsync(ApplicationUser user, string role)
         {
             AddedRole = role;
+            Operations.Add("AddRole");
             if (TargetUserById != null && user.Id == TargetUserById.Id)
             {
                 TargetRoles.Add(role);
@@ -1560,11 +1686,15 @@ public sealed class AdminUsersControllerTests
         }
 
         public override Task<IdentityResult> UpdateAsync(ApplicationUser user)
-            => Task.FromResult(IdentityResult.Success);
+        {
+            Operations.Add("UpdateUser");
+            return Task.FromResult(IdentityResult.Success);
+        }
 
         public override Task<IdentityResult> UpdateSecurityStampAsync(ApplicationUser user)
         {
             SecurityStampUpdateCount++;
+            Operations.Add("UpdateSecurityStamp");
             return Task.FromResult(IdentityResult.Success);
         }
 
@@ -1583,6 +1713,46 @@ public sealed class AdminUsersControllerTests
                 ? SuperAdminUsers
                 : new List<ApplicationUser>();
             return Task.FromResult(users);
+        }
+    }
+
+    private sealed class RecordingInvitationDeliveryService : IInvitationDeliveryService
+    {
+        private readonly InvitationEmailSendStatus _status;
+        private readonly Action? _onDeliver;
+
+        public RecordingInvitationDeliveryService(
+            InvitationEmailSendStatus status,
+            Action? onDeliver = null)
+        {
+            _status = status;
+            _onDeliver = onDeliver;
+        }
+
+        public List<InvitationDeliveryRequest> Requests { get; } = [];
+
+        public Task<InvitationDeliveryResult> DeliverAsync(
+            InvitationDeliveryRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            _onDeliver?.Invoke();
+            return Task.FromResult(new InvitationDeliveryResult(
+                $"https://catalog.rhda.us{request.ActivationPath}",
+                _status));
+        }
+    }
+
+    private sealed class StubInvitationDeliveryService : IInvitationDeliveryService
+    {
+        public Task<InvitationDeliveryResult> DeliverAsync(
+            InvitationDeliveryRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var activationUrl = $"https://catalog.rhda.us{request.ActivationPath}";
+            return Task.FromResult(new InvitationDeliveryResult(
+                activationUrl,
+                InvitationEmailSendStatus.Sent));
         }
     }
 

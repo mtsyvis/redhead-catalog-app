@@ -103,6 +103,8 @@ export interface CreateUserResponse {
   role: string;
   activationPath: string;
   invitationExpiresAtUtc: string;
+  activationUrl: string;
+  emailDeliveryStatus: InvitationEmailDeliveryStatus;
 }
 
 export interface ResetPasswordResponse {
@@ -121,12 +123,21 @@ export interface ReactivateUserResponse {
   temporaryPassword: string | null;
   activationPath: string | null;
   invitationExpiresAtUtc: string | null;
+  activationUrl: string | null;
+  emailDeliveryStatus: InvitationEmailDeliveryStatus | null;
 }
 
 export interface ReissueInvitationResponse {
   activationPath: string;
   invitationExpiresAtUtc: string;
+  activationUrl: string;
+  emailDeliveryStatus: InvitationEmailDeliveryStatus;
 }
+
+export type InvitationEmailDeliveryStatus =
+  | 'Sent'
+  | 'NotAttemptedBecauseEmailDisabled'
+  | 'Failed';
 
 export type UserAccountStatus =
   | 'Active'

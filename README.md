@@ -240,6 +240,12 @@ EmergencySitesExport__RetentionWeeks
 EmergencySitesExport__FilePrefix
 EmergencySitesExport__UploadTimeoutMinutes
 FRONTEND_BASE_URL
+Email__Enabled
+Email__SmtpHost
+Email__SmtpPort
+Email__FromAddress
+Email__FromName
+Email__SendTimeoutSeconds
 ```
 
 The app also supports standard ASP.NET Core environment variable binding, for example:
@@ -261,9 +267,19 @@ EmergencySitesExport__RetentionWeeks
 EmergencySitesExport__FilePrefix
 EmergencySitesExport__UploadTimeoutMinutes
 Frontend__BaseUrl
+Email__Enabled
+Email__SmtpHost
+Email__SmtpPort
+Email__FromAddress
+Email__FromName
+Email__SendTimeoutSeconds
 ASPNETCORE_ENVIRONMENT
 ASPNETCORE_URLS
 ```
+
+Invitation email is disabled by default for local development. When disabled, user creation,
+invitation reissue, and never-activated user reactivation continue to return the one-time activation
+link. Production uses Google Workspace SMTP Relay with required STARTTLS and no SMTP credentials.
 
 Google Drive integration is an optional connection for authenticated users, not Google login. Use the minimal Drive scope `https://www.googleapis.com/auth/drive.file`; do not configure the broad Drive scope.
 
