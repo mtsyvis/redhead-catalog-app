@@ -11,6 +11,7 @@ using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Domain.Invitations;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -19,7 +20,6 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 [Authorize(Policy = AppPolicies.UsersReadAccess)]
 public class AdminUsersController : ControllerBase
 {
-    private static readonly TimeSpan InvitationLifetime = TimeSpan.FromHours(72);
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IAdminUsersListService _usersListService;
     private readonly IInvitationDeliveryService _invitationDeliveryService;
@@ -767,7 +767,7 @@ public class AdminUsersController : ControllerBase
         return new InvitationData(
             token,
             UserInvitationToken.Hash(token),
-            DateTime.UtcNow.Add(InvitationLifetime));
+            DateTime.UtcNow.Add(InvitationPolicy.Lifetime));
     }
 
     private static string BuildActivationPath(string token)

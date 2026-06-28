@@ -20,7 +20,7 @@ public sealed class InvitationDeliveryServiceTests
             "user-1",
             "person@example.com",
             "/activate-account?token=secret-token",
-            DateTime.UtcNow.AddHours(72),
+            DateTime.UtcNow.AddHours(24),
             InvitationEventType.Create);
 
         // Act
@@ -48,7 +48,7 @@ public sealed class InvitationDeliveryServiceTests
             "user-42",
             "person@example.com",
             "/activate-account?token=secret-token",
-            DateTime.UtcNow.AddHours(72),
+            DateTime.UtcNow.AddHours(24),
             InvitationEventType.Reissue);
 
         // Act

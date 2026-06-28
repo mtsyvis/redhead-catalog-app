@@ -641,8 +641,8 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(UserInvitationToken.Hash(token), userManager.CreatedUser?.InvitationTokenHash);
         Assert.InRange(
             payload.InvitationExpiresAtUtc,
-            DateTime.UtcNow.AddHours(71),
-            DateTime.UtcNow.AddHours(73));
+            DateTime.UtcNow.AddHours(23),
+            DateTime.UtcNow.AddHours(25));
     }
 
     [Fact]
@@ -727,6 +727,10 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(UserInvitationToken.Hash(token), targetUser.InvitationTokenHash);
         Assert.NotEqual(UserInvitationToken.Hash("old-token"), targetUser.InvitationTokenHash);
         Assert.Equal(payload.InvitationExpiresAtUtc, targetUser.InvitationExpiresAtUtc);
+        Assert.InRange(
+            payload.InvitationExpiresAtUtc,
+            DateTime.UtcNow.AddHours(23),
+            DateTime.UtcNow.AddHours(25));
     }
 
     [Fact]
@@ -1149,6 +1153,10 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(InvitationEventType.ReactivateNeverActivated, deliveryService.Requests[0].EventType);
         var token = Uri.UnescapeDataString(payload.ActivationPath!.Split("token=", 2)[1]);
         Assert.Equal(UserInvitationToken.Hash(token), targetUser.InvitationTokenHash);
+        Assert.InRange(
+            payload.InvitationExpiresAtUtc!.Value,
+            DateTime.UtcNow.AddHours(23),
+            DateTime.UtcNow.AddHours(25));
     }
 
     [Fact]

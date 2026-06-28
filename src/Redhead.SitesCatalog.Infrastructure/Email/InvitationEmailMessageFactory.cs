@@ -27,7 +27,7 @@ public static class InvitationEmailMessageFactory
                 Activate your account:
                 {request.ActivationUrl}
 
-                This activation link is single-use and expires in 72 hours.
+                This activation link is single-use and expires in {InvitationPolicy.LifetimeHours} hours.
                 """,
             HtmlBody = $"""
                 <!doctype html>
@@ -41,7 +41,7 @@ public static class InvitationEmailMessageFactory
                   </p>
                   <p>If the button does not work, open this link:</p>
                   <p style="word-break: break-all;"><a href="{encodedUrl}">{encodedUrl}</a></p>
-                  <p>This activation link is single-use and expires in 72 hours.</p>
+                  <p>This activation link is single-use and expires in {InvitationPolicy.LifetimeHours} hours.</p>
                 </body>
                 </html>
                 """

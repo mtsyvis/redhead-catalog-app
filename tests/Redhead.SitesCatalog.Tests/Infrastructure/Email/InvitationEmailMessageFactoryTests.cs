@@ -15,7 +15,7 @@ public sealed class InvitationEmailMessageFactoryTests
         var request = new InvitationEmailSendRequest(
             "invited@example.com",
             activationUrl,
-            DateTime.UtcNow.AddHours(72));
+            DateTime.UtcNow.AddHours(24));
         var options = new EmailOptions
         {
             FromName = "Redhead Catalog",
@@ -35,7 +35,8 @@ public sealed class InvitationEmailMessageFactoryTests
         Assert.Contains(activationUrl.Replace("&", "&amp;", StringComparison.Ordinal), message.HtmlBody);
         Assert.Contains("Activate account", message.HtmlBody);
         Assert.Contains("single-use", message.TextBody);
-        Assert.Contains("72 hours", message.HtmlBody);
+        Assert.Contains("24 hours", message.TextBody);
+        Assert.Contains("24 hours", message.HtmlBody);
         Assert.DoesNotContain("password", message.TextBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("role", message.HtmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<img", message.HtmlBody, StringComparison.OrdinalIgnoreCase);
