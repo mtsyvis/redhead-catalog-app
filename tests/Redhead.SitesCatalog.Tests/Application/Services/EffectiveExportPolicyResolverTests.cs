@@ -121,4 +121,25 @@ public class EffectiveExportPolicyResolverTests
         Assert.False(policy.IsOverridden);
         Assert.Equal(EffectivePolicySource.Role, policy.Source);
     }
+
+    [Fact]
+    public void Resolve_Editor_IgnoresUserOverrideAndAlwaysDisablesExport()
+    {
+        // Arrange
+        var roleSettings = MakeRoleSettings(ExportLimitMode.Unlimited);
+        var user = new ApplicationUser
+        {
+            ExportLimitOverrideMode = ExportLimitMode.Limited,
+            ExportLimitRowsOverride = 250
+        };
+
+        // Act
+        var policy = EffectiveExportPolicyResolver.Resolve(AppRoles.Editor, roleSettings, user);
+
+        // Assert
+        Assert.Equal(ExportLimitMode.Disabled, policy.Mode);
+        Assert.Null(policy.Rows);
+        Assert.False(policy.IsOverridden);
+        Assert.Equal(EffectivePolicySource.Role, policy.Source);
+    }
 }

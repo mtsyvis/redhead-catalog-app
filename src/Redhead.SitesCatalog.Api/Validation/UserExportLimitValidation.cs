@@ -19,9 +19,9 @@ public static class UserExportLimitValidation
             return "SuperAdmin export limit cannot be changed.";
         }
 
-        if (string.Equals(targetRole, AppRoles.Lite, StringComparison.Ordinal))
+        if (AppRoles.ExportAlwaysDisabled.Contains(targetRole))
         {
-            return "Lite export limit cannot be changed.";
+            return $"{targetRole} export limit cannot be changed.";
         }
 
         return null;

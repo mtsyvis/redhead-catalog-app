@@ -29,7 +29,7 @@ public static class EffectiveExportPolicyResolver
                 WeeklyExportOperationsLimit: null);
         }
 
-        if (string.Equals(userRole, AppRoles.Lite, StringComparison.Ordinal))
+        if (AppRoles.ExportAlwaysDisabled.Contains(userRole))
         {
             return new EffectiveExportPolicy(
                 Mode: ExportLimitMode.Disabled,

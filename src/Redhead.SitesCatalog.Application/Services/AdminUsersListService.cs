@@ -165,9 +165,10 @@ public sealed class AdminUsersListService : IAdminUsersListService
             .ThenBy(user =>
                 user.Role == AppRoles.SuperAdmin ? 0 :
                 user.Role == AppRoles.Admin ? 1 :
-                user.Role == AppRoles.Internal ? 2 :
-                user.Role == AppRoles.Client ? 3 :
-                user.Role == AppRoles.Lite ? 4 :
+                user.Role == AppRoles.Editor ? 2 :
+                user.Role == AppRoles.Internal ? 3 :
+                user.Role == AppRoles.Client ? 4 :
+                user.Role == AppRoles.Lite ? 5 :
                 int.MaxValue)
             .ThenBy(user => user.NormalizedEmail)
             .ThenBy(user => user.Id);
@@ -215,7 +216,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
             EffectiveDailyExportOperationsLimit = effectivePolicy.DailyExportOperationsLimit,
             EffectiveWeeklyExportOperationsLimit = effectivePolicy.WeeklyExportOperationsLimit,
             IsExportLimitOverridden = effectivePolicy.IsOverridden,
-            IsExportLimitEditable = !isSuperAdmin && !string.Equals(role, AppRoles.Lite, StringComparison.Ordinal)
+            IsExportLimitEditable = !isSuperAdmin && !AppRoles.ExportAlwaysDisabled.Contains(role)
         };
     }
 

@@ -11,16 +11,18 @@ namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 
 public class RoleSettingsControllerTests
 {
-    [Fact]
-    public async Task GetRoleSettings_WhenRoleIsLite_ReturnsFixedDisabledSetting()
+    [Theory]
+    [InlineData(AppRoles.Editor)]
+    [InlineData(AppRoles.Lite)]
+    public async Task GetRoleSettings_WhenRoleHasFixedDisabledExport_ReturnsFixedDisabledSetting(string role)
     {
         // Arrange
         await using var db = CreateDbContext();
         db.RoleSettings.Add(new RoleSettings
         {
-            RoleName = AppRoles.Lite,
-            ExportLimitMode = ExportLimitMode.Disabled,
-            ExportLimitRows = null,
+            RoleName = role,
+            ExportLimitMode = ExportLimitMode.Unlimited,
+            ExportLimitRows = 100,
             DailyUniqueExportedDomainsLimit = 100,
             WeeklyUniqueExportedDomainsLimit = 200,
             DailyExportOperationsLimit = 10,
@@ -35,15 +37,15 @@ public class RoleSettingsControllerTests
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var items = Assert.IsAssignableFrom<IReadOnlyList<RoleSettingItemDto>>(ok.Value);
-        var lite = Assert.Single(items);
-        Assert.Equal(AppRoles.Lite, lite.Role);
-        Assert.Equal(ExportLimitMode.Disabled, lite.ExportLimitMode);
-        Assert.Null(lite.ExportLimitRows);
-        Assert.False(lite.IsEditable);
-        Assert.Null(lite.DailyUniqueExportedDomainsLimit);
-        Assert.Null(lite.WeeklyUniqueExportedDomainsLimit);
-        Assert.Null(lite.DailyExportOperationsLimit);
-        Assert.Null(lite.WeeklyExportOperationsLimit);
+        var fixedRole = Assert.Single(items);
+        Assert.Equal(role, fixedRole.Role);
+        Assert.Equal(ExportLimitMode.Disabled, fixedRole.ExportLimitMode);
+        Assert.Null(fixedRole.ExportLimitRows);
+        Assert.False(fixedRole.IsEditable);
+        Assert.Null(fixedRole.DailyUniqueExportedDomainsLimit);
+        Assert.Null(fixedRole.WeeklyUniqueExportedDomainsLimit);
+        Assert.Null(fixedRole.DailyExportOperationsLimit);
+        Assert.Null(fixedRole.WeeklyExportOperationsLimit);
     }
 
     private static ApplicationDbContext CreateDbContext()

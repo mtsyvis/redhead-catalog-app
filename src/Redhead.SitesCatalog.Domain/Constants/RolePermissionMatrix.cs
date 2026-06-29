@@ -19,6 +19,13 @@ public static class RolePermissionMatrix
                 AppPermissions.AnalyticsRead,
                 AppPermissions.AhrefsSyncManage
             },
+            [AppRoles.Editor] = new HashSet<string>(StringComparer.Ordinal)
+            {
+                AppPermissions.SitesBrowse,
+                AppPermissions.SitesMultiSearch,
+                AppPermissions.SitesEdit,
+                AppPermissions.TableViewsManage
+            },
             [AppRoles.Internal] = new HashSet<string>(StringComparer.Ordinal)
             {
                 AppPermissions.SitesBrowse,

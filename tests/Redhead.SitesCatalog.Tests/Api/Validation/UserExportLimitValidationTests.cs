@@ -33,6 +33,19 @@ public class UserExportLimitValidationTests
         Assert.Equal("Lite export limit cannot be changed.", error);
     }
 
+    [Fact]
+    public void ValidateTargetRole_Editor_ReturnsError()
+    {
+        // Arrange
+        var targetRole = AppRoles.Editor;
+
+        // Act
+        var error = UserExportLimitValidation.ValidateTargetRole(targetRole);
+
+        // Assert
+        Assert.Equal("Editor export limit cannot be changed.", error);
+    }
+
     [Theory]
     [InlineData(AppRoles.Admin)]
     [InlineData(AppRoles.Internal)]
