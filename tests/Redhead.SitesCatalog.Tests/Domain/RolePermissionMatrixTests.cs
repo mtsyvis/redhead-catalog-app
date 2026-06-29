@@ -83,16 +83,22 @@ public sealed class RolePermissionMatrixTests
     }
 
     [Fact]
-    public void GetPermissions_EditorRole_ReturnsNoPermissionsUntilRoleIsActive()
+    public void GetPermissions_EditorRole_HasBrowseEditAndTableViewPermissions()
     {
         // Arrange
-        const string editorRole = "Editor";
 
         // Act
-        var permissions = RolePermissionMatrix.GetPermissions(editorRole);
+        var permissions = RolePermissionMatrix.GetPermissions(AppRoles.Editor);
 
         // Assert
-        Assert.DoesNotContain(editorRole, AppRoles.All);
-        Assert.Empty(permissions);
+        Assert.Contains(AppRoles.Editor, AppRoles.All);
+        Assert.Equal(
+            [
+                AppPermissions.SitesBrowse,
+                AppPermissions.SitesEdit,
+                AppPermissions.SitesMultiSearch,
+                AppPermissions.TableViewsManage
+            ],
+            permissions.OrderBy(permission => permission));
     }
 }

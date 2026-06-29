@@ -1,7 +1,7 @@
-export const APP_ROLES = ['SuperAdmin', 'Admin', 'Internal', 'Client', 'Lite'] as const;
+export const APP_ROLES = ['SuperAdmin', 'Admin', 'Editor', 'Internal', 'Client', 'Lite'] as const;
 export type AppRole = (typeof APP_ROLES)[number];
 
-export const NON_SUPER_ADMIN_ROLES = ['Admin', 'Internal', 'Client', 'Lite'] as const;
+export const NON_SUPER_ADMIN_ROLES = ['Admin', 'Editor', 'Internal', 'Client', 'Lite'] as const;
 export type NonSuperAdminRole = (typeof NON_SUPER_ADMIN_ROLES)[number];
 
 export const APP_PERMISSIONS = [
@@ -34,6 +34,7 @@ export const ROLE_PERMISSION_MATRIX: Record<AppRole, readonly AppPermission[]> =
     'AnalyticsRead',
     'AhrefsSyncManage',
   ],
+  Editor: ['SitesBrowse', 'SitesMultiSearch', 'SitesEdit', 'TableViewsManage'],
   Internal: ['SitesBrowse', 'SitesMultiSearch', 'SitesExport', 'TableViewsManage'],
   Client: ['SitesBrowse', 'SitesMultiSearch', 'SitesExport', 'TableViewsManage'],
   Lite: ['SitesMultiSearch', 'TableViewsManage'],
@@ -56,6 +57,11 @@ export const ROLE_METADATA: Record<
     label: 'Admin',
     description: 'Internal manager without user-management ownership.',
     capabilities: 'Browse, edit, export, import, read users and role settings, read analytics, and manage Ahrefs sync.',
+  },
+  Editor: {
+    label: 'Editor',
+    description: 'Internal catalog editor without import or export access.',
+    capabilities: 'Browse, multi-search, edit sites, and manage table views.',
   },
   Internal: {
     label: 'Internal',

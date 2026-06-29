@@ -19,15 +19,14 @@ Legacy planning files and old specs are historical context only. They must not o
 
 ## Users and roles
 
-The app has five roles:
+The app has six roles:
 
 * `SuperAdmin`
 * `Admin`
+* `Editor`
 * `Internal`
 * `Client`
 * `Lite`
-
-`Editor` is a planned future role for internal catalog maintenance, but it is not an active role and must not appear in role selectors until implemented.
 
 General rules:
 
@@ -55,6 +54,7 @@ Current static permission model:
 
 * `SuperAdmin`: all permissions.
 * `Admin`: sites browse, Multi-search, site editing, exports, imports, user read, role settings read, analytics read, table views, and Ahrefs sync management.
+* `Editor`: sites browse, Multi-search, site editing, and table views.
 * `Internal`: sites browse, Multi-search, exports, and table views.
 * `Client`: sites browse, Multi-search, exports, and client-safe table views.
 * `Lite`: Multi-search and client-safe table views only.
@@ -70,7 +70,7 @@ Current rules:
 * Only `SuperAdmin` can update per-user export limit overrides.
 * Only `SuperAdmin` can create or update the internal `SuperAdmin` note on user accounts.
 * Only `SuperAdmin` can change user roles.
-* `SuperAdmin` can change roles only between `Admin`, `Internal`, `Client`, and `Lite`; `SuperAdmin` is a protected role and cannot be promoted or demoted through normal role editing.
+* `SuperAdmin` can change roles only between `Admin`, `Editor`, `Internal`, `Client`, and `Lite`; `SuperAdmin` is a protected role and cannot be promoted or demoted through normal role editing.
 * `SuperAdmin` cannot change their own role.
 * Changing a user's role preserves any per-user export limit override; removing or changing that override is a separate explicit action.
 * `SuperAdmin` export access is unlimited and must not be editable in the UI.
@@ -91,6 +91,17 @@ Current rules:
 * `Admin` must not be able to change role export limits.
 * `Admin` must not be able to change per-user export limit overrides.
 * `Admin` must not be able to change user roles, reset passwords, disable users, reactivate users, reissue invitations, or edit internal `SuperAdmin` notes.
+
+### Editor
+
+`Editor` is an internal catalog-maintenance role.
+
+Current rules:
+
+* Can browse and filter the sites catalog, use Multi-search, saved filters, internal site fields, price-column copy actions, and table views.
+* Can edit sites through the same manual edit form and server-side validation as `Admin`, including quarantine fields.
+* Cannot access imports, exports, Google Drive integration, analytics, Ahrefs sync, user management, or role settings.
+* Export is always disabled and cannot be enabled by role settings or per-user overrides.
 
 ### Internal
 
@@ -153,7 +164,7 @@ Rules:
 * Reactivating a disabled, never-activated user issues a new activation link instead.
 * Reactivation preserves display name, internal `SuperAdmin` note, Google Drive connection, saved filters, table views, and user history.
 * Reactivation clears per-user export limit overrides.
-* Disabled `SuperAdmin` users can be reactivated only as `SuperAdmin`; disabled `Admin`, `Internal`, `Client`, and `Lite` users can be reactivated only as `Admin`, `Internal`, `Client`, or `Lite`.
+* Disabled `SuperAdmin` users can be reactivated only as `SuperAdmin`; disabled `Admin`, `Editor`, `Internal`, `Client`, and `Lite` users can be reactivated only as `Admin`, `Editor`, `Internal`, `Client`, or `Lite`.
 * While `MustChangePassword = true` or `DisplayName` is incomplete, an activated user must be forced to `/account-setup` and blocked from normal app pages.
 * Users can update their own display name from `/profile`; admins must not edit another user's display name.
 
@@ -182,6 +193,7 @@ Rules:
 * If export is disabled for the current user, `/sites` must hide the export menu.
 * If export is truncated by a limit, the user should receive clear feedback.
 * `Lite` export is fixed as disabled. Role-level settings and per-user export overrides must not enable export for `Lite`.
+* `Editor` export is fixed as disabled. Role-level settings and per-user export overrides must not enable export for `Editor`.
 
 Client-role exports also have rolling usage limits:
 
@@ -857,7 +869,7 @@ Rules:
 * The Users page should keep creation out of the table flow by opening the create-user form from an `Add user` dialog.
 * User reactivation UI is available only to `SuperAdmin` for disabled users.
 * Role-change UI is available only to `SuperAdmin` for active non-`SuperAdmin` users.
-* Role selectors include `Lite` as a non-`SuperAdmin` role.
+* Role selectors include `Editor` and `Lite` as non-`SuperAdmin` roles.
 * Admin users list should show `DisplayName` for completed profiles and activation/profile status otherwise.
 * Admin users list should show the user's name/profile status and email together in a single user-identification column.
 * `SuperAdmin` and `Admin` can view readonly admin user details, including account role, display name, activation/profile status, export-limit information, and Google Drive connection status.

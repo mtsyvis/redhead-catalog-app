@@ -70,6 +70,7 @@ public class RoleSettingsConfiguration : IEntityTypeConfiguration<RoleSettings>
         builder.HasData(
             new RoleSettings { RoleName = "SuperAdmin", ExportLimitMode = ExportLimitMode.Unlimited, ExportLimitRows = null },
             new RoleSettings { RoleName = "Admin", ExportLimitMode = ExportLimitMode.Unlimited, ExportLimitRows = null },
+            new RoleSettings { RoleName = "Editor", ExportLimitMode = ExportLimitMode.Disabled, ExportLimitRows = null },
             new RoleSettings { RoleName = "Internal", ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 10000 },
             new RoleSettings
             {

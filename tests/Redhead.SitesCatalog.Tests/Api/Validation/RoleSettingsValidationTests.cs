@@ -35,6 +35,19 @@ public class RoleSettingsValidationTests
     }
 
     [Fact]
+    public void ValidateUpdateItem_Editor_ReturnsError()
+    {
+        // Arrange
+        var item = new RoleSettingUpdateItemDto(AppRoles.Editor, ExportLimitMode.Unlimited, null);
+
+        // Act
+        var error = RoleSettingsValidation.ValidateUpdateItem(item);
+
+        // Assert
+        Assert.Equal("Editor role settings cannot be changed.", error);
+    }
+
+    [Fact]
     public void ValidateUpdateItem_InvalidRole_ReturnsError()
     {
         var item = new RoleSettingUpdateItemDto("UnknownRole", ExportLimitMode.Unlimited, null);
