@@ -15,6 +15,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 import { BrandButton } from '../components/common/BrandButton';
 import { InvitationResultDialog } from '../components/admin/InvitationResultDialog';
+import { ReactivationResultDialog } from '../components/admin/ReactivationResultDialog';
 import { PageShell } from '../components/layout/PageShell';
 import { ApiClientError } from '../services/api.client';
 import { adminUsersService } from '../services/adminUsers.service';
@@ -176,6 +177,10 @@ export const AdminUserDetails: React.FC = () => {
     activationUrl: string;
     emailDeliveryStatus: InvitationEmailDeliveryStatus;
   } | null>(null);
+  const [reactivationResult, setReactivationResult] = useState<{
+    fallbackUrl: string | null;
+    emailDeliveryStatus: InvitationEmailDeliveryStatus;
+  } | null>(null);
 
   const loadUser = useCallback(async () => {
     if (!userId) {
@@ -219,6 +224,25 @@ export const AdminUserDetails: React.FC = () => {
     }
   };
 
+  const handleReissueReactivation = async () => {
+    if (!user) return;
+
+    setReissuing(true);
+    setError(null);
+    try {
+      const response = await adminUsersService.reissueReactivation(user.id);
+      setReactivationResult({
+        fallbackUrl: response.fallbackUrl,
+        emailDeliveryStatus: response.emailDeliveryStatus,
+      });
+      await loadUser();
+    } catch (reissueError) {
+      setError(reissueError instanceof ApiClientError ? reissueError.message : 'Failed to reissue reactivation.');
+    } finally {
+      setReissuing(false);
+    }
+  };
+
   const displayName = useMemo(() => {
     if (!user) return '';
     return cleanText(user.displayName) ?? cleanText(user.email) ?? 'User';
@@ -248,11 +272,18 @@ export const AdminUserDetails: React.FC = () => {
           </BrandButton>
           {canManageUsers && user && (
             user.accountStatus === 'PendingActivation' || user.accountStatus === 'InvitationExpired'
-          ) && (
+          ) ? (
             <BrandButton kind="primary" onClick={() => void handleReissueInvitation()} disabled={reissuing}>
               {reissuing ? <CircularProgress size={20} color="inherit" /> : 'Reissue invitation'}
             </BrandButton>
-          )}
+          ) : null}
+          {canManageUsers && user && (
+            user.accountStatus === 'PendingReactivation' || user.accountStatus === 'ReactivationExpired'
+          ) ? (
+            <BrandButton kind="primary" onClick={() => void handleReissueReactivation()} disabled={reissuing}>
+              {reissuing ? <CircularProgress size={20} color="inherit" /> : 'Reissue reactivation'}
+            </BrandButton>
+          ) : null}
         </Box>
 
         {loading ? (
@@ -299,10 +330,16 @@ export const AdminUserDetails: React.FC = () => {
                     {user.accountStatus === 'InvitationExpired' && (
                       <Chip label="Invitation expired" color="warning" variant="outlined" size="small" />
                     )}
+                    {user.accountStatus === 'PendingReactivation' && (
+                      <Chip label="Pending reactivation" color="info" variant="outlined" size="small" />
+                    )}
+                    {user.accountStatus === 'ReactivationExpired' && (
+                      <Chip label="Reactivation expired" color="warning" variant="outlined" size="small" />
+                    )}
                     {user.mustCompleteProfile && user.accountStatus === 'Active' && (
                       <Chip label="Profile incomplete" color="warning" variant="outlined" size="small" />
                     )}
-                    {user.isActive === false && (
+                    {user.accountStatus === 'Disabled' && (
                       <Chip label="Disabled" color="default" variant="outlined" size="small" />
                     )}
                   </Box>
@@ -525,6 +562,16 @@ export const AdminUserDetails: React.FC = () => {
           emailDeliveryStatus={invitationResult.emailDeliveryStatus}
           invitationAction="reissued"
           onClose={() => setInvitationResult(null)}
+        />
+      ) : null}
+      {reactivationResult && user ? (
+        <ReactivationResultDialog
+          key={reactivationResult.fallbackUrl ?? reactivationResult.emailDeliveryStatus}
+          title="Reactivation reissued"
+          email={user.email}
+          fallbackUrl={reactivationResult.fallbackUrl}
+          emailDeliveryStatus={reactivationResult.emailDeliveryStatus}
+          onClose={() => setReactivationResult(null)}
         />
       ) : null}
     </PageShell>

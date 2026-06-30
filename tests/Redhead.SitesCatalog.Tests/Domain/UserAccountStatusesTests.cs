@@ -4,13 +4,15 @@ namespace Redhead.SitesCatalog.Tests.Domain;
 
 public class UserAccountStatusesTests
 {
-    public static TheoryData<bool, DateTime?, DateTime?, string> Cases => new()
+    public static TheoryData<bool, DateTime?, string?, DateTime?, string> Cases => new()
     {
-        { false, null, null, UserAccountStatuses.Disabled },
-        { true, DateTime.UtcNow, null, UserAccountStatuses.Active },
-        { true, null, DateTime.UtcNow.AddHours(1), UserAccountStatuses.PendingActivation },
-        { true, null, DateTime.UtcNow.AddHours(-1), UserAccountStatuses.InvitationExpired },
-        { true, null, null, UserAccountStatuses.InvitationExpired }
+        { false, null, null, null, UserAccountStatuses.Disabled },
+        { false, DateTime.UtcNow, "token-hash", DateTime.UtcNow.AddHours(1), UserAccountStatuses.PendingReactivation },
+        { false, DateTime.UtcNow, "token-hash", DateTime.UtcNow.AddHours(-1), UserAccountStatuses.ReactivationExpired },
+        { true, DateTime.UtcNow, null, null, UserAccountStatuses.Active },
+        { true, null, "token-hash", DateTime.UtcNow.AddHours(1), UserAccountStatuses.PendingActivation },
+        { true, null, "token-hash", DateTime.UtcNow.AddHours(-1), UserAccountStatuses.InvitationExpired },
+        { true, null, null, null, UserAccountStatuses.InvitationExpired }
     };
 
     [Theory]
@@ -18,6 +20,7 @@ public class UserAccountStatusesTests
     public void Resolve_ReturnsExpectedStatus(
         bool isActive,
         DateTime? activatedAtUtc,
+        string? invitationTokenHash,
         DateTime? invitationExpiresAtUtc,
         string expected)
     {
@@ -28,6 +31,7 @@ public class UserAccountStatusesTests
         var result = UserAccountStatuses.Resolve(
             isActive,
             activatedAtUtc,
+            invitationTokenHash,
             invitationExpiresAtUtc,
             now);
 

@@ -120,11 +120,10 @@ export interface ReactivateUserRequest {
 }
 
 export interface ReactivateUserResponse {
-  temporaryPassword: string | null;
-  activationPath: string | null;
-  invitationExpiresAtUtc: string | null;
-  activationUrl: string | null;
-  emailDeliveryStatus: InvitationEmailDeliveryStatus | null;
+  linkType: 'Activation' | 'Reactivation';
+  linkExpiresAtUtc: string;
+  emailDeliveryStatus: InvitationEmailDeliveryStatus;
+  fallbackUrl: string | null;
 }
 
 export interface ReissueInvitationResponse {
@@ -132,6 +131,12 @@ export interface ReissueInvitationResponse {
   invitationExpiresAtUtc: string;
   activationUrl: string;
   emailDeliveryStatus: InvitationEmailDeliveryStatus;
+}
+
+export interface ReissueReactivationResponse {
+  reactivationExpiresAtUtc: string;
+  emailDeliveryStatus: InvitationEmailDeliveryStatus;
+  fallbackUrl: string | null;
 }
 
 export type InvitationEmailDeliveryStatus =
@@ -143,6 +148,8 @@ export type UserAccountStatus =
   | 'Active'
   | 'PendingActivation'
   | 'InvitationExpired'
+  | 'PendingReactivation'
+  | 'ReactivationExpired'
   | 'Disabled';
 
 export interface UpdateExportLimitRequest {

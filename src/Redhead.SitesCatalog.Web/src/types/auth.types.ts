@@ -101,6 +101,22 @@ export interface ActivateAccountResponse {
   roles: string[];
 }
 
+export interface ReactivationStatusResponse {
+  email: string;
+  expiresAtUtc: string;
+}
+
+export interface ReactivateAccountRequest {
+  token: string;
+  password: string;
+}
+
+export interface ReactivateAccountResponse {
+  email: string;
+  displayName: string;
+  roles: string[];
+}
+
 /**
  * API error response
  */

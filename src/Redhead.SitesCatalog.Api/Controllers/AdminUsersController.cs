@@ -352,27 +352,17 @@ public class AdminUsersController : ControllerBase
             }
         }
 
-        string? temporaryPassword = null;
-        InvitationData? invitation = null;
-        if (target.ActivatedAtUtc.HasValue)
+        var isReactivation = target.ActivatedAtUtc.HasValue;
+        if (isReactivation && !string.IsNullOrWhiteSpace(target.InvitationTokenHash))
         {
-            temporaryPassword = PasswordGenerator.Generate();
-            var token = await _userManager.GeneratePasswordResetTokenAsync(target);
-            var passwordResult = await _userManager.ResetPasswordAsync(target, token, temporaryPassword);
-            if (!passwordResult.Succeeded)
-            {
-                return BadRequest(new MessageResponse(FormatIdentityErrors(passwordResult)));
-            }
+            return BadRequest(new MessageResponse(
+                "A reactivation link has already been issued. Reissue it instead."));
+        }
 
-            target.MustChangePassword = true;
-        }
-        else
-        {
-            invitation = CreateInvitation();
-            target.InvitationTokenHash = invitation.TokenHash;
-            target.InvitationExpiresAtUtc = invitation.ExpiresAtUtc;
-            target.MustChangePassword = false;
-        }
+        var invitation = CreateInvitation();
+        target.InvitationTokenHash = invitation.TokenHash;
+        target.InvitationExpiresAtUtc = invitation.ExpiresAtUtc;
+        target.MustChangePassword = false;
 
         if (!string.Equals(currentRole, request.Role, StringComparison.Ordinal))
         {
@@ -383,7 +373,8 @@ public class AdminUsersController : ControllerBase
             }
         }
 
-        target.IsActive = true;
+        ClearExportLimitOverrides(target);
+        target.IsActive = !isReactivation;
 
         var updateResult = await _userManager.UpdateAsync(target);
         if (!updateResult.Succeeded)
@@ -398,30 +389,95 @@ public class AdminUsersController : ControllerBase
         }
 
         _logger.LogInformation(
-            "User reactivated. UserId={UserId}, Role={Role}",
-            target.Id, request.Role);
+            "User account link issued. UserId={UserId}, Role={Role}, LinkType={LinkType}",
+            target.Id,
+            request.Role,
+            isReactivation ? "Reactivation" : "Activation");
 
-        string? activationPath = null;
-        InvitationDeliveryResult? delivery = null;
-        if (invitation != null)
-        {
-            activationPath = BuildActivationPath(invitation.Token);
-            delivery = await _invitationDeliveryService.DeliverAsync(
-                new InvitationDeliveryRequest(
-                    target.Id,
-                    target.Email!,
-                    activationPath,
-                    invitation.ExpiresAtUtc,
-                    InvitationEventType.ReactivateNeverActivated),
-                cancellationToken);
-        }
+        var activationPath = isReactivation
+            ? BuildReactivationPath(invitation.Token)
+            : BuildActivationPath(invitation.Token);
+        var delivery = await _invitationDeliveryService.DeliverAsync(
+            new InvitationDeliveryRequest(
+                target.Id,
+                target.Email!,
+                activationPath,
+                invitation.ExpiresAtUtc,
+                isReactivation
+                    ? InvitationEventType.ReactivateActivated
+                    : InvitationEventType.ReactivateNeverActivated,
+                isReactivation
+                    ? AccountAccessEmailKind.Reactivation
+                    : AccountAccessEmailKind.Activation),
+            cancellationToken);
 
         return Ok(new ReactivateUserResponse(
-            temporaryPassword,
-            activationPath,
-            invitation?.ExpiresAtUtc,
-            delivery?.ActivationUrl,
-            delivery?.EmailDeliveryStatus.ToString()));
+            isReactivation ? "Reactivation" : "Activation",
+            invitation.ExpiresAtUtc,
+            delivery.EmailDeliveryStatus.ToString(),
+            isReactivation && delivery.EmailDeliveryStatus == InvitationEmailSendStatus.Sent
+                ? null
+                : delivery.ActivationUrl));
+    }
+
+    [HttpPost("{id}/reissue-reactivation")]
+    [Authorize(Policy = AppPolicies.UsersManageAccess)]
+    public async Task<ActionResult<ReissueReactivationResponse>> ReissueReactivation(
+        string id,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await IsCurrentUserSuperAdminAsync())
+        {
+            return Forbid();
+        }
+
+        var target = await _userManager.FindByIdAsync(id);
+        if (target == null)
+        {
+            return NotFound(new MessageResponse("User not found."));
+        }
+
+        if (target.IsActive || !target.ActivatedAtUtc.HasValue ||
+            string.IsNullOrWhiteSpace(target.InvitationTokenHash))
+        {
+            return BadRequest(new MessageResponse(
+                "This user does not have a pending reactivation link."));
+        }
+
+        var invitation = CreateInvitation();
+        target.InvitationTokenHash = invitation.TokenHash;
+        target.InvitationExpiresAtUtc = invitation.ExpiresAtUtc;
+
+        var updateResult = await _userManager.UpdateAsync(target);
+        if (!updateResult.Succeeded)
+        {
+            return BadRequest(new MessageResponse(FormatIdentityErrors(updateResult)));
+        }
+
+        var stampResult = await _userManager.UpdateSecurityStampAsync(target);
+        if (!stampResult.Succeeded)
+        {
+            return BadRequest(new MessageResponse(FormatIdentityErrors(stampResult)));
+        }
+
+        var reactivationPath = BuildReactivationPath(invitation.Token);
+        var delivery = await _invitationDeliveryService.DeliverAsync(
+            new InvitationDeliveryRequest(
+                target.Id,
+                target.Email!,
+                reactivationPath,
+                invitation.ExpiresAtUtc,
+                InvitationEventType.ReissueReactivation,
+                AccountAccessEmailKind.Reactivation),
+            cancellationToken);
+
+        _logger.LogInformation("Reactivation link reissued. UserId={UserId}", target.Id);
+        return Ok(new ReissueReactivationResponse(
+            invitation.ExpiresAtUtc,
+            delivery.EmailDeliveryStatus.ToString(),
+            delivery.EmailDeliveryStatus == InvitationEmailSendStatus.Sent
+                ? null
+                : delivery.ActivationUrl));
     }
 
     [HttpPost("{id}/reissue-invitation")]
@@ -772,6 +828,19 @@ public class AdminUsersController : ControllerBase
 
     private static string BuildActivationPath(string token)
         => $"/activate-account?token={Uri.EscapeDataString(token)}";
+
+    private static string BuildReactivationPath(string token)
+        => $"/reactivate-account?token={Uri.EscapeDataString(token)}";
+
+    private static void ClearExportLimitOverrides(ApplicationUser user)
+    {
+        user.ExportLimitOverrideMode = null;
+        user.ExportLimitRowsOverride = null;
+        user.DailyUniqueExportedDomainsLimitOverride = null;
+        user.WeeklyUniqueExportedDomainsLimitOverride = null;
+        user.DailyExportOperationsLimitOverride = null;
+        user.WeeklyExportOperationsLimitOverride = null;
+    }
 
     private sealed record InvitationData(string Token, string TokenHash, DateTime ExpiresAtUtc);
 }

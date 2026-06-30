@@ -277,9 +277,10 @@ ASPNETCORE_ENVIRONMENT
 ASPNETCORE_URLS
 ```
 
-Invitation email is disabled by default for local development. When disabled, user creation,
-invitation reissue, and never-activated user reactivation continue to return the one-time activation
-link. Production uses Google Workspace SMTP Relay with required STARTTLS and no SMTP credentials.
+Account-link email is disabled by default for local development. When disabled, user creation,
+invitation reissue, activation, reactivation, and reactivation reissue return the applicable one-time
+fallback link to `SuperAdmin`. Production uses Google Workspace SMTP Relay with required STARTTLS
+and no SMTP credentials.
 
 Google Drive integration is an optional connection for authenticated users, not Google login. Use the minimal Drive scope `https://www.googleapis.com/auth/drive.file`; do not configure the broad Drive scope.
 

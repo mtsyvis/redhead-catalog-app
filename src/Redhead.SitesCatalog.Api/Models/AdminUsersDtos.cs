@@ -127,17 +127,21 @@ public record ReactivateUserRequest(
     [Required, MinLength(1)] string Role);
 
 public record ReactivateUserResponse(
-    string? TemporaryPassword,
-    string? ActivationPath,
-    DateTime? InvitationExpiresAtUtc,
-    string? ActivationUrl,
-    string? EmailDeliveryStatus);
+    string LinkType,
+    DateTime LinkExpiresAtUtc,
+    string EmailDeliveryStatus,
+    string? FallbackUrl);
 
 public record ReissueInvitationResponse(
     string ActivationPath,
     DateTime InvitationExpiresAtUtc,
     string ActivationUrl,
     string EmailDeliveryStatus);
+
+public record ReissueReactivationResponse(
+    DateTime ReactivationExpiresAtUtc,
+    string EmailDeliveryStatus,
+    string? FallbackUrl);
 
 public record UpdateUserExportLimitRequest(
     ExportLimitMode? OverrideMode,

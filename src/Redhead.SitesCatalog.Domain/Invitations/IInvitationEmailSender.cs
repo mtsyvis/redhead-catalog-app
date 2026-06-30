@@ -10,7 +10,14 @@ public interface IInvitationEmailSender
 public sealed record InvitationEmailSendRequest(
     string RecipientEmail,
     string ActivationUrl,
-    DateTime InvitationExpiresAtUtc);
+    DateTime InvitationExpiresAtUtc,
+    AccountAccessEmailKind EmailKind = AccountAccessEmailKind.Activation);
+
+public enum AccountAccessEmailKind
+{
+    Activation,
+    Reactivation
+}
 
 public sealed record InvitationEmailSendResult(
     InvitationEmailSendStatus Status,

@@ -54,6 +54,7 @@ public sealed class ControllerPolicyTests
     [InlineData(nameof(AdminUsersController.DisableUser), AppPolicies.UsersManageAccess)]
     [InlineData(nameof(AdminUsersController.UpdateUserRole), AppPolicies.UsersManageAccess)]
     [InlineData(nameof(AdminUsersController.ReactivateUser), AppPolicies.UsersManageAccess)]
+    [InlineData(nameof(AdminUsersController.ReissueReactivation), AppPolicies.UsersManageAccess)]
     [InlineData(nameof(AdminUsersController.ReissueInvitation), AppPolicies.UsersManageAccess)]
     [InlineData(nameof(AdminUsersController.UpdateUserExportLimit), AppPolicies.UsersManageAccess)]
     [InlineData(nameof(AdminUsersController.UpdateUserSuperAdminNote), AppPolicies.UsersManageAccess)]

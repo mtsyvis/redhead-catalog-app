@@ -30,12 +30,12 @@ public sealed class InvitationEmailMessageFactoryTests
         Assert.Equal("Redhead Catalog", from.Name);
         Assert.Equal("noreply@redheaddigital.agency", from.Address);
         Assert.Equal("invited@example.com", Assert.IsType<MailboxAddress>(Assert.Single(message.To)).Address);
-        Assert.Equal(InvitationEmailMessageFactory.Subject, message.Subject);
+        Assert.Equal(InvitationEmailMessageFactory.ActivationSubject, message.Subject);
         var textBody = Assert.IsType<string>(message.TextBody);
         var htmlBody = Assert.IsType<string>(message.HtmlBody);
         Assert.Contains(activationUrl, textBody);
         Assert.Contains(activationUrl.Replace("&", "&amp;", StringComparison.Ordinal), htmlBody);
-        Assert.Contains("Activate your Redhead Catalog account", textBody);
+        Assert.Contains("Activate your account", textBody);
         Assert.Contains("Activate your account", htmlBody);
         Assert.Contains("Activate account", htmlBody);
         Assert.Contains(
@@ -93,6 +93,40 @@ public sealed class InvitationEmailMessageFactoryTests
         Assert.DoesNotContain("SuperAdmin", htmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(message.ReplyTo);
         Assert.Empty(message.Attachments);
+    }
+
+    [Fact]
+    public void Create_ForReactivation_BuildsStandaloneReactivationMessageWithoutSecrets()
+    {
+        // Arrange
+        const string reactivationUrl = "https://catalog.rhda.us/reactivate-account?token=abc123";
+        var request = new InvitationEmailSendRequest(
+            "returning@example.com",
+            reactivationUrl,
+            DateTime.UtcNow.AddHours(24),
+            AccountAccessEmailKind.Reactivation);
+        var options = new EmailOptions
+        {
+            FromName = "Redhead Catalog",
+            FromAddress = "noreply@redheaddigital.agency"
+        };
+
+        // Act
+        var message = InvitationEmailMessageFactory.Create(request, options);
+
+        // Assert
+        Assert.Equal(InvitationEmailMessageFactory.ReactivationSubject, message.Subject);
+        var textBody = Assert.IsType<string>(message.TextBody);
+        var htmlBody = Assert.IsType<string>(message.HtmlBody);
+        Assert.Contains("Reactivate your account", textBody);
+        Assert.Contains("Reactivate account", htmlBody);
+        Assert.Contains("Choose a new password", textBody);
+        Assert.Contains("remains disabled", htmlBody);
+        Assert.Contains(reactivationUrl, textBody);
+        Assert.DoesNotContain("invited", textBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("temporary password", textBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("SuperAdmin", htmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Client", htmlBody, StringComparison.OrdinalIgnoreCase);
     }
 
     private static int ReadPngDimension(byte[] pngBytes, int offset)

@@ -11,6 +11,9 @@ import type {
   InvitationStatusResponse,
   ActivateAccountRequest,
   ActivateAccountResponse,
+  ReactivationStatusResponse,
+  ReactivateAccountRequest,
+  ReactivateAccountResponse,
 } from '../types/auth.types';
 
 /**
@@ -64,6 +67,19 @@ export const authService = {
   activateAccount(data: ActivateAccountRequest): Promise<ActivateAccountResponse> {
     return ApiClient.post<ActivateAccountResponse, ActivateAccountRequest>(
       '/api/auth/activate-account',
+      data
+    );
+  },
+
+  getReactivation(token: string): Promise<ReactivationStatusResponse> {
+    return ApiClient.get<ReactivationStatusResponse>(
+      `/api/auth/reactivation?token=${encodeURIComponent(token)}`
+    );
+  },
+
+  reactivateAccount(data: ReactivateAccountRequest): Promise<ReactivateAccountResponse> {
+    return ApiClient.post<ReactivateAccountResponse, ReactivateAccountRequest>(
+      '/api/auth/reactivate-account',
       data
     );
   },

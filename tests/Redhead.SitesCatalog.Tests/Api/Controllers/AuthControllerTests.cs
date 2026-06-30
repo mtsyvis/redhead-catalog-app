@@ -323,6 +323,119 @@ public sealed class AuthControllerTests
     }
 
     [Fact]
+    public async Task Login_WhenReactivationIsPending_DoesNotTryOldPassword()
+    {
+        // Arrange
+        var user = CreateReactivatingUser("reactivation-token");
+        var userManager = CreateUserManager();
+        userManager.Setup(manager => manager.FindByEmailAsync(user.Email!))
+            .ReturnsAsync(user);
+        var signInManager = CreateSignInManager(userManager);
+        var sut = CreateController(userManager, signInManager);
+
+        // Act
+        var result = await sut.Login(new LoginRequest(user.Email!, "OldPassword123!"));
+
+        // Assert
+        Assert.IsType<UnauthorizedObjectResult>(result.Result);
+        signInManager.Verify(manager => manager.PasswordSignInAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<bool>(),
+            It.IsAny<bool>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ReactivateAccount_WhenLinkIsValid_ReplacesPasswordActivatesAndSignsIn()
+    {
+        // Arrange
+        const string token = "valid-reactivation-token";
+        var user = CreateReactivatingUser(token);
+        var userManager = CreateUserManager();
+        userManager.SetupGet(manager => manager.Users).Returns(new[] { user }.AsQueryable());
+        userManager.Setup(manager => manager.GeneratePasswordResetTokenAsync(user))
+            .ReturnsAsync("identity-reset-token");
+        userManager.Setup(manager => manager.ResetPasswordAsync(user, "identity-reset-token", "NewPassword123!"))
+            .ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(manager => manager.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { AppRoles.Client });
+        var signInManager = CreateSignInManager(userManager);
+        signInManager.Setup(manager => manager.SignInAsync(user, false, null))
+            .Returns(Task.CompletedTask);
+        var sut = CreateController(userManager, signInManager);
+
+        // Act
+        var result = await sut.ReactivateAccount(new ReactivateAccountRequest(token, "NewPassword123!"));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ReactivateAccountResponse>(ok.Value);
+        Assert.Equal(user.Email, payload.Email);
+        Assert.True(user.IsActive);
+        Assert.False(user.MustChangePassword);
+        Assert.Null(user.InvitationTokenHash);
+        Assert.Null(user.InvitationExpiresAtUtc);
+        userManager.Verify(
+            manager => manager.ResetPasswordAsync(user, "identity-reset-token", "NewPassword123!"),
+            Times.Once);
+        signInManager.Verify(manager => manager.SignInAsync(user, false, null), Times.Once);
+
+        var repeatedResult = await sut.ReactivateAccount(new ReactivateAccountRequest(token, "OtherPassword123!"));
+        Assert.IsType<NotFoundObjectResult>(repeatedResult.Result);
+    }
+
+    [Fact]
+    public async Task ReactivateAccount_WhenPasswordIsRejected_KeepsUserDisabledAndLinkUsable()
+    {
+        // Arrange
+        const string token = "valid-reactivation-token";
+        var user = CreateReactivatingUser(token);
+        user.MustChangePassword = true;
+        var userManager = CreateUserManager();
+        userManager.SetupGet(manager => manager.Users).Returns(new[] { user }.AsQueryable());
+        userManager.Setup(manager => manager.GeneratePasswordResetTokenAsync(user))
+            .ReturnsAsync("identity-reset-token");
+        userManager.Setup(manager => manager.ResetPasswordAsync(user, "identity-reset-token", "weak"))
+            .ReturnsAsync(IdentityResult.Failed(new IdentityError { Description = "Password is too weak." }));
+        var sut = CreateController(userManager);
+
+        // Act
+        var result = await sut.ReactivateAccount(new ReactivateAccountRequest(token, "weak"));
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.False(user.IsActive);
+        Assert.True(user.MustChangePassword);
+        Assert.Equal(UserInvitationToken.Hash(token), user.InvitationTokenHash);
+        Assert.NotNull(user.InvitationExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task ReactivateAccount_WhenLinkIsExpired_DoesNotChangePassword()
+    {
+        // Arrange
+        const string token = "expired-reactivation-token";
+        var user = CreateReactivatingUser(token);
+        user.InvitationExpiresAtUtc = DateTime.UtcNow.AddMinutes(-1);
+        var userManager = CreateUserManager();
+        userManager.SetupGet(manager => manager.Users).Returns(new[] { user }.AsQueryable());
+        var sut = CreateController(userManager);
+
+        // Act
+        var result = await sut.ReactivateAccount(new ReactivateAccountRequest(token, "NewPassword123!"));
+
+        // Assert
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.False(user.IsActive);
+        userManager.Verify(
+            manager => manager.ResetPasswordAsync(
+                It.IsAny<ApplicationUser>(),
+                It.IsAny<string>(),
+                It.IsAny<string>()),
+            Times.Never);
+    }
+
+    [Fact]
     public void AuthResponses_DoNotExposeSuperAdminNote()
     {
         // Arrange
@@ -438,5 +551,18 @@ public sealed class AuthControllerTests
                 : $"{firstName} {lastName}",
             ActivatedAtUtc = DateTime.UtcNow,
             IsActive = true
+        };
+
+    private static ApplicationUser CreateReactivatingUser(string token)
+        => new()
+        {
+            Id = "returning-user",
+            UserName = "returning@example.com",
+            Email = "returning@example.com",
+            DisplayName = "Ada Lovelace",
+            ActivatedAtUtc = DateTime.UtcNow.AddDays(-30),
+            IsActive = false,
+            InvitationTokenHash = UserInvitationToken.Hash(token),
+            InvitationExpiresAtUtc = DateTime.UtcNow.AddHours(1)
         };
 }

@@ -10,6 +10,7 @@ import type {
   ReactivateUserRequest,
   ReactivateUserResponse,
   ReissueInvitationResponse,
+  ReissueReactivationResponse,
   UpdateExportLimitRequest,
   UpdateSuperAdminNoteRequest,
 } from '../types/adminUsers.types';
@@ -52,6 +53,12 @@ export const adminUsersService = {
   reissueInvitation(id: string): Promise<ReissueInvitationResponse> {
     return ApiClient.post<ReissueInvitationResponse>(
       `/api/admin/users/${encodeURIComponent(id)}/reissue-invitation`
+    );
+  },
+
+  reissueReactivation(id: string): Promise<ReissueReactivationResponse> {
+    return ApiClient.post<ReissueReactivationResponse>(
+      `/api/admin/users/${encodeURIComponent(id)}/reissue-reactivation`
     );
   },
 
