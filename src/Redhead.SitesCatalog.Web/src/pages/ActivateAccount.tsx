@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Check from '@mui/icons-material/Check';
 import Close from '@mui/icons-material/Close';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import {
   Alert,
   Box,
   Card,
   CardContent,
   CircularProgress,
+  IconButton,
+  InputAdornment,
   List,
   ListItem,
   ListItemIcon,
@@ -40,6 +44,8 @@ export const ActivateAccount: React.FC = () => {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -154,12 +160,29 @@ export const ActivateAccount: React.FC = () => {
                   />
                   <TextField
                     label="Password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="new-password"
                     required
                     fullWidth
+                    slotProps={{
+                      input: {
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={() => setShowPassword((value) => !value)}
+                              edge="end"
+                              aria-label={showPassword ? 'Hide password' : 'Show password'}
+                              sx={{ color: 'rgba(38,38,38,0.55)' }}
+                            >
+                              {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
                   />
                   {password ? (
                     <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
@@ -174,7 +197,7 @@ export const ActivateAccount: React.FC = () => {
                   ) : null}
                   <TextField
                     label="Confirm password"
-                    type="password"
+                    type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     error={confirmPassword.length > 0 && !passwordsMatch}
@@ -182,6 +205,27 @@ export const ActivateAccount: React.FC = () => {
                     autoComplete="new-password"
                     required
                     fullWidth
+                    slotProps={{
+                      input: {
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={() => setShowConfirmPassword((value) => !value)}
+                              edge="end"
+                              aria-label={showConfirmPassword ? 'Hide confirmation password' : 'Show confirmation password'}
+                              sx={{ color: 'rgba(38,38,38,0.55)' }}
+                            >
+                              {showConfirmPassword ? (
+                                <VisibilityOff fontSize="small" />
+                              ) : (
+                                <Visibility fontSize="small" />
+                              )}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
                   />
                   <BrandButton kind="primary" type="submit" disabled={!canSubmit} fullWidth size="large">
                     {saving ? <CircularProgress size={22} color="inherit" /> : 'Activate account'}

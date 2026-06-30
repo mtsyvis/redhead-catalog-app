@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Check from '@mui/icons-material/Check';
 import Close from '@mui/icons-material/Close';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import {
   Alert,
   Box,
   Card,
   CardContent,
   CircularProgress,
+  IconButton,
+  InputAdornment,
   List,
   ListItem,
   ListItemIcon,
@@ -39,6 +43,8 @@ export const ReactivateAccount: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,13 +145,30 @@ export const ReactivateAccount: React.FC = () => {
                   <TextField label="Email" value={email} disabled fullWidth />
                   <TextField
                     label="New password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="new-password"
                     required
                     autoFocus
                     fullWidth
+                    slotProps={{
+                      input: {
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={() => setShowPassword((value) => !value)}
+                              edge="end"
+                              aria-label={showPassword ? 'Hide new password' : 'Show new password'}
+                              sx={{ color: 'rgba(38,38,38,0.55)' }}
+                            >
+                              {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
                   />
                   {password ? (
                     <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
@@ -160,7 +183,7 @@ export const ReactivateAccount: React.FC = () => {
                   ) : null}
                   <TextField
                     label="Confirm password"
-                    type="password"
+                    type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     error={confirmPassword.length > 0 && !passwordsMatch}
@@ -168,6 +191,27 @@ export const ReactivateAccount: React.FC = () => {
                     autoComplete="new-password"
                     required
                     fullWidth
+                    slotProps={{
+                      input: {
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              size="small"
+                              onClick={() => setShowConfirmPassword((value) => !value)}
+                              edge="end"
+                              aria-label={showConfirmPassword ? 'Hide confirmation password' : 'Show confirmation password'}
+                              sx={{ color: 'rgba(38,38,38,0.55)' }}
+                            >
+                              {showConfirmPassword ? (
+                                <VisibilityOff fontSize="small" />
+                              ) : (
+                                <Visibility fontSize="small" />
+                              )}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
                   />
                   <BrandButton kind="primary" type="submit" disabled={!canSubmit} fullWidth size="large">
                     {saving ? <CircularProgress size={22} color="inherit" /> : 'Reactivate account'}
