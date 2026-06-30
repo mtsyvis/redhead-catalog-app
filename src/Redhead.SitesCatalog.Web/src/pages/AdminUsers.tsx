@@ -29,6 +29,7 @@ import type { GridColDef, GridPaginationModel, GridRowParams } from '@mui/x-data
 import { PageShell } from '../components/layout/PageShell';
 import { BrandButton } from '../components/common/BrandButton';
 import { InvitationResultDialog } from '../components/admin/InvitationResultDialog';
+import { ReactivationResultDialog } from '../components/admin/ReactivationResultDialog';
 import { OneTimeValueDialog } from '../components/admin/OneTimeValueDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { adminUsersService } from '../services/adminUsers.service';
@@ -183,6 +184,12 @@ export const AdminUsers: React.FC = () => {
     kind: 'invitation' | 'password';
     emailDeliveryStatus?: InvitationEmailDeliveryStatus;
     invitationAction?: 'created' | 'reissued';
+  } | null>(null);
+  const [reactivationResult, setReactivationResult] = useState<{
+    title: 'Reactivation created' | 'Reactivation reissued';
+    email: string;
+    fallbackUrl: string | null;
+    emailDeliveryStatus: InvitationEmailDeliveryStatus;
   } | null>(null);
   const [disableConfirmUser, setDisableConfirmUser] = useState<UserListItemType | null>(null);
   const [resetPasswordConfirmUser, setResetPasswordConfirmUser] = useState<UserListItemType | null>(null);
@@ -415,21 +422,21 @@ export const AdminUsers: React.FC = () => {
     try {
       const res = await adminUsersService.reactivate(reactivateUser.id, { role: reactivateRoleValue });
       setReactivateUser(null);
-      if (res.activationUrl && res.emailDeliveryStatus) {
+      if (res.linkType === 'Activation' && res.fallbackUrl) {
         setSecretDialog({
           title: 'Invitation created',
           email: reactivateUser.email,
-          value: res.activationUrl,
+          value: res.fallbackUrl,
           kind: 'invitation',
           emailDeliveryStatus: res.emailDeliveryStatus,
           invitationAction: 'created',
         });
-      } else if (res.temporaryPassword) {
-        setSecretDialog({
-          title: 'User reactivated',
+      } else {
+        setReactivationResult({
+          title: 'Reactivation created',
           email: reactivateUser.email,
-          value: res.temporaryPassword,
-          kind: 'password',
+          fallbackUrl: res.fallbackUrl,
+          emailDeliveryStatus: res.emailDeliveryStatus,
         });
       }
       await loadUsers(true);
@@ -662,6 +669,26 @@ export const AdminUsers: React.FC = () => {
     }
   }, [loadUsers]);
 
+  const handleReissueReactivation = useCallback(async (user: UserListItemType) => {
+    setRowActionsAnchor(null);
+    setRowActionsUser(null);
+    setActionLoadingId(user.id);
+    try {
+      const response = await adminUsersService.reissueReactivation(user.id);
+      setReactivationResult({
+        title: 'Reactivation reissued',
+        email: user.email,
+        fallbackUrl: response.fallbackUrl,
+        emailDeliveryStatus: response.emailDeliveryStatus,
+      });
+      await loadUsers(true);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to reissue reactivation');
+    } finally {
+      setActionLoadingId(null);
+    }
+  }, [loadUsers]);
+
   const getExportLimitPreview = (): string | null => {
     if (!editExportLimitUser) return null;
     if (exportLimitOption === 'role-default') {
@@ -813,14 +840,20 @@ export const AdminUsers: React.FC = () => {
             ? 'Pending activation'
             : status === 'InvitationExpired'
               ? 'Invitation expired'
+              : status === 'PendingReactivation'
+                ? 'Pending reactivation'
+                : status === 'ReactivationExpired'
+                  ? 'Reactivation expired'
               : status;
           const color = status === 'Active'
             ? 'success'
             : status === 'PendingActivation'
               ? 'info'
-            : status === 'InvitationExpired'
-              ? 'warning'
-              : 'default';
+              : status === 'PendingReactivation'
+                ? 'info'
+                : status === 'InvitationExpired' || status === 'ReactivationExpired'
+                  ? 'warning'
+                  : 'default';
           return <Chip label={label} color={color} size="small" variant={status === 'Active' ? 'filled' : 'outlined'} />;
         },
       },
@@ -936,7 +969,9 @@ export const AdminUsers: React.FC = () => {
   );
   const rowActionsCanModify = rowActionsUser ? rowActionsUser.isActive && canModifyUser(rowActionsUser) : false;
   const rowActionsCanChangeRole = rowActionsUser ? canChangeUserRole(rowActionsUser) : false;
-  const rowActionsCanReactivate = Boolean(canManageUsers && rowActionsUser && !rowActionsUser.isActive);
+  const rowActionsCanReactivate = Boolean(
+    canManageUsers && rowActionsUser?.accountStatus === 'Disabled'
+  );
   const rowActionsCanEditLimit = Boolean(rowActionsUser?.isActive && rowActionsUser.isExportLimitEditable);
   const rowActionsCanEditNote = Boolean(canManageUsers && isSuperAdmin && rowActionsUser?.isActive);
   const rowActionsCanReissueInvitation = Boolean(
@@ -944,6 +979,12 @@ export const AdminUsers: React.FC = () => {
       && rowActionsUser?.isActive
       && (rowActionsUser.accountStatus === 'PendingActivation'
         || rowActionsUser.accountStatus === 'InvitationExpired')
+  );
+  const rowActionsCanReissueReactivation = Boolean(
+    canManageUsers
+      && rowActionsUser
+      && (rowActionsUser.accountStatus === 'PendingReactivation'
+        || rowActionsUser.accountStatus === 'ReactivationExpired')
   );
   const rowActionsCanResetPassword = Boolean(
     rowActionsCanModify && rowActionsUser?.accountStatus === 'Active'
@@ -1094,6 +1135,11 @@ export const AdminUsers: React.FC = () => {
         {rowActionsCanReissueInvitation && rowActionsUser && (
           <MenuItem onClick={() => void handleReissueInvitation(rowActionsUser)}>
             Reissue invitation
+          </MenuItem>
+        )}
+        {rowActionsCanReissueReactivation && rowActionsUser && (
+          <MenuItem onClick={() => void handleReissueReactivation(rowActionsUser)}>
+            Reissue reactivation
           </MenuItem>
         )}
         {rowActionsCanResetPassword && rowActionsUser && (
@@ -1284,7 +1330,8 @@ export const AdminUsers: React.FC = () => {
               </Typography>
 
               <Typography variant="body2" color="text.secondary">
-                The new activation link or temporary password will be shown only once.
+                The user will receive a single-use account link by email. If delivery fails, the link
+                will be shown once so you can share it securely.
               </Typography>
               {reactivateError && <Alert severity="error">{reactivateError}</Alert>}
             </Box>
@@ -1413,6 +1460,16 @@ export const AdminUsers: React.FC = () => {
           copyLabel="Copy password"
           copyErrorMessage="Could not copy. Please copy the password manually."
           onClose={() => setSecretDialog(null)}
+        />
+      ) : null}
+
+      {reactivationResult ? (
+        <ReactivationResultDialog
+          title={reactivationResult.title}
+          email={reactivationResult.email}
+          fallbackUrl={reactivationResult.fallbackUrl}
+          emailDeliveryStatus={reactivationResult.emailDeliveryStatus}
+          onClose={() => setReactivationResult(null)}
         />
       ) : null}
 

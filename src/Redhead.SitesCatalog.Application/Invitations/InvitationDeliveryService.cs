@@ -34,7 +34,8 @@ public sealed class InvitationDeliveryService : IInvitationDeliveryService
                 new InvitationEmailSendRequest(
                     request.RecipientEmail,
                     activationUrl,
-                    request.InvitationExpiresAtUtc),
+                    request.InvitationExpiresAtUtc,
+                    request.EmailKind),
                 cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

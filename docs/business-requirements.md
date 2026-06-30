@@ -146,14 +146,14 @@ Rules:
 * Creating a user requires email, role, and an optional internal `SuperAdmin` note.
 * The system generates a cryptographically random single-use activation token and stores only its SHA-256 hash.
 * The activation link is displayed to `SuperAdmin` once and expires 24 hours after creation.
-* After a new invitation, reissue, or reactivation of a never-activated user is persisted, the system attempts to send the activation link to the invited email address.
-* Invitation email failure must not roll back or invalidate the saved invitation. The `SuperAdmin` must receive a safe warning and retain the one-time activation-link fallback.
-* Reactivating an already activated user continues to use the temporary-password flow and must not send an invitation email.
-* Invitation emails contain HTML and plain-text content, identify links as single-use with a 24-hour expiry, and must not contain passwords, roles, internal notes, or technical SMTP details.
-* Invitation email branding must remain correctly sized and readable in light and dark email-client themes, with a safe fallback for clients that force color inversion or ignore theme media queries.
+* After a new invitation, invitation reissue, reactivation, or reactivation reissue is persisted, the system attempts to send the applicable account link to the user's email address.
+* Email failure must not roll back or invalidate the saved account link. The `SuperAdmin` must receive a safe warning and a one-time fallback link when email is not sent.
+* Reactivating an already activated user issues a single-use reactivation link instead of a temporary password. The user remains disabled until they use the link and choose a new password.
+* Account-link emails contain HTML and plain-text content, identify links as single-use with a 24-hour expiry, and must not contain passwords, roles, internal notes, or technical SMTP details.
+* Account-link email branding must remain correctly sized and readable in light and dark email-client themes, with a safe fallback for clients that force color inversion or ignore theme media queries.
 * If the link is lost or expires, `SuperAdmin` may reissue it for a pending or expired invitation. Reissuing invalidates the previous link and starts a new 24-hour period.
 * Invitation tokens and activation links must not be logged.
-* Account status is exposed as `Active`, `PendingActivation`, `InvitationExpired`, or `Disabled`.
+* Account status is exposed as `Active`, `PendingActivation`, `InvitationExpired`, `PendingReactivation`, `ReactivationExpired`, or `Disabled`.
 * The invited user provides the required `DisplayName` and a password satisfying the normal Identity password policy.
 * Successful activation consumes the invitation, confirms the email, and signs the user in immediately.
 * If a new user is created with an email that belongs to an active user, creation is rejected.
@@ -161,7 +161,9 @@ Rules:
 * New users are created without a password or display name and cannot sign in before activation.
 * Existing activated users may still use account setup to complete a required password change, display name, or both.
 * After password reset, `MustChangePassword` must be set to `true` again.
-* Reactivating an already activated user sets `MustChangePassword = true` and displays a temporary password once.
+* A valid reactivation link lets the user choose a new password, consumes the link, reactivates the account, and signs the user in immediately.
+* Pending reactivation keeps `IsActive = false`, so the previous password and existing sessions cannot restore access before the link is completed.
+* `SuperAdmin` may reissue a pending or expired reactivation link. Reissue invalidates the previous link and starts a new 24-hour period.
 * Reactivating a disabled, never-activated user issues a new activation link instead.
 * Reactivation preserves display name, internal `SuperAdmin` note, Google Drive connection, saved filters, table views, and user history.
 * Reactivation clears per-user export limit overrides.
@@ -869,6 +871,7 @@ Rules:
 * User creation UI is available only to `SuperAdmin`.
 * The Users page should keep creation out of the table flow by opening the create-user form from an `Add user` dialog.
 * User reactivation UI is available only to `SuperAdmin` for disabled users.
+* Pending or expired reactivation UI is available only to `SuperAdmin` and offers reissue rather than starting a second reactivation flow.
 * Role-change UI is available only to `SuperAdmin` for active non-`SuperAdmin` users.
 * Role selectors include `Editor` and `Lite` as non-`SuperAdmin` roles.
 * Admin users list should show `DisplayName` for completed profiles and activation/profile status otherwise.

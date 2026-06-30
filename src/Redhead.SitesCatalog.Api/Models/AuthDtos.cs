@@ -44,6 +44,19 @@ public record ActivateAccountResponse(
     string DisplayName,
     IList<string> Roles);
 
+public record ReactivationStatusResponse(
+    string Email,
+    DateTime ExpiresAtUtc);
+
+public record ReactivateAccountRequest(
+    [Required] string Token,
+    [Required, MinLength(8)] string Password);
+
+public record ReactivateAccountResponse(
+    string Email,
+    string DisplayName,
+    IList<string> Roles);
+
 public record MessageResponse(string Message);
 
 public record UserInfoResponse(

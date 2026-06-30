@@ -13,6 +13,9 @@ const Login = React.lazy(() => import('./pages/Login').then((module) => ({ defau
 const ActivateAccount = React.lazy(() =>
   import('./pages/ActivateAccount').then((module) => ({ default: module.ActivateAccount }))
 );
+const ReactivateAccount = React.lazy(() =>
+  import('./pages/ReactivateAccount').then((module) => ({ default: module.ReactivateAccount }))
+);
 const ChangePassword = React.lazy(() =>
   import('./pages/ChangePassword').then((module) => ({ default: module.ChangePassword }))
 );
@@ -67,6 +70,7 @@ const App: React.FC = () => {
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/activate-account" element={<ActivateAccount />} />
+              <Route path="/reactivate-account" element={<ReactivateAccount />} />
               <Route path="/oauth-home" element={<OAuthHome />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />

@@ -187,6 +187,71 @@ public class AuthController : ControllerBase
         return Ok(new ActivateAccountResponse(user.Email!, user.EffectiveDisplayName, roles));
     }
 
+    [HttpGet("reactivation")]
+    public async Task<ActionResult<ReactivationStatusResponse>> GetReactivation([FromQuery] string token)
+    {
+        var user = FindReactivatingUser(token);
+        if (user == null)
+        {
+            return NotFound(new MessageResponse("This reactivation link is invalid or has already been used."));
+        }
+
+        if (!user.InvitationExpiresAtUtc.HasValue ||
+            user.InvitationExpiresAtUtc.Value <= DateTime.UtcNow)
+        {
+            return BadRequest(new MessageResponse(
+                "This reactivation link has expired. Please contact an administrator."));
+        }
+
+        return Ok(new ReactivationStatusResponse(user.Email!, user.InvitationExpiresAtUtc.Value));
+    }
+
+    [HttpPost("reactivate-account")]
+    public async Task<ActionResult<ReactivateAccountResponse>> ReactivateAccount(
+        [FromBody] ReactivateAccountRequest request)
+    {
+        var user = FindReactivatingUser(request.Token);
+        if (user == null)
+        {
+            return NotFound(new MessageResponse("This reactivation link is invalid or has already been used."));
+        }
+
+        if (!user.InvitationExpiresAtUtc.HasValue ||
+            user.InvitationExpiresAtUtc.Value <= DateTime.UtcNow)
+        {
+            return BadRequest(new MessageResponse(
+                "This reactivation link has expired. Please contact an administrator."));
+        }
+
+        var tokenHash = user.InvitationTokenHash;
+        var expiresAtUtc = user.InvitationExpiresAtUtc;
+        var mustChangePassword = user.MustChangePassword;
+        user.IsActive = true;
+        user.MustChangePassword = false;
+        user.InvitationTokenHash = null;
+        user.InvitationExpiresAtUtc = null;
+
+        var passwordResetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var passwordResult = await _userManager.ResetPasswordAsync(
+            user,
+            passwordResetToken,
+            request.Password);
+        if (!passwordResult.Succeeded)
+        {
+            user.IsActive = false;
+            user.MustChangePassword = mustChangePassword;
+            user.InvitationTokenHash = tokenHash;
+            user.InvitationExpiresAtUtc = expiresAtUtc;
+            return BadRequest(new { errors = passwordResult.Errors.Select(error => error.Description) });
+        }
+
+        await _signInManager.SignInAsync(user, isPersistent: false);
+
+        var roles = await _userManager.GetRolesAsync(user);
+        _logger.LogInformation("User completed account reactivation. UserId={UserId}", user.Id);
+        return Ok(new ReactivateAccountResponse(user.Email!, user.EffectiveDisplayName, roles));
+    }
+
     [HttpPost("complete-account-setup")]
     [Authorize]
     public async Task<ActionResult<CompleteAccountSetupResponse>> CompleteAccountSetup(
@@ -256,6 +321,20 @@ public class AuthController : ControllerBase
         var hash = UserInvitationToken.Hash(token);
         return _userManager.Users.SingleOrDefault(user =>
             user.ActivatedAtUtc == null &&
+            user.InvitationTokenHash == hash);
+    }
+
+    private ApplicationUser? FindReactivatingUser(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
+
+        var hash = UserInvitationToken.Hash(token);
+        return _userManager.Users.SingleOrDefault(user =>
+            user.ActivatedAtUtc != null &&
+            !user.IsActive &&
             user.InvitationTokenHash == hash);
     }
 

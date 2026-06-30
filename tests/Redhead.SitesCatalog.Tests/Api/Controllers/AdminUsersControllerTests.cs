@@ -1073,7 +1073,7 @@ public sealed class AdminUsersControllerTests
     }
 
     [Fact]
-    public async Task ReactivateUser_WhenNormalUserIsDisabled_ActivatesWithSelectedRoleAndTemporaryPassword()
+    public async Task ReactivateUser_WhenActivatedUserIsDisabled_IssuesReactivationLinkAndKeepsUserDisabled()
     {
         // Arrange
         var targetUser = new ApplicationUser
@@ -1108,16 +1108,25 @@ public sealed class AdminUsersControllerTests
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
-        Assert.False(string.IsNullOrWhiteSpace(payload.TemporaryPassword));
-        Assert.True(targetUser.IsActive);
-        Assert.True(targetUser.MustChangePassword);
+        Assert.Equal("Reactivation", payload.LinkType);
+        Assert.Equal(nameof(InvitationEmailSendStatus.Sent), payload.EmailDeliveryStatus);
+        Assert.Null(payload.FallbackUrl);
+        Assert.False(targetUser.IsActive);
+        Assert.False(targetUser.MustChangePassword);
         Assert.Equal("Ada Lovelace", targetUser.DisplayName);
         Assert.Equal("Preserve note", targetUser.SuperAdminNote);
+        Assert.Null(targetUser.ExportLimitOverrideMode);
+        Assert.Null(targetUser.ExportLimitRowsOverride);
         Assert.Equal([AppRoles.Client], userManager.RemovedRoles);
         Assert.Equal(AppRoles.Internal, userManager.AddedRole);
-        Assert.Equal(1, userManager.ResetPasswordCount);
+        Assert.Equal(0, userManager.ResetPasswordCount);
         Assert.Equal(1, userManager.SecurityStampUpdateCount);
-        Assert.Empty(deliveryService.Requests);
+        Assert.Single(deliveryService.Requests);
+        Assert.Equal(AccountAccessEmailKind.Reactivation, deliveryService.Requests[0].EmailKind);
+        Assert.Equal(InvitationEventType.ReactivateActivated, deliveryService.Requests[0].EventType);
+        var token = Uri.UnescapeDataString(
+            deliveryService.Requests[0].ActivationPath.Split("token=", 2)[1]);
+        Assert.Equal(UserInvitationToken.Hash(token), targetUser.InvitationTokenHash);
     }
 
     [Fact]
@@ -1153,19 +1162,130 @@ public sealed class AdminUsersControllerTests
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
-        Assert.Null(payload.TemporaryPassword);
-        Assert.NotNull(payload.ActivationPath);
+        Assert.Equal("Activation", payload.LinkType);
+        Assert.NotNull(payload.FallbackUrl);
         Assert.Equal(nameof(InvitationEmailSendStatus.Sent), payload.EmailDeliveryStatus);
         Assert.True(targetUser.IsActive);
         Assert.False(targetUser.MustChangePassword);
         Assert.Single(deliveryService.Requests);
         Assert.Equal(InvitationEventType.ReactivateNeverActivated, deliveryService.Requests[0].EventType);
-        var token = Uri.UnescapeDataString(payload.ActivationPath!.Split("token=", 2)[1]);
+        var token = Uri.UnescapeDataString(
+            deliveryService.Requests[0].ActivationPath.Split("token=", 2)[1]);
         Assert.Equal(UserInvitationToken.Hash(token), targetUser.InvitationTokenHash);
         Assert.InRange(
-            payload.InvitationExpiresAtUtc!.Value,
+            payload.LinkExpiresAtUtc,
             DateTime.UtcNow.AddHours(23),
             DateTime.UtcNow.AddHours(25));
+    }
+
+    [Theory]
+    [InlineData(InvitationEmailSendStatus.Failed)]
+    [InlineData(InvitationEmailSendStatus.NotAttemptedBecauseEmailDisabled)]
+    public async Task ReactivateUser_WhenReactivationEmailIsNotSent_ReturnsFallbackLink(
+        InvitationEmailSendStatus deliveryStatus)
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            IsActive = false,
+            ActivatedAtUtc = DateTime.UtcNow
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client },
+            ExistingUserByEmail = targetUser
+        };
+        var deliveryService = new RecordingInvitationDeliveryService(deliveryStatus);
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager, deliveryService);
+
+        // Act
+        var result = await sut.ReactivateUser(
+            targetUser.Id,
+            new ReactivateUserRequest(AppRoles.Client));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
+        Assert.Equal(deliveryStatus.ToString(), payload.EmailDeliveryStatus);
+        Assert.StartsWith("https://catalog.rhda.us/reactivate-account?token=", payload.FallbackUrl);
+        Assert.False(targetUser.IsActive);
+    }
+
+    [Fact]
+    public async Task ReissueReactivation_WhenPending_ReplacesTokenAndSendsNewLink()
+    {
+        // Arrange
+        var oldTokenHash = UserInvitationToken.Hash("old-token");
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            IsActive = false,
+            ActivatedAtUtc = DateTime.UtcNow,
+            InvitationTokenHash = oldTokenHash,
+            InvitationExpiresAtUtc = DateTime.UtcNow.AddMinutes(-1)
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client }
+        };
+        var deliveryService = new RecordingInvitationDeliveryService(InvitationEmailSendStatus.Sent);
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager, deliveryService);
+
+        // Act
+        var result = await sut.ReissueReactivation(targetUser.Id);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ReissueReactivationResponse>(ok.Value);
+        Assert.Null(payload.FallbackUrl);
+        Assert.NotEqual(oldTokenHash, targetUser.InvitationTokenHash);
+        Assert.False(targetUser.IsActive);
+        Assert.Equal(1, userManager.SecurityStampUpdateCount);
+        Assert.Single(deliveryService.Requests);
+        Assert.Equal(InvitationEventType.ReissueReactivation, deliveryService.Requests[0].EventType);
+        Assert.Equal(AccountAccessEmailKind.Reactivation, deliveryService.Requests[0].EmailKind);
+    }
+
+    [Fact]
+    public async Task ReissueReactivation_WhenCurrentUserIsAdmin_ReturnsForbid()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "client-1",
+            Email = "client@example.com",
+            IsActive = false,
+            ActivatedAtUtc = DateTime.UtcNow,
+            InvitationTokenHash = UserInvitationToken.Hash("old-token"),
+            InvitationExpiresAtUtc = DateTime.UtcNow.AddHours(1)
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "admin-1", Email = "admin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.Admin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Client }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.ReissueReactivation(targetUser.Id);
+
+        // Assert
+        Assert.IsType<ForbidResult>(result.Result);
+        Assert.Equal(UserInvitationToken.Hash("old-token"), targetUser.InvitationTokenHash);
     }
 
     [Theory]
@@ -1199,7 +1319,7 @@ public sealed class AdminUsersControllerTests
 
         // Assert
         Assert.IsType<OkObjectResult>(result.Result);
-        Assert.True(targetUser.IsActive);
+        Assert.False(targetUser.IsActive);
         Assert.Equal([AppRoles.Client], userManager.RemovedRoles);
         Assert.Equal(role, userManager.AddedRole);
         Assert.Equal(1, userManager.SecurityStampUpdateCount);
@@ -1232,7 +1352,7 @@ public sealed class AdminUsersControllerTests
     }
 
     [Fact]
-    public async Task ReactivateUser_WhenDisabledSuperAdminIsReactivatedAsSuperAdmin_ReturnsTemporaryPassword()
+    public async Task ReactivateUser_WhenDisabledSuperAdminIsReactivatedAsSuperAdmin_IssuesReactivationLink()
     {
         // Arrange
         var targetUser = new ApplicationUser
@@ -1263,11 +1383,11 @@ public sealed class AdminUsersControllerTests
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
-        Assert.False(string.IsNullOrWhiteSpace(payload.TemporaryPassword));
-        Assert.True(targetUser.IsActive);
-        Assert.True(targetUser.MustChangePassword);
+        Assert.Equal("Reactivation", payload.LinkType);
+        Assert.False(targetUser.IsActive);
+        Assert.False(targetUser.MustChangePassword);
         Assert.Null(userManager.AddedRole);
-        Assert.Equal(1, userManager.ResetPasswordCount);
+        Assert.Equal(0, userManager.ResetPasswordCount);
     }
 
     [Fact]

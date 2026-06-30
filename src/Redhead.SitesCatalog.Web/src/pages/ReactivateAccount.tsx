@@ -34,14 +34,13 @@ const validatePassword = (password: string) => ({
   hasSpecial: /[^a-zA-Z0-9]/.test(password),
 });
 
-export const ActivateAccount: React.FC = () => {
+export const ReactivateAccount: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const token = searchParams.get('token') ?? '';
 
   const [email, setEmail] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,31 +48,34 @@ export const ActivateAccount: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadInvitation = async () => {
+    const loadReactivation = async () => {
       if (!token) {
-        setError('This invitation link is invalid.');
+        setError('This reactivation link is invalid.');
         setLoading(false);
         return;
       }
 
       try {
-        const invitation = await authService.getInvitation(token);
-        if (!cancelled) setEmail(invitation.email);
+        const reactivation = await authService.getReactivation(token);
+        if (!cancelled) setEmail(reactivation.email);
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof ApiClientError ? loadError.message : 'Could not validate this invitation.');
+          setError(
+            loadError instanceof ApiClientError
+              ? loadError.message
+              : 'Could not validate this reactivation link.'
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
 
-    void loadInvitation();
+    void loadReactivation();
     return () => {
       cancelled = true;
     };
@@ -82,8 +84,7 @@ export const ActivateAccount: React.FC = () => {
   const passwordRules = useMemo(() => validatePassword(password), [password]);
   const passwordValid = Object.values(passwordRules).every(Boolean);
   const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
-  const canSubmit =
-    !saving && displayName.trim().length > 0 && passwordValid && passwordsMatch;
+  const canSubmit = !saving && passwordValid && passwordsMatch;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -91,22 +92,16 @@ export const ActivateAccount: React.FC = () => {
 
     setSaving(true);
     setError(null);
-    setFieldErrors({});
     try {
-      await authService.activateAccount({
-        token,
-        displayName: displayName.trim(),
-        password,
-      });
+      await authService.reactivateAccount({ token, password });
       await refreshUser();
       navigate('/sites', { replace: true });
-    } catch (activationError) {
-      if (activationError instanceof ApiClientError) {
-        setFieldErrors(activationError.fieldErrors ?? {});
-        setError(activationError.fieldErrors ? null : activationError.message);
-      } else {
-        setError('Account activation failed. Please try again.');
-      }
+    } catch (reactivationError) {
+      setError(
+        reactivationError instanceof ApiClientError
+          ? reactivationError.message
+          : 'Account reactivation failed. Please try again.'
+      );
     } finally {
       setSaving(false);
     }
@@ -125,11 +120,9 @@ export const ActivateAccount: React.FC = () => {
       <Card sx={{ width: '100%', maxWidth: 560 }}>
         <CardContent sx={{ p: 4 }}>
           <Stack spacing={3}>
-            <Box>
-              <Typography variant="h5" component="h1">
-                Activate your account
-              </Typography>
-            </Box>
+            <Typography variant="h5" component="h1">
+              Reactivate your account
+            </Typography>
 
             {loading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -146,25 +139,18 @@ export const ActivateAccount: React.FC = () => {
               <Box component="form" onSubmit={handleSubmit}>
                 <Stack spacing={2}>
                   {error ? <Alert severity="error">{error}</Alert> : null}
+                  <Alert severity="info">
+                    Choose a new password to restore access to your account.
+                  </Alert>
                   <TextField label="Email" value={email} disabled fullWidth />
                   <TextField
-                    label="Display name"
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                    error={Boolean(fieldErrors.displayName?.[0])}
-                    helperText={fieldErrors.displayName?.[0]}
-                    autoComplete="name"
-                    required
-                    autoFocus
-                    fullWidth
-                  />
-                  <TextField
-                    label="Password"
+                    label="New password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="new-password"
                     required
+                    autoFocus
                     fullWidth
                     slotProps={{
                       input: {
@@ -174,7 +160,7 @@ export const ActivateAccount: React.FC = () => {
                               size="small"
                               onClick={() => setShowPassword((value) => !value)}
                               edge="end"
-                              aria-label={showPassword ? 'Hide password' : 'Show password'}
+                              aria-label={showPassword ? 'Hide new password' : 'Show new password'}
                               sx={{ color: 'rgba(38,38,38,0.55)' }}
                             >
                               {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
@@ -228,7 +214,7 @@ export const ActivateAccount: React.FC = () => {
                     }}
                   />
                   <BrandButton kind="primary" type="submit" disabled={!canSubmit} fullWidth size="large">
-                    {saving ? <CircularProgress size={22} color="inherit" /> : 'Activate account'}
+                    {saving ? <CircularProgress size={22} color="inherit" /> : 'Reactivate account'}
                   </BrandButton>
                 </Stack>
               </Box>

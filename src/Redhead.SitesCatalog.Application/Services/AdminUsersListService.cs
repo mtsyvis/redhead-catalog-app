@@ -134,6 +134,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 IsActive = user.IsActive,
                 MustChangePassword = user.MustChangePassword,
                 ActivatedAtUtc = user.ActivatedAtUtc,
+                InvitationTokenHash = user.InvitationTokenHash,
                 InvitationExpiresAtUtc = user.InvitationExpiresAtUtc,
                 ExportLimitOverrideMode = user.ExportLimitOverrideMode,
                 ExportLimitRowsOverride = user.ExportLimitRowsOverride,
@@ -200,6 +201,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
             AccountStatus = UserAccountStatuses.Resolve(
                 user.IsActive,
                 user.ActivatedAtUtc,
+                user.InvitationTokenHash,
                 user.InvitationExpiresAtUtc,
                 DateTime.UtcNow),
             InvitationExpiresAtUtc = user.InvitationExpiresAtUtc,
@@ -261,6 +263,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
         public bool IsActive { get; init; }
         public bool MustChangePassword { get; init; }
         public DateTime? ActivatedAtUtc { get; init; }
+        public string? InvitationTokenHash { get; init; }
         public DateTime? InvitationExpiresAtUtc { get; init; }
         public ExportLimitMode? ExportLimitOverrideMode { get; init; }
         public int? ExportLimitRowsOverride { get; init; }

@@ -14,7 +14,8 @@ public sealed record InvitationDeliveryRequest(
     string RecipientEmail,
     string ActivationPath,
     DateTime InvitationExpiresAtUtc,
-    InvitationEventType EventType);
+    InvitationEventType EventType,
+    AccountAccessEmailKind EmailKind = AccountAccessEmailKind.Activation);
 
 public sealed record InvitationDeliveryResult(
     string ActivationUrl,
@@ -24,5 +25,7 @@ public enum InvitationEventType
 {
     Create,
     Reissue,
-    ReactivateNeverActivated
+    ReactivateNeverActivated,
+    ReactivateActivated,
+    ReissueReactivation
 }

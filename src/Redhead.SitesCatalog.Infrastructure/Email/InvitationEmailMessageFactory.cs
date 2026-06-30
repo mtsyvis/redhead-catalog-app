@@ -8,7 +8,8 @@ namespace Redhead.SitesCatalog.Infrastructure.Email;
 
 public static class InvitationEmailMessageFactory
 {
-    public const string Subject = "Activate your Redhead Catalog account";
+    public const string ActivationSubject = "Activate your Redhead Catalog account";
+    public const string ReactivationSubject = "Reactivate your Redhead Catalog account";
     private const string LightLogoFileName = "redhead-digital-logo-light.png";
     private const string LightLogoResourceName =
         "Redhead.SitesCatalog.Infrastructure.Email.Assets.redhead-digital-logo-light.png";
@@ -22,10 +23,27 @@ public static class InvitationEmailMessageFactory
         InvitationEmailSendRequest request,
         EmailOptions options)
     {
+        var isReactivation = request.EmailKind == AccountAccessEmailKind.Reactivation;
+        var subject = isReactivation ? ReactivationSubject : ActivationSubject;
+        var heading = isReactivation ? "Reactivate your account" : "Activate your account";
+        var actionLabel = isReactivation ? "Reactivate account" : "Activate account";
+        var firstParagraph = isReactivation
+            ? "A Redhead Catalog administrator has approved reactivation of your account."
+            : "You've been invited to the Redhead Digital Agency website catalog — your access to our curated database of sites for guest posts, link placements, and outreach campaigns.";
+        var secondParagraph = isReactivation
+            ? "Choose a new password to restore your access. Your account remains disabled until you complete this step."
+            : "Activate your account to browse available websites, check live metrics and pricing, and start building your placement list.";
+        var unexpectedCopy = isReactivation
+            ? "If you were not expecting your account to be reactivated, you can safely ignore this email. Your account will remain disabled."
+            : "If you were not expecting this invitation, you can safely ignore this email.";
+        var preheader = isReactivation
+            ? $"Set a new password to restore your Redhead Catalog access. This single-use link expires in {InvitationPolicy.LifetimeHours} hours."
+            : $"You've been invited to the Redhead Digital Agency website catalog. Your activation link expires in {InvitationPolicy.LifetimeHours} hours.";
+
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(options.FromName, options.FromAddress));
         message.To.Add(MailboxAddress.Parse(request.RecipientEmail));
-        message.Subject = Subject;
+        message.Subject = subject;
 
         var encodedUrl = HtmlEncoder.Default.Encode(request.ActivationUrl);
         var lightLogoContentId = MimeUtils.GenerateMessageId();
@@ -33,18 +51,18 @@ public static class InvitationEmailMessageFactory
         var bodyBuilder = new BodyBuilder
         {
             TextBody = $"""
-                Activate your Redhead Catalog account
+                {heading}
 
-                You've been invited to the Redhead Digital Agency website catalog — your access to our curated database of sites for guest posts, link placements, and outreach campaigns.
+                {firstParagraph}
 
-                Activate your account to browse available websites, check live metrics and pricing, and start building your placement list.
+                {secondParagraph}
 
-                Activate your account:
+                {actionLabel}:
                 {request.ActivationUrl}
 
-                This activation link is single-use and expires in {InvitationPolicy.LifetimeHours} hours.
+                This link is single-use and expires in {InvitationPolicy.LifetimeHours} hours.
 
-                If you were not expecting this invitation, you can safely ignore this email.
+                {unexpectedCopy}
 
                 The Redhead Digital Agency team
                 """,
@@ -56,7 +74,7 @@ public static class InvitationEmailMessageFactory
                   <meta name="viewport" content="width=device-width, initial-scale=1">
                   <meta name="color-scheme" content="light dark">
                   <meta name="supported-color-schemes" content="light dark">
-                  <title>{{Subject}}</title>
+                  <title>{{subject}}</title>
                   <style>
                     :root { color-scheme: light dark; supported-color-schemes: light dark; }
                     .dark-logo { display: none !important; }
@@ -81,7 +99,7 @@ public static class InvitationEmailMessageFactory
                 </head>
                 <body class="email-body" style="margin: 0; padding: 0; background-color: #f4f4f5; color: #262626; font-family: Arial, Helvetica, sans-serif;">
                   <span style="display: none !important; max-height: 0; max-width: 0; overflow: hidden; opacity: 0; color: transparent;">
-                    You've been invited to the Redhead Digital Agency website catalog. Your activation link expires in {{InvitationPolicy.LifetimeHours}} hours.
+                    {{preheader}}
                   </span>
 
                   <table class="email-bg" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; background-color: #f4f4f5;">
@@ -103,20 +121,20 @@ public static class InvitationEmailMessageFactory
                           <tr>
                             <td style="padding: 32px;">
                               <h1 class="email-title" style="margin: 0 0 16px; font-size: 28px; line-height: 36px; font-weight: 700; color: #262626;">
-                                Activate your account
+                                {{heading}}
                               </h1>
                               <p class="email-copy" style="margin: 0 0 16px; font-size: 16px; line-height: 24px; color: #525252;">
-                                You've been invited to the Redhead Digital Agency website catalog — your access to our curated database of sites for guest posts, link placements, and outreach campaigns.
+                                {{firstParagraph}}
                               </p>
                               <p class="email-copy" style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: #525252;">
-                                Activate your account to browse available websites, check live metrics and pricing, and start building your placement list.
+                                {{secondParagraph}}
                               </p>
 
                               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px;">
                                 <tr>
                                   <td bgcolor="#ff7c32" style="border-radius: 8px; background-color: #ff7c32;">
                                     <a href="{{encodedUrl}}" style="display: inline-block; padding: 13px 24px; font-size: 16px; line-height: 22px; font-weight: 700; color: #262626; text-decoration: none; border-radius: 8px;">
-                                      Activate account
+                                      {{actionLabel}}
                                     </a>
                                   </td>
                                 </tr>
@@ -125,7 +143,7 @@ public static class InvitationEmailMessageFactory
                               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin: 0 0 24px;">
                                 <tr>
                                   <td class="email-expiry" style="padding: 14px 16px; background-color: #fff7ed; border-left: 4px solid #f59e0b; font-size: 14px; line-height: 21px; color: #7c2d12;">
-                                    This activation link is single-use and expires in <strong>{{InvitationPolicy.LifetimeHours}} hours</strong>.
+                                    This link is single-use and expires in <strong>{{InvitationPolicy.LifetimeHours}} hours</strong>.
                                   </td>
                                 </tr>
                               </table>
@@ -138,7 +156,7 @@ public static class InvitationEmailMessageFactory
                               </p>
 
                               <p class="email-muted" style="margin: 0; font-size: 14px; line-height: 21px; color: #737373;">
-                                If you were not expecting this invitation, you can safely ignore this email.
+                                {{unexpectedCopy}}
                               </p>
                             </td>
                           </tr>
