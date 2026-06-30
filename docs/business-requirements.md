@@ -150,6 +150,7 @@ Rules:
 * Invitation email failure must not roll back or invalidate the saved invitation. The `SuperAdmin` must receive a safe warning and retain the one-time activation-link fallback.
 * Reactivating an already activated user continues to use the temporary-password flow and must not send an invitation email.
 * Invitation emails contain HTML and plain-text content, identify links as single-use with a 24-hour expiry, and must not contain passwords, roles, internal notes, or technical SMTP details.
+* Invitation email branding must remain correctly sized and readable in light and dark email-client themes, with a safe fallback for clients that force color inversion or ignore theme media queries.
 * If the link is lost or expires, `SuperAdmin` may reissue it for a pending or expired invitation. Reissuing invalidates the previous link and starts a new 24-hour period.
 * Invitation tokens and activation links must not be logged.
 * Account status is exposed as `Active`, `PendingActivation`, `InvitationExpired`, or `Disabled`.

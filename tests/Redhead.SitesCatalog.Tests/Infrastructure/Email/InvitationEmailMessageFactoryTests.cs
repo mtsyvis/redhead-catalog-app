@@ -61,16 +61,31 @@ public sealed class InvitationEmailMessageFactoryTests
         Assert.Contains("If you were not expecting this invitation", htmlBody);
         Assert.Contains("background-color: #ff7c32", htmlBody);
         Assert.Contains("max-width: 600px", htmlBody);
-        var logo = Assert.Single(
-            message.BodyParts.OfType<MimePart>(),
-            part => part.ContentType.MimeType == "image/png");
-        Assert.NotNull(logo.ContentId);
-        Assert.False(logo.IsAttachment);
-        Assert.Contains($"src=\"cid:{logo.ContentId}\"", htmlBody);
+        Assert.Contains("prefers-color-scheme: dark", htmlBody);
+        Assert.Contains("[data-ogsc] .dark-logo", htmlBody);
+        Assert.Contains("width=\"190\" height=\"53\"", htmlBody);
+        Assert.Contains("max-width: 190px !important", htmlBody);
+        var logos = message.BodyParts.OfType<MimePart>()
+            .Where(part => part.ContentType.MimeType == "image/png")
+            .OrderBy(part => part.FileName)
+            .ToArray();
+        Assert.Equal(2, logos.Length);
+        Assert.Equal(
+            ["redhead-digital-logo-dark.png", "redhead-digital-logo-light.png"],
+            logos.Select(logo => logo.FileName));
+        Assert.All(logos, logo =>
+        {
+            Assert.NotNull(logo.ContentId);
+            Assert.False(logo.IsAttachment);
+            Assert.Contains($"src=\"cid:{logo.ContentId}\"", htmlBody);
+            using var logoContent = new MemoryStream();
+            Assert.IsType<MimeContent>(logo.Content).DecodeTo(logoContent);
+            var logoBytes = logoContent.ToArray();
+            Assert.NotEmpty(logoBytes);
+            Assert.Equal(380, ReadPngDimension(logoBytes, offset: 16));
+            Assert.Equal(106, ReadPngDimension(logoBytes, offset: 20));
+        });
         Assert.DoesNotContain("<img src=\"http", htmlBody, StringComparison.OrdinalIgnoreCase);
-        using var logoContent = new MemoryStream();
-        Assert.IsType<MimeContent>(logo.Content).DecodeTo(logoContent);
-        Assert.NotEmpty(logoContent.ToArray());
         Assert.True(
             htmlBody.IndexOf("24 hours", StringComparison.Ordinal) <
             htmlBody.IndexOf("If the button does not work", StringComparison.Ordinal));
@@ -79,4 +94,10 @@ public sealed class InvitationEmailMessageFactoryTests
         Assert.Empty(message.ReplyTo);
         Assert.Empty(message.Attachments);
     }
+
+    private static int ReadPngDimension(byte[] pngBytes, int offset)
+        => (pngBytes[offset] << 24)
+           | (pngBytes[offset + 1] << 16)
+           | (pngBytes[offset + 2] << 8)
+           | pngBytes[offset + 3];
 }

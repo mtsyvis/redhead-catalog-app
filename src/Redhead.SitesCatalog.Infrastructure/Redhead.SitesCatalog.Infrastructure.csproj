@@ -21,8 +21,11 @@
 
   <ItemGroup>
     <EmbeddedResource
-      Include="Email\Assets\redhead-digital-logo.png"
-      LogicalName="Redhead.SitesCatalog.Infrastructure.Email.Assets.redhead-digital-logo.png" />
+      Include="Email\Assets\redhead-digital-logo-light.png"
+      LogicalName="Redhead.SitesCatalog.Infrastructure.Email.Assets.redhead-digital-logo-light.png" />
+    <EmbeddedResource
+      Include="Email\Assets\redhead-digital-logo-dark.png"
+      LogicalName="Redhead.SitesCatalog.Infrastructure.Email.Assets.redhead-digital-logo-dark.png" />
     <Content Include="Locations\SeedData\location-aliases.cleaned.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
