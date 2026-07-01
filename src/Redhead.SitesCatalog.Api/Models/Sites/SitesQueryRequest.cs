@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Api.Models.Sites;
 
@@ -43,6 +44,7 @@ public class SitesQueryRequest
     public long? TrafficMax { get; set; }
     public decimal? PriceMin { get; set; }
     public decimal? PriceMax { get; set; }
+    public PriceType PriceType { get; set; } = PriceType.Main;
     public string? TermKey { get; set; }
 
     // Location multi-select (frontend sends "location")

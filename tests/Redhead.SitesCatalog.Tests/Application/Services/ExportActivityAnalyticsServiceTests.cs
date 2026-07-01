@@ -252,10 +252,7 @@ public sealed class ExportActivityAnalyticsServiceTests
                 {
                   "schemaVersion": 1,
                   "filters": [
-                    { "field": "locationKey", "kind": "multiSelect", "operator": "anyOf", "value": ["US"] },
-                    { "field": "dr", "kind": "numberRange", "operator": "gte", "value": { "min": 40 } },
-                    { "field": "traffic", "kind": "numberRange", "operator": "gte", "value": { "min": 1000 } },
-                    { "field": "priceUsd", "kind": "numberRange", "operator": "lte", "value": { "max": 300 } },
+                    { "field": "priceCasino", "kind": "numberRange", "operator": "lte", "value": { "max": 450 } },
                     { "field": "termKey", "kind": "term", "operator": "eq", "value": "permanent" }
                   ]
                 }
@@ -269,6 +266,7 @@ public sealed class ExportActivityAnalyticsServiceTests
         // Assert
         var item = Assert.Single(result.RecentExports.Items);
         Assert.Contains("Term Permanent", item.FiltersSummary, StringComparison.Ordinal);
+        Assert.Contains("Casino price up to $450", item.FiltersSummary, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -311,6 +309,7 @@ public sealed class ExportActivityAnalyticsServiceTests
                     { "field": "locationKey", "kind": "multiSelect", "operator": "anyOf", "value": ["ID", "US"] },
                     { "field": "dr", "kind": "numberRange", "operator": "between", "value": { "min": 10, "max": 70 } },
                     { "field": "priceUsd", "kind": "numberRange", "operator": "gte", "value": { "min": 100 } },
+                    { "field": "priceCasino", "kind": "numberRange", "operator": "between", "value": { "min": 200, "max": 400 } },
                     { "field": "termKey", "kind": "term", "operator": "eq", "value": "permanent" },
                     { "field": "quarantine", "kind": "enum", "operator": "eq", "value": "exclude" },
                     { "field": "priceCasinoAvailability", "kind": "availability", "operator": "in", "value": ["available", "availableWithUnknownPrice"] },
@@ -353,6 +352,7 @@ public sealed class ExportActivityAnalyticsServiceTests
         Assert.Equal("10-70", GetFilterValue(result, "Quality and price", "DR"));
         Assert.Equal("No filter", GetFilterValue(result, "Quality and price", "Traffic"));
         Assert.Equal("From $100", GetFilterValue(result, "Quality and price", "Price USD"));
+        Assert.Equal("$200-$400", GetFilterValue(result, "Quality and price", "Casino price"));
         Assert.Equal("Permanent", GetFilterValue(result, "Quality and price", "Term"));
         Assert.Equal("Available", GetFilterValue(result, "Status", "Status"));
         Assert.Equal("2026-01-2026-03", GetFilterValue(result, "Status", "Last published"));

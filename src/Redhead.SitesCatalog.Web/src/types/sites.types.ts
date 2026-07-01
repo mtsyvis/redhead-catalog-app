@@ -61,6 +61,7 @@ export interface SitesQueryParams {
   trafficMax?: number;
   priceMin?: number;
   priceMax?: number;
+  priceType?: PriceTypeValue;
   termKey?: string;
   stopListDomains?: string[];
   /** Legacy location display-name filter. Prefer canonical locationKeys/locationGroupKeys. */
@@ -234,6 +235,7 @@ export interface SitesFilters {
   trafficMax: string;
   priceMin: string;
   priceMax: string;
+  priceType: PriceTypeValue;
   termKey: string | null;
   stopListDomains: string[];
   locationSelections: LocationFilterSelection[];

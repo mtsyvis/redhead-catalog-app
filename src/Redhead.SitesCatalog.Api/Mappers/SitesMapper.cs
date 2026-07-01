@@ -38,6 +38,7 @@ public static class SitesMapper
             TrafficMax = request.TrafficMax,
             PriceMin = request.PriceMin,
             PriceMax = request.PriceMax,
+            PriceType = ParsePriceType(request.PriceType),
             TermKey = NormalizeTermKey(request.TermKey),
             Locations = request.Locations,
             LocationKeys = request.LocationKeys ?? request.Locations,
@@ -101,6 +102,17 @@ public static class SitesMapper
         }
 
         return rawValue.Trim();
+    }
+
+    private static PriceType ParsePriceType(PriceType priceType)
+    {
+        if (!Enum.IsDefined(priceType))
+        {
+            throw new RequestValidationException(
+                $"Invalid price type '{priceType}'. Allowed values: Main, Casino, Crypto, LinkInsertion, LinkInsertionCasino, Dating.");
+        }
+
+        return priceType;
     }
 
     private static string ParseTopicFitMode(string? rawValue)

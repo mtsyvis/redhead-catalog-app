@@ -85,6 +85,11 @@ internal static class ExportActivitySnapshotSummaryFormatter
         AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.Dr, QualityRangeFormatter.FormatDrRange);
         AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.Traffic, QualityRangeFormatter.FormatTrafficRange);
         AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, QualityRangeFormatter.FormatPriceRange);
+        AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceCasino, range => FormatServicePriceRange("Casino", range));
+        AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceCrypto, range => FormatServicePriceRange("Crypto", range));
+        AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceLinkInsert, range => FormatServicePriceRange("Link insert", range));
+        AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceLinkInsertCasino, range => FormatServicePriceRange("Link insert casino", range));
+        AddRangeLabels(labels, snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceDating, range => FormatServicePriceRange("Dating", range));
         AddValuesLabel(labels, snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.Niche), singular: "Niche", plural: "niches");
         AddValuesLabel(labels, snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.Categories), singular: "Category", plural: "categories");
         AddValuesLabel(labels, snapshot.GetStringValues(ExportAnalyticsSnapshotSchema.Filters.Language).Select(value => value.ToUpperInvariant()).ToArray(), singular: "Language", plural: "languages");
@@ -174,6 +179,15 @@ internal static class ExportActivitySnapshotSummaryFormatter
         {
             labels.Add($"Term {AnalyticsTermLabelFormatter.FormatTermKey(termKey)}");
         }
+    }
+
+    private static string? FormatServicePriceRange(string serviceLabel, RangeValue range)
+    {
+        const string mainPricePrefix = "Price ";
+        var priceRange = QualityRangeFormatter.FormatPriceRange(range);
+        return priceRange is null
+            ? null
+            : $"{serviceLabel} price {priceRange[mainPricePrefix.Length..]}";
     }
 
     private static void AddValuesLabel(

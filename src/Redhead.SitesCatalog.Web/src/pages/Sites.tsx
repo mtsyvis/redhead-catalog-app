@@ -55,6 +55,7 @@ import type {
 } from '../types/sites.types';
 import { sitesService } from '../services/sites.service';
 import { normalizeServiceAvailabilityFilter } from '../utils/serviceAvailability';
+import { PRICE_TYPE, getPriceFilterColumnId } from '../utils/pricing';
 
 const INITIAL_FILTERS: FiltersType = {
   search: '',
@@ -64,6 +65,7 @@ const INITIAL_FILTERS: FiltersType = {
   trafficMax: '',
   priceMin: '',
   priceMax: '',
+  priceType: PRICE_TYPE.Main,
   termKey: null,
   stopListDomains: [],
   locationSelections: [],
@@ -298,6 +300,7 @@ export function Sites() {
         : undefined,
       priceMin: appliedQueryFilters.priceMin ? Number(appliedQueryFilters.priceMin) : undefined,
       priceMax: appliedQueryFilters.priceMax ? Number(appliedQueryFilters.priceMax) : undefined,
+      priceType: appliedQueryFilters.priceType,
       termKey: appliedQueryFilters.termKey ?? undefined,
       stopListDomains:
         !multiSearchMode && appliedQueryFilters.stopListDomains.length > 0
@@ -645,7 +648,9 @@ export function Sites() {
 
     if (filters.drMin || filters.drMax) activeColumnIds.add('dr');
     if (filters.trafficMin || filters.trafficMax) activeColumnIds.add('traffic');
-    if (filters.priceMin || filters.priceMax) activeColumnIds.add('priceUsd');
+    if (filters.priceMin || filters.priceMax) {
+      activeColumnIds.add(getPriceFilterColumnId(filters.priceType));
+    }
     if (filters.termKey !== INITIAL_FILTERS.termKey) activeColumnIds.add('priceUsd');
     if (filters.locationSelections.length > 0 || filters.excludedLocationKeys.length > 0) {
       activeColumnIds.add('location');
@@ -684,6 +689,7 @@ export function Sites() {
     filters.trafficMax,
     filters.priceMin,
     filters.priceMax,
+    filters.priceType,
     filters.termKey,
     filters.locationSelections,
     filters.excludedLocationKeys,
@@ -744,6 +750,8 @@ export function Sites() {
   const handleClearHiddenFilters = () => {
     const hidden = new Set(hiddenFilteredColumnIds);
     if (hidden.size === 0) return;
+    const selectedPriceColumnId = getPriceFilterColumnId(filters.priceType);
+    const clearSelectedPriceRange = hidden.has(selectedPriceColumnId);
 
     const nextFilters = {
       ...filters,
@@ -751,8 +759,8 @@ export function Sites() {
       drMax: hidden.has('dr') ? INITIAL_FILTERS.drMax : filters.drMax,
       trafficMin: hidden.has('traffic') ? INITIAL_FILTERS.trafficMin : filters.trafficMin,
       trafficMax: hidden.has('traffic') ? INITIAL_FILTERS.trafficMax : filters.trafficMax,
-      priceMin: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMin : filters.priceMin,
-      priceMax: hidden.has('priceUsd') ? INITIAL_FILTERS.priceMax : filters.priceMax,
+      priceMin: clearSelectedPriceRange ? INITIAL_FILTERS.priceMin : filters.priceMin,
+      priceMax: clearSelectedPriceRange ? INITIAL_FILTERS.priceMax : filters.priceMax,
       termKey: hidden.has('priceUsd') ? INITIAL_FILTERS.termKey : filters.termKey,
       locationSelections: hidden.has('location')
         ? INITIAL_FILTERS.locationSelections

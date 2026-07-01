@@ -17,7 +17,7 @@ import {
   getPriceSortAmount,
   getServiceSortRank,
   hasAnyPriceForTerm,
-  matchesMainPriceRange,
+  matchesPriceRange,
   matchesOptionalServiceFilter,
 } from '../../../utils/pricing';
 
@@ -104,7 +104,7 @@ export function filterSites(sites: Site[], f: FiltersType): Site[] {
     if (!hasAnyPriceForTerm(s, f.termKey) && !matchesAnyGlobalAvailabilityStatusFilter(s, f)) {
       return false;
     }
-    if (!matchesMainPriceRange(s, f)) return false;
+    if (!matchesPriceRange(s, f)) return false;
     if (
       selectedLocationNames.size > 0 &&
       !hasSelectedGroupWithoutMembers &&
@@ -237,6 +237,7 @@ export function useSitesGridRows({
       trafficMax: filters.trafficMax,
       priceMin: filters.priceMin,
       priceMax: filters.priceMax,
+      priceType: filters.priceType,
       termKey: filters.termKey,
       stopListDomains: [],
       locationSelections: filters.locationSelections,
@@ -263,6 +264,7 @@ export function useSitesGridRows({
       filters.trafficMax,
       filters.priceMin,
       filters.priceMax,
+      filters.priceType,
       filters.termKey,
       filters.locationSelections,
       filters.excludedLocationKeys,

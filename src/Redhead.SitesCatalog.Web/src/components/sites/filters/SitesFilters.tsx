@@ -49,8 +49,11 @@ import {
 import { LANGUAGE_OPTIONS, getLanguageOption } from '../../../utils/language';
 import {
   ANY_TERM_KEY,
+  PRICE_FILTER_TYPE_OPTIONS,
+  PRICE_TYPE,
   createTermFilterOptions,
   formatTermFilterLabel,
+  getPriceFilterTypeLabel,
 } from '../../../utils/pricing';
 import { LastPublishedRangeFilter } from './LastPublishedRangeFilter';
 import { StopListDialog } from '../dialogs/StopListDialog';
@@ -96,6 +99,7 @@ const INITIAL_FILTERS: SitesFilters = {
   trafficMax: '',
   priceMin: '',
   priceMax: '',
+  priceType: PRICE_TYPE.Main,
   termKey: null,
   stopListDomains: [],
   locationSelections: [],
@@ -230,7 +234,7 @@ function OptionalServiceAvailabilitySelect({
         />
       )}
       sx={{
-        width: 185,
+        width: { xs: '100%', sm: 185 },
         '& .MuiAutocomplete-inputRoot': {
           flexWrap: 'nowrap',
           overflow: 'hidden',
@@ -331,6 +335,7 @@ export function SitesFilters({
       trafficMax: INITIAL_FILTERS.trafficMax,
       priceMin: INITIAL_FILTERS.priceMin,
       priceMax: INITIAL_FILTERS.priceMax,
+      priceType: INITIAL_FILTERS.priceType,
       termKey: INITIAL_FILTERS.termKey,
       stopListDomains: multiSearchMode ? filters.stopListDomains : INITIAL_FILTERS.stopListDomains,
       locationSelections: INITIAL_FILTERS.locationSelections,
@@ -439,6 +444,28 @@ export function SitesFilters({
     hasAvailabilityFilter(filters.datingAvailability);
   const showOptionalServiceTermHelper =
     selectedTermKey !== ANY_TERM_KEY && optionalServiceAvailabilityFilterActive;
+  const priceRangeActive = filters.priceMin !== '' || filters.priceMax !== '';
+  const selectedPriceTypeLabel = getPriceFilterTypeLabel(filters.priceType);
+  const selectedPriceAvailability =
+    filters.priceType === PRICE_TYPE.Casino
+      ? filters.casinoAvailability
+      : filters.priceType === PRICE_TYPE.Crypto
+        ? filters.cryptoAvailability
+        : filters.priceType === PRICE_TYPE.LinkInsertion
+          ? filters.linkInsertAvailability
+          : filters.priceType === PRICE_TYPE.LinkInsertionCasino
+            ? filters.linkInsertCasinoAvailability
+            : filters.priceType === PRICE_TYPE.Dating
+              ? filters.datingAvailability
+              : [];
+  const normalizedSelectedPriceAvailability = normalizeServiceAvailabilityFilter(
+    selectedPriceAvailability
+  );
+  const priceAvailabilityConflict =
+    priceRangeActive &&
+    filters.priceType !== PRICE_TYPE.Main &&
+    normalizedSelectedPriceAvailability.length > 0 &&
+    !normalizedSelectedPriceAvailability.includes('available');
 
   const stopListCount = filters.stopListDomains.length;
   const stopListPaused = multiSearchMode && stopListCount > 0;
@@ -1069,66 +1096,6 @@ export function SitesFilters({
                 </Box>
               </Box>
 
-              {/* Price Range (USD) */}
-              <Box sx={{ flex: 1, minWidth: '200px' }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Price (USD)
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                  <TextField
-                    size="small"
-                    label="Min"
-                    type="number"
-                    value={filters.priceMin}
-                    onChange={(e) => handleChange('priceMin', e.target.value)}
-                    slotProps={{ htmlInput: { min: 0 } }}
-                    sx={{ flex: 1 }}
-                  />
-                  <Typography>—</Typography>
-                  <TextField
-                    size="small"
-                    label="Max"
-                    type="number"
-                    value={filters.priceMax}
-                    onChange={(e) => handleChange('priceMax', e.target.value)}
-                    slotProps={{ htmlInput: { min: 0 } }}
-                    sx={{ flex: 1 }}
-                  />
-                </Box>
-              </Box>
-
-              {/* Term Filter */}
-              <Box sx={{ flex: '0 0 auto', minWidth: '185px' }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Term
-                </Typography>
-                <TextField
-                  select
-                  size="small"
-                  value={selectedTermKey}
-                  onChange={(event) =>
-                    handleChange(
-                      'termKey',
-                      event.target.value === ANY_TERM_KEY ? null : event.target.value
-                    )
-                  }
-                  sx={{ width: 185 }}
-                  slotProps={{
-                    select: {
-                      displayEmpty: true,
-                      inputProps: { 'aria-label': 'Term' },
-                      renderValue: () => selectedTermLabel,
-                    },
-                  }}
-                >
-                  {termOptions.map((option) => (
-                    <MenuItem key={option.termKey || 'any'} value={option.termKey}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Box>
-
               <LocationFilter
                 value={filters.locationSelections}
                 excludedLocationKeys={filters.excludedLocationKeys}
@@ -1197,13 +1164,197 @@ export function SitesFilters({
 
             </Box>
 
-            {/* Row 3: Topic fit */}
+            {/* Pricing and services */}
             <Box
               sx={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 1.5,
                 borderTop: '1px solid',
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                pt: 2,
+                pb: 2,
+              }}
+            >
+              <Box>
+                <Typography variant="subtitle2">Pricing &amp; services</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Filter a price, then refine service availability if needed.
+                </Typography>
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    lg: 'minmax(520px, 680px) 200px',
+                  },
+                  gap: 2,
+                  alignItems: 'start',
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Price range (USD)
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: '220px minmax(0, 1fr)' },
+                      gap: 1,
+                      alignItems: 'start',
+                    }}
+                  >
+                    <TextField
+                      select
+                      size="small"
+                      fullWidth
+                      value={filters.priceType}
+                      onChange={(event) =>
+                        handleChange(
+                          'priceType',
+                          Number(event.target.value) as SitesFilters['priceType']
+                        )
+                      }
+                      slotProps={{ select: { inputProps: { 'aria-label': 'Price type' } } }}
+                    >
+                      {PRICE_FILTER_TYPE_OPTIONS.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: {
+                          xs: '1fr',
+                          sm: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+                        },
+                        gap: 1,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <TextField
+                        size="small"
+                        fullWidth
+                        label="Min"
+                        type="number"
+                        value={filters.priceMin}
+                        onChange={(event) => handleChange('priceMin', event.target.value)}
+                        slotProps={{ htmlInput: { min: 0 } }}
+                        sx={{ minWidth: 0 }}
+                      />
+                      <Typography aria-hidden="true" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                        —
+                      </Typography>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        label="Max"
+                        type="number"
+                        value={filters.priceMax}
+                        onChange={(event) => handleChange('priceMax', event.target.value)}
+                        slotProps={{ htmlInput: { min: 0 } }}
+                        sx={{ minWidth: 0 }}
+                      />
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Term
+                  </Typography>
+                  <TextField
+                    select
+                    size="small"
+                    fullWidth
+                    value={selectedTermKey}
+                    onChange={(event) =>
+                      handleChange(
+                        'termKey',
+                        event.target.value === ANY_TERM_KEY ? null : event.target.value
+                      )
+                    }
+                    slotProps={{
+                      select: {
+                        displayEmpty: true,
+                        inputProps: { 'aria-label': 'Term' },
+                        renderValue: () => selectedTermLabel,
+                      },
+                    }}
+                  >
+                    {termOptions.map((option) => (
+                      <MenuItem key={option.termKey || 'any'} value={option.termKey}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Box>
+              </Box>
+
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  Service availability
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <OptionalServiceAvailabilitySelect
+                    label="Casino"
+                    value={filters.casinoAvailability}
+                    onChange={(value) => handleChange('casinoAvailability', value)}
+                  />
+                  <OptionalServiceAvailabilitySelect
+                    label="Crypto"
+                    value={filters.cryptoAvailability}
+                    onChange={(value) => handleChange('cryptoAvailability', value)}
+                  />
+                  <OptionalServiceAvailabilitySelect
+                    label="Link Insert"
+                    value={filters.linkInsertAvailability}
+                    onChange={(value) => handleChange('linkInsertAvailability', value)}
+                  />
+                  <OptionalServiceAvailabilitySelect
+                    label="Link Insert Casino"
+                    value={filters.linkInsertCasinoAvailability}
+                    onChange={(value) => handleChange('linkInsertCasinoAvailability', value)}
+                  />
+                  <OptionalServiceAvailabilitySelect
+                    label="Dating"
+                    value={filters.datingAvailability}
+                    onChange={(value) => handleChange('datingAvailability', value)}
+                  />
+                </Box>
+              </Box>
+
+              <Box>
+                {showOptionalServiceTermHelper && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    Term is active: service filters use only {selectedTermLabel} prices.
+                  </Typography>
+                )}
+                {priceAvailabilityConflict && (
+                  <Typography
+                    role="alert"
+                    variant="caption"
+                    color="error.main"
+                    sx={{ display: 'block', mt: 0.5, fontWeight: 600 }}
+                  >
+                    A {selectedPriceTypeLabel} price range requires “Has price”. The selected{' '}
+                    {selectedPriceTypeLabel} availability values cannot match this range.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+
+            {/* Row 3: Topic fit */}
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.5,
                 borderBottom: '1px solid',
                 borderColor: 'divider',
                 pt: 2,
@@ -1325,52 +1476,6 @@ export function SitesFilters({
                     onChange={(terms) => handleChange('excludedCategorySearchTerms', terms)}
                   />
                 </Box>
-              </Box>
-            </Box>
-
-            {/* Row 4: Service Availability */}
-            <Box sx={{ display: 'flex', columnGap: FILTER_GROUP_GAP, rowGap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              {/* Optional Service Availability */}
-              <Box sx={{ flex: '0 0 auto' }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Optional Service Availability
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-                  <OptionalServiceAvailabilitySelect
-                    label="Casino"
-                    value={filters.casinoAvailability}
-                    onChange={(value) => handleChange('casinoAvailability', value)}
-                  />
-                  <OptionalServiceAvailabilitySelect
-                    label="Crypto"
-                    value={filters.cryptoAvailability}
-                    onChange={(value) => handleChange('cryptoAvailability', value)}
-                  />
-                  <OptionalServiceAvailabilitySelect
-                    label="Link Insert"
-                    value={filters.linkInsertAvailability}
-                    onChange={(value) => handleChange('linkInsertAvailability', value)}
-                  />
-                  <OptionalServiceAvailabilitySelect
-                    label="Link Insert Casino"
-                    value={filters.linkInsertCasinoAvailability}
-                    onChange={(value) => handleChange('linkInsertCasinoAvailability', value)}
-                  />
-                  <OptionalServiceAvailabilitySelect
-                    label="Dating"
-                    value={filters.datingAvailability}
-                    onChange={(value) => handleChange('datingAvailability', value)}
-                  />
-                </Box>
-                {showOptionalServiceTermHelper && (
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ display: 'block', maxWidth: 720, mt: 1, lineHeight: 1.35 }}
-                  >
-                    Term is active: service filters use only {selectedTermLabel} prices.
-                  </Typography>
-                )}
               </Box>
             </Box>
 

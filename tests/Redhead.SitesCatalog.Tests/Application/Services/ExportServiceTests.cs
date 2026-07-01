@@ -2116,6 +2116,41 @@ public class ExportServiceTests : IDisposable
             filter.GetProperty("value").GetString() == "permanent");
     }
 
+    [Theory]
+    [InlineData(PriceType.Main, "priceUsd")]
+    [InlineData(PriceType.Casino, "priceCasino")]
+    [InlineData(PriceType.Crypto, "priceCrypto")]
+    [InlineData(PriceType.LinkInsertion, "priceLinkInsert")]
+    [InlineData(PriceType.LinkInsertionCasino, "priceLinkInsertCasino")]
+    [InlineData(PriceType.Dating, "priceDating")]
+    public void ExportAnalyticsSnapshotBuilder_WithPriceType_StoresTypedPriceRange(
+        PriceType priceType,
+        string expectedField)
+    {
+        // Arrange
+        var exportLog = new ExportLog
+        {
+            Id = Guid.NewGuid(),
+            TimestampUtc = DateTime.UtcNow
+        };
+        var query = new SitesQuery
+        {
+            PriceMin = 100m,
+            PriceMax = 500m,
+            PriceType = priceType
+        };
+
+        // Act
+        var snapshot = ExportAnalyticsSnapshotBuilder.Create(exportLog, query);
+
+        // Assert
+        using var document = JsonDocument.Parse(snapshot.FiltersSnapshotJson);
+        var filter = Assert.Single(document.RootElement.GetProperty("filters").EnumerateArray().ToArray());
+        Assert.Equal(expectedField, filter.GetProperty("field").GetString());
+        Assert.Equal(100m, filter.GetProperty("value").GetProperty("min").GetDecimal());
+        Assert.Equal(500m, filter.GetProperty("value").GetProperty("max").GetDecimal());
+    }
+
     [Fact]
     public async Task ExportSitesAsExcelAsync_ClientRole_StoresEmptyFiltersArrayWhenNoFiltersActive()
     {
