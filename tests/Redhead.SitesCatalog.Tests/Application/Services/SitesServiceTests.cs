@@ -490,7 +490,7 @@ public class SitesServiceTests : IDisposable
 
         // Assert
         Assert.Equal(3, result.Total); // example.com(100), test.com(200), crypto.com(150)
-        Assert.All(result.Items, site => Assert.True(site.PriceUsd >= 100m && site.PriceUsd <= 200m));
+        Assert.All(result.Items, site => Assert.InRange(GetLowestPrice(site, PriceType.Main)!.Value, 100m, 200m));
     }
 
     #endregion
@@ -1263,7 +1263,9 @@ public class SitesServiceTests : IDisposable
         var result = await _service.GetSitesAsync(query);
 
         Assert.Single(result.Items);
-        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceCasinoStatus));
+        Assert.All(result.Items, site => Assert.Equal(
+            ServiceAvailabilityStatus.NotAvailable,
+            GetServiceStatus(site, PriceType.Casino)));
     }
 
     [Fact]
@@ -1367,7 +1369,9 @@ public class SitesServiceTests : IDisposable
         var result = await _service.GetSitesAsync(query);
 
         Assert.Single(result.Items);
-        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Unknown, site.PriceCryptoStatus));
+        Assert.All(result.Items, site => Assert.Equal(
+            ServiceAvailabilityStatus.Unknown,
+            GetServiceStatus(site, PriceType.Crypto)));
     }
 
     [Fact]
@@ -1386,7 +1390,9 @@ public class SitesServiceTests : IDisposable
         var result = await _service.GetSitesAsync(query);
 
         Assert.Single(result.Items);
-        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceLinkInsertStatus));
+        Assert.All(result.Items, site => Assert.Equal(
+            ServiceAvailabilityStatus.NotAvailable,
+            GetServiceStatus(site, PriceType.LinkInsertion)));
     }
 
     [Fact]
@@ -1405,7 +1411,9 @@ public class SitesServiceTests : IDisposable
         var result = await _service.GetSitesAsync(query);
 
         Assert.Equal(2, result.Items.Count);
-        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.NotAvailable, site.PriceLinkInsertCasinoStatus));
+        Assert.All(result.Items, site => Assert.Equal(
+            ServiceAvailabilityStatus.NotAvailable,
+            GetServiceStatus(site, PriceType.LinkInsertionCasino)));
     }
 
     [Fact]
@@ -1424,7 +1432,9 @@ public class SitesServiceTests : IDisposable
         var result = await _service.GetSitesAsync(query);
 
         Assert.Equal(2, result.Items.Count);
-        Assert.All(result.Items, site => Assert.Equal(ServiceAvailabilityStatus.Unknown, site.PriceDatingStatus));
+        Assert.All(result.Items, site => Assert.Equal(
+            ServiceAvailabilityStatus.Unknown,
+            GetServiceStatus(site, PriceType.Dating)));
     }
 
     [Fact]
@@ -1781,9 +1791,9 @@ public class SitesServiceTests : IDisposable
 
         // Assert
         Assert.Equal(5, result.Total);
-        Assert.Equal(500m, result.Items[0].PriceUsd); // gambling.com
-        Assert.Equal(200m, result.Items[1].PriceUsd); // test.com
-        Assert.Equal(150m, result.Items[2].PriceUsd); // crypto.com
+        Assert.Equal(500m, GetLowestPrice(result.Items[0], PriceType.Main)); // gambling.com
+        Assert.Equal(200m, GetLowestPrice(result.Items[1], PriceType.Main)); // test.com
+        Assert.Equal(150m, GetLowestPrice(result.Items[2], PriceType.Main)); // crypto.com
     }
 
     [Fact]
@@ -2185,7 +2195,7 @@ public class SitesServiceTests : IDisposable
         Assert.Equal("example.com", result.Items[0].Domain);
         Assert.True(result.Items[0].DR >= 50);
         Assert.Equal("United States", result.Items[0].Location);
-        Assert.NotNull(result.Items[0].PriceCrypto);
+        Assert.NotNull(GetLowestPrice(result.Items[0], PriceType.Crypto));
         Assert.False(result.Items[0].IsQuarantined);
     }
 
@@ -2606,13 +2616,6 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(20000L, updated.Traffic);
         Assert.Equal("Canada", updated.Location);
         Assert.Equal("EN", updated.Language);
-        Assert.Equal(150m, updated.PriceUsd);
-        Assert.Equal(200m, updated.PriceCasino);
-        Assert.Null(updated.PriceCrypto);
-        Assert.Equal(90m, updated.PriceLinkInsert);
-        Assert.Equal(95m, updated.PriceLinkInsertCasino);
-        Assert.Null(updated.PriceDating);
-        Assert.Equal(ServiceAvailabilityStatus.NotAvailable, updated.PriceDatingStatus);
         Assert.Equal(4, updated.NumberDFLinks);
         Assert.Equal(TermType.Finite, updated.TermType);
         Assert.Equal(1, updated.TermValue);
@@ -2626,6 +2629,13 @@ public class SitesServiceTests : IDisposable
         Assert.Equal("CA", dbSite.Location);
         Assert.Equal("CA", dbSite.LocationKey);
         Assert.Equal("EN", dbSite.Language);
+        Assert.Equal(150m, dbSite.PriceUsd);
+        Assert.Equal(200m, dbSite.PriceCasino);
+        Assert.Null(dbSite.PriceCrypto);
+        Assert.Equal(90m, dbSite.PriceLinkInsert);
+        Assert.Equal(95m, dbSite.PriceLinkInsertCasino);
+        Assert.Null(dbSite.PriceDating);
+        Assert.Equal(ServiceAvailabilityStatus.NotAvailable, dbSite.PriceDatingStatus);
         Assert.Equal(["updated niche"], dbSite.NicheTokens);
     }
 
@@ -3681,6 +3691,21 @@ public class SitesServiceTests : IDisposable
             CreatedAtUtc = site.CreatedAtUtc,
             UpdatedAtUtc = site.UpdatedAtUtc
         };
+
+    private static decimal? GetLowestPrice(SiteDto site, PriceType priceType)
+    {
+        var prices = site.Pricing.Prices
+            .Where(price => price.PriceType == priceType)
+            .Select(price => price.AmountUsd)
+            .ToArray();
+
+        return prices.Length == 0 ? null : prices.Min();
+    }
+
+    private static ServiceAvailabilityStatus? GetServiceStatus(SiteDto site, PriceType serviceType)
+        => site.Pricing.ServiceAvailabilities
+            .SingleOrDefault(availability => availability.ServiceType == serviceType)
+            ?.Status;
 
     private static UpdateSitePriceOptionRequest CreatePricingRequest(
         PriceType priceType,

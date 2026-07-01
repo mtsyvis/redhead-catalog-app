@@ -160,17 +160,6 @@ public class SitesMapperTests
             Traffic = 50000,
             Location = "US",
             Language = "EN",
-            PriceUsd = 200m,
-            PriceCasino = 250m,
-            PriceCasinoStatus = ServiceAvailabilityStatus.Available,
-            PriceCrypto = 220m,
-            PriceCryptoStatus = ServiceAvailabilityStatus.Available,
-            PriceLinkInsert = 180m,
-            PriceLinkInsertStatus = ServiceAvailabilityStatus.Available,
-            PriceLinkInsertCasino = 190m,
-            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Available,
-            PriceDating = 210m,
-            PriceDatingStatus = ServiceAvailabilityStatus.Available,
             NumberDFLinks = 3,
             TermType = TermType.Finite,
             TermValue = 2,
@@ -220,17 +209,6 @@ public class SitesMapperTests
         Assert.Equal(50000, response.Traffic);
         Assert.Equal("US", response.Location);
         Assert.Equal("EN", response.Language);
-        Assert.Equal(200m, response.PriceUsd);
-        Assert.Equal(250m, response.PriceCasino);
-        Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceCasinoStatus);
-        Assert.Equal(220m, response.PriceCrypto);
-        Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceCryptoStatus);
-        Assert.Equal(180m, response.PriceLinkInsert);
-        Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceLinkInsertStatus);
-        Assert.Equal(190m, response.PriceLinkInsertCasino);
-        Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceLinkInsertCasinoStatus);
-        Assert.Equal(210m, response.PriceDating);
-        Assert.Equal(ServiceAvailabilityStatus.Available, response.PriceDatingStatus);
         Assert.Equal(3, response.NumberDFLinks);
         Assert.Equal(TermType.Finite, response.TermType);
         Assert.Equal(2, response.TermValue);
@@ -256,6 +234,52 @@ public class SitesMapperTests
         var availability = Assert.Single(response.Pricing.ServiceAvailabilities);
         Assert.Equal(PriceType.Casino, availability.ServiceType);
         Assert.Equal(ServiceAvailabilityStatus.Available, availability.Status);
+    }
+
+    [Fact]
+    public void SiteResponse_Serialization_DoesNotExposeLegacyFlatPricingFields()
+    {
+        // Arrange
+        var response = SitesMapper.ToSiteResponse(new SiteDto
+        {
+            Domain = "example.com",
+            Pricing = new SitePricingDto
+            {
+                Prices =
+                [
+                    new SitePriceOptionDto
+                    {
+                        PriceType = PriceType.Main,
+                        TermKey = "unknown",
+                        TermLabel = "No term",
+                        AmountUsd = 128m
+                    }
+                ]
+            }
+        });
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var legacyFields = new[]
+        {
+            "priceUsd",
+            "priceCasino",
+            "priceCasinoStatus",
+            "priceCrypto",
+            "priceCryptoStatus",
+            "priceLinkInsert",
+            "priceLinkInsertStatus",
+            "priceLinkInsertCasino",
+            "priceLinkInsertCasinoStatus",
+            "priceDating",
+            "priceDatingStatus"
+        };
+
+        // Act
+        var json = JsonSerializer.Serialize(response, options);
+
+        // Assert
+        Assert.Contains("\"pricing\"", json);
+        Assert.Contains("\"amountUsd\":128", json);
+        Assert.All(legacyFields, field => Assert.DoesNotContain($"\"{field}\":", json));
     }
 
     [Fact]
@@ -292,17 +316,6 @@ public class SitesMapperTests
             Traffic = 10000,
             Location = "UK",
             Language = null,
-            PriceUsd = 100m,
-            PriceCasino = null,
-            PriceCasinoStatus = ServiceAvailabilityStatus.Unknown,
-            PriceCrypto = null,
-            PriceCryptoStatus = ServiceAvailabilityStatus.Unknown,
-            PriceLinkInsert = null,
-            PriceLinkInsertStatus = ServiceAvailabilityStatus.Unknown,
-            PriceLinkInsertCasino = null,
-            PriceLinkInsertCasinoStatus = ServiceAvailabilityStatus.Unknown,
-            PriceDating = null,
-            PriceDatingStatus = ServiceAvailabilityStatus.Unknown,
             NumberDFLinks = null,
             TermType = null,
             TermValue = null,
@@ -322,16 +335,8 @@ public class SitesMapperTests
         // Assert
         Assert.Equal("basic.com", response.Domain);
         Assert.Null(response.Language);
-        Assert.Null(response.PriceCasino);
-        Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceCasinoStatus);
-        Assert.Null(response.PriceCrypto);
-        Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceCryptoStatus);
-        Assert.Null(response.PriceLinkInsert);
-        Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceLinkInsertStatus);
-        Assert.Null(response.PriceLinkInsertCasino);
-        Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceLinkInsertCasinoStatus);
-        Assert.Null(response.PriceDating);
-        Assert.Equal(ServiceAvailabilityStatus.Unknown, response.PriceDatingStatus);
+        Assert.Empty(response.Pricing.Prices);
+        Assert.Empty(response.Pricing.ServiceAvailabilities);
         Assert.Null(response.NumberDFLinks);
         Assert.Null(response.TermType);
         Assert.Null(response.TermValue);
@@ -774,7 +779,6 @@ public class SitesMapperTests
                     DR = 50,
                     Traffic = 10000,
                     Location = "US",
-                    PriceUsd = 100m,
                     IsQuarantined = false,
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow
@@ -785,7 +789,6 @@ public class SitesMapperTests
                     DR = 60,
                     Traffic = 20000,
                     Location = "UK",
-                    PriceUsd = 150m,
                     IsQuarantined = false,
                     CreatedAtUtc = DateTime.UtcNow,
                     UpdatedAtUtc = DateTime.UtcNow

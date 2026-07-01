@@ -8,17 +8,6 @@ export interface Site {
   location: string;
   importedLocationRaw: string | null;
   language: string | null;
-  priceUsd: number | null;
-  priceCasino: number | null;
-  priceCasinoStatus: ServiceAvailabilityStatus;
-  priceCrypto: number | null;
-  priceCryptoStatus: ServiceAvailabilityStatus;
-  priceLinkInsert: number | null;
-  priceLinkInsertStatus: ServiceAvailabilityStatus;
-  priceLinkInsertCasino: number | null;
-  priceLinkInsertCasinoStatus: ServiceAvailabilityStatus;
-  priceDating: number | null;
-  priceDatingStatus: ServiceAvailabilityStatus;
   numberDFLinks: number | null;
   termType: TermType | null;
   termValue: number | null;
@@ -35,7 +24,7 @@ export interface Site {
   updatedBy?: string | null;
   lastPublishedDate: string | null;
   lastPublishedDateIsMonthOnly: boolean;
-  pricing?: SitePricingDto | null;
+  pricing: SitePricingDto;
 }
 
 /**
