@@ -15,17 +15,6 @@ public class SiteResponse
     public string? ImportedLocationRaw { get; set; }
     public string? Language { get; set; }
     public string? SponsoredTag { get; set; }
-    public decimal? PriceUsd { get; set; }
-    public decimal? PriceCasino { get; set; }
-    public ServiceAvailabilityStatus PriceCasinoStatus { get; set; }
-    public decimal? PriceCrypto { get; set; }
-    public ServiceAvailabilityStatus PriceCryptoStatus { get; set; }
-    public decimal? PriceLinkInsert { get; set; }
-    public ServiceAvailabilityStatus PriceLinkInsertStatus { get; set; }
-    public decimal? PriceLinkInsertCasino { get; set; }
-    public ServiceAvailabilityStatus PriceLinkInsertCasinoStatus { get; set; }
-    public decimal? PriceDating { get; set; }
-    public ServiceAvailabilityStatus PriceDatingStatus { get; set; }
     public int? NumberDFLinks { get; set; }
     public TermType? TermType { get; set; }
     public int? TermValue { get; set; }

@@ -468,12 +468,19 @@ public class SitesControllerTests
             Traffic = 10000,
             Location = "US",
             Language = "EN",
-            PriceUsd = 100.50m,
-            PriceCasino = 150.00m,
-            PriceCrypto = null,
-            PriceLinkInsert = 75.00m,
-            PriceLinkInsertCasino = 85.00m,
-            PriceDating = null,
+            Pricing = new SitePricingResponse
+            {
+                Prices =
+                [
+                    new SitePriceOptionResponse
+                    {
+                        PriceType = PriceType.Main,
+                        TermKey = "unknown",
+                        TermLabel = "No term",
+                        AmountUsd = 100.50m
+                    }
+                ]
+            },
             NumberDFLinks = 2,
             Niche = "Tech",
             Categories = "Technology, News",
@@ -490,12 +497,9 @@ public class SitesControllerTests
         Assert.Equal(10000, site.Traffic);
         Assert.Equal("US", site.Location);
         Assert.Equal("EN", site.Language);
-        Assert.Equal(100.50m, site.PriceUsd);
-        Assert.Equal(150.00m, site.PriceCasino);
-        Assert.Null(site.PriceCrypto);
-        Assert.Equal(75.00m, site.PriceLinkInsert);
-        Assert.Equal(85.00m, site.PriceLinkInsertCasino);
-        Assert.Null(site.PriceDating);
+        var price = Assert.Single(site.Pricing.Prices);
+        Assert.Equal(PriceType.Main, price.PriceType);
+        Assert.Equal(100.50m, price.AmountUsd);
         Assert.Equal(2, site.NumberDFLinks);
         Assert.False(site.IsQuarantined);
     }
@@ -519,7 +523,6 @@ public class SitesControllerTests
                 Traffic = request.Traffic,
                 Location = request.Location,
                 Language = request.Language,
-                PriceUsd = request.PriceUsd,
                 IsQuarantined = request.IsQuarantined,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow

@@ -116,23 +116,6 @@ export interface PricingCellSummary {
   compactHiddenCount: number;
 }
 
-const LEGACY_PRICE_FIELDS: Partial<Record<PriceTypeValue, keyof Site>> = {
-  [PRICE_TYPE.Main]: 'priceUsd',
-  [PRICE_TYPE.Casino]: 'priceCasino',
-  [PRICE_TYPE.Crypto]: 'priceCrypto',
-  [PRICE_TYPE.LinkInsertion]: 'priceLinkInsert',
-  [PRICE_TYPE.LinkInsertionCasino]: 'priceLinkInsertCasino',
-  [PRICE_TYPE.Dating]: 'priceDating',
-};
-
-const LEGACY_STATUS_FIELDS: Partial<Record<PriceTypeValue, keyof Site>> = {
-  [PRICE_TYPE.Casino]: 'priceCasinoStatus',
-  [PRICE_TYPE.Crypto]: 'priceCryptoStatus',
-  [PRICE_TYPE.LinkInsertion]: 'priceLinkInsertStatus',
-  [PRICE_TYPE.LinkInsertionCasino]: 'priceLinkInsertCasinoStatus',
-  [PRICE_TYPE.Dating]: 'priceDatingStatus',
-};
-
 export function normalizePriceType(priceType: PriceType | null | undefined): PriceTypeValue | null {
   if (priceType === PRICE_TYPE.Main || priceType === 'Main') return PRICE_TYPE.Main;
   if (priceType === PRICE_TYPE.Casino || priceType === 'Casino') return PRICE_TYPE.Casino;
@@ -181,43 +164,17 @@ export function createTermFilterOptions(
   ];
 }
 
-function hasTermAwarePricing(site: Site): boolean {
-  return site.pricing != null;
-}
-
 export function getPrices(site: Site, priceType: PriceTypeValue): SitePriceOptionDto[] {
-  if (hasTermAwarePricing(site)) {
-    return (site.pricing?.prices ?? [])
-      .filter((price) => normalizePriceType(price.priceType) === priceType && price.amountUsd > 0)
-      .sort(comparePriceTerms);
-  }
-
-  // LEGACY_PRICING: tolerate older API responses during rollout when pricing is absent.
-  const legacyField = LEGACY_PRICE_FIELDS[priceType];
-  const legacyAmount = legacyField ? site[legacyField] : null;
-  return typeof legacyAmount === 'number' && legacyAmount > 0
-    ? [
-        {
-          priceType,
-          termKey: 'unknown',
-          termLabel: 'Unknown term',
-          amountUsd: legacyAmount,
-        },
-      ]
-    : [];
+  return site.pricing.prices
+    .filter((price) => normalizePriceType(price.priceType) === priceType && price.amountUsd > 0)
+    .sort(comparePriceTerms);
 }
 
 export function getServiceStatus(site: Site, serviceType: PriceTypeValue): ServiceAvailabilityStatus | null {
-  const availability = site.pricing?.serviceAvailabilities.find(
+  const availability = site.pricing.serviceAvailabilities.find(
     (item) => normalizePriceType(item.serviceType) === serviceType
   );
-  if (availability) return availability.status;
-
-  if (hasTermAwarePricing(site)) return null;
-
-  // LEGACY_PRICING: tolerate older API responses during rollout when pricing is absent.
-  const legacyField = LEGACY_STATUS_FIELDS[serviceType];
-  return legacyField ? (site[legacyField] as ServiceAvailabilityStatus) : null;
+  return availability?.status ?? null;
 }
 
 export function getMatchingPrices(
@@ -246,7 +203,7 @@ export function getLowestPriceAmount(
 export function hasAnyPriceForTerm(site: Site, selectedTermKey: string | null | undefined): boolean {
   const normalizedTermKey = normalizeSelectedTermKey(selectedTermKey);
   if (!normalizedTermKey) return true;
-  return (site.pricing?.prices ?? []).some(
+  return site.pricing.prices.some(
     (price) => price.amountUsd > 0 && price.termKey === normalizedTermKey
   );
 }

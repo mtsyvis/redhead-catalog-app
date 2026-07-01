@@ -1,8 +1,14 @@
-import type { MultiSearchResultItem, ServiceAvailabilityStatus, Site } from '../../types/sites.types';
+import type { MultiSearchResultItem } from '../../types/sites.types';
 import {
   SERVICE_AVAILABILITY_STATUS,
   normalizeServiceAvailabilityStatus,
 } from '../../utils/serviceAvailability';
+import {
+  PRICE_FIELD_TO_TYPE,
+  PRICE_TYPE,
+  getLowestPriceAmount,
+  getServiceStatus,
+} from '../../utils/pricing';
 
 export const COPYABLE_PRICE_COLUMNS = [
   'priceUsd',
@@ -24,16 +30,6 @@ export const COPYABLE_PRICE_COLUMN_LABELS: Record<CopyablePriceColumn, string> =
   priceDating: 'Dating',
 };
 
-type OptionalPriceColumn = Exclude<CopyablePriceColumn, 'priceUsd'>;
-
-const OPTIONAL_PRICE_STATUS_FIELDS = {
-  priceCasino: 'priceCasinoStatus',
-  priceCrypto: 'priceCryptoStatus',
-  priceLinkInsert: 'priceLinkInsertStatus',
-  priceLinkInsertCasino: 'priceLinkInsertCasinoStatus',
-  priceDating: 'priceDatingStatus',
-} satisfies Record<OptionalPriceColumn, keyof Site>;
-
 export function isCopyablePriceColumn(field: string): field is CopyablePriceColumn {
   return COPYABLE_PRICE_COLUMNS.includes(field as CopyablePriceColumn);
 }
@@ -42,33 +38,22 @@ function formatClipboardPrice(value: number): string {
   return Number.isFinite(value) ? String(value) : '';
 }
 
-function formatOptionalPriceColumnValue(site: Site, field: OptionalPriceColumn): string {
-  const status = normalizeServiceAvailabilityStatus(
-    site[OPTIONAL_PRICE_STATUS_FIELDS[field]] as ServiceAvailabilityStatus
-  );
-
-  if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) return 'NO';
-  if (status === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice) return 'YES';
-
-  if (status === SERVICE_AVAILABILITY_STATUS.Available) {
-    const value = site[field] as number | null;
-    return value == null ? '' : formatClipboardPrice(value);
-  }
-
-  return '';
-}
-
 export function formatPriceColumnClipboardValue(
   result: MultiSearchResultItem,
   field: CopyablePriceColumn
 ): string {
   if (!result.found) return '';
 
-  if (field === 'priceUsd') {
-    return result.site.priceUsd == null ? 'NO' : formatClipboardPrice(result.site.priceUsd);
-  }
+  const priceType = PRICE_FIELD_TO_TYPE[field];
+  const amount = getLowestPriceAmount(result.site, priceType, null);
+  if (amount !== null) return formatClipboardPrice(amount);
+  if (priceType === PRICE_TYPE.Main) return '';
 
-  return formatOptionalPriceColumnValue(result.site, field);
+  const status = normalizeServiceAvailabilityStatus(getServiceStatus(result.site, priceType));
+  if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) return 'NO';
+  if (status === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice) return 'YES';
+
+  return '';
 }
 
 export function buildPriceColumnClipboardText(
