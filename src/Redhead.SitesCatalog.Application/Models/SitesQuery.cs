@@ -29,6 +29,7 @@ public class SitesQuery
     public long? TrafficMax { get; set; }
     public decimal? PriceMin { get; set; }
     public decimal? PriceMax { get; set; }
+    public PriceType PriceType { get; set; } = PriceType.Main;
     public string? TermKey { get; set; }
 
     // Legacy location multi-select. Prefer LocationKeys for canonical location filtering.

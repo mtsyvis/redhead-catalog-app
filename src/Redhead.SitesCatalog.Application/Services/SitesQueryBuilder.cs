@@ -429,7 +429,7 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             var priceOptions = GetRequiredContext().SitePriceOptions;
             query = query.Where(site => priceOptions.Any(priceOption =>
                 priceOption.SiteDomain == site.Domain &&
-                priceOption.PriceType == PriceType.Main &&
+                priceOption.PriceType == filters.PriceType &&
                 priceOption.AmountUsd > 0 &&
                 (selectedTermKey == null || priceOption.TermKey == selectedTermKey) &&
                 (!filters.PriceMin.HasValue || priceOption.AmountUsd >= filters.PriceMin.Value) &&

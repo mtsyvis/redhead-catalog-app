@@ -50,6 +50,31 @@ export const PRICE_TYPE_LABELS: Record<PriceTypeValue, string> = {
   [PRICE_TYPE.Dating]: 'Dating',
 };
 
+export const PRICE_FILTER_TYPE_OPTIONS: ReadonlyArray<{
+  value: PriceTypeValue;
+  label: string;
+  columnId: string;
+}> = [
+  { value: PRICE_TYPE.Main, label: 'Price USD', columnId: 'priceUsd' },
+  { value: PRICE_TYPE.Casino, label: 'Casino', columnId: 'priceCasino' },
+  { value: PRICE_TYPE.Crypto, label: 'Crypto', columnId: 'priceCrypto' },
+  { value: PRICE_TYPE.LinkInsertion, label: 'Link Insert', columnId: 'priceLinkInsert' },
+  {
+    value: PRICE_TYPE.LinkInsertionCasino,
+    label: 'Link Insert Casino',
+    columnId: 'priceLinkInsertCasino',
+  },
+  { value: PRICE_TYPE.Dating, label: 'Dating', columnId: 'priceDating' },
+];
+
+export function getPriceFilterTypeLabel(priceType: PriceTypeValue): string {
+  return PRICE_FILTER_TYPE_OPTIONS.find((option) => option.value === priceType)?.label ?? 'Price USD';
+}
+
+export function getPriceFilterColumnId(priceType: PriceTypeValue): string {
+  return PRICE_FILTER_TYPE_OPTIONS.find((option) => option.value === priceType)?.columnId ?? 'priceUsd';
+}
+
 export const TERM_KEY_OPTIONS = [
   { termKey: 'unknown', label: 'No term' },
   { termKey: 'finite:1:year', label: '1 year' },
@@ -226,12 +251,20 @@ export function hasAnyPriceForTerm(site: Site, selectedTermKey: string | null | 
   );
 }
 
-export function matchesMainPriceRange(site: Site, filters: { priceMin: string; priceMax: string; termKey: string | null }): boolean {
+export function matchesPriceRange(
+  site: Site,
+  filters: {
+    priceMin: string;
+    priceMax: string;
+    priceType: PriceTypeValue;
+    termKey: string | null;
+  }
+): boolean {
   if (filters.priceMin === '' && filters.priceMax === '') return true;
 
   const min = filters.priceMin === '' ? null : Number(filters.priceMin);
   const max = filters.priceMax === '' ? null : Number(filters.priceMax);
-  const prices = getMatchingPrices(site, PRICE_TYPE.Main, filters.termKey);
+  const prices = getMatchingPrices(site, filters.priceType, filters.termKey);
 
   return prices.some(
     (price) =>

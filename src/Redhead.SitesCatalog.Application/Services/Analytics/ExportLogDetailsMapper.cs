@@ -85,6 +85,11 @@ internal static class ExportLogDetailsMapper
                 new ExportLogDetailsRowDto("DR", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.Dr, FormatPlainNumber)),
                 new ExportLogDetailsRowDto("Traffic", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.Traffic, FormatWholeNumber)),
                 new ExportLogDetailsRowDto("Price USD", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, FormatUsd)),
+                new ExportLogDetailsRowDto("Casino price", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceCasino, FormatUsd)),
+                new ExportLogDetailsRowDto("Crypto price", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceCrypto, FormatUsd)),
+                new ExportLogDetailsRowDto("Link insert price", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceLinkInsert, FormatUsd)),
+                new ExportLogDetailsRowDto("Link insert casino price", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceLinkInsertCasino, FormatUsd)),
+                new ExportLogDetailsRowDto("Dating price", FormatRanges(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceDating, FormatUsd)),
                 new ExportLogDetailsRowDto("Term", FormatTerm(snapshot))
             ]));
 

@@ -1,3 +1,5 @@
+using Redhead.SitesCatalog.Domain.Enums;
+
 namespace Redhead.SitesCatalog.Application.Models.SavedFilters;
 
 public sealed class SavedFilterSettingsDto
@@ -10,6 +12,7 @@ public sealed class SavedFilterSettingsDto
     public string TrafficMax { get; init; } = string.Empty;
     public string PriceMin { get; init; } = string.Empty;
     public string PriceMax { get; init; } = string.Empty;
+    public PriceType PriceType { get; init; } = PriceType.Main;
     public string? TermKey { get; init; }
     public List<SavedFilterLocationSelectionDto> LocationSelections { get; init; } = new();
     public List<string> ExcludedLocationKeys { get; init; } = new();

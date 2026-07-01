@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models.SavedFilters;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
@@ -206,6 +207,7 @@ public sealed class UserSavedFilterSetsService : IUserSavedFilterSetsService
         ValidateScalar(settings.TrafficMax, "Traffic maximum");
         ValidateScalar(settings.PriceMin, "Price minimum");
         ValidateScalar(settings.PriceMax, "Price maximum");
+        ValidatePriceType(settings.PriceType);
         ValidateOptionalScalar(settings.TermKey, "Term key");
         ValidateScalar(settings.TopicFitMode, "Topic fit mode");
         ValidateScalar(settings.Quarantine, "Quarantine");
@@ -262,6 +264,7 @@ public sealed class UserSavedFilterSetsService : IUserSavedFilterSetsService
             TrafficMax = settings.TrafficMax,
             PriceMin = settings.PriceMin,
             PriceMax = settings.PriceMax,
+            PriceType = settings.PriceType,
             TermKey = NormalizeOptionalScalar(settings.TermKey),
             LocationSelections = settings.LocationSelections,
             ExcludedLocationKeys = settings.ExcludedLocationKeys,
@@ -280,6 +283,14 @@ public sealed class UserSavedFilterSetsService : IUserSavedFilterSetsService
             LastPublishedFromMonth = settings.LastPublishedFromMonth,
             LastPublishedToMonth = settings.LastPublishedToMonth
         };
+
+    private static void ValidatePriceType(PriceType priceType)
+    {
+        if (!Enum.IsDefined(priceType))
+        {
+            throw new RequestValidationException("Price type is invalid.");
+        }
+    }
 
     private static void ValidateScalar(string? value, string label)
     {

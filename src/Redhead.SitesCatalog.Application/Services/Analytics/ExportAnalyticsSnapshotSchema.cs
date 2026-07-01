@@ -7,6 +7,11 @@ internal static class ExportAnalyticsSnapshotSchema
         public const string Dr = "dr";
         public const string Traffic = "traffic";
         public const string PriceUsd = "priceUsd";
+        public const string PriceCasino = "priceCasino";
+        public const string PriceCrypto = "priceCrypto";
+        public const string PriceLinkInsert = "priceLinkInsert";
+        public const string PriceLinkInsertCasino = "priceLinkInsertCasino";
+        public const string PriceDating = "priceDating";
         public const string TermKey = "termKey";
         public const string Location = "location";
         public const string LocationKey = "locationKey";

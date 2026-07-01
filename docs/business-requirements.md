@@ -314,7 +314,7 @@ Rules:
 * Empty `PriceUsd` must be stored as empty/null, not as `0`.
 * `PriceUsd` must be either empty/null or greater than `0`; `0` and negative values are invalid.
 * UI must display empty `PriceUsd` as `NO`.
-* Price filtering and sorting use `SitePriceOptions` as the backend source of truth once term-aware pricing is enabled. With no selected term, price logic considers all terms; with a selected `TermKey`, price logic considers only matching price options.
+* Price filtering and sorting use `SitePriceOptions` as the backend source of truth once term-aware pricing is enabled. The price-range filter targets one selected `PriceType` and defaults to `Main`. With no selected term, a site matches when at least one price option of the selected type is inside the range; with a selected `TermKey`, only matching-term price options of the selected type are considered.
 * During sites import, price fields may all be empty or unavailable; valid rows are not rejected only because no numeric price is present.
 * During sites update import, a present empty `PriceUsd` cell with a row `Term` clears that exact `SitePriceOption`; a missing price column leaves pricing data unchanged.
 * During sites update import, service price and availability fields may be omitted, cleared, or set unavailable according to field-level rules; update rows are not rejected only because no numeric price remains.
@@ -495,7 +495,8 @@ Main filters:
 * Stop list domain exclusion
 * DR range
 * Traffic range
-* Price range
+* Price type single-select: `Price USD` (main price) / Casino / Crypto / Link Insert / Link Insert Casino / Dating; default `Price USD`
+* Price range for the selected price type
 * Term single-select: any term / unknown term / finite year terms / permanent
 * Location multi-select
 * Location group multi-select
@@ -528,6 +529,8 @@ Optional service availability filter rules:
 * Multiple selected values for one optional service use OR semantics.
 * Filters across different optional services use AND semantics.
 * The `available` and `availableWithUnknownPrice` values are distinct filter states.
+* `TermKey` remains a standalone filter requiring at least one numeric price of any type for the selected term. It also scopes price ranges and optional-service `available` (`Has price`) checks. `availableWithUnknownPrice` (`YES`), `notAvailable` (`NO`), and `unknown` remain global statuses and are not term-specific.
+* A numeric range for an optional service requires a numeric price for that service. Combining such a range with availability values that exclude `available` is contradictory and returns no sites; the UI must warn without silently changing either filter.
 
 Sites search and filter UX rules:
 
@@ -887,7 +890,7 @@ Rules:
 * `Lite` export settings are shown as disabled and are not editable at role or user level.
 * `SuperAdmin` and `Admin` can access an Analytics page for Business Demand based on Client export requests.
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
-* Business Demand price range analytics are based on the `priceUsd` main-price filter stored in export analytics snapshots. Term-aware pricing adds selected term demand and price-range-by-term demand; export logs without `termKey` are counted as `Any term`.
+* Business Demand price range analytics aggregate the selected `priceUsd`, Casino, Crypto, Link Insert, Link Insert Casino, or Dating price range stored in export analytics snapshots. Service price ranges are labelled with the service name so equal ranges for different price types remain distinct. Term-aware pricing adds selected term demand and price-range-by-term demand; export logs without `termKey` are counted as `Any term`.
 * Business Demand analytics are based on export requests, not all UI searches, and must not expose raw export logs or raw filter/sort/search snapshot JSON in the page.
 * `SuperAdmin` can access an Export Activity analytics tab based on Client export logs and exported-domain access records.
 * Export Activity analytics summarize completed, partial, and blocked exports; unique exported domains; requested versus exported rows; daily export activity; per-client export results inside the selected period; and paginated recent export logs.

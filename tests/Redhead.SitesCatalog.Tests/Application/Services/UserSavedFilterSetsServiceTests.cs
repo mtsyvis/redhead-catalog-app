@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models.SavedFilters;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
@@ -15,7 +16,9 @@ public sealed class UserSavedFilterSetsServiceTests
         // Arrange
         await using var db = CreateDbContext();
         var sut = CreateService(db);
-        var settings = CreateSettings(stopListDomains: new[] { "https://www.blocked.com/path" });
+        var settings = CreateSettings(
+            stopListDomains: new[] { "https://www.blocked.com/path" },
+            priceType: PriceType.Casino);
 
         // Act
         var created = await sut.CreateFilterSetAsync(
@@ -54,6 +57,7 @@ public sealed class UserSavedFilterSetsServiceTests
         // Assert
         Assert.Equal("Outreach base", created.Name);
         Assert.Equal(new[] { "blocked.com" }, created.Settings.StopListDomains);
+        Assert.Equal(PriceType.Casino, created.Settings.PriceType);
         Assert.Equal("Renamed", updated.Name);
         Assert.Equal(new[] { "Business" }, updated.Settings.Niches);
         var onlyCurrentUserSet = Assert.Single(listed.FilterSets);
@@ -219,7 +223,8 @@ public sealed class UserSavedFilterSetsServiceTests
         IReadOnlyCollection<string>? stopListDomains = null,
         IReadOnlyCollection<string>? niches = null,
         string topicFitMode = TopicFitModeValues.Expand,
-        string? termKey = null)
+        string? termKey = null,
+        PriceType priceType = PriceType.Main)
         => new()
         {
             SchemaVersion = SavedFilterSetConstants.SchemaVersion,
@@ -230,6 +235,7 @@ public sealed class UserSavedFilterSetsServiceTests
             TrafficMax = string.Empty,
             PriceMin = string.Empty,
             PriceMax = "500",
+            PriceType = priceType,
             TermKey = termKey,
             LocationSelections = new List<SavedFilterLocationSelectionDto>(),
             ExcludedLocationKeys = new List<string>(),

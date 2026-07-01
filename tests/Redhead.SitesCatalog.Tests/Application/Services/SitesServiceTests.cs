@@ -3038,6 +3038,110 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(["any-term-match.com"], result.Items.Select(site => site.Domain).ToArray());
     }
 
+    [Theory]
+    [InlineData(PriceType.Main)]
+    [InlineData(PriceType.Casino)]
+    [InlineData(PriceType.Crypto)]
+    [InlineData(PriceType.LinkInsertion)]
+    [InlineData(PriceType.LinkInsertionCasino)]
+    [InlineData(PriceType.Dating)]
+    public async Task GetSitesAsync_PriceRange_UsesSelectedPriceType(PriceType priceType)
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var match = SiteWithNullPrice("selected-price-match.com");
+        var outsideRange = SiteWithNullPrice("selected-price-outside.com");
+        var wrongType = SiteWithNullPrice("wrong-price-type.com");
+        var differentPriceType = priceType == PriceType.Main ? PriceType.Casino : PriceType.Main;
+
+        _context.Sites.AddRange(match, outsideRange, wrongType);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(match, priceType, PricingTerm.Permanent, 150m),
+            CreatePriceOption(outsideRange, priceType, PricingTerm.Permanent, 300m),
+            CreatePriceOption(wrongType, differentPriceType, PricingTerm.Permanent, 150m));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            PriceMin = 100m,
+            PriceMax = 200m,
+            PriceType = priceType,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(["selected-price-match.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_ServicePriceRangeWithTermKey_UsesOnlySelectedServiceTerm()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var oneYearMatch = SiteWithNullPrice("casino-one-year-match.com");
+        var permanentOnly = SiteWithNullPrice("casino-permanent-only.com");
+        var oneYear = PricingTerm.FiniteYears(1);
+
+        _context.Sites.AddRange(oneYearMatch, permanentOnly);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(oneYearMatch, PriceType.Casino, oneYear, 150m),
+            CreatePriceOption(permanentOnly, PriceType.Casino, PricingTerm.Permanent, 150m));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            PriceMin = 100m,
+            PriceMax = 200m,
+            PriceType = PriceType.Casino,
+            TermKey = oneYear.TermKey,
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Equal(["casino-one-year-match.com"], result.Items.Select(site => site.Domain).ToArray());
+    }
+
+    [Fact]
+    public async Task GetSitesAsync_ServicePriceRangeWithConflictingAvailability_ReturnsNoSites()
+    {
+        // Arrange
+        await ClearCatalogAsync();
+        var site = SiteWithNullPrice("casino-price.com");
+        _context.Sites.Add(site);
+        _context.SitePriceOptions.Add(
+            CreatePriceOption(site, PriceType.Casino, PricingTerm.Permanent, 150m));
+        _context.SiteServiceAvailabilities.Add(
+            CreateServiceAvailability(site, PriceType.Casino, ServiceAvailabilityStatus.Available));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _service.GetSitesAsync(new SitesQuery
+        {
+            Page = 1,
+            PageSize = 10,
+            PriceMin = 100m,
+            PriceMax = 200m,
+            PriceType = PriceType.Casino,
+            CasinoAvailability = [ServiceAvailabilityStatus.AvailableWithUnknownPrice],
+            SortBy = SortFields.Domain,
+            SortDir = SortingDefaults.Ascending,
+            Quarantine = QuarantineFilterValues.All
+        });
+
+        // Assert
+        Assert.Empty(result.Items);
+    }
+
     [Fact]
     public async Task GetSitesAsync_PriceMaxWithTermKey_UsesOnlySelectedMainPriceTerm()
     {

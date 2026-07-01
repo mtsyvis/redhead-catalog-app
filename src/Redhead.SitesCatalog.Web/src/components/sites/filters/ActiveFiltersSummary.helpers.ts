@@ -4,7 +4,11 @@ import {
   normalizeServiceAvailabilityFilter,
 } from '../../../utils/serviceAvailability';
 import { pluralize } from '../../../utils/pluralize';
-import { formatTermFilterLabel } from '../../../utils/pricing';
+import {
+  PRICE_TYPE,
+  formatTermFilterLabel,
+  getPriceFilterTypeLabel,
+} from '../../../utils/pricing';
 
 const FILTER_VALUE_SUMMARY_MAX_LENGTH = 22;
 const FILTER_VALUE_SUMMARY_LIMIT = 5;
@@ -91,7 +95,13 @@ export function buildAdvancedActiveFilterSummaries(
     filters.trafficMin,
     filters.trafficMax
   );
-  const priceSummary = formatRangeFilterSummary('Price', filters.priceMin, filters.priceMax);
+  const priceSummary = formatRangeFilterSummary(
+    filters.priceType === PRICE_TYPE.Main
+      ? 'Price USD'
+      : `${getPriceFilterTypeLabel(filters.priceType)} price (USD)`,
+    filters.priceMin,
+    filters.priceMax
+  );
 
   if (drSummary) summaries.push(drSummary);
   if (trafficSummary) summaries.push(trafficSummary);

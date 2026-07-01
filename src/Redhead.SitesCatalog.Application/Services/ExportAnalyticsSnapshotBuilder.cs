@@ -57,7 +57,7 @@ public static class ExportAnalyticsSnapshotBuilder
 
         AddNumberRange(filters, ExportAnalyticsSnapshotSchema.Filters.Dr, query.DrMin, query.DrMax);
         AddNumberRange(filters, ExportAnalyticsSnapshotSchema.Filters.Traffic, query.TrafficMin, query.TrafficMax);
-        AddNumberRange(filters, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, query.PriceMin, query.PriceMax);
+        AddNumberRange(filters, GetPriceFilterField(query.PriceType), query.PriceMin, query.PriceMax);
         AddTermKey(filters, query.TermKey);
         AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.Location, query.Locations);
         AddMultiSelect(filters, ExportAnalyticsSnapshotSchema.Filters.LocationKey, query.LocationKeys);
@@ -222,6 +222,17 @@ public static class ExportAnalyticsSnapshotBuilder
             Operator: "eq",
             Value: termKey.Trim()));
     }
+
+    private static string GetPriceFilterField(PriceType priceType)
+        => priceType switch
+        {
+            PriceType.Casino => ExportAnalyticsSnapshotSchema.Filters.PriceCasino,
+            PriceType.Crypto => ExportAnalyticsSnapshotSchema.Filters.PriceCrypto,
+            PriceType.LinkInsertion => ExportAnalyticsSnapshotSchema.Filters.PriceLinkInsert,
+            PriceType.LinkInsertionCasino => ExportAnalyticsSnapshotSchema.Filters.PriceLinkInsertCasino,
+            PriceType.Dating => ExportAnalyticsSnapshotSchema.Filters.PriceDating,
+            _ => ExportAnalyticsSnapshotSchema.Filters.PriceUsd
+        };
 
     private static void AddMultiSelect(
         List<FilterSnapshotItemDto> filters,

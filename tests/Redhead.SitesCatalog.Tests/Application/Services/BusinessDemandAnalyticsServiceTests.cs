@@ -154,6 +154,43 @@ public sealed class BusinessDemandAnalyticsServiceTests
         Assert.Contains(result.QualityDemand.PriceRanges, item => item.Name == "Price $100-$500" && item.ExportRequests == 1);
     }
 
+    [Theory]
+    [InlineData("priceCasino", "Casino price $100-$500")]
+    [InlineData("priceCrypto", "Crypto price $100-$500")]
+    [InlineData("priceLinkInsert", "Link insert price $100-$500")]
+    [InlineData("priceLinkInsertCasino", "Link insert casino price $100-$500")]
+    [InlineData("priceDating", "Dating price $100-$500")]
+    public async Task GetBusinessDemandAsync_ServicePriceRangeIncludesServiceAndTermContext(
+        string priceField,
+        string expectedRangeLabel)
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        var timestamp = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc);
+        AddExportLog(
+            db,
+            "client-1",
+            timestamp,
+            requestedRows: 10,
+            exportedRows: 10,
+            filtersJson: FiltersJson(
+                RangeFilter(priceField, min: 100m, max: 500m),
+                TermFilter("permanent")));
+        await db.SaveChangesAsync();
+        var sut = CreateService(db);
+
+        // Act
+        var result = await sut.GetBusinessDemandAsync(CreateQuery(), CancellationToken.None);
+
+        // Assert
+        Assert.Contains(
+            result.QualityDemand.PriceRanges,
+            item => item.Name == expectedRangeLabel && item.ExportRequests == 1);
+        Assert.Contains(
+            result.QualityDemand.PriceRangesByTerm,
+            item => item.Name == $"{expectedRangeLabel} — Permanent" && item.ExportRequests == 1);
+    }
+
     [Fact]
     public async Task GetBusinessDemandAsync_TermAwarePriceDemandKeepsAnyTermAndSelectedTermContext()
     {

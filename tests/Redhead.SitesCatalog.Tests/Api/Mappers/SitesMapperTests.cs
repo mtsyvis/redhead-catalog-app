@@ -28,6 +28,7 @@ public class SitesMapperTests
             TrafficMax = 50000,
             PriceMin = 100m,
             PriceMax = 500m,
+            PriceType = PriceType.Crypto,
             TermKey = " finite:1:year ",
             Locations = new List<string> { "US", "UK" },
             Languages = new List<string> { "english", "de", "en-US", "UNKNOWN" },
@@ -60,6 +61,7 @@ public class SitesMapperTests
         Assert.Equal(50000, query.TrafficMax);
         Assert.Equal(100m, query.PriceMin);
         Assert.Equal(500m, query.PriceMax);
+        Assert.Equal(PriceType.Crypto, query.PriceType);
         Assert.Equal("finite:1:year", query.TermKey);
         Assert.Equal(2, query.Locations!.Count);
         Assert.Contains("US", query.Locations);
@@ -102,12 +104,30 @@ public class SitesMapperTests
         Assert.Equal(string.Empty, query.SortDir);
         Assert.Null(query.Search);
         Assert.Null(query.StopListDomains);
+        Assert.Equal(PriceType.Main, query.PriceType);
         Assert.Null(query.TermKey);
         Assert.Null(query.Locations);
         Assert.Null(query.CategorySearchTerms);
         Assert.Equal(TopicFitModeValues.Narrow, query.TopicFitMode);
         Assert.Null(query.ExcludedNiches);
         Assert.Null(query.ExcludedCategorySearchTerms);
+    }
+
+    [Fact]
+    public void ToQuery_WithUndefinedPriceType_RejectsRequest()
+    {
+        // Arrange
+        var request = new SitesQueryRequest
+        {
+            PriceType = (PriceType)99
+        };
+
+        // Act
+        var act = () => SitesMapper.ToQuery(request);
+
+        // Assert
+        var exception = Assert.Throws<RequestValidationException>(act);
+        Assert.Contains("price type", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

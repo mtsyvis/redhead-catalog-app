@@ -5,6 +5,7 @@ import type {
   ServiceAvailabilityFilterValue,
   SitesFilters,
 } from '../../../types/sites.types';
+import { PRICE_TYPE, normalizePriceType } from '../../../utils/pricing';
 
 interface BuildSavedFilterSettingsOptions {
   includeStopListDomains: boolean;
@@ -27,6 +28,7 @@ export function buildSavedFilterSettings(
     trafficMax: filters.trafficMax,
     priceMin: filters.priceMin,
     priceMax: filters.priceMax,
+    priceType: filters.priceType,
     termKey: filters.termKey,
     locationSelections: cloneLocationSelections(filters.locationSelections),
     excludedLocationKeys: [...filters.excludedLocationKeys],
@@ -64,6 +66,7 @@ export function applySavedFilterSettings(
     trafficMax: normalizeString(settings.trafficMax),
     priceMin: normalizeString(settings.priceMin),
     priceMax: normalizeString(settings.priceMax),
+    priceType: normalizePriceType(settings.priceType) ?? PRICE_TYPE.Main,
     termKey: normalizeNullableString(settings.termKey),
     locationSelections: cloneLocationSelections(settings.locationSelections),
     excludedLocationKeys: normalizeStringArray(settings.excludedLocationKeys),
