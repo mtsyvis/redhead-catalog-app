@@ -7,6 +7,17 @@ internal sealed class BusinessDemandAccumulator
 {
     private const int TopListLimit = 10;
     private const string OtherLocationName = "Other";
+    private const string MainPriceLabelPrefix = "Price ";
+
+    private static readonly IReadOnlyList<PriceRangeFilterDefinition> PriceRangeFilters =
+    [
+        new(ExportAnalyticsSnapshotSchema.Filters.PriceUsd, null),
+        new(ExportAnalyticsSnapshotSchema.Filters.PriceCasino, "Casino"),
+        new(ExportAnalyticsSnapshotSchema.Filters.PriceCrypto, "Crypto"),
+        new(ExportAnalyticsSnapshotSchema.Filters.PriceLinkInsert, "Link insert"),
+        new(ExportAnalyticsSnapshotSchema.Filters.PriceLinkInsertCasino, "Link insert casino"),
+        new(ExportAnalyticsSnapshotSchema.Filters.PriceDating, "Dating")
+    ];
 
     private readonly BusinessDemandLocationLookups _locationLookups;
     private readonly Dictionary<string, int> _topLocations = CreateCounter();
@@ -42,7 +53,7 @@ internal sealed class BusinessDemandAccumulator
         CountServiceDemand(snapshot);
         CountRangeDemand(snapshot, ExportAnalyticsSnapshotSchema.Filters.Dr, QualityRangeFormatter.FormatDrRange, _drRanges);
         CountRangeDemand(snapshot, ExportAnalyticsSnapshotSchema.Filters.Traffic, QualityRangeFormatter.FormatTrafficRange, _trafficRanges);
-        CountRangeDemand(snapshot, ExportAnalyticsSnapshotSchema.Filters.PriceUsd, QualityRangeFormatter.FormatPriceRange, _priceRanges);
+        CountPriceRangeDemand(snapshot);
         CountTermDemand(snapshot);
         CountPriceRangeByTermDemand(snapshot);
         CountStrictness(row, snapshot);
@@ -202,17 +213,43 @@ internal sealed class BusinessDemandAccumulator
         Increment(_termDemand, GetTermLabel(snapshot));
     }
 
+    private void CountPriceRangeDemand(FiltersSnapshot snapshot)
+    {
+        foreach (var filter in PriceRangeFilters)
+        {
+            CountRangeDemand(
+                snapshot,
+                filter.Field,
+                range => FormatPriceRange(filter, range),
+                _priceRanges);
+        }
+    }
+
     private void CountPriceRangeByTermDemand(FiltersSnapshot snapshot)
     {
         var termLabel = GetTermLabel(snapshot);
-        foreach (var range in snapshot.GetRanges(ExportAnalyticsSnapshotSchema.Filters.PriceUsd))
+        foreach (var filter in PriceRangeFilters)
         {
-            var priceLabel = QualityRangeFormatter.FormatPriceRange(range);
-            if (!string.IsNullOrWhiteSpace(priceLabel))
+            foreach (var range in snapshot.GetRanges(filter.Field))
             {
-                Increment(_priceRangesByTerm, $"{priceLabel} — {termLabel}");
+                var priceLabel = FormatPriceRange(filter, range);
+                if (!string.IsNullOrWhiteSpace(priceLabel))
+                {
+                    Increment(_priceRangesByTerm, $"{priceLabel} — {termLabel}");
+                }
             }
         }
+    }
+
+    private static string? FormatPriceRange(PriceRangeFilterDefinition filter, RangeValue range)
+    {
+        var priceRange = QualityRangeFormatter.FormatPriceRange(range);
+        if (priceRange is null || filter.ServiceLabel is null)
+        {
+            return priceRange;
+        }
+
+        return $"{filter.ServiceLabel} price {priceRange[MainPriceLabelPrefix.Length..]}";
     }
 
     private static string GetTermLabel(FiltersSnapshot snapshot)
@@ -268,4 +305,6 @@ internal sealed class BusinessDemandAccumulator
         public int WantedOrAvailableRequests { get; set; }
         public int ExplicitlyNoRequests { get; set; }
     }
+
+    private sealed record PriceRangeFilterDefinition(string Field, string? ServiceLabel);
 }
