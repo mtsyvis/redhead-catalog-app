@@ -14,6 +14,7 @@ export interface UserInfo {
   roles: string[];
   isExportDisabled: boolean;
   canChangePassword: boolean;
+  avatarUrl: string | null;
 }
 
 /**
@@ -59,7 +60,7 @@ export interface CompleteAccountSetupRequest {
 
 export type CompleteAccountSetupResponse = Omit<
   UserInfo,
-  'id' | 'isActive' | 'isExportDisabled' | 'canChangePassword'
+  'id' | 'isActive' | 'isExportDisabled' | 'canChangePassword' | 'avatarUrl'
 >;
 
 /**

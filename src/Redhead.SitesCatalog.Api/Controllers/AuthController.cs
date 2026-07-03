@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -6,6 +7,7 @@ using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Security;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Application.Validation;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 
@@ -123,7 +125,8 @@ public class AuthController : ControllerBase
             user.IsActive,
             roles,
             limits.Mode == ExportLimitMode.Disabled,
-            canChangePassword));
+            canChangePassword,
+            User.FindFirstValue(AppClaimTypes.GoogleAvatarUrl)));
     }
 
     [HttpGet("invitation")]

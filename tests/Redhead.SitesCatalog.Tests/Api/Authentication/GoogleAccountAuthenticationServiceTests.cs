@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -21,6 +22,7 @@ public sealed class GoogleAccountAuthenticationServiceTests
         ApplicationUser? createdUser = null;
         string? assignedRole = null;
         UserLoginInfo? addedLogin = null;
+        Claim? addedAvatarClaim = null;
         userManager.Setup(manager => manager.FindByLoginAsync(ExternalLoginProviders.Google, "subject-1"))
             .ReturnsAsync((ApplicationUser?)null);
         userManager.Setup(manager => manager.FindByEmailAsync("person@example.com"))
@@ -38,6 +40,11 @@ public sealed class GoogleAccountAuthenticationServiceTests
         userManager.Setup(manager => manager.AddLoginAsync(It.IsAny<ApplicationUser>(), It.IsAny<UserLoginInfo>()))
             .Callback<ApplicationUser, UserLoginInfo>((_, login) => addedLogin = login)
             .ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(manager => manager.GetClaimsAsync(It.IsAny<ApplicationUser>()))
+            .ReturnsAsync(new List<Claim>());
+        userManager.Setup(manager => manager.AddClaimAsync(It.IsAny<ApplicationUser>(), It.IsAny<Claim>()))
+            .Callback<ApplicationUser, Claim>((_, claim) => addedAvatarClaim = claim)
+            .ReturnsAsync(IdentityResult.Success);
         var sut = CreateService(db, userManager);
 
         // Act
@@ -45,7 +52,8 @@ public sealed class GoogleAccountAuthenticationServiceTests
             "subject-1",
             "person@example.com",
             true,
-            "  Ada Lovelace  "));
+            "  Ada Lovelace  ",
+            "https://lh3.googleusercontent.com/avatar"));
 
         // Assert
         Assert.Equal(GoogleAccountAuthenticationStatus.Success, result.Status);
@@ -61,6 +69,8 @@ public sealed class GoogleAccountAuthenticationServiceTests
         Assert.Null(createdUser.PasswordHash);
         Assert.Equal(ExternalLoginProviders.Google, addedLogin?.LoginProvider);
         Assert.Equal("subject-1", addedLogin?.ProviderKey);
+        Assert.Equal(AppClaimTypes.GoogleAvatarUrl, addedAvatarClaim?.Type);
+        Assert.Equal("https://lh3.googleusercontent.com/avatar", addedAvatarClaim?.Value);
         Assert.Empty(db.GoogleDriveConnections);
     }
 

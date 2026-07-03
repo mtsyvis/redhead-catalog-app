@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   AppBar,
+  Avatar,
   Toolbar,
   Typography,
   Container,
@@ -209,7 +210,18 @@ export const PageShell: React.FC<PageShellProps> = ({
                   onClick={handleMenu}
                   color="inherit"
                 >
-                  <AccountCircle />
+                  {user.avatarUrl ? (
+                    <Avatar
+                      src={user.avatarUrl}
+                      alt={displayName}
+                      slotProps={{ img: { referrerPolicy: 'no-referrer' } }}
+                      sx={{ width: 28, height: 28 }}
+                    >
+                      <AccountCircle />
+                    </Avatar>
+                  ) : (
+                    <AccountCircle />
+                  )}
                 </IconButton>
                 <Menu
                   id="menu-appbar"

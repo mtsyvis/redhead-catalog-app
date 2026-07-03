@@ -149,6 +149,7 @@ Rules:
 * Repeat Google sign-in resolves the account only by its linked Google subject identifier. A changed Google email does not automatically replace the stored application email.
 * If the Google subject is not linked but its email already belongs to any active, invited, pending, or disabled user, registration is rejected. Existing accounts are never automatically linked or changed by matching email.
 * Google authentication uses only `openid`, `profile`, and `email`; it does not request or store Google Drive access or create a Google Drive connection.
+* When Google provides a profile picture, the application stores its HTTPS URL as a user claim, refreshes it on later Google sign-ins, and displays it in the signed-in header. Users without a Google picture keep the default account icon.
 * Disabled Google-only users cannot sign in. `SuperAdmin` reactivation enables them immediately, after which Google proves their identity on the next sign-in; no password or reactivation link is created.
 * `SuperAdmin` password reset is unavailable for Google-only users.
 * Creating a user requires email, role, and an optional internal `SuperAdmin` note.

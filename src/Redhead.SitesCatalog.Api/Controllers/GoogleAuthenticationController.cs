@@ -18,6 +18,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 public sealed class GoogleAuthenticationController : ControllerBase
 {
     public const string EmailVerifiedClaimType = "urn:google:email_verified";
+    public const string PictureClaimType = "urn:google:picture";
     private const string ReturnUrlProperty = "returnUrl";
 
     private readonly IGoogleAccountAuthenticationService _googleAccountAuthenticationService;
@@ -79,7 +80,8 @@ public sealed class GoogleAuthenticationController : ControllerBase
             info.ProviderKey,
             info.Principal.FindFirstValue(ClaimTypes.Email) ?? string.Empty,
             bool.TryParse(info.Principal.FindFirstValue(EmailVerifiedClaimType), out var verified) && verified,
-            info.Principal.FindFirstValue(ClaimTypes.Name));
+            info.Principal.FindFirstValue(ClaimTypes.Name),
+            info.Principal.FindFirstValue(PictureClaimType));
 
         var result = await _googleAccountAuthenticationService.AuthenticateAsync(identity, cancellationToken);
         if (result.Status != GoogleAccountAuthenticationStatus.Success || result.User == null)

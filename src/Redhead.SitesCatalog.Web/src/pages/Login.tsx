@@ -140,13 +140,13 @@ export const Login: React.FC = () => {
           </Stack>
 
           {displayedError && (
-            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+            <Alert severity="error" sx={{ mb: 3 }}>
               {displayedError}
             </Alert>
           )}
 
           {routeState?.sessionExpired && !displayedError && (
-            <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
               Your session has expired. Please sign in again.
             </Alert>
           )}

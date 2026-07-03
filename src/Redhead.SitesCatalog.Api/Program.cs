@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.OAuth.Claims;
 using Microsoft.AspNetCore.Identity;
@@ -134,7 +135,11 @@ if (googleAuthenticationOptions.Enabled)
             options.ClaimActions.Add(new JsonKeyClaimAction(
                 GoogleAuthenticationController.EmailVerifiedClaimType,
                 "boolean",
-                "verified_email"));
+                "email_verified"));
+            options.ClaimActions.Add(new JsonKeyClaimAction(
+                GoogleAuthenticationController.PictureClaimType,
+                ClaimValueTypes.String,
+                "picture"));
             options.Events.OnRemoteFailure = context =>
             {
                 context.HandleResponse();

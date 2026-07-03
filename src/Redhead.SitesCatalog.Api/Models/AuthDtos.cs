@@ -70,4 +70,5 @@ public record UserInfoResponse(
     bool IsActive,
     IList<string> Roles,
     bool IsExportDisabled,
-    bool CanChangePassword);
+    bool CanChangePassword,
+    string? AvatarUrl);
