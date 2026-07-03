@@ -38,6 +38,9 @@ services:
       GoogleDrive__RedirectUri: ${GOOGLE_DRIVE_REDIRECT_URI}
       GoogleDrive__AppName: ${GOOGLE_DRIVE_APP_NAME}
       GoogleDrive__ExportFolderName: ${GOOGLE_DRIVE_EXPORT_FOLDER_NAME}
+      GoogleAuthentication__Enabled: ${GOOGLE_AUTH_ENABLED:-false}
+      GoogleAuthentication__ClientId: ${GOOGLE_AUTH_CLIENT_ID:-}
+      GoogleAuthentication__ClientSecret: ${GOOGLE_AUTH_CLIENT_SECRET:-}
       EmergencySitesExport__Enabled: ${EmergencySitesExport__Enabled:-false}
       EmergencySitesExport__ScheduleCron: ${EmergencySitesExport__ScheduleCron:-30 3 * * MON}
       EmergencySitesExport__GoogleDriveFolderId: ${EmergencySitesExport__GoogleDriveFolderId:-}

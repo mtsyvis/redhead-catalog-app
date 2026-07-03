@@ -14,6 +14,7 @@ export interface UserListItem {
   mustCompleteProfile: boolean;
   role: string;
   isActive: boolean;
+  isGoogleOnly: boolean;
   accountStatus: UserAccountStatus;
   invitationExpiresAtUtc: string | null;
   exportLimitOverrideMode: ExportLimitMode | null;
@@ -57,6 +58,7 @@ export interface AdminUserDetails {
   mustChangePassword: boolean;
   role: string;
   isActive: boolean;
+  isGoogleOnly: boolean;
   accountStatus: UserAccountStatus;
   activatedAtUtc: string | null;
   invitationExpiresAtUtc: string | null;
@@ -120,9 +122,9 @@ export interface ReactivateUserRequest {
 }
 
 export interface ReactivateUserResponse {
-  linkType: 'Activation' | 'Reactivation';
-  linkExpiresAtUtc: string;
-  emailDeliveryStatus: InvitationEmailDeliveryStatus;
+  outcome: 'ActivationLinkCreated' | 'ReactivationLinkCreated' | 'Reactivated';
+  linkExpiresAtUtc: string | null;
+  emailDeliveryStatus: InvitationEmailDeliveryStatus | null;
   fallbackUrl: string | null;
 }
 

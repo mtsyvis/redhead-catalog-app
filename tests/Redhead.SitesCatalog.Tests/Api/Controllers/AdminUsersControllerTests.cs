@@ -1108,7 +1108,7 @@ public sealed class AdminUsersControllerTests
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
-        Assert.Equal("Reactivation", payload.LinkType);
+        Assert.Equal("ReactivationLinkCreated", payload.Outcome);
         Assert.Equal(nameof(InvitationEmailSendStatus.Sent), payload.EmailDeliveryStatus);
         Assert.Null(payload.FallbackUrl);
         Assert.False(targetUser.IsActive);
@@ -1127,6 +1127,87 @@ public sealed class AdminUsersControllerTests
         var token = Uri.UnescapeDataString(
             deliveryService.Requests[0].ActivationPath.Split("token=", 2)[1]);
         Assert.Equal(UserInvitationToken.Hash(token), targetUser.InvitationTokenHash);
+    }
+
+    [Fact]
+    public async Task ReactivateUser_WhenGoogleOnlyUserIsDisabled_ActivatesImmediatelyWithoutPasswordLink()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "google-user",
+            Email = "google@example.com",
+            IsActive = false,
+            ActivatedAtUtc = DateTime.UtcNow.AddDays(-1)
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Lite },
+            ExistingUserByEmail = targetUser,
+            HasPassword = false,
+            TargetLogins =
+            [
+                new UserLoginInfo(ExternalLoginProviders.Google, "google-subject", "Google")
+            ]
+        };
+        var deliveryService = new RecordingInvitationDeliveryService(InvitationEmailSendStatus.Sent);
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager, deliveryService);
+
+        // Act
+        var result = await sut.ReactivateUser(
+            targetUser.Id,
+            new ReactivateUserRequest(AppRoles.Client));
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
+        Assert.Equal("Reactivated", payload.Outcome);
+        Assert.Null(payload.LinkExpiresAtUtc);
+        Assert.Null(payload.EmailDeliveryStatus);
+        Assert.True(targetUser.IsActive);
+        Assert.Equal(AppRoles.Client, userManager.AddedRole);
+        Assert.Empty(deliveryService.Requests);
+        Assert.Equal(0, userManager.ResetPasswordCount);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WhenUserIsGoogleOnly_ReturnsBadRequestWithoutCreatingPassword()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "google-user",
+            Email = "google@example.com",
+            IsActive = true,
+            ActivatedAtUtc = DateTime.UtcNow
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Lite },
+            HasPassword = false,
+            TargetLogins =
+            [
+                new UserLoginInfo(ExternalLoginProviders.Google, "google-subject", "Google")
+            ]
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.ResetPassword(targetUser.Id);
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("Google-only", payload.Message);
+        Assert.Equal(0, userManager.ResetPasswordCount);
     }
 
     [Fact]
@@ -1162,7 +1243,7 @@ public sealed class AdminUsersControllerTests
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
-        Assert.Equal("Activation", payload.LinkType);
+        Assert.Equal("ActivationLinkCreated", payload.Outcome);
         Assert.NotNull(payload.FallbackUrl);
         Assert.Equal(nameof(InvitationEmailSendStatus.Sent), payload.EmailDeliveryStatus);
         Assert.True(targetUser.IsActive);
@@ -1172,8 +1253,9 @@ public sealed class AdminUsersControllerTests
         var token = Uri.UnescapeDataString(
             deliveryService.Requests[0].ActivationPath.Split("token=", 2)[1]);
         Assert.Equal(UserInvitationToken.Hash(token), targetUser.InvitationTokenHash);
+        Assert.NotNull(payload.LinkExpiresAtUtc);
         Assert.InRange(
-            payload.LinkExpiresAtUtc,
+            payload.LinkExpiresAtUtc.Value,
             DateTime.UtcNow.AddHours(23),
             DateTime.UtcNow.AddHours(25));
     }
@@ -1383,7 +1465,7 @@ public sealed class AdminUsersControllerTests
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
-        Assert.Equal("Reactivation", payload.LinkType);
+        Assert.Equal("ReactivationLinkCreated", payload.Outcome);
         Assert.False(targetUser.IsActive);
         Assert.False(targetUser.MustChangePassword);
         Assert.Null(userManager.AddedRole);
@@ -1746,6 +1828,8 @@ public sealed class AdminUsersControllerTests
         public string? AddedRole { get; private set; }
         public int SecurityStampUpdateCount { get; private set; }
         public int ResetPasswordCount { get; private set; }
+        public bool HasPassword { get; init; } = true;
+        public IList<UserLoginInfo> TargetLogins { get; init; } = new List<UserLoginInfo>();
 
         public StubUserManager()
             : base(
@@ -1838,6 +1922,12 @@ public sealed class AdminUsersControllerTests
             ResetPasswordCount++;
             return Task.FromResult(IdentityResult.Success);
         }
+
+        public override Task<bool> HasPasswordAsync(ApplicationUser user)
+            => Task.FromResult(HasPassword);
+
+        public override Task<IList<UserLoginInfo>> GetLoginsAsync(ApplicationUser user)
+            => Task.FromResult(TargetLogins);
 
         public override Task<IList<ApplicationUser>> GetUsersInRoleAsync(string roleName)
         {

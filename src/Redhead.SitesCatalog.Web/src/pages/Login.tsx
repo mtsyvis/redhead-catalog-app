@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
@@ -6,6 +6,7 @@ import {
   CardContent,
   Checkbox,
   CircularProgress,
+  Divider,
   FormControlLabel,
   IconButton,
   InputAdornment,
@@ -15,11 +16,13 @@ import {
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import Google from '@mui/icons-material/Google';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
 import { ApiClientError } from '../services/api.client';
 import { BrandButton } from '../components/common/BrandButton';
+import { authService } from '../services/auth.service';
 
 import mark from '../assets/brand/redhead-lockup.svg';
 
@@ -32,6 +35,15 @@ interface LoginRouteState {
   sessionExpired?: boolean;
 }
 
+const googleErrorMessages: Record<string, string> = {
+  unavailable: 'Google sign-in is currently unavailable. Please use your email and password.',
+  cancelled: 'Google sign-in was cancelled. Please try again.',
+  invalid: 'Google could not provide a verified email for this account.',
+  'email-conflict': 'An account with this email already exists. Sign in with your existing credentials or contact an administrator.',
+  disabled: 'This account has been disabled. Please contact an administrator.',
+  failed: 'Google sign-in could not be completed. Please try again.',
+};
+
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -41,6 +53,7 @@ export const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isGoogleEnabled, setIsGoogleEnabled] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +61,24 @@ export const Login: React.FC = () => {
   const routeState = location.state as LoginRouteState | null;
   const fromPathname = routeState?.from?.pathname || '/';
   const from = `${fromPathname}${routeState?.from?.search ?? ''}${routeState?.from?.hash ?? ''}`;
+  const googleErrorCode = new URLSearchParams(location.search).get('googleAuth');
+  const displayedError = error || (googleErrorCode ? googleErrorMessages[googleErrorCode] : null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void authService.getGoogleAuthenticationStatus()
+      .then((status) => {
+        if (!cancelled) setIsGoogleEnabled(status.enabled);
+      })
+      .catch(() => {
+        if (!cancelled) setIsGoogleEnabled(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +101,10 @@ export const Login: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleGoogleSignIn = () => {
+    window.location.assign(`/api/auth/google/start?returnUrl=${encodeURIComponent(from)}`);
   };
 
   return (
@@ -104,13 +139,13 @@ export const Login: React.FC = () => {
 
           </Stack>
 
-          {error && (
+          {displayedError && (
             <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-              {error}
+              {displayedError}
             </Alert>
           )}
 
-          {routeState?.sessionExpired && !error && (
+          {routeState?.sessionExpired && !displayedError && (
             <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
               Your session has expired. Please sign in again.
             </Alert>
@@ -176,6 +211,27 @@ export const Login: React.FC = () => {
               </BrandButton>
             </Stack>
           </form>
+
+          {isGoogleEnabled ? (
+            <>
+              <Divider sx={{ my: 3 }}>or</Divider>
+              <BrandButton
+                kind="outline"
+                type="button"
+                fullWidth
+                size="large"
+                startIcon={<Google />}
+                onClick={handleGoogleSignIn}
+                disabled={isLoading}
+                sx={{ height: 52 }}
+              >
+                Continue with Google
+              </BrandButton>
+              <Typography variant="caption" color="text.secondary" align="center" sx={{ display: 'block', mt: 1.5 }}>
+                New Google accounts are registered with Lite access.
+              </Typography>
+            </>
+          ) : null}
         </CardContent>
       </Card>
     </Box>

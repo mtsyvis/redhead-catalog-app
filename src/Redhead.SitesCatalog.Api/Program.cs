@@ -1,5 +1,10 @@
+using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authentication.OAuth.Claims;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Redhead.SitesCatalog.Api.Authentication;
+using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.AccountSetup;
 using Redhead.SitesCatalog.Api.DependencyInjection;
 using Redhead.SitesCatalog.Api.Middleware;
@@ -35,6 +40,12 @@ builder.Services.AddHttpClient();
 
 builder.Services.Configure<GoogleDriveOptions>(
     builder.Configuration.GetSection(GoogleDriveOptions.SectionName));
+builder.Services.AddOptions<GoogleAuthenticationOptions>()
+    .Bind(builder.Configuration.GetSection(GoogleAuthenticationOptions.SectionName))
+    .Validate(
+        GoogleAuthenticationOptions.IsValid,
+        "GoogleAuthentication ClientId and ClientSecret are required when Google authentication is enabled.")
+    .ValidateOnStart();
 builder.Services.AddEmergencySitesExportOptions(builder.Configuration);
 builder.Services.AddExportedDomainAccessCleanup(builder.Configuration);
 builder.Services.AddAhrefsSync(builder.Configuration);
@@ -52,6 +63,7 @@ builder.Services.AddScoped<IAdminUsersListService, AdminUsersListService>();
 builder.Services.AddScoped<IBusinessDemandAnalyticsService, BusinessDemandAnalyticsService>();
 builder.Services.AddScoped<IExportActivityAnalyticsService, ExportActivityAnalyticsService>();
 builder.Services.AddScoped<IAccountSetupService, AccountSetupService>();
+builder.Services.AddScoped<IGoogleAccountAuthenticationService, GoogleAccountAuthenticationService>();
 builder.Services.AddScoped<IEffectiveExportPolicyService, EffectiveExportPolicyService>();
 builder.Services.AddScoped<IExportUsageLimitService, ExportUsageLimitService>();
 builder.Services.AddScoped<IUserTableViewsService, UserTableViewsService>();
@@ -100,6 +112,44 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
+
+var googleAuthenticationOptions = builder.Configuration
+    .GetSection(GoogleAuthenticationOptions.SectionName)
+    .Get<GoogleAuthenticationOptions>() ?? new GoogleAuthenticationOptions();
+if (googleAuthenticationOptions.Enabled)
+{
+    builder.Services
+        .AddAuthentication()
+        .AddGoogle(ExternalLoginProviders.Google, options =>
+        {
+            options.ClientId = googleAuthenticationOptions.ClientId!;
+            options.ClientSecret = googleAuthenticationOptions.ClientSecret!;
+            options.CallbackPath = "/signin-google";
+            options.SaveTokens = false;
+            options.UsePkce = true;
+            options.Scope.Clear();
+            options.Scope.Add("openid");
+            options.Scope.Add("profile");
+            options.Scope.Add("email");
+            options.ClaimActions.Add(new JsonKeyClaimAction(
+                GoogleAuthenticationController.EmailVerifiedClaimType,
+                "boolean",
+                "verified_email"));
+            options.Events.OnRemoteFailure = context =>
+            {
+                context.HandleResponse();
+                context.Response.Redirect("/api/auth/google/failure");
+                return Task.CompletedTask;
+            };
+        });
+}
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -176,6 +226,7 @@ var app = builder.Build();
 await SeedData.InitializeAsync(app.Services);
 
 // Configure the HTTP request pipeline.
+app.UseForwardedHeaders();
 app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())

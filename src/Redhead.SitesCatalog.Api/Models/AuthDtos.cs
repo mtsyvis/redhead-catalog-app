@@ -59,6 +59,8 @@ public record ReactivateAccountResponse(
 
 public record MessageResponse(string Message);
 
+public record GoogleAuthenticationStatusResponse(bool Enabled);
+
 public record UserInfoResponse(
     string Id,
     string Email,
@@ -67,4 +69,5 @@ public record UserInfoResponse(
     string DisplayName,
     bool IsActive,
     IList<string> Roles,
-    bool IsExportDisabled);
+    bool IsExportDisabled,
+    bool CanChangePassword);

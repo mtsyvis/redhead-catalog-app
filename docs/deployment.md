@@ -121,6 +121,9 @@ GOOGLE_DRIVE_CLIENT_SECRET=<Google OAuth client secret>
 GOOGLE_DRIVE_REDIRECT_URI=https://catalog.rhda.us/api/integrations/google-drive/callback
 GOOGLE_DRIVE_APP_NAME=Redhead Catalog
 GOOGLE_DRIVE_EXPORT_FOLDER_NAME=Redhead Catalog Exports
+GOOGLE_AUTH_ENABLED=true
+GOOGLE_AUTH_CLIENT_ID=<Google OAuth client id>
+GOOGLE_AUTH_CLIENT_SECRET=<Google OAuth client secret>
 EmergencySitesExport__Enabled=false
 EmergencySitesExport__ScheduleCron=30 3 * * MON
 EmergencySitesExport__GoogleDriveFolderId=<shared-drive-folder-id>
@@ -161,6 +164,9 @@ GoogleDrive__ClientSecret=${GOOGLE_DRIVE_CLIENT_SECRET}
 GoogleDrive__RedirectUri=${GOOGLE_DRIVE_REDIRECT_URI}
 GoogleDrive__AppName=${GOOGLE_DRIVE_APP_NAME}
 GoogleDrive__ExportFolderName=${GOOGLE_DRIVE_EXPORT_FOLDER_NAME}
+GoogleAuthentication__Enabled=${GOOGLE_AUTH_ENABLED}
+GoogleAuthentication__ClientId=${GOOGLE_AUTH_CLIENT_ID}
+GoogleAuthentication__ClientSecret=${GOOGLE_AUTH_CLIENT_SECRET}
 EmergencySitesExport__Enabled=${EmergencySitesExport__Enabled}
 EmergencySitesExport__ScheduleCron=${EmergencySitesExport__ScheduleCron}
 EmergencySitesExport__GoogleDriveFolderId=${EmergencySitesExport__GoogleDriveFolderId}
@@ -189,6 +195,10 @@ Security rules:
 * Before enabling invitation email, confirm that `noreply@redheaddigital.agency` is permitted as a sender and that VPS public IP remains allowlisted in Google Workspace.
 * Do not reuse weak seed passwords.
 * Google Drive OAuth uses `https://www.googleapis.com/auth/drive.file`; do not configure broad Drive access.
+* Google registration/sign-in uses only `openid`, `profile`, and `email`. It must never request Drive scopes or save Google OAuth tokens.
+* Add `https://catalog.rhda.us/signin-google` to the OAuth client's authorized redirect URIs. Keep `https://catalog.rhda.us/api/integrations/google-drive/callback` as the separate Drive redirect URI.
+* The same OAuth client credentials may be supplied for both integrations, but keep their environment variables and callback URIs separate. Set `GOOGLE_AUTH_ENABLED=false` if sign-in credentials are not configured.
+* Caddy is the only externally reachable service. It forwards the original HTTPS scheme so the application can generate the secure Google callback URI; do not publish the app container port directly.
 * The emergency Sites export uses a Google service account JSON file for the configured Shared Drive folder. Mount `/etc/redhead/secrets/google-service-account.json` into the app container as `/run/secrets/google-service-account.json:ro` before setting `EmergencySitesExport__Enabled=true`.
 * After first successful production setup, rotate or remove temporary bootstrap credentials if the application flow allows it.
 

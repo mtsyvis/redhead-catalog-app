@@ -14,12 +14,17 @@ import type {
   ReactivationStatusResponse,
   ReactivateAccountRequest,
   ReactivateAccountResponse,
+  GoogleAuthenticationStatusResponse,
 } from '../types/auth.types';
 
 /**
  * Authentication service for API calls
  */
 export const authService = {
+  getGoogleAuthenticationStatus(): Promise<GoogleAuthenticationStatusResponse> {
+    return ApiClient.get<GoogleAuthenticationStatusResponse>('/api/auth/google/status');
+  },
+
   /**
    * Login with email and password
    */

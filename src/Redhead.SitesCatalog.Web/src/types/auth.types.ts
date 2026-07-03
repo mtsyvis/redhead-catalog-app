@@ -13,6 +13,7 @@ export interface UserInfo {
   isActive: boolean;
   roles: string[];
   isExportDisabled: boolean;
+  canChangePassword: boolean;
 }
 
 /**
@@ -35,6 +36,10 @@ export interface LoginResponse {
   roles: string[];
 }
 
+export interface GoogleAuthenticationStatusResponse {
+  enabled: boolean;
+}
+
 /**
  * Change password request payload
  */
@@ -52,7 +57,10 @@ export interface CompleteAccountSetupRequest {
   displayName?: string | null;
 }
 
-export type CompleteAccountSetupResponse = Omit<UserInfo, 'id' | 'isActive' | 'isExportDisabled'>;
+export type CompleteAccountSetupResponse = Omit<
+  UserInfo,
+  'id' | 'isActive' | 'isExportDisabled' | 'canChangePassword'
+>;
 
 /**
  * Current user's self-service profile

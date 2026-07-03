@@ -227,7 +227,9 @@ export const PageShell: React.FC<PageShellProps> = ({
                   onClose={handleClose}
                 >
                   <MenuItem onClick={handleProfile}>Profile</MenuItem>
-                  <MenuItem onClick={handleChangePassword}>Change Password</MenuItem>
+                  {user?.canChangePassword ? (
+                    <MenuItem onClick={handleChangePassword}>Change Password</MenuItem>
+                  ) : null}
                   <MenuItem onClick={handleLogout}>Logout</MenuItem>
                 </Menu>
               </Box>

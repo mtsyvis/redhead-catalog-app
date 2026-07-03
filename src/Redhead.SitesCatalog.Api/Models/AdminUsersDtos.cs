@@ -28,6 +28,7 @@ public record UserListItem
     public bool MustCompleteProfile { get; init; }
     public string Role { get; init; } = string.Empty;
     public bool IsActive { get; init; }
+    public bool IsGoogleOnly { get; init; }
     public string AccountStatus { get; init; } = string.Empty;
     public DateTime? InvitationExpiresAtUtc { get; init; }
     public ExportLimitMode? ExportLimitOverrideMode { get; init; }
@@ -81,6 +82,7 @@ public record AdminUserDetailsResponse
     public bool MustChangePassword { get; init; }
     public string Role { get; init; } = string.Empty;
     public bool IsActive { get; init; }
+    public bool IsGoogleOnly { get; init; }
     public string AccountStatus { get; init; } = string.Empty;
     public DateTime? ActivatedAtUtc { get; init; }
     public DateTime? InvitationExpiresAtUtc { get; init; }
@@ -127,9 +129,9 @@ public record ReactivateUserRequest(
     [Required, MinLength(1)] string Role);
 
 public record ReactivateUserResponse(
-    string LinkType,
-    DateTime LinkExpiresAtUtc,
-    string EmailDeliveryStatus,
+    string Outcome,
+    DateTime? LinkExpiresAtUtc,
+    string? EmailDeliveryStatus,
     string? FallbackUrl);
 
 public record ReissueInvitationResponse(

@@ -169,6 +169,7 @@ export const AdminUsers: React.FC = () => {
   const [roleSettings, setRoleSettings] = useState<RoleSettingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createEmail, setCreateEmail] = useState('');
@@ -422,7 +423,9 @@ export const AdminUsers: React.FC = () => {
     try {
       const res = await adminUsersService.reactivate(reactivateUser.id, { role: reactivateRoleValue });
       setReactivateUser(null);
-      if (res.linkType === 'Activation' && res.fallbackUrl) {
+      if (res.outcome === 'Reactivated') {
+        setSuccessMessage(`${reactivateUser.email} was reactivated and can sign in with Google.`);
+      } else if (res.outcome === 'ActivationLinkCreated' && res.fallbackUrl && res.emailDeliveryStatus) {
         setSecretDialog({
           title: 'Invitation created',
           email: reactivateUser.email,
@@ -431,7 +434,7 @@ export const AdminUsers: React.FC = () => {
           emailDeliveryStatus: res.emailDeliveryStatus,
           invitationAction: 'created',
         });
-      } else {
+      } else if (res.emailDeliveryStatus) {
         setReactivationResult({
           title: 'Reactivation created',
           email: reactivateUser.email,
@@ -987,7 +990,7 @@ export const AdminUsers: React.FC = () => {
         || rowActionsUser.accountStatus === 'ReactivationExpired')
   );
   const rowActionsCanResetPassword = Boolean(
-    rowActionsCanModify && rowActionsUser?.accountStatus === 'Active'
+    rowActionsCanModify && rowActionsUser?.accountStatus === 'Active' && !rowActionsUser?.isGoogleOnly
   );
 
   if (!canReadUsers) {
@@ -1012,6 +1015,11 @@ export const AdminUsers: React.FC = () => {
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+      {successMessage && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage(null)}>
+          {successMessage}
         </Alert>
       )}
 
@@ -1330,8 +1338,9 @@ export const AdminUsers: React.FC = () => {
               </Typography>
 
               <Typography variant="body2" color="text.secondary">
-                The user will receive a single-use account link by email. If delivery fails, the link
-                will be shown once so you can share it securely.
+                {reactivateUser.isGoogleOnly
+                  ? 'This Google-only account will be enabled immediately. The user must sign in with Google.'
+                  : 'The user will receive a single-use account link by email. If delivery fails, the link will be shown once so you can share it securely.'}
               </Typography>
               {reactivateError && <Alert severity="error">{reactivateError}</Alert>}
             </Box>

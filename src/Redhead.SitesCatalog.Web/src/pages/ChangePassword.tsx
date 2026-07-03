@@ -18,7 +18,7 @@ import Check from '@mui/icons-material/Check';
 import Close from '@mui/icons-material/Close';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { BrandButton } from '../components/common/BrandButton';
 import { PageShell } from '../components/layout/PageShell';
@@ -59,6 +59,10 @@ export const ChangePassword: React.FC = () => {
   const passwordRules = validatePassword(newPassword);
   const isPasswordValid = Object.values(passwordRules).every(Boolean);
   const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
+
+  if (user && !user.canChangePassword) {
+    return <Navigate to="/profile" replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

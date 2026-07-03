@@ -112,6 +112,7 @@ public class AuthController : ControllerBase
         var roles = await _userManager.GetRolesAsync(user);
         var role = roles.FirstOrDefault() ?? string.Empty;
         var limits = await _effectiveExportPolicyService.GetEffectivePolicyAsync(user, role);
+        var canChangePassword = await _userManager.HasPasswordAsync(user);
 
         return Ok(new UserInfoResponse(
             user.Id,
@@ -121,7 +122,8 @@ public class AuthController : ControllerBase
             user.EffectiveDisplayName,
             user.IsActive,
             roles,
-            limits.Mode == ExportLimitMode.Disabled));
+            limits.Mode == ExportLimitMode.Disabled,
+            canChangePassword));
     }
 
     [HttpGet("invitation")]
@@ -279,6 +281,12 @@ public class AuthController : ControllerBase
         {
             _logger.LogWarning("ChangePassword failed: User not found in context");
             return Unauthorized();
+        }
+
+        if (!await _userManager.HasPasswordAsync(user))
+        {
+            return BadRequest(new MessageResponse(
+                "This account uses Google sign-in and does not have a local password."));
         }
 
         var result = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);

@@ -358,6 +358,7 @@ export const AdminUserDetails: React.FC = () => {
                     <DetailRow label="Email" value={cleanText(user.email)} />
                     <DetailRow label="Role" value={cleanText(user.role)} />
                     <DetailRow label="Account status" value={user.accountStatus} />
+                    <DetailRow label="Authentication" value={user.isGoogleOnly ? 'Google' : 'Email and password'} />
                     {user.invitationExpiresAtUtc && (
                       <DetailRow
                         label="Invitation expires"

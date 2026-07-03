@@ -31,6 +31,8 @@ public sealed class AuthControllerTests
             .ReturnsAsync(user);
         userManager.Setup(manager => manager.GetRolesAsync(user))
             .ReturnsAsync(new List<string> { AppRoles.Client });
+        userManager.Setup(manager => manager.HasPasswordAsync(user))
+            .ReturnsAsync(true);
         var signInManager = CreateSignInManager(userManager);
         signInManager.Setup(manager => manager.PasswordSignInAsync(
                 user.UserName!,
@@ -226,6 +228,8 @@ public sealed class AuthControllerTests
         var userManager = CreateUserManagerForCurrentUser(user);
         userManager.Setup(manager => manager.GetRolesAsync(user))
             .ReturnsAsync(new List<string> { AppRoles.Client });
+        userManager.Setup(manager => manager.HasPasswordAsync(user))
+            .ReturnsAsync(true);
         var policyService = CreatePolicyService(
             user,
             AppRoles.Client,
@@ -243,9 +247,37 @@ public sealed class AuthControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<UserInfoResponse>(ok.Value);
         Assert.True(payload.IsExportDisabled);
+        Assert.True(payload.CanChangePassword);
         policyService.Verify(
             service => service.GetEffectivePolicyAsync(user, AppRoles.Client, It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task ChangePassword_WhenUserIsGoogleOnly_ReturnsBadRequest()
+    {
+        // Arrange
+        var user = CreateUser(mustChangePassword: false, firstName: "Ada", lastName: "Lovelace");
+        var userManager = CreateUserManagerForCurrentUser(user);
+        userManager.Setup(manager => manager.HasPasswordAsync(user))
+            .ReturnsAsync(false);
+        var sut = CreateController(userManager);
+
+        // Act
+        var result = await sut.ChangePassword(new ChangePasswordRequest(
+            "CurrentPassword123!",
+            "NewPassword123!"));
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("Google sign-in", payload.Message);
+        userManager.Verify(
+            manager => manager.ChangePasswordAsync(
+                It.IsAny<ApplicationUser>(),
+                It.IsAny<string>(),
+                It.IsAny<string>()),
+            Times.Never);
     }
 
     [Fact]
