@@ -12,6 +12,7 @@ using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Invitations;
+using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -21,17 +22,20 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 public class AdminUsersController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ApplicationDbContext _context;
     private readonly IAdminUsersListService _usersListService;
     private readonly IInvitationDeliveryService _invitationDeliveryService;
     private readonly ILogger<AdminUsersController> _logger;
 
     public AdminUsersController(
         UserManager<ApplicationUser> userManager,
+        ApplicationDbContext context,
         IAdminUsersListService usersListService,
         IInvitationDeliveryService invitationDeliveryService,
         ILogger<AdminUsersController> logger)
     {
         _userManager = userManager;
+        _context = context;
         _usersListService = usersListService;
         _invitationDeliveryService = invitationDeliveryService;
         _logger = logger;
@@ -165,6 +169,12 @@ public class AdminUsersController : ControllerBase
         {
             return BadRequest(new MessageResponse(
                 "This user has not activated their account. Reissue the invitation instead."));
+        }
+
+        if (await IsGoogleOnlyAsync(target))
+        {
+            return BadRequest(new MessageResponse(
+                "Google-only accounts do not have a local password to reset."));
         }
 
         var currentUser = await _userManager.GetUserAsync(User);
@@ -353,6 +363,32 @@ public class AdminUsersController : ControllerBase
         }
 
         var isReactivation = target.ActivatedAtUtc.HasValue;
+        var isGoogleOnly = isReactivation && await IsGoogleOnlyAsync(target);
+        if (isGoogleOnly)
+        {
+            var reactivationError = await ReactivateGoogleOnlyUserAsync(
+                target,
+                targetRoles,
+                currentRole,
+                request.Role,
+                cancellationToken);
+            if (reactivationError != null)
+            {
+                return BadRequest(new MessageResponse(reactivationError));
+            }
+
+            _logger.LogInformation(
+                "Google-only user reactivated. UserId={UserId}, Role={Role}",
+                target.Id,
+                request.Role);
+
+            return Ok(new ReactivateUserResponse(
+                "Reactivated",
+                null,
+                null,
+                null));
+        }
+
         if (isReactivation && !string.IsNullOrWhiteSpace(target.InvitationTokenHash))
         {
             return BadRequest(new MessageResponse(
@@ -412,7 +448,7 @@ public class AdminUsersController : ControllerBase
             cancellationToken);
 
         return Ok(new ReactivateUserResponse(
-            isReactivation ? "Reactivation" : "Activation",
+            isReactivation ? "ReactivationLinkCreated" : "ActivationLinkCreated",
             invitation.ExpiresAtUtc,
             delivery.EmailDeliveryStatus.ToString(),
             isReactivation && delivery.EmailDeliveryStatus == InvitationEmailSendStatus.Sent
@@ -695,6 +731,87 @@ public class AdminUsersController : ControllerBase
         return null;
     }
 
+    private async Task<string?> ReactivateGoogleOnlyUserAsync(
+        ApplicationUser user,
+        IList<string> currentRoles,
+        string currentRole,
+        string requestedRole,
+        CancellationToken cancellationToken)
+    {
+        var originalState = new GoogleOnlyReactivationState(
+            user.IsActive,
+            user.MustChangePassword,
+            user.InvitationTokenHash,
+            user.InvitationExpiresAtUtc,
+            user.ExportLimitOverrideMode,
+            user.ExportLimitRowsOverride,
+            user.DailyUniqueExportedDomainsLimitOverride,
+            user.WeeklyUniqueExportedDomainsLimitOverride,
+            user.DailyExportOperationsLimitOverride,
+            user.WeeklyExportOperationsLimitOverride);
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            if (!string.Equals(currentRole, requestedRole, StringComparison.Ordinal))
+            {
+                var roleError = await ReplaceUserRoleAsync(user, currentRoles, requestedRole);
+                if (roleError != null)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    RestoreGoogleOnlyReactivationState(user, originalState);
+                    return roleError;
+                }
+            }
+
+            ClearExportLimitOverrides(user);
+            user.IsActive = true;
+            user.MustChangePassword = false;
+            user.InvitationTokenHash = null;
+            user.InvitationExpiresAtUtc = null;
+
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                RestoreGoogleOnlyReactivationState(user, originalState);
+                return FormatIdentityErrors(updateResult);
+            }
+
+            var stampResult = await _userManager.UpdateSecurityStampAsync(user);
+            if (!stampResult.Succeeded)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                RestoreGoogleOnlyReactivationState(user, originalState);
+                return FormatIdentityErrors(stampResult);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return null;
+        }
+        catch
+        {
+            RestoreGoogleOnlyReactivationState(user, originalState);
+            throw;
+        }
+    }
+
+    private static void RestoreGoogleOnlyReactivationState(
+        ApplicationUser user,
+        GoogleOnlyReactivationState state)
+    {
+        user.IsActive = state.IsActive;
+        user.MustChangePassword = state.MustChangePassword;
+        user.InvitationTokenHash = state.InvitationTokenHash;
+        user.InvitationExpiresAtUtc = state.InvitationExpiresAtUtc;
+        user.ExportLimitOverrideMode = state.ExportLimitOverrideMode;
+        user.ExportLimitRowsOverride = state.ExportLimitRowsOverride;
+        user.DailyUniqueExportedDomainsLimitOverride = state.DailyUniqueExportedDomainsLimitOverride;
+        user.WeeklyUniqueExportedDomainsLimitOverride = state.WeeklyUniqueExportedDomainsLimitOverride;
+        user.DailyExportOperationsLimitOverride = state.DailyExportOperationsLimitOverride;
+        user.WeeklyExportOperationsLimitOverride = state.WeeklyExportOperationsLimitOverride;
+    }
+
     private static string FormatIdentityErrors(IdentityResult result)
     {
         return string.Join(" ", result.Errors.Select(e => e.Description));
@@ -740,6 +857,7 @@ public class AdminUsersController : ControllerBase
             MustCompleteProfile = item.MustCompleteProfile,
             Role = item.Role,
             IsActive = item.IsActive,
+            IsGoogleOnly = item.IsGoogleOnly,
             AccountStatus = item.AccountStatus,
             InvitationExpiresAtUtc = item.InvitationExpiresAtUtc,
             ExportLimitOverrideMode = item.ExportLimitOverrideMode,
@@ -784,6 +902,7 @@ public class AdminUsersController : ControllerBase
             MustChangePassword = user.MustChangePassword,
             Role = user.Role,
             IsActive = user.IsActive,
+            IsGoogleOnly = user.IsGoogleOnly,
             AccountStatus = user.AccountStatus,
             ActivatedAtUtc = user.ActivatedAtUtc,
             InvitationExpiresAtUtc = user.InvitationExpiresAtUtc,
@@ -842,5 +961,29 @@ public class AdminUsersController : ControllerBase
         user.WeeklyExportOperationsLimitOverride = null;
     }
 
+    private async Task<bool> IsGoogleOnlyAsync(ApplicationUser user)
+    {
+        if (await _userManager.HasPasswordAsync(user))
+        {
+            return false;
+        }
+
+        var logins = await _userManager.GetLoginsAsync(user);
+        return logins.Any(login =>
+            string.Equals(login.LoginProvider, ExternalLoginProviders.Google, StringComparison.Ordinal));
+    }
+
     private sealed record InvitationData(string Token, string TokenHash, DateTime ExpiresAtUtc);
+
+    private sealed record GoogleOnlyReactivationState(
+        bool IsActive,
+        bool MustChangePassword,
+        string? InvitationTokenHash,
+        DateTime? InvitationExpiresAtUtc,
+        ExportLimitMode? ExportLimitOverrideMode,
+        int? ExportLimitRowsOverride,
+        int? DailyUniqueExportedDomainsLimitOverride,
+        int? WeeklyUniqueExportedDomainsLimitOverride,
+        int? DailyExportOperationsLimitOverride,
+        int? WeeklyExportOperationsLimitOverride);
 }

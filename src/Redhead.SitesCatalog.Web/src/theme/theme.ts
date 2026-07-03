@@ -96,6 +96,14 @@ export const theme = createTheme({
         },
       },
     },
+
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          borderRadius: appBorderRadius,
+        },
+      },
+    },
   },
   custom: {
     accentGradient,

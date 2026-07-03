@@ -30,8 +30,8 @@ The app has six roles:
 
 General rules:
 
-* Users authenticate with email and password.
-* There is no public self-registration without a `SuperAdmin` invitation.
+* Invited users authenticate with email and password; Google-registered users authenticate only through Google.
+* Public self-registration is available only through a Google account with a Google-verified email and always creates a `Lite` user.
 * Each user has one role.
 * Each user stores one optional `DisplayName` field with a maximum length of 100 characters.
 * Each user may have an optional internal `SuperAdmin` note for identifying client accounts when email/name are not enough.
@@ -135,20 +135,29 @@ Current rules:
 * Can use system table views and create, update, rename, duplicate, and delete their own custom table views for client-safe columns.
 * Cannot use Single search, advanced filters, saved filters, stop list, imports, admin pages, analytics, catalog editing, exports, Google Drive export, Google Drive integration, or price-column copy actions.
 * Export is always disabled and cannot be enabled by role settings or per-user overrides.
-* May use account maintenance pages for profile, change password, and logout.
+* May use account maintenance pages for profile and logout. Password users may change their password; Google-only users cannot create, change, or reset a local password.
 
-## Account invitations and password provisioning
+## Google registration, account invitations, and password provisioning
 
-New users are provisioned by a `SuperAdmin` invitation flow. Public registration without an invitation is not allowed.
+New users are provisioned either by a `SuperAdmin` invitation or by public Google registration as `Lite`.
 
 Rules:
 
+* Google registration accepts any Google account with a verified email.
+* A first Google sign-in creates an active, email-confirmed user without a local password, assigns exactly the `Lite` role, and stores the stable Google subject identifier as the external login.
+* The Google registration callback never accepts a role from a request or Google claim. A later role change is allowed only through the existing protected `SuperAdmin` flow.
+* Repeat Google sign-in resolves the account only by its linked Google subject identifier. A changed Google email does not automatically replace the stored application email.
+* If the Google subject is not linked but its email already belongs to any active, invited, pending, or disabled user, registration is rejected. Existing accounts are never automatically linked or changed by matching email.
+* Google authentication uses only `openid`, `profile`, and `email`; it does not request or store Google Drive access or create a Google Drive connection.
+* When Google provides a profile picture, the application stores its HTTPS URL as a user claim, refreshes it on later Google sign-ins, and displays it in the signed-in header. Users without a Google picture keep the default account icon.
+* Disabled Google-only users cannot sign in. `SuperAdmin` reactivation enables them immediately, after which Google proves their identity on the next sign-in; no password or reactivation link is created.
+* `SuperAdmin` password reset is unavailable for Google-only users.
 * Creating a user requires email, role, and an optional internal `SuperAdmin` note.
 * The system generates a cryptographically random single-use activation token and stores only its SHA-256 hash.
 * The activation link is displayed to `SuperAdmin` once and expires 24 hours after creation.
 * After a new invitation, invitation reissue, reactivation, or reactivation reissue is persisted, the system attempts to send the applicable account link to the user's email address.
 * Email failure must not roll back or invalidate the saved account link. The `SuperAdmin` must receive a safe warning and a one-time fallback link when email is not sent.
-* Reactivating an already activated user issues a single-use reactivation link instead of a temporary password. The user remains disabled until they use the link and choose a new password.
+* Reactivating an already activated password user issues a single-use reactivation link instead of a temporary password. The user remains disabled until they use the link and choose a new password.
 * Account-link emails contain HTML and plain-text content, identify links as single-use with a 24-hour expiry, and must not contain passwords, roles, internal notes, or technical SMTP details.
 * Account-link email branding must remain correctly sized and readable in light and dark email-client themes, with a safe fallback for clients that force color inversion or ignore theme media queries.
 * If the link is lost or expires, `SuperAdmin` may reissue it for a pending or expired invitation. Reissuing invalidates the previous link and starts a new 24-hour period.
@@ -843,7 +852,7 @@ Emergency Sites Excel export rules:
 
 ### Google Drive export connection
 
-Users may optionally connect their own Google Drive account after logging in with their Redhead account. This is separate from authentication and must not be implemented as Google sign-in, Google registration, or external login.
+Eligible users may optionally connect their own Google Drive account after logging in. Google Drive authorization is fully separate from Google registration/sign-in: it uses different endpoints, scopes, tokens, and persisted records.
 
 Rules:
 
@@ -917,7 +926,6 @@ Rules:
 
 These are not current requirements unless explicitly reintroduced:
 
-* Public registration.
 * XLSX import.
 * Multi-tenant account separation.
 * Client-specific hidden columns.

@@ -36,6 +36,7 @@ public class AdminUserListItemDto
     public bool MustCompleteProfile { get; init; }
     public string Role { get; init; } = string.Empty;
     public bool IsActive { get; init; }
+    public bool IsGoogleOnly { get; init; }
     public string AccountStatus { get; init; } = string.Empty;
     public DateTime? InvitationExpiresAtUtc { get; init; }
     public ExportLimitMode? ExportLimitOverrideMode { get; init; }

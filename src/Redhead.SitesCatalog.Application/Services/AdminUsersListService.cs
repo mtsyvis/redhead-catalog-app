@@ -92,6 +92,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
             MustChangePassword = user.MustChangePassword,
             Role = listItem.Role,
             IsActive = listItem.IsActive,
+            IsGoogleOnly = listItem.IsGoogleOnly,
             AccountStatus = listItem.AccountStatus,
             ActivatedAtUtc = user.ActivatedAtUtc,
             InvitationExpiresAtUtc = listItem.InvitationExpiresAtUtc,
@@ -132,6 +133,9 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 SuperAdminNote = user.SuperAdminNote,
                 Role = role.Name ?? string.Empty,
                 IsActive = user.IsActive,
+                IsGoogleOnly = user.PasswordHash == null && _context.UserLogins.Any(login =>
+                    login.UserId == user.Id &&
+                    login.LoginProvider == ExternalLoginProviders.Google),
                 MustChangePassword = user.MustChangePassword,
                 ActivatedAtUtc = user.ActivatedAtUtc,
                 InvitationTokenHash = user.InvitationTokenHash,
@@ -198,6 +202,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
             MustCompleteProfile = string.IsNullOrWhiteSpace(user.DisplayName),
             Role = role,
             IsActive = user.IsActive,
+            IsGoogleOnly = user.IsGoogleOnly,
             AccountStatus = UserAccountStatuses.Resolve(
                 user.IsActive,
                 user.ActivatedAtUtc,
@@ -261,6 +266,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
         public string? SuperAdminNote { get; init; }
         public string Role { get; init; } = string.Empty;
         public bool IsActive { get; init; }
+        public bool IsGoogleOnly { get; init; }
         public bool MustChangePassword { get; init; }
         public DateTime? ActivatedAtUtc { get; init; }
         public string? InvitationTokenHash { get; init; }

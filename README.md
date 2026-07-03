@@ -232,6 +232,9 @@ GOOGLE_DRIVE_CLIENT_SECRET
 GOOGLE_DRIVE_REDIRECT_URI
 GOOGLE_DRIVE_APP_NAME
 GOOGLE_DRIVE_EXPORT_FOLDER_NAME
+GOOGLE_AUTH_ENABLED
+GOOGLE_AUTH_CLIENT_ID
+GOOGLE_AUTH_CLIENT_SECRET
 EmergencySitesExport__Enabled
 EmergencySitesExport__ScheduleCron
 EmergencySitesExport__GoogleDriveFolderId
@@ -259,6 +262,9 @@ GoogleDrive__ClientSecret
 GoogleDrive__RedirectUri
 GoogleDrive__AppName
 GoogleDrive__ExportFolderName
+GoogleAuthentication__Enabled
+GoogleAuthentication__ClientId
+GoogleAuthentication__ClientSecret
 EmergencySitesExport__Enabled
 EmergencySitesExport__ScheduleCron
 EmergencySitesExport__GoogleDriveFolderId
@@ -282,7 +288,9 @@ invitation reissue, activation, reactivation, and reactivation reissue return th
 fallback link to `SuperAdmin`. Production uses Google Workspace SMTP Relay with required STARTTLS
 and no SMTP credentials.
 
-Google Drive integration is an optional connection for authenticated users, not Google login. Use the minimal Drive scope `https://www.googleapis.com/auth/drive.file`; do not configure the broad Drive scope.
+Google registration/sign-in is controlled by `GoogleAuthentication__Enabled` and uses only `openid profile email`. Register `https://<app-domain>/signin-google` as an authorized redirect URI. The same Google OAuth client may be reused operationally, but Google authentication and Google Drive configuration remain separate.
+
+Google Drive integration is an optional connection for eligible authenticated users. Use the minimal Drive scope `https://www.googleapis.com/auth/drive.file`; do not configure the broad Drive scope. Its redirect URI remains `/api/integrations/google-drive/callback` and is not used for sign-in.
 
 The emergency Sites export is disabled by default. When enabled, it uses a Google service account JSON file mounted into the app container and uploads to the configured Google Shared Drive folder; it does not use user OAuth tokens.
 
