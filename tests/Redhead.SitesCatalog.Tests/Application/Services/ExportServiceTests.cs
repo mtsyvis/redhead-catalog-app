@@ -1421,7 +1421,7 @@ public class ExportServiceTests : IDisposable
         Assert.Equal("NO", rows[0]["Link Insert Casino"]);
         Assert.Equal(string.Empty, rows[0]["Dating"]);
         Assert.Equal("4", rows[0]["DF Links"]);
-        Assert.Equal("1 year", rows[0]["Term"]);
+        Assert.Equal("No term", rows[0]["Term"]);
     }
 
     [Fact]
@@ -2403,6 +2403,40 @@ public class ExportServiceTests : IDisposable
     #endregion
 
     #region Term-aware export pricing
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_TermColumn_ExportsUniqueTermsFromPriceOptions()
+    {
+        // Arrange
+        var site = SiteWithNullPrice("term-column-multiple.com");
+        site.TermType = TermType.Finite;
+        site.TermValue = 3;
+        site.TermUnit = TermUnit.Year;
+        _context.Sites.Add(site);
+        _context.SitePriceOptions.AddRange(
+            CreatePriceOption(site, PriceType.Main, PricingTerm.Permanent, 500m),
+            CreatePriceOption(site, PriceType.Main, PricingTerm.FiniteYears(2), 200m),
+            CreatePriceOption(site, PriceType.Casino, PricingTerm.FiniteYears(2), 250m),
+            CreatePriceOption(site, PriceType.LinkInsertion, PricingTerm.Unknown, 100m));
+        await _context.SaveChangesAsync();
+
+        var query = DefaultQuery();
+        query.Search = site.Domain;
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            ["domain", "term"],
+            CancellationToken.None);
+
+        // Assert
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        var row = Assert.Single(rows);
+        Assert.Equal("No term, 2 years, Permanent", row["Term"]);
+    }
 
     [Fact]
     public async Task ExportSitesAsExcelAsync_MainPrices_ExportsLowestTermAwarePriceForAnyTerm()

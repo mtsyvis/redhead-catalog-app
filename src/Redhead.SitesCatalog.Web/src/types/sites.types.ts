@@ -312,9 +312,6 @@ export interface UpdateSitePayload {
   language: string | null;
   pricing: UpdateSitePricingPayload;
   numberDFLinks: number | null;
-  termType: TermTypeValue | null;
-  termValue: number | null;
-  termUnit: TermUnitValue | null;
   niche: string | null;
   categories: string | null;
   SponsoredTag: string | null;

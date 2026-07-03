@@ -34,7 +34,7 @@ internal static class SitesExportColumnRegistry
         Exportable("categories", "Categories", site => XlsxCell.Text(site.Categories), 28),
         Exportable("numberDFLinks", "DF Links", site => XlsxCell.Number(site.NumberDFLinks, XlsxCellStyle.Integer), 16),
         Exportable("sponsoredTag", "Sponsored Tag", site => XlsxCell.Text(site.SponsoredTag), 16),
-        Exportable("term", "Term", site => XlsxCell.Text(FormatTerm(site.TermType, site.TermValue, site.TermUnit)), 16),
+        Exportable("term", "Term", site => XlsxCell.Text(FormatTerms(site.PriceOptions)), 24),
         Exportable("language", "Language", site => XlsxCell.Text(FormatLanguage(site.Language)), 14),
         Exportable("isQuarantined", "Status", site => XlsxCell.Text(site.IsQuarantined ? "Unavailable" : "Available"), 14),
         Exportable("lastPublishedDate", "Last Published", site => XlsxCell.Text(FormatLastPublishedDate(site)), 24),
@@ -273,24 +273,18 @@ internal static class SitesExportColumnRegistry
         return priceOption.TermKey;
     }
 
-    private static string FormatTerm(TermType? termType, int? termValue, TermUnit? termUnit)
+    private static string FormatTerms(IEnumerable<SitePriceOption> priceOptions)
     {
-        if (termType is null)
-        {
-            return string.Empty;
-        }
+        var values = priceOptions
+            .Where(price => price.AmountUsd > 0 && !string.IsNullOrWhiteSpace(price.TermKey))
+            .GroupBy(price => price.TermKey, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderBy(GetTermSortOrder)
+            .ThenBy(price => price.TermValue ?? int.MaxValue)
+            .ThenBy(price => price.TermKey, StringComparer.Ordinal)
+            .Select(FormatPriceTermLabel);
 
-        if (termType == TermType.Permanent)
-        {
-            return "permanent";
-        }
-
-        if (termType == TermType.Finite && termValue.HasValue && termUnit == TermUnit.Year)
-        {
-            return termValue.Value == 1 ? "1 year" : $"{termValue.Value} years";
-        }
-
-        return string.Empty;
+        return string.Join(", ", values);
     }
 
     private static string FormatLanguage(string? language)

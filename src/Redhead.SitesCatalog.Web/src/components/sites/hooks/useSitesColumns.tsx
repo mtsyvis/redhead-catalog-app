@@ -7,13 +7,13 @@ import type { GridColDef } from '@mui/x-data-grid';
 import type { Site } from '../../../types/sites.types';
 import type { TableViewDensity } from '../../../types/tableViews.types';
 import { formatLanguageTableValue } from '../../../utils/language';
-import { formatTerm } from '../../../utils/term';
 import {
   PRICE_FIELD_TO_TYPE,
   PRICE_TYPE,
   type PricingCellSummary,
   formatMainPriceCell,
   formatOptionalServicePriceCell,
+  formatSiteTerms,
 } from '../../../utils/pricing';
 import { StatusBadge } from '../feedback/StatusBadge';
 import { TruncatedTextCell } from '../cells/TruncatedTextCell';
@@ -721,15 +721,14 @@ export function useSitesColumns({
         {
           ...gridColumnDefaults('term', columnWidths),
           field: 'term',
+          sortable: false,
           valueFormatter: (_value, row) => {
             if (isNotFoundRow(row)) return '—';
-            const site = row as Site;
-            return formatTerm(site.termType, site.termValue, site.termUnit);
+            return formatSiteTerms(row as Site);
           },
           renderCell: (params) => {
             if (isNotFoundRow(params.row)) return renderTruncatedTextCell('—');
-            const site = params.row as Site;
-            return renderTruncatedTextCell(formatTerm(site.termType, site.termValue, site.termUnit));
+            return renderTruncatedTextCell(formatSiteTerms(params.row as Site));
           },
         },
         {

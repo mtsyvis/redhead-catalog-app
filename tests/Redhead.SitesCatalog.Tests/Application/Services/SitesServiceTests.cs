@@ -2640,7 +2640,7 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateSiteAsync_WithTermAwareMainPricing_ReplacesPersistedPricing()
+    public async Task UpdateSiteAsync_WithTermAwareMainPricing_ReplacesPricingWithoutUpdatingLegacyTerm()
     {
         // Arrange
         var site = await _context.Sites.FirstAsync(s => s.Domain == "example.com");
@@ -2671,7 +2671,7 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(2, dbSite.PriceOptions.Count);
         Assert.Equal(200m, dbSite.PriceUsd);
         Assert.Equal(TermType.Finite, dbSite.TermType);
-        Assert.Equal(1, dbSite.TermValue);
+        Assert.Equal(2, dbSite.TermValue);
         Assert.Equal(TermUnit.Year, dbSite.TermUnit);
         Assert.Empty(dbSite.ServiceAvailabilities);
     }
@@ -2816,9 +2816,9 @@ public class SitesServiceTests : IDisposable
         Assert.Empty(dbSite.ServiceAvailabilities);
         Assert.Null(dbSite.PriceUsd);
         Assert.Equal(ServiceAvailabilityStatus.Unknown, dbSite.PriceCasinoStatus);
-        Assert.Null(dbSite.TermType);
-        Assert.Null(dbSite.TermValue);
-        Assert.Null(dbSite.TermUnit);
+        Assert.Equal(TermType.Finite, dbSite.TermType);
+        Assert.Equal(2, dbSite.TermValue);
+        Assert.Equal(TermUnit.Year, dbSite.TermUnit);
     }
 
     [Fact]
