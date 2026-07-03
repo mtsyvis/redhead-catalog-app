@@ -548,25 +548,12 @@ public class SitesService : ISitesService
         site.PriceLinkInsertStatus = GetServiceStatus(pricing, PriceType.LinkInsertion);
         site.PriceLinkInsertCasinoStatus = GetServiceStatus(pricing, PriceType.LinkInsertionCasino);
         site.PriceDatingStatus = GetServiceStatus(pricing, PriceType.Dating);
-
-        var representativeTerm = GetRepresentativeLegacyTerm(pricing.Prices);
-        site.TermType = representativeTerm?.TermType;
-        site.TermValue = representativeTerm?.TermValue;
-        site.TermUnit = representativeTerm?.TermUnit;
     }
 
     private static decimal? GetRepresentativePriceAmount(
         IReadOnlyList<UpdateSitePriceOptionRequest> prices,
         PriceType priceType)
         => GetRepresentativePrice(prices, priceType)?.AmountUsd;
-
-    private static UpdateSitePriceOptionRequest? GetRepresentativeLegacyTerm(IReadOnlyList<UpdateSitePriceOptionRequest> prices)
-    {
-        return GetRepresentativePrice(prices, PriceType.Main)
-            ?? GetRepresentativePrice(prices, PriceType.Casino)
-            ?? GetRepresentativePrice(prices, PriceType.Crypto)
-            ?? GetRepresentativePrice(prices, PriceType.Dating);
-    }
 
     private static UpdateSitePriceOptionRequest? GetRepresentativePrice(
         IReadOnlyList<UpdateSitePriceOptionRequest> prices,

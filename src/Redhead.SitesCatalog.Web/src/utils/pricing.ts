@@ -170,6 +170,19 @@ export function getPrices(site: Site, priceType: PriceTypeValue): SitePriceOptio
     .sort(comparePriceTerms);
 }
 
+export function formatSiteTerms(site: Site): string {
+  const pricesByTerm = new Map<string, SitePriceOptionDto>();
+
+  for (const price of site.pricing.prices) {
+    if (price.amountUsd > 0 && price.termKey.trim() !== '' && !pricesByTerm.has(price.termKey)) {
+      pricesByTerm.set(price.termKey, price);
+    }
+  }
+
+  const labels = sortPriceOptionsByTerm([...pricesByTerm.values()]).map(getFullTermLabel);
+  return labels.length > 0 ? labels.join(', ') : '—';
+}
+
 export function getServiceStatus(site: Site, serviceType: PriceTypeValue): ServiceAvailabilityStatus | null {
   const availability = site.pricing.serviceAvailabilities.find(
     (item) => normalizePriceType(item.serviceType) === serviceType

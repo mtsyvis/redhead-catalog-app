@@ -318,6 +318,8 @@ Use the same normalization in:
 
 The backend stores term-specific price options in `SitePriceOptions` keyed by site, price type, and normalized term key, and optional service availability in `SiteServiceAvailabilities`. Site read APIs and the frontend use this term-aware pricing model as their only pricing source. Existing flat site price and availability columns remain temporarily as internal database and write/import compatibility fields; read APIs must not expose them.
 
+Pricing terms are read from `SitePriceOptions`. The legacy site-level `TermType`, `TermValue`, and `TermUnit` fields remain only for compatibility with write requests that do not use the term-aware `Pricing` payload. Term-aware manual edits, inserts, and update imports do not update those legacy site-level fields.
+
 Rules:
 
 * Empty `PriceUsd` must be stored as empty/null, not as `0`.
@@ -363,6 +365,7 @@ Rules:
 * UI must not mislead users by showing unavailable services as zero-price services.
 * UI and exports show `YES` for `AvailableWithUnknownPrice`, `NO` for `NotAvailable`, and empty/placeholder values for `Unknown`.
 * Site exports use `SitePriceOptions` and `SiteServiceAvailabilities` as the source of truth for service price columns. With no selected term, if service prices exist, export the lowest known service price across all terms as a raw numeric Excel value; otherwise export `YES`, `NO`, or `—` from the service availability status. With a selected `TermKey`, export only that term's service price as a raw numeric Excel value; if that service has no price for the selected term, export `—` without falling back to another term or global service availability status.
+* The standard export `Term` column contains the same unique ordered term list derived from `SitePriceOptions` as the Sites table; it is empty when the site has no numeric prices.
 
 ### Additional site fields
 
@@ -391,7 +394,7 @@ Rules:
 
 `NumberDFLinks` is nullable. When present, it must be a positive whole number.
 
-Term is stored as `TermType`, `TermValue`, and `TermUnit`.
+Each price option stores its term as `TermKey`, `TermType`, `TermValue`, and `TermUnit`.
 
 Current term rules:
 
@@ -399,6 +402,7 @@ Current term rules:
 * `permanent` means `TermType = Permanent` and the value/unit fields are empty.
 * `N year` or `N years` means `TermType = Finite`, `TermValue = N`, and `TermUnit = Year`.
 * Only positive integer year terms are currently valid. Month/day/lifetime/abbreviated values are not supported.
+* The internal `unknown` term key is displayed as `No term`.
 
 ### Quarantine
 
@@ -494,6 +498,7 @@ Rules:
 * The `Domain` column is always first; workflow/system columns such as row actions stay system-managed and last when present.
 * The `Domain` column remains pinned on the left while horizontally scrolling the Sites table.
 * Long text values in the Sites table stay single-line with truncation and reveal the full value on hover when truncated.
+* The `Term` column displays all unique terms that have at least one numeric price for the site, ordered as `No term`, finite year terms ascending, then `Permanent`. Sites without numeric prices display `—`. The column is not sortable.
 * Workflow/system columns such as row actions are not saved in table views.
 * If active filters target hidden columns, the UI should warn the user and offer to show those columns or clear only those hidden-column filters.
 * Sorting by service-specific price fields uses numeric `SitePriceOptions`, keeping known numeric prices first in both ascending and descending order. With no selected term, the lowest price across all terms is used; with a selected `TermKey`, only that term is used. Available-with-unknown-price (`YES`) sorts after known prices, not-available sorts after `YES`, and unknown sorts last. `YES`, `NO`, and unknown are not zero-price values.
