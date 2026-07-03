@@ -79,7 +79,7 @@ public sealed class GoogleAccountAuthenticationServiceTests
     {
         // Arrange
         await using var db = CreateDbContext();
-        
+
         var linkedUser = new ApplicationUser { Id = "existing", IsActive = true };
         var userManager = CreateUserManager();
         userManager.Setup(manager => manager.FindByLoginAsync(ExternalLoginProviders.Google, "subject-1"))

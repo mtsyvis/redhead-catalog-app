@@ -254,6 +254,37 @@ public sealed class AuthControllerTests
     }
 
     [Fact]
+    public async Task GetCurrentUser_WhenGoogleAvatarClaimExists_ReturnsAvatarUrl()
+    {
+        // Arrange
+        const string avatarUrl = "https://lh3.googleusercontent.com/avatar";
+        var user = CreateUser(mustChangePassword: false, firstName: "Ada", lastName: "Lovelace");
+        var userManager = CreateUserManagerForCurrentUser(user);
+        userManager.Setup(manager => manager.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { AppRoles.Lite });
+        userManager.Setup(manager => manager.HasPasswordAsync(user))
+            .ReturnsAsync(false);
+        var sut = CreateController(userManager);
+        sut.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim(AppClaimTypes.GoogleAvatarUrl, avatarUrl)],
+                    "Test"))
+            }
+        };
+
+        // Act
+        var result = await sut.GetCurrentUser();
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<UserInfoResponse>(ok.Value);
+        Assert.Equal(avatarUrl, payload.AvatarUrl);
+    }
+
+    [Fact]
     public async Task ChangePassword_WhenUserIsGoogleOnly_ReturnsBadRequest()
     {
         // Arrange

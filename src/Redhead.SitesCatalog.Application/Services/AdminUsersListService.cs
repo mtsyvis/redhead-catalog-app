@@ -92,6 +92,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
             MustChangePassword = user.MustChangePassword,
             Role = listItem.Role,
             IsActive = listItem.IsActive,
+            IsGoogleOnly = listItem.IsGoogleOnly,
             AccountStatus = listItem.AccountStatus,
             ActivatedAtUtc = user.ActivatedAtUtc,
             InvitationExpiresAtUtc = listItem.InvitationExpiresAtUtc,

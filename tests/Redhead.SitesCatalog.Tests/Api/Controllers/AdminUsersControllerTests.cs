@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -230,6 +231,30 @@ public sealed class AdminUsersControllerTests
         var payload = GetOkPayload(result);
         Assert.Equal("client@example.com", payload.DisplayName);
         Assert.True(payload.MustCompleteProfile);
+    }
+
+    [Fact]
+    public async Task GetUser_WhenUserIsGoogleOnly_ReturnsGoogleOnlyFlag()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        var user = await AddUserAsync(db, "google-1", "google@example.com", AppRoles.Lite);
+        db.UserLogins.Add(new IdentityUserLogin<string>
+        {
+            LoginProvider = ExternalLoginProviders.Google,
+            ProviderKey = "google-subject",
+            ProviderDisplayName = ExternalLoginProviders.Google,
+            UserId = user.Id
+        });
+        await db.SaveChangesAsync();
+        var sut = CreateController(db);
+
+        // Act
+        var result = await sut.GetUser(user.Id, CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        Assert.True(payload.IsGoogleOnly);
     }
 
     [Fact]
@@ -1175,6 +1200,50 @@ public sealed class AdminUsersControllerTests
     }
 
     [Fact]
+    public async Task ReactivateUser_WhenGoogleOnlyUserUpdateFails_RestoresInactiveState()
+    {
+        // Arrange
+        var targetUser = new ApplicationUser
+        {
+            Id = "google-user",
+            Email = "google@example.com",
+            IsActive = false,
+            ActivatedAtUtc = DateTime.UtcNow.AddDays(-1),
+            ExportLimitRowsOverride = 50
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Lite },
+            ExistingUserByEmail = targetUser,
+            HasPassword = false,
+            UpdateResult = IdentityResult.Failed(
+                new IdentityErrorDescriber().ConcurrencyFailure()),
+            TargetLogins =
+            [
+                new UserLoginInfo(ExternalLoginProviders.Google, "google-subject", "Google")
+            ]
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.ReactivateUser(
+            targetUser.Id,
+            new ReactivateUserRequest(AppRoles.Client));
+
+        // Assert
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var payload = Assert.IsType<MessageResponse>(badRequest.Value);
+        Assert.Contains("Optimistic concurrency failure", payload.Message);
+        Assert.False(targetUser.IsActive);
+        Assert.Equal(50, targetUser.ExportLimitRowsOverride);
+        Assert.Equal(0, userManager.SecurityStampUpdateCount);
+    }
+
+    [Fact]
     public async Task ResetPassword_WhenUserIsGoogleOnly_ReturnsBadRequestWithoutCreatingPassword()
     {
         // Arrange
@@ -1693,6 +1762,7 @@ public sealed class AdminUsersControllerTests
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .Options;
         return new ApplicationDbContext(options);
     }
@@ -1709,6 +1779,7 @@ public sealed class AdminUsersControllerTests
     {
         return new AdminUsersController(
             userManager,
+            db,
             new AdminUsersListService(
                 db,
                 CreateGoogleDriveIntegrationService(db),
@@ -1830,6 +1901,7 @@ public sealed class AdminUsersControllerTests
         public int ResetPasswordCount { get; private set; }
         public bool HasPassword { get; init; } = true;
         public IList<UserLoginInfo> TargetLogins { get; init; } = new List<UserLoginInfo>();
+        public IdentityResult UpdateResult { get; init; } = IdentityResult.Success;
 
         public StubUserManager()
             : base(
@@ -1904,7 +1976,7 @@ public sealed class AdminUsersControllerTests
         public override Task<IdentityResult> UpdateAsync(ApplicationUser user)
         {
             Operations.Add("UpdateUser");
-            return Task.FromResult(IdentityResult.Success);
+            return Task.FromResult(UpdateResult);
         }
 
         public override Task<IdentityResult> UpdateSecurityStampAsync(ApplicationUser user)

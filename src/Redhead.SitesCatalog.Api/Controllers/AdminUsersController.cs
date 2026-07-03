@@ -12,6 +12,7 @@ using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Invitations;
+using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -21,17 +22,20 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 public class AdminUsersController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ApplicationDbContext _context;
     private readonly IAdminUsersListService _usersListService;
     private readonly IInvitationDeliveryService _invitationDeliveryService;
     private readonly ILogger<AdminUsersController> _logger;
 
     public AdminUsersController(
         UserManager<ApplicationUser> userManager,
+        ApplicationDbContext context,
         IAdminUsersListService usersListService,
         IInvitationDeliveryService invitationDeliveryService,
         ILogger<AdminUsersController> logger)
     {
         _userManager = userManager;
+        _context = context;
         _usersListService = usersListService;
         _invitationDeliveryService = invitationDeliveryService;
         _logger = logger;
@@ -362,31 +366,15 @@ public class AdminUsersController : ControllerBase
         var isGoogleOnly = isReactivation && await IsGoogleOnlyAsync(target);
         if (isGoogleOnly)
         {
-            if (!string.Equals(currentRole, request.Role, StringComparison.Ordinal))
+            var reactivationError = await ReactivateGoogleOnlyUserAsync(
+                target,
+                targetRoles,
+                currentRole,
+                request.Role,
+                cancellationToken);
+            if (reactivationError != null)
             {
-                var roleResult = await ReplaceUserRoleAsync(target, targetRoles, request.Role);
-                if (roleResult != null)
-                {
-                    return BadRequest(new MessageResponse(roleResult));
-                }
-            }
-
-            ClearExportLimitOverrides(target);
-            target.IsActive = true;
-            target.MustChangePassword = false;
-            target.InvitationTokenHash = null;
-            target.InvitationExpiresAtUtc = null;
-
-            var googleUpdateResult = await _userManager.UpdateAsync(target);
-            if (!googleUpdateResult.Succeeded)
-            {
-                return BadRequest(new MessageResponse(FormatIdentityErrors(googleUpdateResult)));
-            }
-
-            var googleStampResult = await _userManager.UpdateSecurityStampAsync(target);
-            if (!googleStampResult.Succeeded)
-            {
-                return BadRequest(new MessageResponse(FormatIdentityErrors(googleStampResult)));
+                return BadRequest(new MessageResponse(reactivationError));
             }
 
             _logger.LogInformation(
@@ -743,6 +731,87 @@ public class AdminUsersController : ControllerBase
         return null;
     }
 
+    private async Task<string?> ReactivateGoogleOnlyUserAsync(
+        ApplicationUser user,
+        IList<string> currentRoles,
+        string currentRole,
+        string requestedRole,
+        CancellationToken cancellationToken)
+    {
+        var originalState = new GoogleOnlyReactivationState(
+            user.IsActive,
+            user.MustChangePassword,
+            user.InvitationTokenHash,
+            user.InvitationExpiresAtUtc,
+            user.ExportLimitOverrideMode,
+            user.ExportLimitRowsOverride,
+            user.DailyUniqueExportedDomainsLimitOverride,
+            user.WeeklyUniqueExportedDomainsLimitOverride,
+            user.DailyExportOperationsLimitOverride,
+            user.WeeklyExportOperationsLimitOverride);
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            if (!string.Equals(currentRole, requestedRole, StringComparison.Ordinal))
+            {
+                var roleError = await ReplaceUserRoleAsync(user, currentRoles, requestedRole);
+                if (roleError != null)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    RestoreGoogleOnlyReactivationState(user, originalState);
+                    return roleError;
+                }
+            }
+
+            ClearExportLimitOverrides(user);
+            user.IsActive = true;
+            user.MustChangePassword = false;
+            user.InvitationTokenHash = null;
+            user.InvitationExpiresAtUtc = null;
+
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                RestoreGoogleOnlyReactivationState(user, originalState);
+                return FormatIdentityErrors(updateResult);
+            }
+
+            var stampResult = await _userManager.UpdateSecurityStampAsync(user);
+            if (!stampResult.Succeeded)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                RestoreGoogleOnlyReactivationState(user, originalState);
+                return FormatIdentityErrors(stampResult);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return null;
+        }
+        catch
+        {
+            RestoreGoogleOnlyReactivationState(user, originalState);
+            throw;
+        }
+    }
+
+    private static void RestoreGoogleOnlyReactivationState(
+        ApplicationUser user,
+        GoogleOnlyReactivationState state)
+    {
+        user.IsActive = state.IsActive;
+        user.MustChangePassword = state.MustChangePassword;
+        user.InvitationTokenHash = state.InvitationTokenHash;
+        user.InvitationExpiresAtUtc = state.InvitationExpiresAtUtc;
+        user.ExportLimitOverrideMode = state.ExportLimitOverrideMode;
+        user.ExportLimitRowsOverride = state.ExportLimitRowsOverride;
+        user.DailyUniqueExportedDomainsLimitOverride = state.DailyUniqueExportedDomainsLimitOverride;
+        user.WeeklyUniqueExportedDomainsLimitOverride = state.WeeklyUniqueExportedDomainsLimitOverride;
+        user.DailyExportOperationsLimitOverride = state.DailyExportOperationsLimitOverride;
+        user.WeeklyExportOperationsLimitOverride = state.WeeklyExportOperationsLimitOverride;
+    }
+
     private static string FormatIdentityErrors(IdentityResult result)
     {
         return string.Join(" ", result.Errors.Select(e => e.Description));
@@ -905,4 +974,16 @@ public class AdminUsersController : ControllerBase
     }
 
     private sealed record InvitationData(string Token, string TokenHash, DateTime ExpiresAtUtc);
+
+    private sealed record GoogleOnlyReactivationState(
+        bool IsActive,
+        bool MustChangePassword,
+        string? InvitationTokenHash,
+        DateTime? InvitationExpiresAtUtc,
+        ExportLimitMode? ExportLimitOverrideMode,
+        int? ExportLimitRowsOverride,
+        int? DailyUniqueExportedDomainsLimitOverride,
+        int? WeeklyUniqueExportedDomainsLimitOverride,
+        int? DailyExportOperationsLimitOverride,
+        int? WeeklyExportOperationsLimitOverride);
 }
