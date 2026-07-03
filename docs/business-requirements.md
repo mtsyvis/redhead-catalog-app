@@ -323,6 +323,7 @@ Rules:
 * Empty `PriceUsd` must be stored as empty/null, not as `0`.
 * `PriceUsd` must be either empty/null or greater than `0`; `0` and negative values are invalid.
 * UI must display empty `PriceUsd` as `NO`.
+* For `Client` and `Lite`, Sites table price cells, pricing tooltips, and the Pricing drawer show unknown-term price amounts without the `No term` label. A price cell with exactly one unknown-term price does not show a tooltip, and the Pricing drawer shows that amount inline with the pricing-section heading. Optional-service Pricing drawer sections do not show the redundant `Has price` status when numeric prices are present. The `No term` filter option and internal-role term labels remain unchanged.
 * Price filtering and sorting use `SitePriceOptions` as the backend source of truth once term-aware pricing is enabled. The price-range filter targets one selected `PriceType` and defaults to `Main`. With no selected term, a site matches when at least one price option of the selected type is inside the range; with a selected `TermKey`, only matching-term price options of the selected type are considered.
 * During sites import, price fields may all be empty or unavailable; valid rows are not rejected only because no numeric price is present.
 * During sites update import, a present empty `PriceUsd` cell with a row `Term` clears that exact `SitePriceOption`; a missing price column leaves pricing data unchanged.

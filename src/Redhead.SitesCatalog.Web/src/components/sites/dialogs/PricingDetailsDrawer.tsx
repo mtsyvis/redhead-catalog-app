@@ -8,6 +8,7 @@ import {
   Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import { useUserRoles } from '../../../hooks/useUserRoles';
 import type { Site } from '../../../types/sites.types';
 import {
   PRICE_TYPE,
@@ -131,7 +132,11 @@ function PricingSection({
   site: Site;
   priceType: PriceTypeValue;
 }) {
+  const { isClient, isLite } = useUserRoles();
+  const hideNoTermText = isClient || isLite;
   const prices = getPrices(site, priceType);
+  const showCompactUnknownPrice =
+    hideNoTermText && prices.length === 1 && prices[0].termKey === 'unknown';
 
   return (
     <Box
@@ -143,15 +148,30 @@ function PricingSection({
         bgcolor: 'background.paper',
       }}
     >
-      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-        {PRICE_TYPE_LABELS[priceType]}
-      </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+          mb: showCompactUnknownPrice ? 0 : 1,
+        }}
+      >
+        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+          {PRICE_TYPE_LABELS[priceType]}
+        </Typography>
+        {showCompactUnknownPrice && (
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {formatUsd(prices[0].amountUsd)}
+          </Typography>
+        )}
+      </Box>
 
       {prices.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
           —
         </Typography>
-      ) : (
+      ) : showCompactUnknownPrice ? null : (
         <Stack divider={<Divider flexItem />} spacing={0}>
           {prices.map((price) => (
             <Box
@@ -163,10 +183,19 @@ function PricingSection({
                 py: 0.75,
               }}
             >
-              <Typography variant="body2" color="text.secondary">
-                {getFullTermLabel(price)}
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {(!hideNoTermText || price.termKey !== 'unknown') && (
+                <Typography variant="body2" color="text.secondary">
+                  {getFullTermLabel(price)}
+                </Typography>
+              )}
+              <Typography
+                variant="body2"
+                sx={{
+                  gridColumn: hideNoTermText && price.termKey === 'unknown' ? '1 / -1' : undefined,
+                  justifySelf: 'end',
+                  fontWeight: 600,
+                }}
+              >
                 {formatUsd(price.amountUsd)}
               </Typography>
             </Box>
@@ -184,11 +213,15 @@ function OptionalServicePricingSection({
   site: Site;
   priceType: PriceTypeValue;
 }) {
+  const { isClient, isLite } = useUserRoles();
+  const hideNoTermText = isClient || isLite;
   const prices = getPrices(site, priceType);
   const status = prices.length > 0
     ? SERVICE_AVAILABILITY_STATUS.Available
     : normalizeServiceAvailabilityStatus(getServiceStatus(site, priceType));
   const isYes = status === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice;
+  const showCompactUnknownPrice =
+    hideNoTermText && prices.length === 1 && prices[0].termKey === 'unknown';
 
   return (
     <Box
@@ -200,23 +233,40 @@ function OptionalServicePricingSection({
         bgcolor: 'background.paper',
       }}
     >
-      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-        {PRICE_TYPE_LABELS[priceType]}
-      </Typography>
-
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: prices.length > 0 || isYes ? 1 : 0 }}>
-        <Typography variant="body2" color="text.secondary">
-          Status:
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+          mb: showCompactUnknownPrice ? 0 : 1,
+        }}
+      >
+        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+          {PRICE_TYPE_LABELS[priceType]}
         </Typography>
-        <Chip
-          label={getStatusLabel(status)}
-          size="small"
-          color={statusChipColor(status)}
-          variant="outlined"
-        />
-      </Stack>
+        {showCompactUnknownPrice && (
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {formatUsd(prices[0].amountUsd)}
+          </Typography>
+        )}
+      </Box>
 
-      {prices.length > 0 && (
+      {prices.length === 0 && (
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: isYes ? 1 : 0 }}>
+          <Typography variant="body2" color="text.secondary">
+            Status:
+          </Typography>
+          <Chip
+            label={getStatusLabel(status)}
+            size="small"
+            color={statusChipColor(status)}
+            variant="outlined"
+          />
+        </Stack>
+      )}
+
+      {prices.length > 0 && !showCompactUnknownPrice && (
         <Stack divider={<Divider flexItem />} spacing={0}>
           {prices.map((price) => (
             <Box
@@ -228,10 +278,19 @@ function OptionalServicePricingSection({
                 py: 0.75,
               }}
             >
-              <Typography variant="body2" color="text.secondary">
-                {getFullTermLabel(price)}
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {(!hideNoTermText || price.termKey !== 'unknown') && (
+                <Typography variant="body2" color="text.secondary">
+                  {getFullTermLabel(price)}
+                </Typography>
+              )}
+              <Typography
+                variant="body2"
+                sx={{
+                  gridColumn: hideNoTermText && price.termKey === 'unknown' ? '1 / -1' : undefined,
+                  justifySelf: 'end',
+                  fontWeight: 600,
+                }}
+              >
                 {formatUsd(price.amountUsd)}
               </Typography>
             </Box>

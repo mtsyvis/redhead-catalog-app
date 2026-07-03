@@ -191,10 +191,19 @@ function renderPricingTooltipContent(label: string, summary: PricingCellSummary)
                 display: 'contents',
               }}
             >
-              <Typography variant="body2" color="text.secondary">
-                {row.termLabel}
-              </Typography>
-              <Typography variant="body2" sx={{ justifySelf: 'end', fontWeight: 600 }}>
+              {row.termLabel && (
+                <Typography variant="body2" color="text.secondary">
+                  {row.termLabel}
+                </Typography>
+              )}
+              <Typography
+                variant="body2"
+                sx={{
+                  gridColumn: row.termLabel ? undefined : '1 / -1',
+                  justifySelf: 'end',
+                  fontWeight: 600,
+                }}
+              >
                 {row.amount}
               </Typography>
             </Box>
@@ -216,6 +225,19 @@ function renderPricingTooltipContent(label: string, summary: PricingCellSummary)
       )}
     </Box>
   );
+}
+
+function hideNoTermText(summary: PricingCellSummary): PricingCellSummary {
+  return {
+    ...summary,
+    secondary: summary.secondary === 'No term' ? null : summary.secondary,
+    snippets: summary.snippets.map((snippet) =>
+      snippet.startsWith('No term ') ? snippet.slice('No term '.length) : snippet
+    ),
+    tooltipRows: summary.tooltipRows.map((row) =>
+      row.termLabel === 'No term' ? { ...row, termLabel: '' } : row
+    ),
+  };
 }
 
 function renderHiddenCountChip(count: number) {
@@ -343,13 +365,19 @@ function renderPriceCell(
   label: string,
   site: Site,
   onViewPricing: (site: Site) => void,
-  density: TableViewDensity
+  density: TableViewDensity,
+  isClient: boolean
 ) {
   const isCompact = density === 'compact';
+  const hideTooltip =
+    isClient &&
+    summary.tooltipRows.length === 1 &&
+    summary.tooltipRows[0].termLabel === 'No term';
+  const visibleSummary = isClient ? hideNoTermText(summary) : summary;
 
   return (
     <Tooltip
-      title={renderPricingTooltipContent(label, summary)}
+      title={hideTooltip ? '' : renderPricingTooltipContent(label, visibleSummary)}
       arrow
       slotProps={{
         tooltip: {
@@ -401,7 +429,7 @@ function renderPriceCell(
         }}
       >
         {isCompact ? (
-          renderCompactPriceLine(summary)
+          renderCompactPriceLine(visibleSummary)
         ) : (
           <>
             <Typography
@@ -409,9 +437,9 @@ function renderPriceCell(
               noWrap
               sx={{ display: 'block', fontWeight: 600, lineHeight: 1.2 }}
             >
-              {summary.primary}
+              {visibleSummary.primary}
             </Typography>
-            {renderStandardPriceDetails(summary)}
+            {renderStandardPriceDetails(visibleSummary)}
           </>
         )}
       </Box>
@@ -519,7 +547,8 @@ export function useSitesColumns({
                   'Price USD',
                   params.row as Site,
                   onViewPricing,
-                  density
+                  density,
+                  isClient
                 ),
         },
         {
@@ -545,7 +574,8 @@ export function useSitesColumns({
                   'Casino',
                   params.row as Site,
                   onViewPricing,
-                  density
+                  density,
+                  isClient
                 ),
         },
         {
@@ -571,7 +601,8 @@ export function useSitesColumns({
                   'Crypto',
                   params.row as Site,
                   onViewPricing,
-                  density
+                  density,
+                  isClient
                 ),
         },
         {
@@ -593,7 +624,8 @@ export function useSitesColumns({
                   'Link Insert',
                   params.row as Site,
                   onViewPricing,
-                  density
+                  density,
+                  isClient
                 ),
         },
         {
@@ -619,7 +651,8 @@ export function useSitesColumns({
                   'Link Insert Casino',
                   params.row as Site,
                   onViewPricing,
-                  density
+                  density,
+                  isClient
                 ),
         },
         {
@@ -645,7 +678,8 @@ export function useSitesColumns({
                   'Dating',
                   params.row as Site,
                   onViewPricing,
-                  density
+                  density,
+                  isClient
                 ),
         },
         {
