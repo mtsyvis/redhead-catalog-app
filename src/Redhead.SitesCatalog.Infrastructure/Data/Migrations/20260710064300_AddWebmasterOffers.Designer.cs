@@ -1298,6 +1298,11 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ImportFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("LinkPolicyText")
                         .HasColumnType("text");
 
@@ -1336,6 +1341,9 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ImportFingerprint")
+                        .IsUnique();
 
                     b.HasIndex("SiteDomain");
 

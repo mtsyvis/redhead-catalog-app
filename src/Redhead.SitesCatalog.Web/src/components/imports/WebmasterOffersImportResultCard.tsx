@@ -29,6 +29,7 @@ export function WebmasterOffersImportResultCard({
   >(null);
 
   const importedCount = result.importedCount ?? 0;
+  const skippedDuplicateCount = result.skippedDuplicateCount ?? 0;
   const unmatchedRowsCount = result.unmatchedRowsCount ?? 0;
   const invalidRowsCount = result.invalidRowsCount ?? 0;
   const savedWithWarningsCount = result.savedWithWarningsCount ?? 0;
@@ -76,12 +77,13 @@ export function WebmasterOffersImportResultCard({
               display: 'grid',
               gridTemplateColumns: {
                 xs: 'repeat(2, minmax(0, 1fr))',
-                sm: 'repeat(4, minmax(0, 1fr))',
+                sm: 'repeat(5, minmax(0, 1fr))',
               },
               gap: 1.5,
             }}
           >
             <ImportResultMetric label="Imported" value={importedCount} />
+            <ImportResultMetric label="Skipped duplicates" value={skippedDuplicateCount} />
             <ImportResultMetric label="Unmatched" value={unmatchedRowsCount} tone="warning" />
             <ImportResultMetric label="Invalid rows" value={invalidRowsCount} tone="error" />
             <ImportResultMetric label="Warnings" value={savedWithWarningsCount} tone="warning" />

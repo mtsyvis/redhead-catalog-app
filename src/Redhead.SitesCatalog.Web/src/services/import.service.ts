@@ -39,6 +39,7 @@ export interface UpdateImportResult extends ImportResultBase, DuplicateDomainsIm
 
 export interface WebmasterOffersImportResult extends ImportResultBase {
   importedCount?: number;
+  skippedDuplicateCount?: number;
   unmatchedRowsCount?: number;
 }
 

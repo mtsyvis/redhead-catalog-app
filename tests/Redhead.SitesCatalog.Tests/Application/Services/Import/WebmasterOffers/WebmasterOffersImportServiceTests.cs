@@ -161,6 +161,105 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
         Assert.Contains("unknown alias", warningLines[1], StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ImportAsync_SameFileImportedTwice_SkipsSecondImportRows()
+    {
+        // Arrange
+        using var firstStream = CsvWithRows(
+            Row(domain: "existing.com", contact: "first@example.com", mainAmount: "100"),
+            Row(domain: "existing.com", contact: "second@example.com", mainAmount: "200"));
+
+        // Act
+        var firstResult = await ImportAsync(firstStream);
+
+        using var secondStream = CsvWithRows(
+            Row(domain: "existing.com", contact: "first@example.com", mainAmount: "100"),
+            Row(domain: "existing.com", contact: "second@example.com", mainAmount: "200"));
+        var secondResult = await ImportAsync(secondStream);
+
+        // Assert
+        Assert.Equal(2, firstResult.ImportedCount);
+        Assert.Equal(0, firstResult.SkippedDuplicateCount);
+        Assert.Equal(0, secondResult.ImportedCount);
+        Assert.Equal(2, secondResult.SkippedDuplicateCount);
+        Assert.Equal(2, await _context.SiteWebmasterOffers.CountAsync());
+    }
+
+    [Fact]
+    public async Task ImportAsync_SameExactRowAppearsTwice_SkipsSecondRowAsDuplicate()
+    {
+        // Arrange
+        var duplicateRow = Row(
+            domain: "existing.com",
+            contact: "duplicate@example.com",
+            mailboxRaw: "publications@redheaddigital.agency",
+            term: "1 year",
+            mainAmount: "100",
+            mainDetails: "guest post",
+            comment: "same condition");
+        using var stream = CsvWithRows(duplicateRow, duplicateRow);
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal(1, result.SkippedDuplicateCount);
+        Assert.Equal(1, await _context.SiteWebmasterOffers.CountAsync());
+        Assert.Equal(1, await _context.WebmasterOfferPrices.CountAsync());
+    }
+
+    [Fact]
+    public async Task ImportAsync_SameDomainContactWithChangedPriceOrComment_CreatesSeparateOffers()
+    {
+        // Arrange
+        using var stream = CsvWithRows(
+            Row(
+                domain: "existing.com",
+                contact: "changed@example.com",
+                mainAmount: "100",
+                comment: "first condition"),
+            Row(
+                domain: "existing.com",
+                contact: "changed@example.com",
+                mainAmount: "125",
+                comment: "second condition"));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(2, result.ImportedCount);
+        Assert.Equal(0, result.SkippedDuplicateCount);
+        Assert.Equal(2, await _context.SiteWebmasterOffers.CountAsync());
+        Assert.Single(_context.Webmasters);
+    }
+
+    [Fact]
+    public async Task ImportAsync_SameContentWithDifferentLineEndings_SkipsSecondRowAsDuplicate()
+    {
+        // Arrange
+        using var stream = CsvWithRows(
+            Row(
+                domain: "existing.com",
+                contact: "info@example.com\r\nreply@example.com - answer",
+                mainAmount: "100",
+                comment: "line one\r\nline two"),
+            Row(
+                domain: "existing.com",
+                contact: "info@example.com\nreply@example.com - answer",
+                mainAmount: "100",
+                comment: "line one\nline two"));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal(1, result.SkippedDuplicateCount);
+        Assert.Equal(1, await _context.SiteWebmasterOffers.CountAsync());
+    }
+
     [Theory]
     [InlineData("info@huislijn.nl\nr.barends@huislijn.nl (ответ тут)", "r.barends@huislijn.nl")]
     [InlineData("info@huislijn.nl\nr.barends@huislijn.nl - answer here", "r.barends@huislijn.nl")]

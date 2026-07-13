@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using CsvHelper;
 using Microsoft.EntityFrameworkCore;
@@ -146,7 +148,7 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
 
         if (validRows.Count == 0)
         {
-            AddImportLog(0, 0, invalidRowsCount, userId, userEmail);
+            AddImportLog(0, 0, invalidRowsCount, 0, userId, userEmail);
             await _context.SaveChangesAsync(cancellationToken);
             AttachSummaryAndDownloads(result, invalidRowsPayload, unmatchedRowsPayload, warningRowsPayload, invalidRowsCount);
             return result;
@@ -157,9 +159,16 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
             .Distinct(StringComparer.Ordinal)
             .ToList();
         var existingDomains = await LoadExistingDomainsAsync(domains, cancellationToken);
+        var existingFingerprints = await LoadExistingFingerprintsAsync(
+            validRows
+                .Select(row => row.ImportFingerprint)
+                .Distinct(StringComparer.Ordinal)
+                .ToList(),
+            cancellationToken);
         var webmastersByNormalizedContact = await LoadExistingWebmastersAsync(validRows, cancellationToken);
         var mailboxMatcher = await LoadMailboxMatcherAsync(cancellationToken);
         var now = DateTime.UtcNow;
+        var importedFingerprints = new HashSet<string>(StringComparer.Ordinal);
 
         var previousAutoDetectChanges = _context.ChangeTracker.AutoDetectChangesEnabled;
         _context.ChangeTracker.AutoDetectChangesEnabled = false;
@@ -178,6 +187,13 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
                         SourceRowNumber = row.RowNumber,
                         RawValues = row.RawValues.ToList()
                     });
+                    continue;
+                }
+
+                if (existingFingerprints.Contains(row.ImportFingerprint)
+                    || !importedFingerprints.Add(row.ImportFingerprint))
+                {
+                    result.SkippedDuplicateCount++;
                     continue;
                 }
 
@@ -204,7 +220,13 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
                 await SaveCurrentBatchAsync(cancellationToken);
             }
 
-            AddImportLog(result.ImportedCount, unmatchedRowsPayload.Rows.Count, invalidRowsCount, userId, userEmail);
+            AddImportLog(
+                result.ImportedCount,
+                unmatchedRowsPayload.Rows.Count,
+                invalidRowsCount,
+                result.SkippedDuplicateCount,
+                userId,
+                userEmail);
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
@@ -216,12 +238,35 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         AttachSummaryAndDownloads(result, invalidRowsPayload, unmatchedRowsPayload, warningRowsPayload, invalidRowsCount);
 
         _logger.LogInformation(
-            "Webmaster offers import completed. Imported={Imported}, Unmatched={Unmatched}, Invalid={Invalid}, Warnings={Warnings}, UserId={UserId}",
+            "Webmaster offers import completed. Imported={Imported}, SkippedDuplicates={SkippedDuplicates}, Unmatched={Unmatched}, Invalid={Invalid}, Warnings={Warnings}, UserId={UserId}",
             result.ImportedCount,
+            result.SkippedDuplicateCount,
             result.UnmatchedRowsCount,
             result.InvalidRowsCount,
             result.SavedWithWarningsCount,
             userId);
+
+        return result;
+    }
+
+    private async Task<HashSet<string>> LoadExistingFingerprintsAsync(
+        List<string> fingerprints,
+        CancellationToken cancellationToken)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var chunk in ImportBatchingHelper.Chunk(fingerprints, BatchSize))
+        {
+            var existing = await _context.SiteWebmasterOffers
+                .AsNoTracking()
+                .Where(offer => chunk.Contains(offer.ImportFingerprint))
+                .Select(offer => offer.ImportFingerprint)
+                .ToListAsync(cancellationToken);
+
+            foreach (var fingerprint in existing)
+            {
+                result.Add(fingerprint);
+            }
+        }
 
         return result;
     }
@@ -319,6 +364,7 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
             Id = Guid.NewGuid(),
             SiteDomain = row.NormalizedDomain,
             WebmasterId = webmasterId,
+            ImportFingerprint = row.ImportFingerprint,
             ContactRawText = row.ContactRawText,
             OutreachSenderRawText = TrimToNull(row.OutreachSenderRawText),
             LinkbuilderMailboxRawText = TrimToNull(row.LinkbuilderMailboxRawText),
@@ -462,6 +508,7 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
                 TryParseAmount(amountRaw)));
         }
 
+        row.ImportFingerprint = BuildImportFingerprint(row);
         return row;
     }
 
@@ -523,7 +570,13 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         }
     }
 
-    private void AddImportLog(int importedCount, int unmatchedRowsCount, int invalidRowsCount, string userId, string userEmail)
+    private void AddImportLog(
+        int importedCount,
+        int unmatchedRowsCount,
+        int invalidRowsCount,
+        int duplicateRowsCount,
+        string userId,
+        string userEmail)
     {
         _context.ImportLogs.Add(new ImportLog
         {
@@ -535,10 +588,59 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
             Inserted = importedCount,
             Matched = importedCount,
             Unmatched = unmatchedRowsCount,
-            Duplicates = 0,
+            Duplicates = duplicateRowsCount,
             ErrorsCount = invalidRowsCount
         });
     }
+
+    private static string BuildImportFingerprint(WebmasterOfferImportRow row)
+    {
+        var builder = new StringBuilder();
+
+        AppendFingerprintPart(builder, row.NormalizedDomain);
+        AppendFingerprintPart(builder, CanonicalFingerprintText(row.ContactRawText));
+        AppendFingerprintPart(builder, CanonicalFingerprintText(row.OutreachSenderRawText));
+        AppendFingerprintPart(builder, CanonicalFingerprintText(row.LinkbuilderMailboxRawText));
+        AppendFingerprintPart(builder, CanonicalFingerprintText(row.LinkPolicyText));
+        AppendFingerprintPart(builder, CanonicalFingerprintText(row.CommentText));
+        AppendFingerprintPart(builder, CanonicalFingerprintText(row.ClientRawText));
+        AppendFingerprintPart(builder, CanonicalFingerprintText(row.TermRawText));
+        AppendTermFingerprintParts(builder, row.Term);
+
+        foreach (var price in row.Prices.OrderBy(price => price.PriceType))
+        {
+            AppendFingerprintPart(builder, price.PriceType.ToString());
+            AppendFingerprintPart(builder, CanonicalFingerprintAmount(price.WebmasterPriceUsd));
+            AppendFingerprintPart(builder, CanonicalFingerprintText(price.WebmasterPriceDetails));
+            AppendTermFingerprintParts(builder, row.Term);
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())))
+            .ToLowerInvariant();
+    }
+
+    private static void AppendTermFingerprintParts(StringBuilder builder, WebmasterImportTerm term)
+    {
+        AppendFingerprintPart(builder, term.TermType?.ToString());
+        AppendFingerprintPart(builder, term.TermValue?.ToString(CultureInfo.InvariantCulture));
+        AppendFingerprintPart(builder, term.TermUnit?.ToString());
+    }
+
+    private static void AppendFingerprintPart(StringBuilder builder, string? value)
+    {
+        value ??= string.Empty;
+        builder
+            .Append(value.Length.ToString(CultureInfo.InvariantCulture))
+            .Append(':')
+            .Append(value)
+            .Append('|');
+    }
+
+    private static string CanonicalFingerprintText(string? value)
+        => TrimToNull(value)?.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n') ?? string.Empty;
+
+    private static string CanonicalFingerprintAmount(decimal? value)
+        => value?.ToString("0.#############################", CultureInfo.InvariantCulture) ?? string.Empty;
 
     private void AttachSummaryAndDownloads(
         WebmasterOffersImportResult result,
@@ -722,6 +824,7 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         public string? CommentText { get; init; }
         public string? ClientRawText { get; init; }
         public string? RowStructureError { get; init; }
+        public string ImportFingerprint { get; set; } = string.Empty;
         public WebmasterImportTerm Term { get; set; } = WebmasterImportTerm.Unknown;
         public List<WebmasterOfferPriceImportRow> Prices { get; } = [];
         public IReadOnlyList<string> RawValues { get; set; } = [];

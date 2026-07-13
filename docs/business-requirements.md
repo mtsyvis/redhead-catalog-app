@@ -948,7 +948,8 @@ Rules:
 * `Term` supports empty/No term or positive years such as `1 year` and `2 years`; invalid/non-year values are stored as No term with raw text preserved.
 * Linkbuilder mailbox raw text is split by newline, `/`, `;`, `|`, and comma, matched case-insensitively against seeded mailbox emails and aliases, and all matched mailboxes are linked.
 * Unmapped mailbox tokens create warning rows and do not fail the offer.
-* Import results report imported, unmatched, invalid, and warning rows with downloads where applicable.
+* Exact duplicate offers are skipped idempotently. Duplicate detection uses a SHA-256 fingerprint of canonical persisted offer content, including normalized domain, trimmed raw offer fields, parsed term, and sorted raw price rows; it excludes IDs, timestamps, webmaster ID, mailbox IDs, and source row number.
+* Import results report imported, skipped duplicate, unmatched, invalid, and warning rows with downloads where applicable.
 * The import must not update site pricing, site availability, client-facing exports, or metric history.
 
 ## Exports

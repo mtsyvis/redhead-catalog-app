@@ -12,6 +12,7 @@ public class SiteWebmasterOffer
     public Guid WebmasterId { get; set; }
     public Webmaster Webmaster { get; set; } = null!;
 
+    public string ImportFingerprint { get; set; } = string.Empty;
     public string ContactRawText { get; set; } = string.Empty;
     public string? OutreachSenderRawText { get; set; }
     public string? LinkbuilderMailboxRawText { get; set; }

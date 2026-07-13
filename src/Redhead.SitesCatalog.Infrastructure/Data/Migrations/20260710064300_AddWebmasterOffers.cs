@@ -67,6 +67,7 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     SiteDomain = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     WebmasterId = table.Column<Guid>(type: "uuid", nullable: false),
+                    ImportFingerprint = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     ContactRawText = table.Column<string>(type: "text", nullable: false),
                     OutreachSenderRawText = table.Column<string>(type: "text", nullable: true),
                     LinkbuilderMailboxRawText = table.Column<string>(type: "text", nullable: true),
@@ -199,6 +200,12 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                 name: "IX_SiteWebmasterOfferLinkbuilderMailboxes_LinkbuilderMailboxId",
                 table: "SiteWebmasterOfferLinkbuilderMailboxes",
                 column: "LinkbuilderMailboxId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SiteWebmasterOffers_ImportFingerprint",
+                table: "SiteWebmasterOffers",
+                column: "ImportFingerprint",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_SiteWebmasterOffers_SiteDomain",

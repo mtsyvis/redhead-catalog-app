@@ -24,6 +24,10 @@ public sealed class SiteWebmasterOfferConfiguration : IEntityTypeConfiguration<S
             .IsRequired()
             .HasMaxLength(SiteFieldLimits.DomainMaxLength);
 
+        builder.Property(offer => offer.ImportFingerprint)
+            .IsRequired()
+            .HasMaxLength(64);
+
         builder.Property(offer => offer.ContactRawText)
             .IsRequired()
             .HasColumnType("text");
@@ -78,6 +82,7 @@ public sealed class SiteWebmasterOfferConfiguration : IEntityTypeConfiguration<S
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(offer => offer.SiteDomain);
+        builder.HasIndex(offer => offer.ImportFingerprint).IsUnique();
         builder.HasIndex(offer => new { offer.SiteDomain, offer.Status });
         builder.HasIndex(offer => offer.WebmasterId);
         builder.HasIndex(offer => offer.Status);
