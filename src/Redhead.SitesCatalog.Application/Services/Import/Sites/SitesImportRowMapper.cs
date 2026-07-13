@@ -24,6 +24,8 @@ public static class SitesImportRowMapper
         var domain = TryGetValue(getValue, ImportConstants.SitesImportColumns.Domain);
         var drRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.DR);
         var trafficRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.Traffic);
+        var trafficValueUsdRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.TrafficValueUsd);
+        var pagesCountRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.PagesCount);
         var location = TryGetValue(getValue, ImportConstants.SitesImportColumns.Location);
         var numberDFLinksRaw = TryGetValue(getValue, ImportConstants.SitesImportColumns.NumberDFLinks);
         var language = TryGetValue(getValue, ImportConstants.SitesImportColumns.Language);
@@ -40,6 +42,10 @@ public static class SitesImportRowMapper
             DR = ParseNullableDouble(drRaw),
             TrafficRaw = trafficRaw,
             Traffic = ParseNullableLong(trafficRaw),
+            TrafficValueUsdRaw = trafficValueUsdRaw,
+            TrafficValueUsd = ParseNullableTrafficValueUsd(trafficValueUsdRaw),
+            PagesCountRaw = pagesCountRaw,
+            PagesCount = ParseNullableIntStrict(pagesCountRaw),
             Location = location,
             NumberDFLinksRaw = numberDFLinksRaw,
             NumberDFLinks = ParseNullableIntStrict(numberDFLinksRaw),
@@ -92,6 +98,22 @@ public static class SitesImportRowMapper
         return DecimalParsingHelper.TryParseDecimalFlexible(value, out var parsed)
             ? parsed
             : null;
+    }
+
+    private static decimal? ParseNullableTrafficValueUsd(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        if (normalized.EndsWith('$'))
+        {
+            normalized = normalized[..^1].TrimEnd();
+        }
+
+        return ParseNullableDecimal(normalized);
     }
 
     private static double? ParseNullableDouble(string? value)

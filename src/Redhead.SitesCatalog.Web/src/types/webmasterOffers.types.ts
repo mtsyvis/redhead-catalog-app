@@ -1,0 +1,69 @@
+export type WebmasterOfferStatus = 'Active' | 'Inactive' | 1 | 2;
+export type LinkbuilderMailboxOfferSource = 'Import' | 'Manual' | 1 | 2;
+export type WebmasterOfferPriceType =
+  | 'Main'
+  | 'Casino'
+  | 'Crypto'
+  | 'Dating'
+  | 'LinkInsertion'
+  | 'LinkInsertion18Plus'
+  | 'Banner'
+  | 'Banner18Plus'
+  | 'HomepageTextLink'
+  | 'HomepageTextLink18Plus'
+  | 0
+  | 1
+  | 2
+  | 3
+  | 4
+  | 5
+  | 6
+  | 7
+  | 8
+  | 9;
+export type WebmasterOfferTermType = 'Permanent' | 'Finite' | 1 | 2;
+export type WebmasterOfferTermUnit = 'Year' | 1;
+
+export interface WebmasterOffersSearchResult {
+  domain: string;
+  siteFound: boolean;
+  offers: WebmasterOffer[];
+}
+
+export interface WebmasterOffer {
+  id: string;
+  contactRawText: string;
+  outreachSenderRawText: string | null;
+  linkbuilderMailboxRawText: string | null;
+  linkPolicyText: string | null;
+  commentText: string | null;
+  clientRawText: string | null;
+  termRawText: string | null;
+  termType: WebmasterOfferTermType | null;
+  termValue: number | null;
+  termUnit: WebmasterOfferTermUnit | null;
+  termLabel: string;
+  status: WebmasterOfferStatus;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  linkbuilderMailboxes: WebmasterOfferMailbox[];
+  prices: WebmasterOfferPrice[];
+}
+
+export interface WebmasterOfferMailbox {
+  id: string;
+  email: string;
+  displayName: string;
+  source: LinkbuilderMailboxOfferSource;
+}
+
+export interface WebmasterOfferPrice {
+  id: string;
+  priceType: WebmasterOfferPriceType;
+  webmasterPriceUsd: number | null;
+  webmasterPriceDetails: string | null;
+  termType: WebmasterOfferTermType | null;
+  termValue: number | null;
+  termUnit: WebmasterOfferTermUnit | null;
+  termLabel: string;
+}

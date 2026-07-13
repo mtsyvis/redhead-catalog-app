@@ -49,6 +49,51 @@ public sealed class RolePermissionMatrixTests
     }
 
     [Fact]
+    public void GetPermissions_LinkbuilderRole_HasSitesAndWebmasterOfferReadOnlyPermissions()
+    {
+        // Arrange
+
+        // Act
+        var permissions = RolePermissionMatrix.GetPermissions(AppRoles.Linkbuilder);
+
+        // Assert
+        Assert.Equal(
+            [
+                AppPermissions.SitesBrowse,
+                AppPermissions.SitesMultiSearch,
+                AppPermissions.TableViewsManage,
+                AppPermissions.WebmasterOffersRead
+            ],
+            permissions.OrderBy(permission => permission));
+        Assert.DoesNotContain(AppPermissions.WebmasterOffersImport, permissions);
+        Assert.DoesNotContain(AppPermissions.SitesExport, permissions);
+    }
+
+    [Fact]
+    public void GetRolesForPermission_WebmasterOffersRead_ReturnsAdminSuperAdminAndLinkbuilder()
+    {
+        // Arrange
+
+        // Act
+        var roles = RolePermissionMatrix.GetRolesForPermission(AppPermissions.WebmasterOffersRead);
+
+        // Assert
+        Assert.Equal([AppRoles.SuperAdmin, AppRoles.Admin, AppRoles.Linkbuilder], roles);
+    }
+
+    [Fact]
+    public void GetRolesForPermission_WebmasterOffersImport_ReturnsOnlySuperAdminAndAdmin()
+    {
+        // Arrange
+
+        // Act
+        var roles = RolePermissionMatrix.GetRolesForPermission(AppPermissions.WebmasterOffersImport);
+
+        // Assert
+        Assert.Equal([AppRoles.SuperAdmin, AppRoles.Admin], roles);
+    }
+
+    [Fact]
     public void GetPermissions_ForEveryActiveRole_OnlyUsesKnownPermissions()
     {
         // Arrange

@@ -1330,6 +1330,8 @@ public class ExportServiceTests : IDisposable
                 "Domain",
                 "DR",
                 "Traffic",
+                "Traffic Value USD",
+                "Pages",
                 "Location",
                 "Price USD",
                 "Casino",

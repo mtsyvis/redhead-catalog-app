@@ -11,6 +11,7 @@ const RULES = [
   'Only included columns are updated.',
   'Missing columns stay unchanged.',
   'Empty cells are treated as explicit values.',
+  'TrafficValueUsd and PagesCount are internal fields and are hidden from Client and Lite users.',
   'Traffic/DR history is saved automatically only when both Traffic and DR columns are included.',
   'Snapshot Date is selected once in the upload form and applies to all saved Traffic/DR history rows.',
   'Unknown column names are rejected.',
@@ -37,6 +38,12 @@ const EXAMPLES = [
       'When both Traffic and DR are included, a history snapshot is saved using the Snapshot Date selected in the upload form.',
   },
   {
+    title: 'Update internal metrics',
+    csv: 'Domain,TrafficValueUsd,PagesCount\nexample.com,1234.56,987',
+    note:
+      'These fields are site-level internal metrics. Empty included cells clear the existing value.',
+  },
+  {
     title: 'Update language only',
     csv: 'Domain,Language\nexample.com,EN\nanother-site.com,UNKNOWN',
     note: 'Only Language changes. Other site fields remain unchanged and Traffic/DR history is not saved.',
@@ -46,8 +53,8 @@ const EXAMPLES = [
 const EXAMPLE_DOWNLOAD = {
   fileName: 'sites-update-import-example.csv',
   csv:
-    'Domain,DR,Traffic,Location,Niche,Categories,NumberDFLinks,SponsoredTag,Language,Term,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating\n' +
-    'example.com,55,12000,US,Technology,News,3,Sponsored,EN,1 year,120,250,YES,NO,,175',
+    'Domain,DR,Traffic,TrafficValueUsd,PagesCount,Location,Niche,Categories,NumberDFLinks,SponsoredTag,Language,Term,PriceUsd,PriceCasino,PriceCrypto,PriceLinkInsert,PriceLinkInsertCasino,PriceDating\n' +
+    'example.com,55,12000,1234.56,987,US,Technology,News,3,Sponsored,EN,1 year,120,250,YES,NO,,175',
 };
 
 export function SitesUpdateImportInstructions() {

@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "purpose": "Alias rules for parsing the Excel column 'Новая почта для Линкбилдеров' into linkbuilder working mailboxes.",
+  "sourceWorkbook": "new data.xlsx",
+  "sourceSheet": "NL",
+  "sourceColumn": "AG / Новая почта\\nдля Линкбилдеров",
+  "generatedAtUtc": "2026-07-10T04:57:04Z",
+  "parsingRules": {
+    "preserveRawCellValue": true,
+    "caseInsensitiveAliases": true,
+    "trimWhitespace": true,
+    "orderMatters": false,
+    "splitDelimiters": [
+      "newline",
+      "/",
+      ";",
+      "|",
+      "comma followed by space"
+    ],
+    "doNotCreateApplicationUsersForTheseMailboxes": true,
+    "unmatchedTokenPolicy": "Do not fail the whole import. Preserve the raw value, create/import an unmapped mailbox alias record or import warning, and keep the offer.",
+    "multipleMatchedMailboxesPolicy": "Attach all matched linkbuilder mailboxes to the offer/contact. These mean previous linkbuilders established or attempted repeat contact using those mailboxes."
+  },
+  "currentCanonicalLinkbuilderMailboxes": [
+    {
+      "email": "publications@redheaddigital.agency",
+      "displayName": "Publications",
+      "aliases": [
+        "publ",
+        "publi",
+        "publ.",
+        "publications",
+        "publication",
+        "publications@redheaddigital.agency",
+        "publications@redheaddigital,agency",
+        "publications@redhead.digital"
+      ],
+      "confidence": "high",
+      "observedTokens": {
+        "Publ": 48,
+        "publ": 2,
+        "publications@redheaddigital.agency": 30,
+        "publications@redheaddigital,agency": 5,
+        "publications@redhead.digital": 1
+      }
+    },
+    {
+      "email": "alice.yang@rhda.net",
+      "displayName": "Alice Yang",
+      "aliases": [
+        "alice",
+        "alice yang",
+        "alice.yang",
+        "alice.yang@rhda.net"
+      ],
+      "confidence": "high_for_email_aliases_only",
+      "observedTokens": {
+        "alice.yang@rhda.net": 11
+      }
+    },
+    {
+      "email": "mike.rid@rhda.net",
+      "displayName": "Mike Rid",
+      "aliases": [
+        "mike",
+        "mike rid",
+        "mike.rid",
+        "mike.rid@rhda.net"
+      ],
+      "confidence": "high",
+      "observedTokens": {
+        "mike": 4,
+        "mike.rid@rhda.net": 3
+      }
+    },
+    {
+      "email": "info@gingerteam.org",
+      "displayName": "Ginger Team Info",
+      "aliases": [
+        "info",
+        "ginger",
+        "gingerteam",
+        "ginger team",
+        "info@gingerteam.org"
+      ],
+      "confidence": "medium_no_direct_observed_token_in_column_sample",
+      "observedTokens": {
+        "info@gingerteam.org": 0
+      }
+    },
+    {
+      "email": "andrew.wilson@gingerteam.org",
+      "displayName": "Andrew Wilson",
+      "aliases": [
+        "andrew",
+        "andrew wilson",
+        "andrew.wilson",
+        "andrew.wilson@gingerteam.org"
+      ],
+      "confidence": "high",
+      "observedTokens": {
+        "Andrew": 1,
+        "andrew.wilson@gingerteam.org": 0
+      }
+    },
+    {
+      "email": "konrad.nowak@rhda.net",
+      "displayName": "Konrad Nowak",
+      "aliases": [
+        "konrad",
+        "konrad nowak",
+        "konrad.nowak",
+        "konrad.nowak@rhda.net"
+      ],
+      "confidence": "high",
+      "observedTokens": {
+        "konrad": 4,
+        "konrad.nowak@rhda.net": 0
+      }
+    },
+    {
+      "email": "amabela.jankowska@rhda.net",
+      "displayName": "Amabela Jankowska",
+      "aliases": [
+        "amabela",
+        "amabela jankowska",
+        "amabela.jankowska",
+        "amabela.jankowska@rhda.net"
+      ],
+      "confidence": "high",
+      "observedTokens": {
+        "Amabela": 1,
+        "amabela": 1,
+        "amabela.jankowska@rhda.net": 0
+      }
+    },
+    {
+      "email": "eva.shultz@rhda.net",
+      "displayName": "Eva Shultz",
+      "aliases": [
+        "eva",
+        "eva shultz",
+        "eva.shultz",
+        "eva.shultz@rhda.net"
+      ],
+      "confidence": "high_for_eva_only_do_not_auto_map_evelina_without_confirmation",
+      "observedTokens": {
+        "Eva": 2,
+        "eva.shultz@rhda.net": 1
+      }
+    }
+  ],
+  "ambiguousOrLegacyObservedTokens": [
+    {
+      "tokenFamily": "Ell / Ellie",
+      "observedTokens": {
+        "Ell": 24,
+        "Ellie": 19,
+        "ellie": 6,
+        "элли": 2,
+        "ellieyantsan@gmail.com": 9
+      },
+      "suggestedAction": "Do not auto-map to alice.yang@rhda.net unless Redhead confirms. Preserve as legacy/unmapped mailbox alias.",
+      "candidateCanonicalEmail": null,
+      "confidence": "ambiguous"
+    },
+    {
+      "tokenFamily": "Evel / Evelina",
+      "observedTokens": {
+        "Evel": 19,
+        "Evelina": 5,
+        "evelina": 5,
+        "evelina.brown0407@gmail.com": 6
+      },
+      "suggestedAction": "Do not auto-map to eva.shultz@rhda.net because Evelina and Eva may represent different previous working mailboxes/connections. Preserve as legacy/unmapped mailbox alias.",
+      "candidateCanonicalEmail": null,
+      "confidence": "ambiguous"
+    },
+    {
+      "tokenFamily": "Robert",
+      "observedTokens": {
+        "robert.mcgrawn@collaboffer.com": 7
+      },
+      "suggestedAction": "Not in the current official publisher mailbox list. Preserve as legacy/unmapped mailbox alias.",
+      "candidateCanonicalEmail": null,
+      "confidence": "unmapped"
+    }
+  ],
+  "observedNonEmptyCellCount": 190,
+  "observedTokenCounts": {
+    "Publ": 48,
+    "publications@redheaddigital.agency": 30,
+    "Ell": 24,
+    "Ellie": 19,
+    "Evel": 19,
+    "alice.yang@rhda.net": 11,
+    "ellieyantsan@gmail.com": 9,
+    "robert.mcgrawn@collaboffer.com": 7,
+    "evelina.brown0407@gmail.com": 6,
+    "ellie": 6,
+    "evelina": 5,
+    "publications@redheaddigital,agency": 5,
+    "Evelina": 5,
+    "mike": 4,
+    "konrad": 4,
+    "mike.rid@rhda.net": 3,
+    "Eva": 2,
+    "элли": 2,
+    "publ": 2,
+    "publications@redhead.digital": 1,
+    "eva.shultz@rhda.net": 1,
+    "Andrew": 1,
+    "Amabela": 1,
+    "amabela": 1
+  }
+}

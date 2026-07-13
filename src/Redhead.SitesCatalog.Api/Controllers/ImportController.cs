@@ -10,6 +10,7 @@ using Redhead.SitesCatalog.Application.Services.Import.LastPublished;
 using Redhead.SitesCatalog.Application.Services.Import.Quarantine;
 using Redhead.SitesCatalog.Application.Services.Import.Sites;
 using Redhead.SitesCatalog.Application.Services.Import.SitesUpdate;
+using Redhead.SitesCatalog.Application.Services.Import.WebmasterOffers;
 using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
@@ -23,6 +24,7 @@ public class ImportController : ControllerBase
     private readonly IQuarantineImportService _quarantineImportService;
     private readonly ILastPublishedImportService _lastPublishedImportService;
     private readonly ISitesUpdateImportService _sitesUpdateImportService;
+    private readonly IWebmasterOffersImportService _webmasterOffersImportService;
     private readonly IImportArtifactStorageService _importArtifactStorageService;
     private readonly ILogger<ImportController> _logger;
 
@@ -31,6 +33,7 @@ public class ImportController : ControllerBase
         IQuarantineImportService quarantineImportService,
         ILastPublishedImportService lastPublishedImportService,
         ISitesUpdateImportService sitesUpdateImportService,
+        IWebmasterOffersImportService webmasterOffersImportService,
         IImportArtifactStorageService importArtifactStorageService,
         ILogger<ImportController> logger)
     {
@@ -38,8 +41,71 @@ public class ImportController : ControllerBase
         _quarantineImportService = quarantineImportService;
         _lastPublishedImportService = lastPublishedImportService;
         _sitesUpdateImportService = sitesUpdateImportService;
+        _webmasterOffersImportService = webmasterOffersImportService;
         _importArtifactStorageService = importArtifactStorageService;
         _logger = logger;
+    }
+
+    [HttpPost("webmaster-offers")]
+    [Authorize(Policy = AppPolicies.WebmasterOffersImportAccess)]
+    [RequestSizeLimit((int)ImportConstants.MaxSitesImportFileSizeBytes)]
+    public async Task<ActionResult<WebmasterOffersImportResult>> ImportWebmasterOffers(
+        IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length == 0)
+        {
+            _logger.LogWarning("Webmaster offers import: no file or empty file");
+            return BadRequest(new ApiErrorResponse("No file or empty file.", StatusCodes.Status400BadRequest));
+        }
+
+        if (file.Length > ImportConstants.MaxSitesImportFileSizeBytes)
+        {
+            _logger.LogWarning(
+                "Webmaster offers import: file too large. FileName={FileName}, Length={Length}, MaxBytes={MaxBytes}",
+                file.FileName, file.Length, ImportConstants.MaxSitesImportFileSizeBytes);
+            return StatusCode(StatusCodes.Status413PayloadTooLarge,
+                new ApiErrorResponse(ImportConstants.FileTooLargeMessage, StatusCodes.Status413PayloadTooLarge));
+        }
+
+        if (!IsCsvFile(file.FileName, file.ContentType))
+        {
+            _logger.LogWarning("Webmaster offers import: unsupported file type. FileName={FileName}, ContentType={ContentType}", file.FileName, file.ContentType);
+            return BadRequest(new ApiErrorResponse("Unsupported file type. Use CSV.", StatusCodes.Status400BadRequest));
+        }
+
+        if (!TryGetUserContext("Webmaster offers import", out var userId, out var userEmail, out var unauthorizedResult))
+        {
+            return unauthorizedResult;
+        }
+
+        var (stream, fileReadError) = await ReadFileToMemoryStreamAsync("Webmaster offers import", file, cancellationToken);
+        if (fileReadError != null)
+        {
+            stream.Dispose();
+            return fileReadError;
+        }
+
+        await using (stream)
+        {
+            var result = await _webmasterOffersImportService.ImportAsync(
+                stream,
+                file.FileName,
+                file.ContentType,
+                userId,
+                userEmail,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Webmaster offers import succeeded. FileName={FileName}, ImportedCount={ImportedCount}, UnmatchedRowsCount={UnmatchedRowsCount}, InvalidRowsCount={InvalidRowsCount}, SavedWithWarningsCount={SavedWithWarningsCount}",
+                file.FileName,
+                result.ImportedCount,
+                result.UnmatchedRowsCount,
+                result.InvalidRowsCount,
+                result.SavedWithWarningsCount);
+
+            return Ok(result);
+        }
     }
 
     [HttpGet("/api/imports/downloads/{token}")]

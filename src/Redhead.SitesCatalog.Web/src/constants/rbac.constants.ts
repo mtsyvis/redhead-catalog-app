@@ -1,7 +1,7 @@
-export const APP_ROLES = ['SuperAdmin', 'Admin', 'Editor', 'Internal', 'Client', 'Lite'] as const;
+export const APP_ROLES = ['SuperAdmin', 'Admin', 'Editor', 'Linkbuilder', 'Internal', 'Client', 'Lite'] as const;
 export type AppRole = (typeof APP_ROLES)[number];
 
-export const NON_SUPER_ADMIN_ROLES = ['Admin', 'Editor', 'Internal', 'Client', 'Lite'] as const;
+export const NON_SUPER_ADMIN_ROLES = ['Admin', 'Editor', 'Linkbuilder', 'Internal', 'Client', 'Lite'] as const;
 export type NonSuperAdminRole = (typeof NON_SUPER_ADMIN_ROLES)[number];
 
 export const APP_PERMISSIONS = [
@@ -17,6 +17,8 @@ export const APP_PERMISSIONS = [
   'RoleSettingsManage',
   'AnalyticsRead',
   'AhrefsSyncManage',
+  'WebmasterOffersRead',
+  'WebmasterOffersImport',
 ] as const;
 export type AppPermission = (typeof APP_PERMISSIONS)[number];
 
@@ -33,8 +35,11 @@ export const ROLE_PERMISSION_MATRIX: Record<AppRole, readonly AppPermission[]> =
     'RoleSettingsRead',
     'AnalyticsRead',
     'AhrefsSyncManage',
+    'WebmasterOffersRead',
+    'WebmasterOffersImport',
   ],
   Editor: ['SitesBrowse', 'SitesMultiSearch', 'SitesEdit', 'TableViewsManage'],
+  Linkbuilder: ['SitesBrowse', 'SitesMultiSearch', 'TableViewsManage', 'WebmasterOffersRead'],
   Internal: ['SitesBrowse', 'SitesMultiSearch', 'SitesExport', 'TableViewsManage'],
   Client: ['SitesBrowse', 'SitesMultiSearch', 'SitesExport', 'TableViewsManage'],
   Lite: ['SitesMultiSearch', 'TableViewsManage'],
@@ -62,6 +67,11 @@ export const ROLE_METADATA: Record<
     label: 'Editor',
     description: 'Internal catalog editor without import or export access.',
     capabilities: 'Browse, multi-search, edit sites, and manage table views.',
+  },
+  Linkbuilder: {
+    label: 'Linkbuilder',
+    description: 'Internal outreach user with supply-side offer visibility.',
+    capabilities: 'Browse sites, multi-search, manage table views, and read webmaster offers.',
   },
   Internal: {
     label: 'Internal',

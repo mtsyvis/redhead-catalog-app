@@ -11,6 +11,10 @@ public class SiteResponse
     public string Domain { get; set; } = string.Empty;
     public double DR { get; set; }
     public long Traffic { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? TrafficValueUsd { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PagesCount { get; set; }
     public string Location { get; set; } = string.Empty;
     public string? ImportedLocationRaw { get; set; }
     public string? Language { get; set; }

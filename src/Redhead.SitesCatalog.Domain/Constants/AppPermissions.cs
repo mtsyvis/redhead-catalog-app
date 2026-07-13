@@ -14,6 +14,8 @@ public static class AppPermissions
     public const string RoleSettingsManage = "RoleSettingsManage";
     public const string AnalyticsRead = "AnalyticsRead";
     public const string AhrefsSyncManage = "AhrefsSyncManage";
+    public const string WebmasterOffersRead = "WebmasterOffersRead";
+    public const string WebmasterOffersImport = "WebmasterOffersImport";
 
     public static readonly string[] All =
     [
@@ -28,6 +30,8 @@ public static class AppPermissions
         RoleSettingsRead,
         RoleSettingsManage,
         AnalyticsRead,
-        AhrefsSyncManage
+        AhrefsSyncManage,
+        WebmasterOffersRead,
+        WebmasterOffersImport
     ];
 }

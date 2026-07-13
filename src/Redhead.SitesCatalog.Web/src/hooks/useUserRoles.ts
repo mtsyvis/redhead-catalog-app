@@ -15,6 +15,7 @@ export function useUserRoles() {
   const isSuperAdmin = hasRole('SuperAdmin');
   const isAdmin = hasAnyRole(['Admin', 'SuperAdmin']);
   const isInternal = hasRole('Internal');
+  const isLinkbuilder = hasRole('Linkbuilder');
   const isClient = hasRole('Client');
   const isLite = hasRole('Lite');
   const canBrowseSites = hasPermission('SitesBrowse');
@@ -29,12 +30,15 @@ export function useUserRoles() {
   const canManageRoleSettings = hasPermission('RoleSettingsManage');
   const canReadAnalytics = hasPermission('AnalyticsRead');
   const canManageAhrefsSync = hasPermission('AhrefsSyncManage');
+  const canReadWebmasterOffers = hasPermission('WebmasterOffersRead');
+  const canImportWebmasterOffers = hasPermission('WebmasterOffersImport');
 
   return {
     roles,
     isSuperAdmin,
     isAdmin,
     isInternal,
+    isLinkbuilder,
     isClient,
     isLite,
     hasRole,
@@ -52,5 +56,7 @@ export function useUserRoles() {
     canManageRoleSettings,
     canReadAnalytics,
     canManageAhrefsSync,
+    canReadWebmasterOffers,
+    canImportWebmasterOffers,
   };
 }

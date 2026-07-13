@@ -5,6 +5,8 @@ export interface Site {
   domain: string;
   dr: number;
   traffic: number;
+  trafficValueUsd?: number | null;
+  pagesCount?: number | null;
   location: string;
   importedLocationRaw: string | null;
   language: string | null;

@@ -201,6 +201,75 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportAsync_TrafficValueUsdAndPagesCount_UpdateSiteWithoutMetricSnapshot()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain,TrafficValueUsd,PagesCount\n" +
+            "existing.com,1234.56$,987\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+        Assert.Null(result.MetricSnapshotsSavedCount);
+        Assert.Empty(_context.SiteMetricSnapshots);
+
+        var site = await GetSiteAsync("existing.com");
+        Assert.Equal(1234.56m, site.TrafficValueUsd);
+        Assert.Equal(987, site.PagesCount);
+    }
+
+    [Fact]
+    public async Task ImportAsync_TrafficValueUsdAndPagesCount_EmptyCellsClearValues()
+    {
+        // Arrange
+        var site = await GetSiteAsync("existing.com");
+        site.TrafficValueUsd = 1234.56m;
+        site.PagesCount = 987;
+        await _context.SaveChangesAsync();
+
+        using var stream = Utf8Csv(
+            "Domain,TrafficValueUsd,PagesCount\n" +
+            "existing.com,,\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        site = await GetSiteAsync("existing.com");
+        Assert.Null(site.TrafficValueUsd);
+        Assert.Null(site.PagesCount);
+    }
+
+    [Theory]
+    [InlineData("Domain,TrafficValueUsd\nexisting.com,-1\n", "TrafficValueUsd must be 0 or greater.")]
+    [InlineData("Domain,TrafficValueUsd\nexisting.com,abc\n", "Invalid TrafficValueUsd value.")]
+    [InlineData("Domain,PagesCount\nexisting.com,-1\n", "PagesCount must be 0 or greater.")]
+    [InlineData("Domain,PagesCount\nexisting.com,1.5\n", "Invalid PagesCount value.")]
+    public async Task ImportAsync_InvalidTrafficValueUsdOrPagesCount_IsInvalidRow(
+        string csv,
+        string expectedError)
+    {
+        // Arrange
+        using var stream = Utf8Csv(csv);
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(0, result.UpdatedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains(expectedError, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ImportAsync_DuplicateMetricRows_SavesLastValidRowSnapshot()
     {
         // Arrange

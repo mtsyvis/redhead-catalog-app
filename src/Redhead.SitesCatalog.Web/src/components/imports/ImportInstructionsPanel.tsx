@@ -39,6 +39,8 @@ export interface ImportInstructionsPanelProps {
   pricingColumnsNote?: React.ReactNode;
   rules?: readonly React.ReactNode[];
   examples?: readonly ImportInstructionExample[];
+  examplesTitle?: React.ReactNode;
+  exampleActions?: React.ReactNode;
   exampleDownload?: ImportExampleDownload;
   alerts?: readonly React.ReactNode[];
   children?: React.ReactNode;
@@ -209,6 +211,8 @@ export function ImportInstructionsPanel({
   pricingColumnsNote,
   rules = [],
   examples = [],
+  examplesTitle = 'Example CSV files',
+  exampleActions,
   exampleDownload,
   alerts = [],
   children,
@@ -222,6 +226,7 @@ export function ImportInstructionsPanel({
     requiredColumns.length > 0 ||
     supportedColumns.length > 0 ||
     pricingColumns.length > 0;
+  const hasExamplesSection = examples.length > 0 || Boolean(exampleDownload) || Boolean(exampleActions);
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -272,9 +277,9 @@ export function ImportInstructionsPanel({
             </CompactAccordion>
           )}
 
-          {examples.length > 0 && (
+          {hasExamplesSection && (
             <CompactAccordion
-              title="Example CSV files"
+              title={examplesTitle}
               expanded={examplesExpanded}
               onChange={(nextExpanded) => {
                 setExamplesExpanded(nextExpanded);
@@ -286,41 +291,46 @@ export function ImportInstructionsPanel({
               }}
             >
               <Stack spacing={1.5}>
-                {exampleDownload && (
-                  <Box>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<DownloadIcon />}
-                      onClick={() => downloadExampleCsv(exampleDownload)}
-                    >
-                      Download example CSV
-                    </Button>
+                {(exampleDownload || exampleActions) && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {exampleDownload && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        onClick={() => downloadExampleCsv(exampleDownload)}
+                      >
+                        Download example CSV
+                      </Button>
+                    )}
+                    {exampleActions}
                   </Box>
                 )}
 
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {examples.map((example) => {
-                    const selected = activeExample?.title === example.title;
-                    return (
-                      <Button
-                        key={example.title}
-                        size="small"
-                        variant={selected ? 'contained' : 'outlined'}
-                        onClick={() => setSelectedExample(example.title)}
-                        sx={{
-                          borderRadius: 999,
-                          minHeight: 30,
-                          px: 1.5,
-                          py: 0.35,
-                          textTransform: 'none',
-                        }}
-                      >
-                        {example.title}
-                      </Button>
-                    );
-                  })}
-                </Box>
+                {examples.length > 0 && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {examples.map((example) => {
+                      const selected = activeExample?.title === example.title;
+                      return (
+                        <Button
+                          key={example.title}
+                          size="small"
+                          variant={selected ? 'contained' : 'outlined'}
+                          onClick={() => setSelectedExample(example.title)}
+                          sx={{
+                            borderRadius: 999,
+                            minHeight: 30,
+                            px: 1.5,
+                            py: 0.35,
+                            textTransform: 'none',
+                          }}
+                        >
+                          {example.title}
+                        </Button>
+                      );
+                    })}
+                  </Box>
+                )}
 
                 {activeExample && (
                   <Box

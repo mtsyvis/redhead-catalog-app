@@ -17,7 +17,9 @@ public static class RolePermissionMatrix
                 AppPermissions.UsersRead,
                 AppPermissions.RoleSettingsRead,
                 AppPermissions.AnalyticsRead,
-                AppPermissions.AhrefsSyncManage
+                AppPermissions.AhrefsSyncManage,
+                AppPermissions.WebmasterOffersRead,
+                AppPermissions.WebmasterOffersImport
             },
             [AppRoles.Editor] = new HashSet<string>(StringComparer.Ordinal)
             {
@@ -25,6 +27,13 @@ public static class RolePermissionMatrix
                 AppPermissions.SitesMultiSearch,
                 AppPermissions.SitesEdit,
                 AppPermissions.TableViewsManage
+            },
+            [AppRoles.Linkbuilder] = new HashSet<string>(StringComparer.Ordinal)
+            {
+                AppPermissions.SitesBrowse,
+                AppPermissions.SitesMultiSearch,
+                AppPermissions.TableViewsManage,
+                AppPermissions.WebmasterOffersRead
             },
             [AppRoles.Internal] = new HashSet<string>(StringComparer.Ordinal)
             {

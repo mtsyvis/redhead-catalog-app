@@ -34,6 +34,12 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
                 "CK_Sites_NumberDFLinks_PositiveOrNull",
                 "\"NumberDFLinks\" IS NULL OR \"NumberDFLinks\" > 0");
             tableBuilder.HasCheckConstraint(
+                "CK_Sites_TrafficValueUsd_NonNegativeOrNull",
+                "\"TrafficValueUsd\" IS NULL OR \"TrafficValueUsd\" >= 0");
+            tableBuilder.HasCheckConstraint(
+                "CK_Sites_PagesCount_NonNegativeOrNull",
+                "\"PagesCount\" IS NULL OR \"PagesCount\" >= 0");
+            tableBuilder.HasCheckConstraint(
                 "CK_Sites_Term_Consistency",
                 "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
         });
@@ -49,6 +55,11 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
 
         builder.Property(s => s.Traffic)
             .IsRequired();
+
+        builder.Property(s => s.TrafficValueUsd)
+            .HasPrecision(18, 2);
+
+        builder.Property(s => s.PagesCount);
 
         builder.Property(s => s.Location)
             .IsRequired()
@@ -189,6 +200,8 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         // Optional: Create indexes for performance
         builder.HasIndex(s => s.DR);
         builder.HasIndex(s => s.Traffic);
+        builder.HasIndex(s => s.TrafficValueUsd);
+        builder.HasIndex(s => s.PagesCount);
         builder.HasIndex(s => s.PriceUsd);
         builder.HasIndex(s => s.NumberDFLinks);
         builder.HasIndex(s => new { s.TermType, s.TermUnit, s.TermValue });

@@ -493,6 +493,7 @@ public sealed class AdminUsersControllerTests
         await AddUserAsync(db, "superadmin-1", "superadmin@example.com", AppRoles.SuperAdmin);
         await AddUserAsync(db, "admin-1", "admin@example.com", AppRoles.Admin);
         await AddUserAsync(db, "editor-1", "editor@example.com", AppRoles.Editor);
+        await AddUserAsync(db, "linkbuilder-1", "linkbuilder@example.com", AppRoles.Linkbuilder);
         await AddUserAsync(db, "internal-1", "internal@example.com", AppRoles.Internal);
         await AddUserAsync(db, "client-1", "client@example.com", AppRoles.Client);
         await AddUserAsync(db, "lite-1", "lite@example.com", AppRoles.Lite);
@@ -502,9 +503,9 @@ public sealed class AdminUsersControllerTests
         var result = await sut.ListUsers(new UserListRequest { UserType = "all" }, CancellationToken.None);
 
         var payload = GetOkPayload(result);
-        Assert.Equal(6, payload.TotalCount);
+        Assert.Equal(7, payload.TotalCount);
         Assert.Equal(
-            [AppRoles.SuperAdmin, AppRoles.Admin, AppRoles.Editor, AppRoles.Internal, AppRoles.Client, AppRoles.Lite],
+            [AppRoles.SuperAdmin, AppRoles.Admin, AppRoles.Editor, AppRoles.Linkbuilder, AppRoles.Internal, AppRoles.Client, AppRoles.Lite],
             payload.Items.Select(item => item.Role));
     }
 
@@ -534,6 +535,7 @@ public sealed class AdminUsersControllerTests
         await AddUserAsync(db, "superadmin-1", "superadmin@example.com", AppRoles.SuperAdmin);
         await AddUserAsync(db, "admin-1", "admin@example.com", AppRoles.Admin);
         await AddUserAsync(db, "editor-1", "editor@example.com", AppRoles.Editor);
+        await AddUserAsync(db, "linkbuilder-1", "linkbuilder@example.com", AppRoles.Linkbuilder);
         await AddUserAsync(db, "internal-1", "internal@example.com", AppRoles.Internal);
         await AddUserAsync(db, "future-1", "future-role@example.com", "FutureInternal");
         await AddUserAsync(db, "client-1", "client@example.com", AppRoles.Client);
@@ -544,12 +546,15 @@ public sealed class AdminUsersControllerTests
         var result = await sut.ListUsers(new UserListRequest { UserType = "internal" }, CancellationToken.None);
 
         var payload = GetOkPayload(result);
-        Assert.Equal(5, payload.TotalCount);
+        Assert.Equal(6, payload.TotalCount);
         Assert.DoesNotContain(payload.Items, item => item.Role == AppRoles.Client);
         Assert.DoesNotContain(payload.Items, item => item.Role == AppRoles.Lite);
         var editor = Assert.Single(payload.Items, item => item.Role == AppRoles.Editor);
         Assert.False(editor.IsExportLimitEditable);
         Assert.Equal(ExportLimitMode.Disabled, editor.EffectiveExportLimitMode);
+        var linkbuilder = Assert.Single(payload.Items, item => item.Role == AppRoles.Linkbuilder);
+        Assert.False(linkbuilder.IsExportLimitEditable);
+        Assert.Equal(ExportLimitMode.Disabled, linkbuilder.EffectiveExportLimitMode);
         Assert.Contains(payload.Items, item => item.Role == "FutureInternal");
     }
 
@@ -706,6 +711,7 @@ public sealed class AdminUsersControllerTests
 
     [Theory]
     [InlineData(AppRoles.Editor)]
+    [InlineData(AppRoles.Linkbuilder)]
     [InlineData(AppRoles.Lite)]
     public async Task CreateUser_WhenRoleIsSelectable_ReturnsOk(string role)
     {
@@ -936,6 +942,7 @@ public sealed class AdminUsersControllerTests
 
     [Theory]
     [InlineData(AppRoles.Editor)]
+    [InlineData(AppRoles.Linkbuilder)]
     [InlineData(AppRoles.Lite)]
     public async Task UpdateUserRole_WhenRequestedRoleIsSelectable_UpdatesRole(string role)
     {
@@ -1441,6 +1448,7 @@ public sealed class AdminUsersControllerTests
 
     [Theory]
     [InlineData(AppRoles.Editor)]
+    [InlineData(AppRoles.Linkbuilder)]
     [InlineData(AppRoles.Lite)]
     public async Task ReactivateUser_WhenRequestedRoleIsSelectable_ActivatesWithRequestedRole(string role)
     {
@@ -1816,6 +1824,7 @@ public sealed class AdminUsersControllerTests
             new RoleSettings { RoleName = AppRoles.SuperAdmin, ExportLimitMode = ExportLimitMode.Unlimited },
             new RoleSettings { RoleName = AppRoles.Admin, ExportLimitMode = ExportLimitMode.Unlimited },
             new RoleSettings { RoleName = AppRoles.Editor, ExportLimitMode = ExportLimitMode.Disabled },
+            new RoleSettings { RoleName = AppRoles.Linkbuilder, ExportLimitMode = ExportLimitMode.Disabled },
             new RoleSettings { RoleName = AppRoles.Internal, ExportLimitMode = ExportLimitMode.Limited, ExportLimitRows = 1000 },
             new RoleSettings
             {

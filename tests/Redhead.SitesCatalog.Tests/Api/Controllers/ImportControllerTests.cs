@@ -8,6 +8,7 @@ using Redhead.SitesCatalog.Application.Services.Import.LastPublished;
 using Redhead.SitesCatalog.Application.Services.Import.Quarantine;
 using Redhead.SitesCatalog.Application.Services.Import.Sites;
 using Redhead.SitesCatalog.Application.Services.Import.SitesUpdate;
+using Redhead.SitesCatalog.Application.Services.Import.WebmasterOffers;
 using System.Security.Claims;
 
 namespace Redhead.SitesCatalog.Tests.Api.Controllers;
@@ -98,6 +99,32 @@ public sealed class ImportControllerTests
         var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
         Assert.Equal(400, badRequest.StatusCode);
         Assert.Equal(0, quarantineService.CallCount);
+    }
+
+    [Fact]
+    public async Task ImportWebmasterOffers_WhenUnsupportedFileType_ReturnsBadRequest_AndDoesNotCallService()
+    {
+        var webmasterOffersService = new StubWebmasterOffersImportService();
+        var sut = CreateController(new StubImportArtifactStorageService(), webmasterOffersImportService: webmasterOffersService);
+
+        var result = await sut.ImportWebmasterOffers(CreateUnsupportedFile("webmaster-offers.xlsx"), CancellationToken.None);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Equal(400, badRequest.StatusCode);
+        Assert.Equal(0, webmasterOffersService.CallCount);
+    }
+
+    [Fact]
+    public async Task ImportWebmasterOffers_WhenCsvAndUserPresent_CallsService()
+    {
+        var webmasterOffersService = new StubWebmasterOffersImportService();
+        var sut = CreateController(new StubImportArtifactStorageService(), webmasterOffersImportService: webmasterOffersService);
+        AttachUser(sut);
+
+        var result = await sut.ImportWebmasterOffers(CreateCsvFile("webmaster-offers.csv"), CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(1, webmasterOffersService.CallCount);
     }
 
     [Fact]
@@ -228,13 +255,15 @@ public sealed class ImportControllerTests
         ISitesImportService? sitesImportService = null,
         IQuarantineImportService? quarantineImportService = null,
         ILastPublishedImportService? lastPublishedImportService = null,
-        ISitesUpdateImportService? sitesUpdateImportService = null)
+        ISitesUpdateImportService? sitesUpdateImportService = null,
+        IWebmasterOffersImportService? webmasterOffersImportService = null)
     {
         return new ImportController(
             sitesImportService ?? new StubSitesImportService(),
             quarantineImportService ?? new StubQuarantineImportService(),
             lastPublishedImportService ?? new StubLastPublishedImportService(),
             sitesUpdateImportService ?? new StubSitesUpdateImportService(),
+            webmasterOffersImportService ?? new StubWebmasterOffersImportService(),
             artifactStorage,
             NullLogger<ImportController>.Instance);
     }
@@ -314,6 +343,23 @@ public sealed class ImportControllerTests
             CallCount++;
             LastMetricSnapshotDate = metricSnapshotDate;
             return Task.FromResult(new SitesUpdateImportResult());
+        }
+    }
+
+    private sealed class StubWebmasterOffersImportService : IWebmasterOffersImportService
+    {
+        public int CallCount { get; private set; }
+
+        public Task<WebmasterOffersImportResult> ImportAsync(
+            Stream fileStream,
+            string fileName,
+            string? contentType,
+            string userId,
+            string userEmail,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(new WebmasterOffersImportResult());
         }
     }
 }
