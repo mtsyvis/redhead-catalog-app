@@ -724,6 +724,11 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
             return WebmasterImportTerm.Unknown;
         }
 
+        if (string.Equals(trimmed, "permanent", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WebmasterImportTerm(TermType.Permanent, null, null);
+        }
+
         var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (parts.Length == 2
             && int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)

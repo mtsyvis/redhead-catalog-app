@@ -136,4 +136,69 @@ public sealed class WebmasterOffersServiceTests : IDisposable
         var offer = Assert.Single(result.Offers);
         Assert.Null(offer.PrimaryEmail);
     }
+
+    [Fact]
+    public async Task GetByDomainAsync_WithPermanentTerm_ReturnsPermanentTermLabels()
+    {
+        // Arrange
+        var now = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var webmasterId = Guid.NewGuid();
+        var offerId = Guid.NewGuid();
+
+        _context.Sites.Add(new Site
+        {
+            Domain = "permanent.com",
+            DR = 40,
+            Traffic = 5000,
+            Location = "US",
+            IsQuarantined = false,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _context.Webmasters.Add(new Webmaster
+        {
+            Id = webmasterId,
+            ContactRawText = "contact@example.com",
+            NormalizedContactRawText = "contact@example.com",
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _context.SiteWebmasterOffers.Add(new SiteWebmasterOffer
+        {
+            Id = offerId,
+            SiteDomain = "permanent.com",
+            WebmasterId = webmasterId,
+            ImportFingerprint = new string('c', 64),
+            ContactRawText = "contact@example.com",
+            TermType = TermType.Permanent,
+            TermValue = null,
+            TermUnit = null,
+            Status = SiteWebmasterOfferStatus.Active,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _context.WebmasterOfferPrices.Add(new WebmasterOfferPrice
+        {
+            Id = Guid.NewGuid(),
+            SiteWebmasterOfferId = offerId,
+            PriceType = WebmasterOfferPriceType.Main,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available,
+            WebmasterPriceUsd = 100m,
+            TermType = TermType.Permanent,
+            TermValue = null,
+            TermUnit = null,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.GetByDomainAsync("permanent.com");
+
+        // Assert
+        var offer = Assert.Single(result.Offers);
+        Assert.Equal("Permanent", offer.TermLabel);
+        var price = Assert.Single(offer.Prices);
+        Assert.Equal("Permanent", price.TermLabel);
+    }
 }

@@ -386,6 +386,59 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
             && price.WebmasterPriceDetails == "homepage 18+ details");
     }
 
+    [Theory]
+    [InlineData("permanent")]
+    [InlineData("Permanent")]
+    public async Task ImportAsync_PermanentTerm_CreatesPermanentOfferAndPriceRows(string term)
+    {
+        // Arrange
+        using var stream = CsvWithRows(Row(
+            domain: "existing.com",
+            contact: $"permanent-{term.ToLowerInvariant()}@example.com",
+            term: term,
+            mainAmount: "100"));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        var offer = await _context.SiteWebmasterOffers
+            .Include(siteOffer => siteOffer.Prices)
+            .SingleAsync();
+        Assert.Equal(TermType.Permanent, offer.TermType);
+        Assert.Null(offer.TermValue);
+        Assert.Null(offer.TermUnit);
+        Assert.Equal(term, offer.TermRawText);
+
+        var price = Assert.Single(offer.Prices);
+        Assert.Equal(TermType.Permanent, price.TermType);
+        Assert.Null(price.TermValue);
+        Assert.Null(price.TermUnit);
+    }
+
+    [Fact]
+    public async Task ImportAsync_MonthTerm_StoresNoTermWithRawTermPreserved()
+    {
+        // Arrange
+        using var stream = CsvWithRows(Row(
+            domain: "existing.com",
+            contact: "month-term@example.com",
+            term: "6 months",
+            mainAmount: "100"));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        var offer = await _context.SiteWebmasterOffers.SingleAsync();
+        Assert.Null(offer.TermType);
+        Assert.Null(offer.TermValue);
+        Assert.Null(offer.TermUnit);
+        Assert.Equal("6 months", offer.TermRawText);
+    }
+
     [Fact]
     public async Task ImportAsync_SpacedMainAmount_ParsesAmount()
     {

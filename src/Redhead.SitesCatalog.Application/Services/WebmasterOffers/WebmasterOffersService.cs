@@ -111,7 +111,11 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
     }
 
     private static string FormatTermLabel(TermType? termType, int? termValue, TermUnit? termUnit)
-        => termType == TermType.Finite && termValue is > 0 && termUnit == TermUnit.Year
-            ? termValue.Value == 1 ? "1 year" : $"{termValue.Value} years"
-            : "No term";
+        => termType switch
+        {
+            TermType.Permanent when termValue is null && termUnit is null => "Permanent",
+            TermType.Finite when termValue is > 0 && termUnit == TermUnit.Year =>
+                termValue.Value == 1 ? "1 year" : $"{termValue.Value} years",
+            _ => "No term"
+        };
 }

@@ -85,7 +85,7 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_SiteWebmasterOffers", x => x.Id);
-                    table.CheckConstraint("CK_SiteWebmasterOffers_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
+                    table.CheckConstraint("CK_SiteWebmasterOffers_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
                     table.ForeignKey(
                         name: "FK_SiteWebmasterOffers_Sites_SiteDomain",
                         column: x => x.SiteDomain,
@@ -146,7 +146,7 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                 {
                     table.PrimaryKey("PK_WebmasterOfferPrices", x => x.Id);
                     table.CheckConstraint("CK_WebmasterOfferPrices_AvailabilityStatus_Consistency", "(\"AvailabilityStatus\" = 1 AND \"WebmasterPriceUsd\" IS NOT NULL AND \"WebmasterPriceUsd\" > 0) OR (\"AvailabilityStatus\" IN (0, 2, 3) AND \"WebmasterPriceUsd\" IS NULL)");
-                    table.CheckConstraint("CK_WebmasterOfferPrices_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
+                    table.CheckConstraint("CK_WebmasterOfferPrices_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
                     table.CheckConstraint("CK_WebmasterOfferPrices_WebmasterPriceUsd_PositiveOrNull", "\"WebmasterPriceUsd\" IS NULL OR \"WebmasterPriceUsd\" > 0");
                     table.ForeignKey(
                         name: "FK_WebmasterOfferPrices_SiteWebmasterOffers_SiteWebmasterOffer~",

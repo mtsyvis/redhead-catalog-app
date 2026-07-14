@@ -15,6 +15,7 @@ public sealed class SiteWebmasterOfferConfiguration : IEntityTypeConfiguration<S
             table.HasCheckConstraint(
                 "CK_SiteWebmasterOffers_Term_Consistency",
                 "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR " +
+                "(\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR " +
                 "(\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
         });
 

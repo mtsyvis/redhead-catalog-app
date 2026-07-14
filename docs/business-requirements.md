@@ -417,7 +417,7 @@ Storage rules:
 * Raw `LinkbuilderMailboxRawText` is always preserved.
 * Parsed linkbuilder mailboxes are linked best-effort against seeded active mailbox emails and aliases.
 * Unmapped mailbox aliases produce import warnings but do not invalidate the row.
-* `TermRawText` is preserved. Empty, invalid, or non-year terms are stored as No term for phase 1.
+* `TermRawText` is preserved. Empty, invalid, or unsupported terms are stored as No term for phase 1.
 * Phase 1 supports positive finite year terms only for parsed webmaster offer terms.
 * Webmaster offer status defaults to `Active`; `Inactive` is reserved for future cleanup.
 
@@ -952,7 +952,7 @@ Rules:
 * Empty amount plus non-empty details creates a raw price row with availability status `Unknown` and a null amount.
 * Price detail cells never set raw price availability; they are preserved as details only.
 * Empty amount plus empty details creates no raw price row.
-* `Term` supports empty/No term or positive years such as `1 year` and `2 years`; invalid/non-year values are stored as No term with raw text preserved.
+* `Term` supports empty/No term, `permanent`, and positive years such as `1 year` and `2 years`; months and other invalid values are stored as No term with raw text preserved.
 * Linkbuilder mailbox raw text is split by newline, `/`, `;`, `|`, and comma, matched case-insensitively against seeded mailbox emails and aliases, and all matched mailboxes are linked.
 * Unmapped mailbox tokens create warning rows and do not fail the offer.
 * Exact duplicate offers are skipped idempotently. Duplicate detection uses a SHA-256 fingerprint of canonical persisted offer content, including normalized domain, trimmed raw offer fields, parsed term, and sorted raw price rows; it excludes IDs, timestamps, webmaster ID, mailbox IDs, and source row number.

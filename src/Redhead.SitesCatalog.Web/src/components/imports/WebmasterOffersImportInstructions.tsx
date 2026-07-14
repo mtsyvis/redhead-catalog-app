@@ -128,7 +128,7 @@ export function WebmasterOffersImportInstructions() {
       }
       alerts={[
         'For amount columns ending with Usd, use a positive number only. If the legacy cell says NO or contains non-USD text, leave the amount cell empty and put the raw explanation in the matching details column.',
-        'Legacy terms such as Permanent are preserved as raw text but imported as NoTerm in phase 1. Use year terms only when a real year term is known.',
+        'Supported Term values: No term, permanent, 1 year, 2 years, n years. Months are not supported and are preserved as raw text but imported as No term.',
       ]}
     >
       <LegacyColumnMapping />
