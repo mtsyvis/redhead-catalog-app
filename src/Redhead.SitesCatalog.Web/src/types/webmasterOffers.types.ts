@@ -34,6 +34,7 @@ export interface WebmasterOffersSearchResult {
 
 export interface WebmasterOffer {
   id: string;
+  primaryEmail: string | null;
   contactRawText: string;
   outreachSenderRawText: string | null;
   linkbuilderMailboxRawText: string | null;

@@ -44,6 +44,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
 
         var offers = await _context.SiteWebmasterOffers
             .AsNoTracking()
+            .Include(offer => offer.Webmaster)
             .Include(offer => offer.Prices)
             .Include(offer => offer.LinkbuilderMailboxes)
             .ThenInclude(link => link.LinkbuilderMailbox)
@@ -65,6 +66,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
         return new WebmasterOfferDto
         {
             Id = offer.Id,
+            PrimaryEmail = offer.Webmaster.PrimaryEmail,
             ContactRawText = offer.ContactRawText,
             OutreachSenderRawText = offer.OutreachSenderRawText,
             LinkbuilderMailboxRawText = offer.LinkbuilderMailboxRawText,

@@ -12,6 +12,7 @@ public sealed class WebmasterOffersSearchResult
 public sealed class WebmasterOfferDto
 {
     public Guid Id { get; init; }
+    public string? PrimaryEmail { get; init; }
     public string ContactRawText { get; init; } = string.Empty;
     public string? OutreachSenderRawText { get; init; }
     public string? LinkbuilderMailboxRawText { get; init; }

@@ -71,6 +71,10 @@ function statusColor(status: WebmasterOfferStatus) {
   return status === 2 || status === 'Inactive' ? 'default' : 'success';
 }
 
+function pluralizeOffers(count: number) {
+  return count === 1 ? `${count} offer` : `${count} offers`;
+}
+
 function formatCurrency(value: number | null) {
   if (value == null) return null;
 
@@ -89,7 +93,7 @@ function formatRawPriceValue(price: WebmasterOfferPrice) {
     return formatCurrency(price.webmasterPriceUsd) ?? 'No amount';
   }
 
-  return 'Unknown';
+  return null;
 }
 
 function formatDate(value: string) {
@@ -161,9 +165,11 @@ function PriceList({ prices }: { readonly prices: readonly WebmasterOfferPrice[]
             <Typography variant="subtitle2" sx={{ mb: 0.25 }}>
               {priceTypeLabel(price.priceType)}
             </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-              {amount}
-            </Typography>
+            {amount && (
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                {amount}
+              </Typography>
+            )}
             {price.webmasterPriceDetails?.trim() && (
               <Typography
                 variant="body2"
@@ -222,6 +228,7 @@ function OfferCard({ offer, index }: { readonly offer: WebmasterOffer; readonly 
           }}
         >
           <Stack spacing={1.5}>
+            <TextBlock label="Primary email" value={offer.primaryEmail} />
             <TextBlock label="Contact" value={offer.contactRawText} />
             <TextBlock label="Outreach sender" value={offer.outreachSenderRawText} />
             <TextBlock label="Linkbuilder mailbox raw" value={offer.linkbuilderMailboxRawText} />
@@ -325,7 +332,7 @@ export function WebmasterOffers() {
               {result.domain}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {result.offers.length} offers
+              {pluralizeOffers(result.offers.length)}
             </Typography>
           </Box>
 
