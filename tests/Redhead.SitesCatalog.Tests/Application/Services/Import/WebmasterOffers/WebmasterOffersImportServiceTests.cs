@@ -147,14 +147,18 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
         Assert.Equal(2, offers[0].TermValue);
         Assert.Equal(TermUnit.Year, offers[0].TermUnit);
         Assert.Equal("2 years", offers[0].TermRawText);
-        Assert.Equal(WebmasterOfferPriceType.Main, Assert.Single(offers[0].Prices).PriceType);
+        var mainPrice = Assert.Single(offers[0].Prices);
+        Assert.Equal(WebmasterOfferPriceType.Main, mainPrice.PriceType);
+        Assert.Equal(ServiceAvailabilityStatus.Available, mainPrice.AvailabilityStatus);
         Assert.Single(offers[0].LinkbuilderMailboxes);
 
         Assert.Null(offers[1].TermType);
         Assert.Null(offers[1].TermValue);
         Assert.Null(offers[1].TermUnit);
         Assert.Equal("garbage term", offers[1].TermRawText);
-        Assert.Equal(WebmasterOfferPriceType.Casino, Assert.Single(offers[1].Prices).PriceType);
+        var casinoPrice = Assert.Single(offers[1].Prices);
+        Assert.Equal(WebmasterOfferPriceType.Casino, casinoPrice.PriceType);
+        Assert.Equal(ServiceAvailabilityStatus.Available, casinoPrice.AvailabilityStatus);
 
         var warningLines = GetDownloadLines(result.Downloads!.WarningRows!.Token);
         Assert.Equal("Domain,Field,Raw Value,Source Row Number,Warning", warningLines[0]);
@@ -377,12 +381,53 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
             offer.Prices.Select(price => price.PriceType).OrderBy(type => type));
         Assert.Contains(offer.Prices, price =>
             price.PriceType == WebmasterOfferPriceType.HomepageTextLink18Plus
+            && price.AvailabilityStatus == ServiceAvailabilityStatus.Available
             && price.WebmasterPriceUsd == 190m
             && price.WebmasterPriceDetails == "homepage 18+ details");
     }
 
     [Fact]
-    public async Task ImportAsync_DetailsWithoutAmount_CreatesPriceRowWithNullAmount()
+    public async Task ImportAsync_SpacedMainAmount_ParsesAmount()
+    {
+        // Arrange
+        using var stream = CsvWithRows(Row(
+            domain: "existing.com",
+            contact: "spaced-price@example.com",
+            mainAmount: "1 250"));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        var price = await _context.WebmasterOfferPrices.SingleAsync();
+        Assert.Equal(WebmasterOfferPriceType.Main, price.PriceType);
+        Assert.Equal(ServiceAvailabilityStatus.Available, price.AvailabilityStatus);
+        Assert.Equal(1250m, price.WebmasterPriceUsd);
+    }
+
+    [Fact]
+    public async Task ImportAsync_SpacedCommaDecimalMainAmount_ParsesAmount()
+    {
+        // Arrange
+        using var stream = CsvWithRows(Row(
+            domain: "existing.com",
+            contact: "spaced-decimal-price@example.com",
+            mainAmount: "1 250,50"));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        var price = await _context.WebmasterOfferPrices.SingleAsync();
+        Assert.Equal(WebmasterOfferPriceType.Main, price.PriceType);
+        Assert.Equal(ServiceAvailabilityStatus.Available, price.AvailabilityStatus);
+        Assert.Equal(1250.50m, price.WebmasterPriceUsd);
+    }
+
+    [Fact]
+    public async Task ImportAsync_DetailsWithoutAmount_CreatesUnknownPriceRowWithNullAmount()
     {
         // Arrange
         using var stream = CsvWithRows(Row(
@@ -397,13 +442,89 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
         Assert.Equal(1, result.ImportedCount);
         var price = await _context.WebmasterOfferPrices.SingleAsync();
         Assert.Equal(WebmasterOfferPriceType.Main, price.PriceType);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, price.AvailabilityStatus);
         Assert.Null(price.WebmasterPriceUsd);
         Assert.Equal("ask webmaster", price.WebmasterPriceDetails);
+    }
+
+    [Fact]
+    public async Task ImportAsync_NonMainYesAndNo_CreateAvailabilityStatuses()
+    {
+        // Arrange
+        using var stream = CsvWithRows(Row(
+            domain: "existing.com",
+            contact: "status@example.com",
+            casinoAmount: "YES",
+            cryptoAmount: "no"));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        var prices = await _context.WebmasterOfferPrices
+            .OrderBy(price => price.PriceType)
+            .ToListAsync();
+        Assert.Equal(2, prices.Count);
+        Assert.Equal(WebmasterOfferPriceType.Casino, prices[0].PriceType);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, prices[0].AvailabilityStatus);
+        Assert.Null(prices[0].WebmasterPriceUsd);
+        Assert.Null(prices[0].WebmasterPriceDetails);
+        Assert.Equal(WebmasterOfferPriceType.Crypto, prices[1].PriceType);
+        Assert.Equal(ServiceAvailabilityStatus.NotAvailable, prices[1].AvailabilityStatus);
+        Assert.Null(prices[1].WebmasterPriceUsd);
+        Assert.Null(prices[1].WebmasterPriceDetails);
+    }
+
+    [Fact]
+    public async Task ImportAsync_NonMainDetailsWithoutAmount_CreatesUnknownPriceRow()
+    {
+        // Arrange
+        using var stream = CsvWithRows(Row(
+            domain: "existing.com",
+            contact: "details-status@example.com",
+            casinoDetails: "ask casino manager"));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        var price = await _context.WebmasterOfferPrices.SingleAsync();
+        Assert.Equal(WebmasterOfferPriceType.Casino, price.PriceType);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, price.AvailabilityStatus);
+        Assert.Null(price.WebmasterPriceUsd);
+        Assert.Equal("ask casino manager", price.WebmasterPriceDetails);
+    }
+
+    [Theory]
+    [InlineData("No")]
+    [InlineData("yes")]
+    public async Task ImportAsync_NonMainDetailsAvailabilityWordsWithoutAmount_CreateUnknownPriceRow(string details)
+    {
+        // Arrange
+        using var stream = CsvWithRows(Row(
+            domain: "existing.com",
+            contact: $"details-{details.ToLowerInvariant()}@example.com",
+            casinoDetails: details));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        var price = await _context.WebmasterOfferPrices.SingleAsync();
+        Assert.Equal(WebmasterOfferPriceType.Casino, price.PriceType);
+        Assert.Equal(ServiceAvailabilityStatus.Unknown, price.AvailabilityStatus);
+        Assert.Null(price.WebmasterPriceUsd);
+        Assert.Equal(details, price.WebmasterPriceDetails);
     }
 
     [Theory]
     [InlineData("0", "MainWebmasterPriceUsd must be greater than 0.")]
     [InlineData("abc", "Invalid MainWebmasterPriceUsd value.")]
+    [InlineData("yes", "Invalid MainWebmasterPriceUsd value.")]
+    [InlineData("no", "Invalid MainWebmasterPriceUsd value.")]
     public async Task ImportAsync_InvalidAmount_IsInvalidRow(string amount, string expectedError)
     {
         // Arrange
@@ -420,6 +541,46 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
         Assert.Equal(1, result.InvalidRowsCount);
         var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
         Assert.Contains(invalidLines, line => line.Contains(expectedError, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ImportAsync_NonMainArbitraryTextAmount_IsInvalidRow()
+    {
+        // Arrange
+        using var stream = CsvWithRows(Row(
+            domain: "existing.com",
+            contact: "bad-service-price@example.com",
+            casinoAmount: "abc"));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(0, result.ImportedCount);
+        Assert.Equal(1, result.InvalidRowsCount);
+        var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
+        Assert.Contains(invalidLines, line => line.Contains("Invalid CasinoWebmasterPriceUsd value.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ImportAsync_RepeatedYesNoRow_SkipsDuplicateByFingerprint()
+    {
+        // Arrange
+        var duplicateRow = Row(
+            domain: "existing.com",
+            contact: "yes-no-duplicate@example.com",
+            casinoAmount: "yes",
+            cryptoAmount: "no");
+        using var stream = CsvWithRows(duplicateRow, duplicateRow);
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal(1, result.SkippedDuplicateCount);
+        Assert.Equal(1, await _context.SiteWebmasterOffers.CountAsync());
+        Assert.Equal(2, await _context.WebmasterOfferPrices.CountAsync());
     }
 
     private Task<WebmasterOffersImportResult> ImportAsync(Stream stream)
@@ -455,7 +616,9 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
         string? mainAmount = null,
         string? mainDetails = null,
         string? casinoAmount = null,
+        string? casinoDetails = null,
         string? cryptoAmount = null,
+        string? cryptoDetails = null,
         string? datingAmount = null,
         string? linkInsertionAmount = null,
         string? linkInsertion18Amount = null,
@@ -476,7 +639,9 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
             [ImportConstants.WebmasterOffersImportColumns.MainWebmasterPriceUsd] = mainAmount,
             [ImportConstants.WebmasterOffersImportColumns.MainWebmasterPriceDetails] = mainDetails,
             [ImportConstants.WebmasterOffersImportColumns.CasinoWebmasterPriceUsd] = casinoAmount,
+            [ImportConstants.WebmasterOffersImportColumns.CasinoWebmasterPriceDetails] = casinoDetails,
             [ImportConstants.WebmasterOffersImportColumns.CryptoWebmasterPriceUsd] = cryptoAmount,
+            [ImportConstants.WebmasterOffersImportColumns.CryptoWebmasterPriceDetails] = cryptoDetails,
             [ImportConstants.WebmasterOffersImportColumns.DatingWebmasterPriceUsd] = datingAmount,
             [ImportConstants.WebmasterOffersImportColumns.LinkInsertionWebmasterPriceUsd] = linkInsertionAmount,
             [ImportConstants.WebmasterOffersImportColumns.LinkInsertion18PlusWebmasterPriceUsd] = linkInsertion18Amount,

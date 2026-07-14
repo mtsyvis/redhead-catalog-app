@@ -133,6 +133,7 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     SiteWebmasterOfferId = table.Column<Guid>(type: "uuid", nullable: false),
                     PriceType = table.Column<short>(type: "smallint", nullable: false),
+                    AvailabilityStatus = table.Column<short>(type: "smallint", nullable: false),
                     WebmasterPriceUsd = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
                     WebmasterPriceDetails = table.Column<string>(type: "text", nullable: true),
                     TermType = table.Column<short>(type: "smallint", nullable: true),
@@ -144,6 +145,7 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_WebmasterOfferPrices", x => x.Id);
+                    table.CheckConstraint("CK_WebmasterOfferPrices_AvailabilityStatus_Consistency", "(\"AvailabilityStatus\" = 1 AND \"WebmasterPriceUsd\" IS NOT NULL AND \"WebmasterPriceUsd\" > 0) OR (\"AvailabilityStatus\" IN (0, 2, 3) AND \"WebmasterPriceUsd\" IS NULL)");
                     table.CheckConstraint("CK_WebmasterOfferPrices_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
                     table.CheckConstraint("CK_WebmasterOfferPrices_WebmasterPriceUsd_PositiveOrNull", "\"WebmasterPriceUsd\" IS NULL OR \"WebmasterPriceUsd\" > 0");
                     table.ForeignKey(

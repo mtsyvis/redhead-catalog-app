@@ -14,6 +14,10 @@ public sealed class WebmasterOfferPriceConfiguration : IEntityTypeConfiguration<
                 "CK_WebmasterOfferPrices_WebmasterPriceUsd_PositiveOrNull",
                 "\"WebmasterPriceUsd\" IS NULL OR \"WebmasterPriceUsd\" > 0");
             table.HasCheckConstraint(
+                "CK_WebmasterOfferPrices_AvailabilityStatus_Consistency",
+                "(\"AvailabilityStatus\" = 1 AND \"WebmasterPriceUsd\" IS NOT NULL AND \"WebmasterPriceUsd\" > 0) OR " +
+                "(\"AvailabilityStatus\" IN (0, 2, 3) AND \"WebmasterPriceUsd\" IS NULL)");
+            table.HasCheckConstraint(
                 "CK_WebmasterOfferPrices_Term_Consistency",
                 "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR " +
                 "(\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
@@ -22,6 +26,11 @@ public sealed class WebmasterOfferPriceConfiguration : IEntityTypeConfiguration<
         builder.HasKey(price => price.Id);
 
         builder.Property(price => price.PriceType)
+            .IsRequired()
+            .HasConversion<short>()
+            .HasColumnType("smallint");
+
+        builder.Property(price => price.AvailabilityStatus)
             .IsRequired()
             .HasConversion<short>()
             .HasColumnType("smallint");

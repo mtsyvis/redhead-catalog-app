@@ -42,6 +42,7 @@ public sealed class WebmasterOfferPriceDto
 {
     public Guid Id { get; init; }
     public WebmasterOfferPriceType PriceType { get; init; }
+    public ServiceAvailabilityStatus AvailabilityStatus { get; init; }
     public decimal? WebmasterPriceUsd { get; init; }
     public string? WebmasterPriceDetails { get; init; }
     public TermType? TermType { get; init; }

@@ -1,0 +1,90 @@
+using Microsoft.EntityFrameworkCore;
+using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
+using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Infrastructure.Data;
+
+namespace Redhead.SitesCatalog.Tests.Application.Services;
+
+public sealed class WebmasterOffersServiceTests : IDisposable
+{
+    private readonly ApplicationDbContext _context;
+    private readonly WebmasterOffersService _sut;
+
+    public WebmasterOffersServiceTests()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        _context = new ApplicationDbContext(options);
+        _sut = new WebmasterOffersService(_context);
+    }
+
+    public void Dispose()
+    {
+        _context.Database.EnsureDeleted();
+        _context.Dispose();
+    }
+
+    [Fact]
+    public async Task GetByDomainAsync_ReturnsRawPriceAvailabilityStatus()
+    {
+        // Arrange
+        var now = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var webmasterId = Guid.NewGuid();
+        var offerId = Guid.NewGuid();
+
+        _context.Sites.Add(new Site
+        {
+            Domain = "existing.com",
+            DR = 40,
+            Traffic = 5000,
+            Location = "US",
+            IsQuarantined = false,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _context.Webmasters.Add(new Webmaster
+        {
+            Id = webmasterId,
+            ContactRawText = "contact@example.com",
+            NormalizedContactRawText = "contact@example.com",
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _context.SiteWebmasterOffers.Add(new SiteWebmasterOffer
+        {
+            Id = offerId,
+            SiteDomain = "existing.com",
+            WebmasterId = webmasterId,
+            ImportFingerprint = new string('a', 64),
+            ContactRawText = "contact@example.com",
+            Status = SiteWebmasterOfferStatus.Active,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _context.WebmasterOfferPrices.Add(new WebmasterOfferPrice
+        {
+            Id = Guid.NewGuid(),
+            SiteWebmasterOfferId = offerId,
+            PriceType = WebmasterOfferPriceType.Casino,
+            AvailabilityStatus = ServiceAvailabilityStatus.AvailableWithUnknownPrice,
+            WebmasterPriceUsd = null,
+            WebmasterPriceDetails = "ask webmaster",
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _sut.GetByDomainAsync("existing.com");
+
+        // Assert
+        var offer = Assert.Single(result.Offers);
+        var price = Assert.Single(offer.Prices);
+        Assert.Equal(WebmasterOfferPriceType.Casino, price.PriceType);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, price.AvailabilityStatus);
+        Assert.Null(price.WebmasterPriceUsd);
+    }
+}

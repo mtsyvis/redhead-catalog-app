@@ -17,6 +17,10 @@ import { PageShell } from '../components/layout/PageShell';
 import { BrandButton } from '../components/common/BrandButton';
 import { useUserRoles } from '../hooks/useUserRoles';
 import { webmasterOffersService } from '../services/webmasterOffers.service';
+import {
+  SERVICE_AVAILABILITY_STATUS,
+  normalizeServiceAvailabilityStatus,
+} from '../utils/serviceAvailability';
 import type {
   WebmasterOffer,
   WebmasterOfferPrice,
@@ -77,6 +81,17 @@ function formatCurrency(value: number | null) {
   }).format(value);
 }
 
+function formatRawPriceValue(price: WebmasterOfferPrice) {
+  const status = normalizeServiceAvailabilityStatus(price.availabilityStatus);
+  if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) return 'NO';
+  if (status === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice) return 'YES';
+  if (status === SERVICE_AVAILABILITY_STATUS.Available) {
+    return formatCurrency(price.webmasterPriceUsd) ?? 'No amount';
+  }
+
+  return 'Unknown';
+}
+
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -131,7 +146,7 @@ function PriceList({ prices }: { readonly prices: readonly WebmasterOfferPrice[]
       }}
     >
       {prices.map((price) => {
-        const amount = formatCurrency(price.webmasterPriceUsd);
+        const amount = formatRawPriceValue(price);
         return (
           <Box
             key={price.id}
@@ -147,7 +162,7 @@ function PriceList({ prices }: { readonly prices: readonly WebmasterOfferPrice[]
               {priceTypeLabel(price.priceType)}
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 700 }}>
-              {amount ?? 'No amount'}
+              {amount}
             </Typography>
             {price.webmasterPriceDetails?.trim() && (
               <Typography

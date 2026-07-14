@@ -1,3 +1,5 @@
+import type { ServiceAvailabilityStatus } from './sites.types';
+
 export type WebmasterOfferStatus = 'Active' | 'Inactive' | 1 | 2;
 export type LinkbuilderMailboxOfferSource = 'Import' | 'Manual' | 1 | 2;
 export type WebmasterOfferPriceType =
@@ -60,6 +62,7 @@ export interface WebmasterOfferMailbox {
 export interface WebmasterOfferPrice {
   id: string;
   priceType: WebmasterOfferPriceType;
+  availabilityStatus: ServiceAvailabilityStatus;
   webmasterPriceUsd: number | null;
   webmasterPriceDetails: string | null;
   termType: WebmasterOfferTermType | null;

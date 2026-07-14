@@ -10,6 +10,7 @@ public class WebmasterOfferPrice
     public SiteWebmasterOffer SiteWebmasterOffer { get; set; } = null!;
 
     public WebmasterOfferPriceType PriceType { get; set; }
+    public ServiceAvailabilityStatus AvailabilityStatus { get; set; }
     public decimal? WebmasterPriceUsd { get; set; }
     public string? WebmasterPriceDetails { get; set; }
     public TermType? TermType { get; set; }

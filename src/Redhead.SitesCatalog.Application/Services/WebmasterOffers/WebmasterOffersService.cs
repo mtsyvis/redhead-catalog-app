@@ -96,6 +96,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                 {
                     Id = price.Id,
                     PriceType = price.PriceType,
+                    AvailabilityStatus = price.AvailabilityStatus,
                     WebmasterPriceUsd = price.WebmasterPriceUsd,
                     WebmasterPriceDetails = price.WebmasterPriceDetails,
                     TermType = price.TermType,

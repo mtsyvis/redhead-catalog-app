@@ -387,6 +387,7 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
                 Id = Guid.NewGuid(),
                 SiteWebmasterOfferId = offer.Id,
                 PriceType = price.PriceType,
+                AvailabilityStatus = price.AvailabilityStatus,
                 WebmasterPriceUsd = price.WebmasterPriceUsd,
                 WebmasterPriceDetails = TrimToNull(price.WebmasterPriceDetails),
                 TermType = row.Term.TermType,
@@ -500,12 +501,15 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
                 continue;
             }
 
+            var parsedAmount = ParseAmount(priceColumn.PriceType, priceColumn.AmountHeader, amountRaw);
             row.Prices.Add(new WebmasterOfferPriceImportRow(
                 priceColumn.PriceType,
                 priceColumn.AmountHeader,
                 amountRaw,
                 details,
-                TryParseAmount(amountRaw)));
+                parsedAmount.WebmasterPriceUsd,
+                parsedAmount.AvailabilityStatus,
+                parsedAmount.ValidationError));
         }
 
         row.ImportFingerprint = BuildImportFingerprint(row);
@@ -531,19 +535,9 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
 
         foreach (var price in row.Prices)
         {
-            if (string.IsNullOrWhiteSpace(price.AmountRaw))
+            if (price.ValidationError is not null)
             {
-                continue;
-            }
-
-            if (!price.ParsedAmount.HasValue)
-            {
-                return $"Invalid {price.AmountHeader} value.";
-            }
-
-            if (price.ParsedAmount.Value <= 0)
-            {
-                return $"{price.AmountHeader} must be greater than 0.";
+                return price.ValidationError;
             }
         }
 
@@ -610,6 +604,7 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         foreach (var price in row.Prices.OrderBy(price => price.PriceType))
         {
             AppendFingerprintPart(builder, price.PriceType.ToString());
+            AppendFingerprintPart(builder, price.AvailabilityStatus.ToString());
             AppendFingerprintPart(builder, CanonicalFingerprintAmount(price.WebmasterPriceUsd));
             AppendFingerprintPart(builder, CanonicalFingerprintText(price.WebmasterPriceDetails));
             AppendTermFingerprintParts(builder, row.Term);
@@ -685,16 +680,38 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
     private static string? Get(CsvReader csv, string header)
         => csv.GetField(header)?.Trim();
 
-    private static decimal? TryParseAmount(string? raw)
+    private static WebmasterPriceAmountParseResult ParseAmount(
+        WebmasterOfferPriceType priceType,
+        string amountHeader,
+        string? raw)
     {
-        if (string.IsNullOrWhiteSpace(raw))
+        var trimmed = raw?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
         {
-            return null;
+            return new WebmasterPriceAmountParseResult(null, ServiceAvailabilityStatus.Unknown, null);
         }
 
-        return DecimalParsingHelper.TryParseDecimalFlexible(raw.Trim(), out var amount)
-            ? amount
-            : null;
+        if (DecimalParsingHelper.TryParseDecimalFlexible(trimmed, out var amount))
+        {
+            return amount > 0
+                ? new WebmasterPriceAmountParseResult(amount, ServiceAvailabilityStatus.Available, null)
+                : new WebmasterPriceAmountParseResult(null, ServiceAvailabilityStatus.Unknown, $"{amountHeader} must be greater than 0.");
+        }
+
+        if (priceType != WebmasterOfferPriceType.Main)
+        {
+            if (string.Equals(trimmed, "yes", StringComparison.OrdinalIgnoreCase))
+            {
+                return new WebmasterPriceAmountParseResult(null, ServiceAvailabilityStatus.AvailableWithUnknownPrice, null);
+            }
+
+            if (string.Equals(trimmed, "no", StringComparison.OrdinalIgnoreCase))
+            {
+                return new WebmasterPriceAmountParseResult(null, ServiceAvailabilityStatus.NotAvailable, null);
+            }
+        }
+
+        return new WebmasterPriceAmountParseResult(null, ServiceAvailabilityStatus.Unknown, $"Invalid {amountHeader} value.");
     }
 
     private static WebmasterImportTerm ParseTerm(string? rawTerm)
@@ -795,6 +812,11 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
 
     private sealed record PriceColumnPair(WebmasterOfferPriceType PriceType, string AmountHeader, string DetailsHeader);
 
+    private sealed record WebmasterPriceAmountParseResult(
+        decimal? WebmasterPriceUsd,
+        ServiceAvailabilityStatus AvailabilityStatus,
+        string? ValidationError);
+
     private sealed record WebmasterImportTerm(TermType? TermType, int? TermValue, TermUnit? TermUnit)
     {
         public static WebmasterImportTerm Unknown { get; } = new(null, null, null);
@@ -805,10 +827,9 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         string AmountHeader,
         string? AmountRaw,
         string? WebmasterPriceDetails,
-        decimal? ParsedAmount)
-    {
-        public decimal? WebmasterPriceUsd => ParsedAmount;
-    }
+        decimal? WebmasterPriceUsd,
+        ServiceAvailabilityStatus AvailabilityStatus,
+        string? ValidationError);
 
     private sealed class WebmasterOfferImportRow
     {

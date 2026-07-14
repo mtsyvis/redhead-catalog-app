@@ -223,6 +223,25 @@ public sealed class SitesUpdateImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportAsync_SpacedTrafficValueUsd_ParsesAmount()
+    {
+        // Arrange
+        using var stream = Utf8Csv(
+            "Domain,TrafficValueUsd\n" +
+            "existing.com,1 250\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(0, result.InvalidRowsCount);
+
+        var site = await GetSiteAsync("existing.com");
+        Assert.Equal(1250m, site.TrafficValueUsd);
+    }
+
+    [Fact]
     public async Task ImportAsync_TrafficValueUsdAndPagesCount_EmptyCellsClearValues()
     {
         // Arrange

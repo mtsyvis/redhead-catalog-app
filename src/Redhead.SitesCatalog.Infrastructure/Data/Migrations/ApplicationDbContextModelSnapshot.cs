@@ -1674,6 +1674,9 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<short>("AvailabilityStatus")
+                        .HasColumnType("smallint");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1710,6 +1713,8 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
 
                     b.ToTable("WebmasterOfferPrices", null, t =>
                         {
+                            t.HasCheckConstraint("CK_WebmasterOfferPrices_AvailabilityStatus_Consistency", "(\"AvailabilityStatus\" = 1 AND \"WebmasterPriceUsd\" IS NOT NULL AND \"WebmasterPriceUsd\" > 0) OR (\"AvailabilityStatus\" IN (0, 2, 3) AND \"WebmasterPriceUsd\" IS NULL)");
+
                             t.HasCheckConstraint("CK_WebmasterOfferPrices_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
 
                             t.HasCheckConstraint("CK_WebmasterOfferPrices_WebmasterPriceUsd_PositiveOrNull", "\"WebmasterPriceUsd\" IS NULL OR \"WebmasterPriceUsd\" > 0");

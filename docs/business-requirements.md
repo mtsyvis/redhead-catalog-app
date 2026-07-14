@@ -942,9 +942,16 @@ Rules:
 * Unknown domains are unmatched and do not create sites.
 * One valid matched row creates one `SiteWebmasterOffer`.
 * Empty rows are skipped.
-* Price amount cells are empty or positive numeric values only.
+* Main price amount cells are empty or positive numeric values only.
+* Non-main price amount cells are empty, positive numeric values, `YES`, or `NO`.
 * Price detail cells are free text.
-* Empty amount plus non-empty details creates a raw price row with a null amount.
+* Numeric raw price values create raw price rows with availability status `Available`.
+* `YES` in non-main raw price amount columns creates a raw price row with availability status `AvailableWithUnknownPrice` and a null amount.
+* `NO` in non-main raw price amount columns creates a raw price row with availability status `NotAvailable` and a null amount.
+* `YES` and `NO` are not valid in `MainWebmasterPriceUsd`.
+* Empty amount plus non-empty details creates a raw price row with availability status `Unknown` and a null amount.
+* Price detail cells never set raw price availability; they are preserved as details only.
+* Empty amount plus empty details creates no raw price row.
 * `Term` supports empty/No term or positive years such as `1 year` and `2 years`; invalid/non-year values are stored as No term with raw text preserved.
 * Linkbuilder mailbox raw text is split by newline, `/`, `;`, `|`, and comma, matched case-insensitively against seeded mailbox emails and aliases, and all matched mailboxes are linked.
 * Unmapped mailbox tokens create warning rows and do not fail the offer.
