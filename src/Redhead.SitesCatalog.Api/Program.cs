@@ -159,7 +159,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.ConfigureApplicationCookie(options =>
 {
     var regularSessionLifetime = TimeSpan.FromHours(8);
-    var rememberMeSessionLifetime = TimeSpan.FromDays(7);
+    var persistentSessionLifetime = TimeSpan.FromDays(7);
 
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
@@ -185,14 +185,14 @@ builder.Services.ConfigureApplicationCookie(options =>
         return Task.CompletedTask;
     };
 
-    // Extend cookie lifetime when "Remember me" is used (IsPersistent = true)
+    // Extend persistent sessions, including "Remember me" and Google sign-in.
     options.Events.OnSigningIn = context =>
     {
         if (context.Properties.IsPersistent)
         {
             var issuedUtc = context.Properties.IssuedUtc ?? DateTimeOffset.UtcNow;
             context.Properties.IssuedUtc = issuedUtc;
-            context.Properties.ExpiresUtc = issuedUtc.Add(rememberMeSessionLifetime);
+            context.Properties.ExpiresUtc = issuedUtc.Add(persistentSessionLifetime);
         }
 
         return Task.CompletedTask;

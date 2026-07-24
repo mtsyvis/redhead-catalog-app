@@ -21,6 +21,42 @@ namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 
 public sealed class AuthControllerTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Login_PassesRememberMeSelectionToPasswordSignIn(bool rememberMe)
+    {
+        // Arrange
+        var user = CreateUser(mustChangePassword: false, firstName: "Ada", lastName: "Lovelace");
+        var userManager = CreateUserManager();
+        userManager.Setup(manager => manager.FindByEmailAsync(user.Email!))
+            .ReturnsAsync(user);
+        userManager.Setup(manager => manager.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { AppRoles.Client });
+        var signInManager = CreateSignInManager(userManager);
+        signInManager.Setup(manager => manager.PasswordSignInAsync(
+                user.UserName!,
+                "Password123!",
+                rememberMe,
+                true))
+            .ReturnsAsync(Microsoft.AspNetCore.Identity.SignInResult.Success);
+        var sut = CreateController(userManager, signInManager);
+
+        // Act
+        var result = await sut.Login(new LoginRequest(
+            user.Email!,
+            "Password123!",
+            rememberMe));
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result.Result);
+        signInManager.Verify(manager => manager.PasswordSignInAsync(
+            user.UserName!,
+            "Password123!",
+            rememberMe,
+            true), Times.Once);
+    }
+
     [Fact]
     public async Task Login_WhenProfileIsIncomplete_ReturnsMustCompleteProfileAndEmailDisplayName()
     {
