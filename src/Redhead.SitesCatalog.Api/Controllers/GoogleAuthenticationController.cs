@@ -92,7 +92,7 @@ public sealed class GoogleAuthenticationController : ControllerBase
 
         await _signInManager.SignInAsync(
             result.User,
-            isPersistent: false,
+            isPersistent: true,
             authenticationMethod: ExternalLoginProviders.Google);
         await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
 

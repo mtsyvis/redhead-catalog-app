@@ -32,6 +32,8 @@ General rules:
 
 * Invited users authenticate with email and password; Google-registered users authenticate only through Google.
 * Public self-registration is available only through a Google account with a Google-verified email and always creates a `Lite` user.
+* A successful Google sign-in creates a persistent application session that expires after seven days without authenticated activity; activity renews the seven-day session window.
+* Password sign-in without `Remember me` uses an eight-hour application session. Password sign-in with `Remember me` creates the same seven-day rolling persistent session used by Google sign-in.
 * Each user has one role.
 * Each user stores one optional `DisplayName` field with a maximum length of 100 characters.
 * Each user may have an optional internal `SuperAdmin` note for identifying client accounts when email/name are not enough.
