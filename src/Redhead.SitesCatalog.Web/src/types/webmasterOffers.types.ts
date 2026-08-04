@@ -39,6 +39,8 @@ export interface WebmasterOffer {
   outreachSenderRawText: string | null;
   linkbuilderMailboxRawText: string | null;
   linkPolicyText: string | null;
+  dfLinksRawText: string | null;
+  sponsoredTagRawText: string | null;
   commentText: string | null;
   clientRawText: string | null;
   termRawText: string | null;

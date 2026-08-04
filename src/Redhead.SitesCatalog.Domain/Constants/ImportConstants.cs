@@ -143,6 +143,8 @@ public static class ImportConstants
         public const string HomepageTextLink18PlusWebmasterPriceUsd = "HomepageTextLink18PlusWebmasterPriceUsd";
         public const string HomepageTextLink18PlusWebmasterPriceDetails = "HomepageTextLink18PlusWebmasterPriceDetails";
         public const string LinkPolicyText = "LinkPolicyText";
+        public const string DfLinksRawText = "DfLinksRawText";
+        public const string SponsoredTagRawText = "SponsoredTagRawText";
         public const string CommentText = "CommentText";
         public const string ClientRawText = "ClientRawText";
     }
@@ -171,6 +173,8 @@ public static class ImportConstants
         WebmasterOffersImportColumns.HomepageTextLink18PlusWebmasterPriceDetails,
         WebmasterOffersImportColumns.HomepageTextLink18PlusWebmasterPriceUsd,
         WebmasterOffersImportColumns.LinkPolicyText,
+        WebmasterOffersImportColumns.DfLinksRawText,
+        WebmasterOffersImportColumns.SponsoredTagRawText,
         WebmasterOffersImportColumns.Term,
         WebmasterOffersImportColumns.LinkbuilderMailboxRawText,
         WebmasterOffersImportColumns.OutreachSenderRawText,

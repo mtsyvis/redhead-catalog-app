@@ -17,6 +17,8 @@ public class SiteWebmasterOffer
     public string? OutreachSenderRawText { get; set; }
     public string? LinkbuilderMailboxRawText { get; set; }
     public string? LinkPolicyText { get; set; }
+    public string? DfLinksRawText { get; set; }
+    public string? SponsoredTagRawText { get; set; }
     public string? CommentText { get; set; }
     public string? ClientRawText { get; set; }
     public string? TermRawText { get; set; }

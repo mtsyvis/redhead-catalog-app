@@ -27,7 +27,6 @@ const RULES = [
   'Repeated domains and repeated contacts are allowed.',
   'Phase 1 supports empty terms and year terms only, e.g. 1 year or 3 years.',
   'Unmapped linkbuilder mailbox aliases are warnings and do not block the offer.',
-  'DF Links and Sponsored Tag are intentionally excluded from this import.',
   'Client-facing prices are not calculated or updated.',
 ];
 
@@ -54,6 +53,8 @@ const LEGACY_COLUMN_MAPPING = [
   ['Homepage text link 18+', 'HomepageTextLink18PlusWebmasterPriceDetails'],
   ['Price Homepage text link 18+ $', 'HomepageTextLink18PlusWebmasterPriceUsd'],
   ['Какие ссылки и сколько', 'LinkPolicyText'],
+  ['DF Links', 'DfLinksRawText'],
+  ['Sponsored tag', 'SponsoredTagRawText'],
   ['Term', 'Term'],
   ['Новая почта для Линкбилдеров', 'LinkbuilderMailboxRawText'],
   ['Чья почта', 'OutreachSenderRawText'],

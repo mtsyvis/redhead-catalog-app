@@ -87,6 +87,8 @@ export const WEBMASTER_OFFERS_IMPORT_COLUMNS = [
   'HomepageTextLink18PlusWebmasterPriceDetails',
   'HomepageTextLink18PlusWebmasterPriceUsd',
   'LinkPolicyText',
+  'DfLinksRawText',
+  'SponsoredTagRawText',
   'Term',
   'LinkbuilderMailboxRawText',
   'OutreachSenderRawText',
@@ -116,6 +118,8 @@ export const WEBMASTER_OFFERS_IMPORT_TEMPLATE_VALUES: Partial<
   HomepageTextLinkWebmasterPriceDetails: 'NO',
   HomepageTextLink18PlusWebmasterPriceDetails: 'NO',
   LinkPolicyText: 'DF 2',
+  DfLinksRawText: '2 DF links',
+  SponsoredTagRawText: 'Sponsored',
   CommentText:
     '350 to 600 words\none duty-free picture (minimum of 900 x 600 pixels)\nTexts and photos are provided in a Word file and must be written in flawless Dutch',
   ClientRawText: 'Повторная связь для PM',

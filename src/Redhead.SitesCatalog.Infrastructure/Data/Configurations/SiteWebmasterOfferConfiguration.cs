@@ -42,6 +42,12 @@ public sealed class SiteWebmasterOfferConfiguration : IEntityTypeConfiguration<S
         builder.Property(offer => offer.LinkPolicyText)
             .HasColumnType("text");
 
+        builder.Property(offer => offer.DfLinksRawText)
+            .HasColumnType("text");
+
+        builder.Property(offer => offer.SponsoredTagRawText)
+            .HasColumnType("text");
+
         builder.Property(offer => offer.CommentText)
             .HasColumnType("text");
 

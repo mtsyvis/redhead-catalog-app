@@ -98,7 +98,7 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
         Assert.Empty(_context.SiteWebmasterOffers);
 
         var invalidLines = GetDownloadLines(result.Downloads!.InvalidRows!.Token);
-        Assert.Contains(invalidLines, line => line.Contains("Row has 29 columns but expected 28.", StringComparison.Ordinal));
+        Assert.Contains(invalidLines, line => line.Contains("Row has 31 columns but expected 30.", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -680,7 +680,9 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
         string? homepageAmount = null,
         string? homepage18Amount = null,
         string? homepage18Details = null,
-        string? comment = null)
+        string? comment = null,
+        string? dfLinks = null,
+        string? sponsoredTag = null)
     {
         var valuesByHeader = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
@@ -703,7 +705,9 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
             [ImportConstants.WebmasterOffersImportColumns.HomepageTextLinkWebmasterPriceUsd] = homepageAmount,
             [ImportConstants.WebmasterOffersImportColumns.HomepageTextLink18PlusWebmasterPriceUsd] = homepage18Amount,
             [ImportConstants.WebmasterOffersImportColumns.HomepageTextLink18PlusWebmasterPriceDetails] = homepage18Details,
-            [ImportConstants.WebmasterOffersImportColumns.CommentText] = comment
+            [ImportConstants.WebmasterOffersImportColumns.CommentText] = comment,
+            [ImportConstants.WebmasterOffersImportColumns.DfLinksRawText] = dfLinks,
+            [ImportConstants.WebmasterOffersImportColumns.SponsoredTagRawText] = sponsoredTag
         };
 
         return ImportConstants.WebmasterOffersImportColumnsInOrder

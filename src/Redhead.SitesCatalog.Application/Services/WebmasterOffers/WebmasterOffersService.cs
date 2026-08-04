@@ -49,7 +49,17 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             .Include(offer => offer.LinkbuilderMailboxes)
             .ThenInclude(link => link.LinkbuilderMailbox)
             .Where(offer => offer.SiteDomain == normalizedDomain)
-            .OrderByDescending(offer => offer.CreatedAtUtc)
+            .OrderBy(offer => offer.Prices.Any(price => price.WebmasterPriceUsd.HasValue) ? 0 : 1)
+            .ThenBy(offer =>
+                offer.Prices
+                    .Where(price =>
+                        price.PriceType == WebmasterOfferPriceType.Main &&
+                        price.WebmasterPriceUsd.HasValue)
+                    .Min(price => price.WebmasterPriceUsd) ??
+                offer.Prices
+                    .Where(price => price.WebmasterPriceUsd.HasValue)
+                    .Min(price => price.WebmasterPriceUsd))
+            .ThenByDescending(offer => offer.CreatedAtUtc)
             .ThenBy(offer => offer.Id)
             .ToListAsync(cancellationToken);
 
@@ -71,6 +81,8 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             OutreachSenderRawText = offer.OutreachSenderRawText,
             LinkbuilderMailboxRawText = offer.LinkbuilderMailboxRawText,
             LinkPolicyText = offer.LinkPolicyText,
+            DfLinksRawText = offer.DfLinksRawText,
+            SponsoredTagRawText = offer.SponsoredTagRawText,
             CommentText = offer.CommentText,
             ClientRawText = offer.ClientRawText,
             TermRawText = offer.TermRawText,

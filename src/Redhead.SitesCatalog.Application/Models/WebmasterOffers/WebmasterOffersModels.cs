@@ -17,6 +17,8 @@ public sealed class WebmasterOfferDto
     public string? OutreachSenderRawText { get; init; }
     public string? LinkbuilderMailboxRawText { get; init; }
     public string? LinkPolicyText { get; init; }
+    public string? DfLinksRawText { get; init; }
+    public string? SponsoredTagRawText { get; init; }
     public string? CommentText { get; init; }
     public string? ClientRawText { get; init; }
     public string? TermRawText { get; init; }

@@ -369,6 +369,8 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
             OutreachSenderRawText = TrimToNull(row.OutreachSenderRawText),
             LinkbuilderMailboxRawText = TrimToNull(row.LinkbuilderMailboxRawText),
             LinkPolicyText = TrimToNull(row.LinkPolicyText),
+            DfLinksRawText = TrimToNull(row.DfLinksRawText),
+            SponsoredTagRawText = TrimToNull(row.SponsoredTagRawText),
             CommentText = TrimToNull(row.CommentText),
             ClientRawText = TrimToNull(row.ClientRawText),
             TermRawText = TrimToNull(row.TermRawText),
@@ -485,6 +487,8 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
             LinkbuilderMailboxRawText = Get(csv, ImportConstants.WebmasterOffersImportColumns.LinkbuilderMailboxRawText),
             TermRawText = Get(csv, ImportConstants.WebmasterOffersImportColumns.Term),
             LinkPolicyText = Get(csv, ImportConstants.WebmasterOffersImportColumns.LinkPolicyText),
+            DfLinksRawText = Get(csv, ImportConstants.WebmasterOffersImportColumns.DfLinksRawText),
+            SponsoredTagRawText = Get(csv, ImportConstants.WebmasterOffersImportColumns.SponsoredTagRawText),
             CommentText = Get(csv, ImportConstants.WebmasterOffersImportColumns.CommentText),
             ClientRawText = Get(csv, ImportConstants.WebmasterOffersImportColumns.ClientRawText)
         };
@@ -596,6 +600,8 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         AppendFingerprintPart(builder, CanonicalFingerprintText(row.OutreachSenderRawText));
         AppendFingerprintPart(builder, CanonicalFingerprintText(row.LinkbuilderMailboxRawText));
         AppendFingerprintPart(builder, CanonicalFingerprintText(row.LinkPolicyText));
+        AppendFingerprintPart(builder, CanonicalFingerprintText(row.DfLinksRawText));
+        AppendFingerprintPart(builder, CanonicalFingerprintText(row.SponsoredTagRawText));
         AppendFingerprintPart(builder, CanonicalFingerprintText(row.CommentText));
         AppendFingerprintPart(builder, CanonicalFingerprintText(row.ClientRawText));
         AppendFingerprintPart(builder, CanonicalFingerprintText(row.TermRawText));
@@ -847,6 +853,8 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         public string? LinkbuilderMailboxRawText { get; init; }
         public string? TermRawText { get; init; }
         public string? LinkPolicyText { get; init; }
+        public string? DfLinksRawText { get; init; }
+        public string? SponsoredTagRawText { get; init; }
         public string? CommentText { get; init; }
         public string? ClientRawText { get; init; }
         public string? RowStructureError { get; init; }
@@ -863,6 +871,8 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
             && string.IsNullOrWhiteSpace(LinkbuilderMailboxRawText)
             && string.IsNullOrWhiteSpace(TermRawText)
             && string.IsNullOrWhiteSpace(LinkPolicyText)
+            && string.IsNullOrWhiteSpace(DfLinksRawText)
+            && string.IsNullOrWhiteSpace(SponsoredTagRawText)
             && string.IsNullOrWhiteSpace(CommentText)
             && string.IsNullOrWhiteSpace(ClientRawText)
             && Prices.Count == 0;

@@ -417,6 +417,7 @@ Storage rules:
 * Raw `LinkbuilderMailboxRawText` is always preserved.
 * Parsed linkbuilder mailboxes are linked best-effort against seeded active mailbox emails and aliases.
 * Unmapped mailbox aliases produce import warnings but do not invalidate the row.
+* `DfLinksRawText` and `SponsoredTagRawText` are optional raw-text fields stored on each webmaster offer. They are independent from the site's structured DF-link count and sponsored-tag fields.
 * `TermRawText` is preserved. Empty, invalid, or unsupported terms are stored as No term for phase 1.
 * Phase 1 supports positive finite year terms only for parsed webmaster offer terms.
 * Webmaster offer status defaults to `Active`; `Inactive` is reserved for future cleanup.
@@ -927,17 +928,20 @@ Supported columns, in exact order:
 20. `HomepageTextLink18PlusWebmasterPriceDetails`
 21. `HomepageTextLink18PlusWebmasterPriceUsd`
 22. `LinkPolicyText`
-23. `Term`
-24. `LinkbuilderMailboxRawText`
-25. `OutreachSenderRawText`
-26. `ContactRawText`
-27. `CommentText`
-28. `ClientRawText`
+23. `DfLinksRawText`
+24. `SponsoredTagRawText`
+25. `Term`
+26. `LinkbuilderMailboxRawText`
+27. `OutreachSenderRawText`
+28. `ContactRawText`
+29. `CommentText`
+30. `ClientRawText`
 
 Rules:
 
 * CSV UTF-8 only.
 * Headers are the stable clean import contract. Legacy Excel headers must be transformed before import.
+* The exact 30-column header is required.
 * `Domain` is required, normalized, and matched to an existing site.
 * Unknown domains are unmatched and do not create sites.
 * One valid matched row creates one `SiteWebmasterOffer`.
@@ -955,7 +959,7 @@ Rules:
 * `Term` supports empty/No term, `permanent`, and positive years such as `1 year` and `2 years`; months and other invalid values are stored as No term with raw text preserved.
 * Linkbuilder mailbox raw text is split by newline, `/`, `;`, `|`, and comma, matched case-insensitively against seeded mailbox emails and aliases, and all matched mailboxes are linked.
 * Unmapped mailbox tokens create warning rows and do not fail the offer.
-* Exact duplicate offers are skipped idempotently. Duplicate detection uses a SHA-256 fingerprint of canonical persisted offer content, including normalized domain, trimmed raw offer fields, parsed term, and sorted raw price rows; it excludes IDs, timestamps, webmaster ID, mailbox IDs, and source row number.
+* Exact duplicate offers are skipped idempotently. Duplicate detection uses a SHA-256 fingerprint of canonical persisted offer content, including normalized domain, trimmed raw offer fields (including `DfLinksRawText` and `SponsoredTagRawText`), parsed term, and sorted raw price rows; it excludes IDs, timestamps, webmaster ID, mailbox IDs, and source row number.
 * Import results report imported, skipped duplicate, unmatched, invalid, and warning rows with downloads where applicable.
 * The import must not update site pricing, site availability, client-facing exports, or metric history.
 
@@ -1047,7 +1051,13 @@ Rules:
 * `Lite`, `Editor`, and `Linkbuilder` export settings are shown as disabled and are not editable at role or user level.
 * The Imports page shows Webmaster Offers Import only to `SuperAdmin` and `Admin`.
 * The Webmaster Offers page is available only to `SuperAdmin`, `Admin`, and `Linkbuilder`.
-* Webmaster Offers UI supports domain search and read-only comparison of offers, contacts, outreach sender text, linkbuilder mailbox raw text, parsed mailboxes, raw prices by service, term, link policy, comments, client raw text, and status.
+* Webmaster Offers UI supports domain search and read-only comparison of offers, contacts, outreach sender text, linkbuilder mailbox raw text, parsed mailboxes, raw prices by service, term, link policy, DF links raw text, sponsored tag raw text, comments, client raw text, and status.
+* Offers are displayed as compact independently expandable comparison rows sorted by effective numeric price ascending. Effective price is the numeric Main price when present, otherwise the lowest numeric price among the other raw price types. Offers without any numeric price are placed last. Equal effective prices are ordered newest first, then by offer ID. Multiple offers can be expanded at the same time; all offers are collapsed by default after search.
+* Leading offer metadata columns show offer number, status and term, sponsored tag raw text, and primary email. Offer dates are not shown.
+* All ten raw price types are shown in a horizontally scrollable comparison matrix. The table, including offer metadata, scrolls horizontally as one surface. Each price cell shows exactly one primary value: the numeric USD amount, `YES`, `NO`, or `—`; the full raw price-details text is shown underneath and wraps without truncation.
+* Table typography, header treatment, status treatment, density, hover feedback, and empty-value presentation follow the Sites table patterns; all empty table values use the same `—` presentation.
+* Expanded offer details remain anchored while the comparison table scrolls. They show contact raw text, outreach sender text, link policy, DF links raw text, comments, client raw text, linkbuilder mailbox raw text, parsed mailboxes, and raw term. Price details are not repeated in a separate table.
+* The last successful Webmaster Offers query and response are cached in browser `sessionStorage` for one hour and restored when the user returns to the page in the same browser tab. The search field clear action removes the query, displayed result, errors, expanded state, and cached entry.
 * Webmaster Offers UI must not include edit controls or raw-data export controls in phase 1.
 * `SuperAdmin` and `Admin` can access an Analytics page for Business Demand based on Client export requests.
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
