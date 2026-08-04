@@ -270,7 +270,10 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
     [InlineData("info@huislijn.nl\nr.barends@huislijn.nl = отв тут", "r.barends@huislijn.nl")]
     [InlineData("info@huislijn.nl\nr.barends@huislijn.nl - write here", "r.barends@huislijn.nl")]
     [InlineData("first@example.com - answer\nsecond@example.com - answer", "first@example.com")]
-    public async Task ImportAsync_ContactWithPrimaryEmailMarker_UsesFirstMarkedEmailAsPrimaryEmail(
+    [InlineData(
+        "redactie@dagblad010.nl (и сюда)\njim@dagblad010.nl (написала сюда)\nrene.dons@digitaaldagblad.nl (отвечают тут)",
+        "rene.dons@digitaaldagblad.nl")]
+    public async Task ImportAsync_ContactWithPrimaryEmailMarker_UsesHighestPriorityMarkedEmailAsPrimaryEmail(
         string contact,
         string expectedPrimaryEmail)
     {

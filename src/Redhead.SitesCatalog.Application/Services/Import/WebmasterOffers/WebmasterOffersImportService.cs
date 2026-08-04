@@ -29,7 +29,7 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
 
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
-    private static readonly string[] PrimaryEmailMarkerTexts =
+    private static readonly string[] ReplyPrimaryEmailMarkerTexts =
     [
         "ответили здесь",
         "отвечают здесь",
@@ -46,24 +46,32 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         "ответ утт",
         "отв тут",
         "otv tut",
+        "ответ",
+        "answer",
+        "reply",
+        "отв",
+        "otv"
+    ];
+
+    private static readonly string[] DirectionPrimaryEmailMarkerTexts =
+    [
         "писать сюда",
         "написать сюда",
         "написала сюда",
         "направили сюда",
         "write here",
-        "ответ",
-        "answer",
-        "reply",
-        "отв",
-        "otv",
         "сюда",
         "здесь",
         "тут",
         "here"
     ];
 
-    private static readonly Regex PrimaryEmailMarkerRegex = new(
-        BuildPrimaryEmailMarkerPattern(),
+    private static readonly Regex ReplyPrimaryEmailMarkerRegex = new(
+        BuildPrimaryEmailMarkerPattern(ReplyPrimaryEmailMarkerTexts),
+        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex DirectionPrimaryEmailMarkerRegex = new(
+        BuildPrimaryEmailMarkerPattern(DirectionPrimaryEmailMarkerTexts),
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly IReadOnlyList<PriceColumnPair> PriceColumns =
@@ -766,21 +774,27 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
             return null;
         }
 
-        var markedEmail = ExtractMarkedPrimaryEmail(contactRawText);
-        if (markedEmail is not null)
+        var replyEmail = ExtractFirstEmailOnMarkedLine(contactRawText, ReplyPrimaryEmailMarkerRegex);
+        if (replyEmail is not null)
         {
-            return markedEmail;
+            return replyEmail;
+        }
+
+        var directionEmail = ExtractFirstEmailOnMarkedLine(contactRawText, DirectionPrimaryEmailMarkerRegex);
+        if (directionEmail is not null)
+        {
+            return directionEmail;
         }
 
         var matches = EmailRegex.Matches(contactRawText);
         return matches.Count == 1 ? matches[0].Value.ToLowerInvariant() : null;
     }
 
-    private static string? ExtractMarkedPrimaryEmail(string contactRawText)
+    private static string? ExtractFirstEmailOnMarkedLine(string contactRawText, Regex markerRegex)
     {
         foreach (var line in contactRawText.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            if (!PrimaryEmailMarkerRegex.IsMatch(line))
+            if (!markerRegex.IsMatch(line))
             {
                 continue;
             }
@@ -795,8 +809,8 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         return null;
     }
 
-    private static string BuildPrimaryEmailMarkerPattern()
-        => $@"(?<![\p{{L}}\p{{N}}])(?:{string.Join("|", PrimaryEmailMarkerTexts
+    private static string BuildPrimaryEmailMarkerPattern(IEnumerable<string> markerTexts)
+        => $@"(?<![\p{{L}}\p{{N}}])(?:{string.Join("|", markerTexts
             .OrderByDescending(marker => marker.Length)
             .Select(Regex.Escape))})(?![\p{{L}}\p{{N}}])";
 
