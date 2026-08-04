@@ -28,6 +28,8 @@ internal sealed record SitesUpdateImportRow(string NormalizedDomain, IReadOnlySe
     public IReadOnlyList<string> RawValues { get; init; } = [];
     public double DR { get; init; }
     public long Traffic { get; init; }
+    public decimal? TrafficValueUsd { get; init; }
+    public int? PagesCount { get; init; }
     public string? Location { get; init; }
     public string? LocationKey { get; init; }
     public string? ImportedLocationRaw { get; init; }

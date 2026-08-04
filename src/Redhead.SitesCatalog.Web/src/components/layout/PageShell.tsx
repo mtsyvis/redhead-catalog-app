@@ -50,6 +50,7 @@ export const PageShell: React.FC<PageShellProps> = ({
     canReadRoleSettings,
     canReadAnalytics,
     canManageAhrefsSync,
+    canReadWebmasterOffers,
   } = useUserRoles();
   const navigate = useNavigate();
   const location = useLocation();
@@ -82,6 +83,7 @@ export const PageShell: React.FC<PageShellProps> = ({
 
   const getCurrentTab = () => {
     if (location.pathname === '/sites') return '/sites';
+    if (location.pathname.startsWith('/webmaster-offers')) return '/webmaster-offers';
     if (location.pathname.startsWith('/imports')) return '/imports';
     if (location.pathname.startsWith('/admin')) return '/admin';
     return false;
@@ -151,6 +153,9 @@ export const PageShell: React.FC<PageShellProps> = ({
                   }}
                 >
                   <Tab label="Sites" value="/sites" />
+                  {canReadWebmasterOffers && (
+                    <Tab label="Webmaster Offers" value="/webmaster-offers" />
+                  )}
                   {canRunImports && <Tab label="Imports" value="/imports" />}
                 </Tabs>
                 {canOpenAdminMenu && (

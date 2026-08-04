@@ -32,6 +32,9 @@
     <Content Include="Locations\SeedData\locations-and-groups.cleaned.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="LinkbuilderMailboxes\SeedData\linkbuilder-mailbox-aliases.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <PropertyGroup>

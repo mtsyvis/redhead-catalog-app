@@ -37,6 +37,12 @@ export interface UpdateImportResult extends ImportResultBase, DuplicateDomainsIm
   metricHistorySkippedReason?: string | null;
 }
 
+export interface WebmasterOffersImportResult extends ImportResultBase {
+  importedCount?: number;
+  skippedDuplicateCount?: number;
+  unmatchedRowsCount?: number;
+}
+
 export type AvailabilityImportAction = 'markUnavailable' | 'restoreAvailable';
 
 /** Maximum file size for sites import (50 MB) */
@@ -113,6 +119,13 @@ export function importAvailability(file: File, action: AvailabilityImportAction)
  */
 export function importLastPublished(file: File) {
   return runImportRequest<UpdateImportResult>('/api/import/last-published', file);
+}
+
+/**
+ * Import webmaster offers from the stable clean CSV template.
+ */
+export function importWebmasterOffers(file: File) {
+  return runImportRequest<WebmasterOffersImportResult>('/api/import/webmaster-offers', file);
 }
 
 export async function downloadImportArtifactCsv(token: string, fallbackFileName: string): Promise<void> {

@@ -11,6 +11,7 @@ public class AdminUsersAuthorizationTests
         var roles = new List<string> { AppRoles.SuperAdmin };
         Assert.True(AdminUsersAuthorization.CanCreateRole(roles, AppRoles.SuperAdmin));
         Assert.True(AdminUsersAuthorization.CanCreateRole(roles, AppRoles.Admin));
+        Assert.True(AdminUsersAuthorization.CanCreateRole(roles, AppRoles.Linkbuilder));
         Assert.True(AdminUsersAuthorization.CanCreateRole(roles, AppRoles.Internal));
         Assert.True(AdminUsersAuthorization.CanCreateRole(roles, AppRoles.Client));
     }
@@ -21,6 +22,7 @@ public class AdminUsersAuthorizationTests
         var roles = new List<string> { AppRoles.Admin };
         Assert.False(AdminUsersAuthorization.CanCreateRole(roles, AppRoles.SuperAdmin));
         Assert.False(AdminUsersAuthorization.CanCreateRole(roles, AppRoles.Admin));
+        Assert.False(AdminUsersAuthorization.CanCreateRole(roles, AppRoles.Linkbuilder));
         Assert.False(AdminUsersAuthorization.CanCreateRole(roles, AppRoles.Internal));
         Assert.False(AdminUsersAuthorization.CanCreateRole(roles, AppRoles.Client));
     }
@@ -39,6 +41,7 @@ public class AdminUsersAuthorizationTests
         var current = new List<string> { AppRoles.SuperAdmin };
         Assert.True(AdminUsersAuthorization.CanModifyUser(current, new List<string> { AppRoles.SuperAdmin }));
         Assert.True(AdminUsersAuthorization.CanModifyUser(current, new List<string> { AppRoles.Admin }));
+        Assert.True(AdminUsersAuthorization.CanModifyUser(current, new List<string> { AppRoles.Linkbuilder }));
         Assert.True(AdminUsersAuthorization.CanModifyUser(current, new List<string> { AppRoles.Internal }));
         Assert.True(AdminUsersAuthorization.CanModifyUser(current, new List<string> { AppRoles.Client }));
     }
@@ -49,6 +52,7 @@ public class AdminUsersAuthorizationTests
         var current = new List<string> { AppRoles.Admin };
         Assert.False(AdminUsersAuthorization.CanModifyUser(current, new List<string> { AppRoles.SuperAdmin }));
         Assert.False(AdminUsersAuthorization.CanModifyUser(current, new List<string> { AppRoles.Admin }));
+        Assert.False(AdminUsersAuthorization.CanModifyUser(current, new List<string> { AppRoles.Linkbuilder }));
         Assert.False(AdminUsersAuthorization.CanModifyUser(current, new List<string> { AppRoles.Internal }));
         Assert.False(AdminUsersAuthorization.CanModifyUser(current, new List<string> { AppRoles.Client }));
     }

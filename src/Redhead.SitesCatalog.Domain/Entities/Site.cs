@@ -7,6 +7,8 @@ public class Site
     public string Domain { get; set; } = string.Empty;
     public double DR { get; set; }
     public long Traffic { get; set; }
+    public decimal? TrafficValueUsd { get; set; }
+    public int? PagesCount { get; set; }
     public string Location { get; set; } = string.Empty;
     public string? LocationKey { get; set; }
     public CanonicalLocation? CanonicalLocation { get; set; }
@@ -43,4 +45,5 @@ public class Site
     public DateTime? AhrefsLastSyncedAt { get; set; }
     public ICollection<SitePriceOption> PriceOptions { get; set; } = [];
     public ICollection<SiteServiceAvailability> ServiceAvailabilities { get; set; } = [];
+    public ICollection<SiteWebmasterOffer> WebmasterOffers { get; set; } = [];
 }

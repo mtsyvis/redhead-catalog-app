@@ -13,6 +13,7 @@ public class RoleSettingsControllerTests
 {
     [Theory]
     [InlineData(AppRoles.Editor)]
+    [InlineData(AppRoles.Linkbuilder)]
     [InlineData(AppRoles.Lite)]
     public async Task GetRoleSettings_WhenRoleHasFixedDisabledExport_ReturnsFixedDisabledSetting(string role)
     {

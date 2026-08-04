@@ -19,11 +19,12 @@ Legacy planning files and old specs are historical context only. They must not o
 
 ## Users and roles
 
-The app has six roles:
+The app has seven roles:
 
 * `SuperAdmin`
 * `Admin`
 * `Editor`
+* `Linkbuilder`
 * `Internal`
 * `Client`
 * `Lite`
@@ -37,7 +38,7 @@ General rules:
 * Each user has one role.
 * Each user stores one optional `DisplayName` field with a maximum length of 100 characters.
 * Each user may have an optional internal `SuperAdmin` note for identifying client accounts when email/name are not enough.
-* The internal `SuperAdmin` note is visible and editable only by `SuperAdmin`; `Admin`, `Internal`, `Client`, `Lite`, profile/current-user, auth, export analytics, audit context, and other non-SuperAdmin-specific responses must not expose it.
+* The internal `SuperAdmin` note is visible and editable only by `SuperAdmin`; `Admin`, `Editor`, `Linkbuilder`, `Internal`, `Client`, `Lite`, profile/current-user, auth, export analytics, audit context, and other non-SuperAdmin-specific responses must not expose it.
 * A user's profile is complete only when `DisplayName` is non-empty after trimming.
 * Existing activated users with a missing display name must complete it after login.
 * Email is used as the fallback display value while `DisplayName` is missing.
@@ -55,8 +56,9 @@ General rules:
 Current static permission model:
 
 * `SuperAdmin`: all permissions.
-* `Admin`: sites browse, Multi-search, site editing, exports, imports, user read, role settings read, analytics read, table views, and Ahrefs sync management.
+* `Admin`: sites browse, Multi-search, site editing, exports, imports, user read, role settings read, analytics read, table views, Ahrefs sync management, webmaster offers read, and webmaster offers import.
 * `Editor`: sites browse, Multi-search, site editing, and table views.
+* `Linkbuilder`: sites browse, Multi-search, table views, and webmaster offers read.
 * `Internal`: sites browse, Multi-search, exports, and table views.
 * `Client`: sites browse, Multi-search, exports, and client-safe table views.
 * `Lite`: Multi-search and client-safe table views only.
@@ -72,7 +74,7 @@ Current rules:
 * Only `SuperAdmin` can update per-user export limit overrides.
 * Only `SuperAdmin` can create or update the internal `SuperAdmin` note on user accounts.
 * Only `SuperAdmin` can change user roles.
-* `SuperAdmin` can change roles only between `Admin`, `Editor`, `Internal`, `Client`, and `Lite`; `SuperAdmin` is a protected role and cannot be promoted or demoted through normal role editing.
+* `SuperAdmin` can change roles only between `Admin`, `Editor`, `Linkbuilder`, `Internal`, `Client`, and `Lite`; `SuperAdmin` is a protected role and cannot be promoted or demoted through normal role editing.
 * `SuperAdmin` cannot change their own role.
 * Changing a user's role preserves any per-user export limit override; removing or changing that override is a separate explicit action.
 * `SuperAdmin` export access is unlimited and must not be editable in the UI.
@@ -88,6 +90,7 @@ Current rules:
 
 * `Admin` can access admin areas allowed by backend policies.
 * `Admin` can run catalog imports and update catalog data where backend policies allow it.
+* `Admin` can run Webmaster Offers Import and view raw webmaster offer data.
 * `Admin` can read Business Demand and Export Activity analytics.
 * `Admin` must not be able to create users.
 * `Admin` must not be able to change role export limits.
@@ -103,6 +106,18 @@ Current rules:
 * Can browse and filter the sites catalog, use Multi-search, saved filters, internal site fields, price-column copy actions, and table views.
 * Can edit sites through the same manual edit form and server-side validation as `Admin`, including quarantine fields.
 * Cannot access imports, exports, Google Drive integration, analytics, Ahrefs sync, user management, or role settings.
+* Export is always disabled and cannot be enabled by role settings or per-user overrides.
+
+### Linkbuilder
+
+`Linkbuilder` is an internal role for contacting with webamsters and publishing client's adds.
+
+Current rules:
+
+* Can browse and filter the sites catalog, use Multi-search, saved filters, internal site fields, and table views.
+* Can access Webmaster Offers search and view raw webmaster offers, contacts, raw webmaster prices, outreach sender text, linkbuilder mailbox raw text, parsed linkbuilder mailboxes, notes, and status.
+* Cannot run imports, including Webmaster Offers Import.
+* Cannot edit sites, raw webmaster offers, raw webmaster prices, users, role settings, analytics, Ahrefs sync, or export data.
 * Export is always disabled and cannot be enabled by role settings or per-user overrides.
 
 ### Internal
@@ -178,7 +193,7 @@ Rules:
 * Reactivating a disabled, never-activated user issues a new activation link instead.
 * Reactivation preserves display name, internal `SuperAdmin` note, Google Drive connection, saved filters, table views, and user history.
 * Reactivation clears per-user export limit overrides.
-* Disabled `SuperAdmin` users can be reactivated only as `SuperAdmin`; disabled `Admin`, `Editor`, `Internal`, `Client`, and `Lite` users can be reactivated only as `Admin`, `Editor`, `Internal`, `Client`, or `Lite`.
+* Disabled `SuperAdmin` users can be reactivated only as `SuperAdmin`; disabled `Admin`, `Editor`, `Linkbuilder`, `Internal`, `Client`, and `Lite` users can be reactivated only as `Admin`, `Editor`, `Linkbuilder`, `Internal`, `Client`, or `Lite`.
 * While `MustChangePassword = true` or `DisplayName` is incomplete, an activated user must be forced to `/account-setup` and blocked from normal app pages.
 * Users can update their own display name from `/profile`; admins must not edit another user's display name.
 
@@ -208,6 +223,7 @@ Rules:
 * If export is truncated by a limit, the user should receive clear feedback.
 * `Lite` export is fixed as disabled. Role-level settings and per-user export overrides must not enable export for `Lite`.
 * `Editor` export is fixed as disabled. Role-level settings and per-user export overrides must not enable export for `Editor`.
+* `Linkbuilder` export is fixed as disabled. Role-level settings and per-user export overrides must not enable export for `Linkbuilder`.
 
 Client-role exports also have rolling usage limits:
 
@@ -232,6 +248,8 @@ Core site fields:
 * `Domain`
 * `DR`
 * `Traffic`
+* `TrafficValueUsd`
+* `PagesCount`
 * `Location`
 * `Language`
 * `PriceUsd`
@@ -261,6 +279,8 @@ Core site fields:
 * `UpdatedAtUtc`
 * `CreatedBy`
 * `UpdatedBy`
+
+`TrafficValueUsd` and `PagesCount` are internal-only site fields. They must be visible to `SuperAdmin`, `Admin`, `Editor`, `Linkbuilder`, and `Internal` where internal site fields are included, and hidden from `Client` and `Lite` in API responses, table views, and exports. Treat them like `QuarantineReason` and `Updated Date` for client-safe visibility.
 
 ### Location
 
@@ -369,6 +389,63 @@ Rules:
 * Site exports use `SitePriceOptions` and `SiteServiceAvailabilities` as the source of truth for service price columns. With no selected term, if service prices exist, export the lowest known service price across all terms as a raw numeric Excel value; otherwise export `YES`, `NO`, or `—` from the service availability status. With a selected `TermKey`, export only that term's service price as a raw numeric Excel value; if that service has no price for the selected term, export `—` without falling back to another term or global service availability status.
 * The standard export `Term` column contains the same unique ordered term list derived from `SitePriceOptions` as the Sites table; it is empty when the site has no numeric prices.
 
+### Webmaster offers and raw webmaster prices
+
+Webmaster offers store supply-side publisher/webmaster offer data. This data is separate from client-facing catalog prices and is sensitive.
+
+Access rules:
+
+* `SuperAdmin`, `Admin`, and `Linkbuilder` can view webmaster offers, raw webmaster prices, contact raw text, outreach sender raw text, linkbuilder mailbox raw text, parsed linkbuilder mailboxes, offer notes, client raw text, terms, and status.
+* `SuperAdmin` and `Admin` can run Webmaster Offers Import.
+* `Linkbuilder` can read webmaster offers but cannot import, edit, export, or download raw webmaster data.
+* `Editor`, `Internal`, `Client`, and `Lite` have no webmaster-offer permissions.
+* Client-safe site responses, table views, and exports must never expose webmaster offers or raw webmaster data.
+
+Storage rules:
+
+* One import row creates one webmaster offer for one existing site.
+* Repeated domains are valid.
+* Same domain with different contacts, prices, conditions, or notes must be stored as separate offers.
+* Same domain and same contact with different prices or conditions must also be stored as separate offers in phase 1.
+* Webmaster offers are matched to existing sites by normalized domain.
+* Webmaster offer import must not auto-create sites.
+* Webmasters are found or created by normalized `ContactRawText`.
+* Webmasters are not automatically merged by email.
+* `ContactRawText` is preserved and may contain messy legacy text, multiple emails, comments, reply markers, URLs, and other raw content.
+* `PrimaryEmail` is parsed from `ContactRawText` best-effort only. Import must never fail when a primary email cannot be detected.
+* If an email appears on the same line as a reply/direction marker, reply markers such as `отвечают`, `ответ`, `answer`, `reply`, `отв`, or `otv` take priority over generic direction/location markers such as `писать сюда`, `write here`, `сюда`, `здесь`, or `тут`, regardless of line order. Within the highest matching priority group, the first marked email is stored as `PrimaryEmail`.
+* If no marker exists and exactly one email exists in `ContactRawText`, that email is stored as `PrimaryEmail`.
+* If no marker exists and multiple emails exist in `ContactRawText`, `PrimaryEmail` remains empty and the raw contact text remains the source of truth.
+* Raw `LinkbuilderMailboxRawText` is always preserved.
+* Parsed linkbuilder mailboxes are linked best-effort against seeded active mailbox emails and aliases.
+* Unmapped mailbox aliases produce import warnings but do not invalidate the row.
+* `DfLinksRawText` and `SponsoredTagRawText` are optional raw-text fields stored on each webmaster offer. They are independent from the site's structured DF-link count and sponsored-tag fields.
+* `TermRawText` is preserved. Empty, invalid, or unsupported terms are stored as No term for phase 1.
+* Phase 1 supports No term, `permanent`, and positive finite year terms for parsed webmaster offer terms.
+* Webmaster offer status defaults to `Active`; `Inactive` is reserved for future cleanup.
+
+Raw webmaster price types in phase 1:
+
+* `Main`
+* `Casino`
+* `Crypto`
+* `Dating`
+* `LinkInsertion`
+* `LinkInsertion18Plus`
+* `Banner`
+* `Banner18Plus`
+* `HomepageTextLink`
+* `HomepageTextLink18Plus`
+
+Raw price rules:
+
+* Raw webmaster prices are stored separately from client-facing prices.
+* Importing webmaster offers must not calculate, recalculate, update, or expose client-facing prices.
+* A price row is created when either amount or details are present.
+* Amounts, when present, must be greater than `0`.
+* Details without amount are allowed.
+* Empty amount and empty details create no price row.
+
 ### Additional site fields
 
 `Language` is optional and stores the main language classification for a site.
@@ -403,7 +480,7 @@ Current term rules:
 * Empty term means unknown: all three term fields are empty.
 * `permanent` means `TermType = Permanent` and the value/unit fields are empty.
 * `N year` or `N years` means `TermType = Finite`, `TermValue = N`, and `TermUnit = Year`.
-* Only positive integer year terms are currently valid. Month/day/lifetime/abbreviated values are not supported.
+* Finite terms support only positive integer year values. Month/day/lifetime/abbreviated values are not supported.
 * The internal `unknown` term key is displayed as `No term`.
 
 ### Quarantine
@@ -490,6 +567,7 @@ Rules:
 * Available system table views are `Default`, `Pricing`, `SEO`, and `Full`.
 * System table views use `Standard` density by default.
 * `Created Date` is available to all users. `Updated Date`, `Created By`, and `Updated By` follow the same internal-only visibility and export restrictions as `QuarantineReason`.
+* `Traffic Value USD` and `Pages` are internal-only columns and must not be available to `Client` or `Lite` users.
 * Audit dates display and export as `DD.MM.YYYY`. Missing audit users display and export as `system`.
 * Custom table views are stored per user and per table; users can create, update, rename, duplicate, and delete custom views.
 * Custom view names must be unique per user/table ignoring case.
@@ -675,11 +753,11 @@ General rules:
 * Import results should show summary counts and downloadable details where supported.
 * Import result summaries are kept per user and per import type in browser storage for up to 30 minutes after a successful import.
 * Starting a new import clears only the current import type's selected file, errors, and saved result summary.
-* Import types have dedicated frontend routes under `/imports`, including `/imports/sites-import` and `/imports/sites-update-import`.
+* Import types have dedicated frontend routes under `/imports`, including `/imports/sites-import`, `/imports/sites-update-import`, and `/imports/webmaster-offers-import`.
 * Import logs must record who ran the import, when it happened, import type, and summary counts.
 * Duplicate domains in an input file should have explicit behavior. Current update-style imports use last valid row wins.
 * Import results distinguish invalid rows that were not saved from warning rows that were saved with review warnings.
-* Warning row downloads contain only `Domain`, `Location`, `Source Row Number`, and `Warning Details`.
+* Warning row downloads contain `Domain`, `Field`, `Raw Value`, `Source Row Number`, and `Warning`.
 
 ### Sites import
 
@@ -734,6 +812,7 @@ Rules:
 
 * Requires a `Domain` header and at least one supported update column.
 * Supports editable non-pricing catalog columns plus row-term pricing columns.
+* Supports internal-only site metric columns `TrafficValueUsd` and `PagesCount`.
 * Column order is flexible.
 * Unknown, duplicate, or blank headers are invalid.
 * If any pricing column is present, the file must include `Term`; `Term` alone does not count as an update column.
@@ -751,12 +830,16 @@ Rules:
 * After a service `YES`, `NO`, or empty cell, service availability is set to `Available` if any numeric prices for that service remain on other terms; otherwise it is set from the cell value.
 * Empty `Language` values overwrite existing language with empty/null.
 * Present empty nullable fields clear existing values according to the field storage convention.
+* Present empty `TrafficValueUsd` and `PagesCount` cells clear those fields.
+* Non-empty `TrafficValueUsd` values must be non-negative numeric values.
+* Non-empty `PagesCount` values must be non-negative integers.
 * Present empty required fields such as `DR` and `Traffic` are row-level errors.
 * `SnapshotDate` is not a supported CSV column; the import form's Snapshot Date field applies one date to the whole file.
 * The import form Snapshot Date accepts `yyyy-MM-dd`; if it is empty, metric history uses the import-start UTC date.
 * When both `Traffic` and `DR` are present, the import saves complete metric history snapshots to `SiteMetricSnapshots` with source `SitesUpdateImport`.
 * Re-importing the same domain and `SnapshotDate` overwrites the existing metric snapshot.
 * Traffic-only or DR-only update imports update the current catalog field but do not save metric history.
+* `TrafficValueUsd` and `PagesCount` updates do not create metric history snapshots.
 * If the `Location` column is missing, existing canonical location fields are unchanged.
 * If the `Location` column is present, empty values set canonical `UNKNOWN`, recognized values set the mapped canonical `LocationKey`, and non-empty unrecognized values set null `LocationKey` (`Other`) with a warning row.
 * Unknown domains are reported as unmatched; they are not inserted.
@@ -818,6 +901,69 @@ Rules:
   - full month name + year: `MMMM YYYY`, for example `January 2026`
   - short month name + year: `MMM YYYY`, for example `Jan 2026`
 * Month-only values are stored as the first day of the month plus `LastPublishedDateIsMonthOnly = true`.
+
+### Webmaster Offers Import
+
+Purpose: import webmaster/publisher offers and raw webmaster prices for existing catalog sites.
+
+Supported columns, in exact order:
+
+1. `Domain`
+2. `MainWebmasterPriceDetails`
+3. `MainWebmasterPriceUsd`
+4. `CasinoWebmasterPriceDetails`
+5. `CasinoWebmasterPriceUsd`
+6. `CryptoWebmasterPriceDetails`
+7. `CryptoWebmasterPriceUsd`
+8. `DatingWebmasterPriceDetails`
+9. `DatingWebmasterPriceUsd`
+10. `LinkInsertionWebmasterPriceDetails`
+11. `LinkInsertionWebmasterPriceUsd`
+12. `LinkInsertion18PlusWebmasterPriceDetails`
+13. `LinkInsertion18PlusWebmasterPriceUsd`
+14. `BannerWebmasterPriceDetails`
+15. `BannerWebmasterPriceUsd`
+16. `Banner18PlusWebmasterPriceDetails`
+17. `Banner18PlusWebmasterPriceUsd`
+18. `HomepageTextLinkWebmasterPriceDetails`
+19. `HomepageTextLinkWebmasterPriceUsd`
+20. `HomepageTextLink18PlusWebmasterPriceDetails`
+21. `HomepageTextLink18PlusWebmasterPriceUsd`
+22. `LinkPolicyText`
+23. `DfLinksRawText`
+24. `SponsoredTagRawText`
+25. `Term`
+26. `LinkbuilderMailboxRawText`
+27. `OutreachSenderRawText`
+28. `ContactRawText`
+29. `CommentText`
+30. `ClientRawText`
+
+Rules:
+
+* CSV UTF-8 only.
+* Headers are the stable clean import contract. Legacy Excel headers must be transformed before import.
+* The exact 30-column header is required.
+* `Domain` is required, normalized, and matched to an existing site.
+* Unknown domains are unmatched and do not create sites.
+* One valid matched row creates one `SiteWebmasterOffer`.
+* Empty rows are skipped.
+* Main price amount cells are empty or positive numeric values only.
+* Non-main price amount cells are empty, positive numeric values, `YES`, or `NO`.
+* Price detail cells are free text.
+* Numeric raw price values create raw price rows with availability status `Available`.
+* `YES` in non-main raw price amount columns creates a raw price row with availability status `AvailableWithUnknownPrice` and a null amount.
+* `NO` in non-main raw price amount columns creates a raw price row with availability status `NotAvailable` and a null amount.
+* `YES` and `NO` are not valid in `MainWebmasterPriceUsd`.
+* Empty amount plus non-empty details creates a raw price row with availability status `Unknown` and a null amount.
+* Price detail cells never set raw price availability; they are preserved as details only.
+* Empty amount plus empty details creates no raw price row.
+* `Term` supports empty/No term, `permanent`, and positive years such as `1 year` and `2 years`; months and other invalid values are stored as No term with raw text preserved.
+* Linkbuilder mailbox raw text is split by newline, `/`, `;`, `|`, and comma, matched case-insensitively against seeded mailbox emails and aliases, and all matched mailboxes are linked.
+* Unmapped mailbox tokens create warning rows and do not fail the offer.
+* Exact duplicate offers are skipped idempotently. Duplicate detection uses a SHA-256 fingerprint of canonical persisted offer content, including normalized domain, trimmed raw offer fields (including `DfLinksRawText` and `SponsoredTagRawText`), parsed term, and sorted raw price rows; it excludes IDs, timestamps, webmaster ID, mailbox IDs, and source row number.
+* Import results report imported, skipped duplicate, unmatched, invalid, and warning rows with downloads where applicable.
+* The import must not update site pricing, site availability, client-facing exports, or metric history.
 
 ## Exports
 
@@ -893,7 +1039,7 @@ Rules:
 * User reactivation UI is available only to `SuperAdmin` for disabled users.
 * Pending or expired reactivation UI is available only to `SuperAdmin` and offers reissue rather than starting a second reactivation flow.
 * Role-change UI is available only to `SuperAdmin` for active non-`SuperAdmin` users.
-* Role selectors include `Editor` and `Lite` as non-`SuperAdmin` roles.
+* Role selectors include `Editor`, `Linkbuilder`, and `Lite` as non-`SuperAdmin` roles.
 * Admin users list should show `DisplayName` for completed profiles and activation/profile status otherwise.
 * Admin users list should show the user's name/profile status and email together in a single user-identification column.
 * `SuperAdmin` and `Admin` can view readonly admin user details, including account role, display name, activation/profile status, export-limit information, and Google Drive connection status.
@@ -904,7 +1050,17 @@ Rules:
 * Role settings editing is available only to `SuperAdmin`.
 * Per-user export override editing is available only to `SuperAdmin`.
 * `SuperAdmin` export settings are shown as unlimited and not editable.
-* `Lite` export settings are shown as disabled and are not editable at role or user level.
+* `Lite`, `Editor`, and `Linkbuilder` export settings are shown as disabled and are not editable at role or user level.
+* The Imports page shows Webmaster Offers Import only to `SuperAdmin` and `Admin`.
+* The Webmaster Offers page is available only to `SuperAdmin`, `Admin`, and `Linkbuilder`.
+* Webmaster Offers UI supports domain search and read-only comparison of offers, contacts, outreach sender text, linkbuilder mailbox raw text, parsed mailboxes, raw prices by service, term, link policy, DF links raw text, sponsored tag raw text, comments, client raw text, and status.
+* Offers are displayed as compact independently expandable comparison rows sorted by effective numeric price ascending. Effective price is the numeric Main price when present, otherwise the lowest numeric price among the other raw price types. Offers without any numeric price are placed last. Equal effective prices are ordered newest first, then by offer ID. Multiple offers can be expanded at the same time; all offers are collapsed by default after search.
+* Leading offer metadata columns show offer number, status and term, and primary email. Offer dates and sponsored tag raw text are not shown in the comparison row.
+* All ten raw price types are shown in a horizontally scrollable comparison matrix. The table, including offer metadata, scrolls horizontally as one surface. Each price cell shows the numeric USD amount, `YES`, `NO`, or `—` as its primary value. The full raw price-details text is shown in secondary typography and wraps without truncation. If there is no numeric/status value but price details exist, the empty-value dash is omitted and only the secondary price-details text is shown.
+* Table typography, header treatment, status treatment, density, hover feedback, and empty-value presentation follow the Sites table patterns; all empty table values use the same `—` presentation.
+* Expanded offer details remain anchored while the comparison table scrolls. They show contact raw text, outreach sender text, sponsored tag raw text, link policy, DF links raw text, comments, client raw text, linkbuilder mailbox raw text, parsed mailboxes, and raw term. Price details are not repeated in a separate table.
+* The last successful Webmaster Offers query and response are cached in browser `sessionStorage` for one hour and restored when the user returns to the page in the same browser tab. The search field clear action removes the query, displayed result, errors, expanded state, and cached entry.
+* Webmaster Offers UI must not include edit controls or raw-data export controls in phase 1.
 * `SuperAdmin` and `Admin` can access an Analytics page for Business Demand based on Client export requests.
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
 * Business Demand price range analytics aggregate the selected `priceUsd`, Casino, Crypto, Link Insert, Link Insert Casino, or Dating price range stored in export analytics snapshots. Service price ranges are labelled with the service name so equal ranges for different price types remain distinct. Term-aware pricing adds selected term demand and price-range-by-term demand; export logs without `termKey` are counted as `Any term`.

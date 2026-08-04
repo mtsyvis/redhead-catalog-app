@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Exceptions;
+using Redhead.SitesCatalog.Infrastructure.LinkbuilderMailboxes;
 using Redhead.SitesCatalog.Infrastructure.Locations;
 
 namespace Redhead.SitesCatalog.Infrastructure.Data;
@@ -34,6 +35,7 @@ public static class SeedData
             // Seed canonical locations and groups
             await SeedLocationsAsync(context, logger);
             await BackfillMissingSiteLocationsAsync(context, logger);
+            await SeedLinkbuilderMailboxesAsync(context, logger);
 
             // Seed SuperAdmin user
             await SeedSuperAdminAsync(userManager, configuration, logger);
@@ -45,6 +47,41 @@ public static class SeedData
             logger.LogError(ex, "An error occurred while seeding the database");
             throw;
         }
+    }
+
+    private static async Task SeedLinkbuilderMailboxesAsync(ApplicationDbContext context, ILogger logger)
+    {
+        logger.LogInformation("Seeding linkbuilder mailboxes...");
+
+        var now = DateTime.UtcNow;
+        var seedRecords = LinkbuilderMailboxSeedDataProvider.Load();
+        var existingMailboxes = await context.LinkbuilderMailboxes
+            .ToDictionaryAsync(mailbox => mailbox.Email, StringComparer.Ordinal);
+
+        foreach (var seed in seedRecords)
+        {
+            if (existingMailboxes.TryGetValue(seed.Email, out var mailbox))
+            {
+                mailbox.DisplayName = seed.DisplayName;
+                mailbox.Aliases = seed.Aliases.ToArray();
+                mailbox.IsActive = true;
+                mailbox.UpdatedAtUtc = now;
+                continue;
+            }
+
+            context.LinkbuilderMailboxes.Add(new LinkbuilderMailbox
+            {
+                Id = Guid.NewGuid(),
+                Email = seed.Email,
+                DisplayName = seed.DisplayName,
+                Aliases = seed.Aliases.ToArray(),
+                IsActive = true,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        await context.SaveChangesAsync();
     }
 
     private static async Task SeedRolesAsync(RoleManager<IdentityRole> roleManager, ILogger logger)

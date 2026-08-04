@@ -49,6 +49,8 @@ export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
     'NumberDFLinks',
     'SponsoredTag',
     'Language',
+    'TrafficValueUsd',
+    'PagesCount',
   ],
   pricingColumns: [
     'Term',
@@ -59,7 +61,87 @@ export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
     'PriceLinkInsertCasino',
     'PriceDating',
   ],
-  starterTemplate: 'Domain,Term,PriceUsd\nexample.com,1 year,120',
+  starterTemplate: 'Domain,TrafficValueUsd,PagesCount\nexample.com,1234.56,987',
+};
+
+export const WEBMASTER_OFFERS_IMPORT_COLUMNS = [
+  'Domain',
+  'MainWebmasterPriceDetails',
+  'MainWebmasterPriceUsd',
+  'CasinoWebmasterPriceDetails',
+  'CasinoWebmasterPriceUsd',
+  'CryptoWebmasterPriceDetails',
+  'CryptoWebmasterPriceUsd',
+  'DatingWebmasterPriceDetails',
+  'DatingWebmasterPriceUsd',
+  'LinkInsertionWebmasterPriceDetails',
+  'LinkInsertionWebmasterPriceUsd',
+  'LinkInsertion18PlusWebmasterPriceDetails',
+  'LinkInsertion18PlusWebmasterPriceUsd',
+  'BannerWebmasterPriceDetails',
+  'BannerWebmasterPriceUsd',
+  'Banner18PlusWebmasterPriceDetails',
+  'Banner18PlusWebmasterPriceUsd',
+  'HomepageTextLinkWebmasterPriceDetails',
+  'HomepageTextLinkWebmasterPriceUsd',
+  'HomepageTextLink18PlusWebmasterPriceDetails',
+  'HomepageTextLink18PlusWebmasterPriceUsd',
+  'LinkPolicyText',
+  'DfLinksRawText',
+  'SponsoredTagRawText',
+  'Term',
+  'LinkbuilderMailboxRawText',
+  'OutreachSenderRawText',
+  'ContactRawText',
+  'CommentText',
+  'ClientRawText',
+] as const;
+
+export const WEBMASTER_OFFERS_IMPORT_TEMPLATE_VALUES: Partial<
+  Record<(typeof WEBMASTER_OFFERS_IMPORT_COLUMNS)[number], string>
+> = {
+  Domain: 'ze.nl',
+  ContactRawText:
+    'redactie@ze.nl\nsamenwerken@eenmedia.nl\nsamenwerken@eenmediapublishing.nl (отвечают тут)',
+  OutreachSenderRawText: 'sharon.ratliffs@collaboffer.com',
+  Term: '3 years',
+  MainWebmasterPriceUsd: '956',
+  MainWebmasterPriceDetails: '765 EUR',
+  CasinoWebmasterPriceUsd: '1375',
+  CasinoWebmasterPriceDetails: '1100 EUR',
+  CryptoWebmasterPriceUsd: '1375',
+  CryptoWebmasterPriceDetails: '1100 EUR',
+  LinkInsertionWebmasterPriceDetails: 'NO',
+  LinkInsertion18PlusWebmasterPriceDetails: 'NO',
+  BannerWebmasterPriceDetails: 'NO',
+  Banner18PlusWebmasterPriceDetails: 'NO',
+  HomepageTextLinkWebmasterPriceDetails: 'NO',
+  HomepageTextLink18PlusWebmasterPriceDetails: 'NO',
+  LinkPolicyText: 'DF 2',
+  DfLinksRawText: '2 DF links',
+  SponsoredTagRawText: 'Sponsored',
+  CommentText:
+    '350 to 600 words\none duty-free picture (minimum of 900 x 600 pixels)\nTexts and photos are provided in a Word file and must be written in flawless Dutch',
+  ClientRawText: 'Повторная связь для PM',
+};
+
+function toCsvValue(value: string) {
+  if (!/[",\r\n]/.test(value)) {
+    return value;
+  }
+
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+export const WEBMASTER_OFFERS_IMPORT_TEMPLATE = `${WEBMASTER_OFFERS_IMPORT_COLUMNS.join(',')}\n${WEBMASTER_OFFERS_IMPORT_COLUMNS.map(
+  (column) => toCsvValue(WEBMASTER_OFFERS_IMPORT_TEMPLATE_VALUES[column] ?? '')
+).join(',')}`;
+
+export const WEBMASTER_OFFERS_IMPORT_INSTRUCTIONS = {
+  title: 'Import webmaster offers',
+  description: 'Upload the clean Webmaster Offers CSV. Domains must already exist in the catalog.',
+  requiredColumns: WEBMASTER_OFFERS_IMPORT_COLUMNS,
+  template: WEBMASTER_OFFERS_IMPORT_TEMPLATE,
 };
 
 export const AVAILABILITY_IMPORT_INSTRUCTIONS = {

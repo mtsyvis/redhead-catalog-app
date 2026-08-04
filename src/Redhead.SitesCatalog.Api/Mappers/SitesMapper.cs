@@ -160,6 +160,8 @@ public static class SitesMapper
             Domain = dto.Domain,
             DR = dto.DR,
             Traffic = dto.Traffic,
+            TrafficValueUsd = includeInternalFields ? dto.TrafficValueUsd : null,
+            PagesCount = includeInternalFields ? dto.PagesCount : null,
             Location = dto.Location,
             ImportedLocationRaw = dto.ImportedLocationRaw,
             Language = dto.Language,

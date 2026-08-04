@@ -732,6 +732,53 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.ToTable("ImportLogs", (string)null);
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LinkbuilderMailbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<string[]>("Aliases")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasDefaultValueSql("ARRAY[]::text[]");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Aliases");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Aliases"), "gin");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("LinkbuilderMailboxes", (string)null);
+                });
+
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LiteMultiSearchUsage", b =>
                 {
                     b.Property<string>("UserId")
@@ -862,6 +909,11 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         },
                         new
                         {
+                            RoleName = "Linkbuilder",
+                            ExportLimitMode = 1
+                        },
+                        new
+                        {
                             RoleName = "Internal",
                             ExportLimitMode = 2,
                             ExportLimitRows = 10000
@@ -945,6 +997,9 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Property<int?>("NumberDFLinks")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("PagesCount")
+                        .HasColumnType("integer");
+
                     b.Property<decimal?>("PriceCasino")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -1017,6 +1072,10 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Property<long>("Traffic")
                         .HasColumnType("bigint");
 
+                    b.Property<decimal?>("TrafficValueUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1047,9 +1106,13 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
 
                     b.HasIndex("NumberDFLinks");
 
+                    b.HasIndex("PagesCount");
+
                     b.HasIndex("PriceUsd");
 
                     b.HasIndex("Traffic");
+
+                    b.HasIndex("TrafficValueUsd");
 
                     b.HasIndex("LastPublishedDate", "LastPublishedDateIsMonthOnly", "Domain");
 
@@ -1058,6 +1121,8 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.ToTable("Sites", null, t =>
                         {
                             t.HasCheckConstraint("CK_Sites_NumberDFLinks_PositiveOrNull", "\"NumberDFLinks\" IS NULL OR \"NumberDFLinks\" > 0");
+
+                            t.HasCheckConstraint("CK_Sites_PagesCount_NonNegativeOrNull", "\"PagesCount\" IS NULL OR \"PagesCount\" >= 0");
 
                             t.HasCheckConstraint("CK_Sites_PriceCasino_StatusConsistency", "(\"PriceCasinoStatus\" = 1 AND \"PriceCasino\" IS NOT NULL AND \"PriceCasino\" > 0) OR (\"PriceCasinoStatus\" IN (0, 2, 3) AND \"PriceCasino\" IS NULL)");
 
@@ -1072,6 +1137,8 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                             t.HasCheckConstraint("CK_Sites_PriceUsd_PositiveOrNull", "\"PriceUsd\" IS NULL OR \"PriceUsd\" > 0");
 
                             t.HasCheckConstraint("CK_Sites_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
+
+                            t.HasCheckConstraint("CK_Sites_TrafficValueUsd_NonNegativeOrNull", "\"TrafficValueUsd\" IS NULL OR \"TrafficValueUsd\" >= 0");
                         });
                 });
 
@@ -1207,6 +1274,115 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_SiteServiceAvailabilities_ServiceType_NotMain", "\"ServiceType\" <> 0");
                         });
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SiteWebmasterOffer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClientRawText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CommentText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContactRawText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DfLinksRawText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImportFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LinkPolicyText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LinkbuilderMailboxRawText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OutreachSenderRawText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SiteDomain")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("SponsoredTagRawText")
+                        .HasColumnType("text");
+
+                    b.Property<short>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((short)1);
+
+                    b.Property<string>("TermRawText")
+                        .HasColumnType("text");
+
+                    b.Property<short?>("TermType")
+                        .HasColumnType("smallint");
+
+                    b.Property<short?>("TermUnit")
+                        .HasColumnType("smallint");
+
+                    b.Property<int?>("TermValue")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("WebmasterId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImportFingerprint")
+                        .IsUnique();
+
+                    b.HasIndex("SiteDomain");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("WebmasterId");
+
+                    b.HasIndex("SiteDomain", "Status");
+
+                    b.ToTable("SiteWebmasterOffers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SiteWebmasterOffers_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
+                        });
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SiteWebmasterOfferLinkbuilderMailbox", b =>
+                {
+                    b.Property<Guid>("SiteWebmasterOfferId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LinkbuilderMailboxId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<short>("Source")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((short)1);
+
+                    b.HasKey("SiteWebmasterOfferId", "LinkbuilderMailboxId");
+
+                    b.HasIndex("LinkbuilderMailboxId");
+
+                    b.ToTable("SiteWebmasterOfferLinkbuilderMailboxes", (string)null);
                 });
 
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SystemJobArtifact", b =>
@@ -1457,6 +1633,100 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.Webmaster", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContactRawText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("NormalizedContactRawText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PrimaryEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedContactRawText")
+                        .IsUnique();
+
+                    b.HasIndex("PrimaryEmail");
+
+                    b.ToTable("Webmasters", (string)null);
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.WebmasterOfferPrice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("AvailabilityStatus")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<short>("PriceType")
+                        .HasColumnType("smallint");
+
+                    b.Property<Guid>("SiteWebmasterOfferId")
+                        .HasColumnType("uuid");
+
+                    b.Property<short?>("TermType")
+                        .HasColumnType("smallint");
+
+                    b.Property<short?>("TermUnit")
+                        .HasColumnType("smallint");
+
+                    b.Property<int?>("TermValue")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WebmasterPriceDetails")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("WebmasterPriceUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PriceType");
+
+                    b.HasIndex("SiteWebmasterOfferId", "PriceType");
+
+                    b.ToTable("WebmasterOfferPrices", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WebmasterOfferPrices_AvailabilityStatus_Consistency", "(\"AvailabilityStatus\" = 1 AND \"WebmasterPriceUsd\" IS NOT NULL AND \"WebmasterPriceUsd\" > 0) OR (\"AvailabilityStatus\" IN (0, 2, 3) AND \"WebmasterPriceUsd\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_WebmasterOfferPrices_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
+
+                            t.HasCheckConstraint("CK_WebmasterOfferPrices_WebmasterPriceUsd_PositiveOrNull", "\"WebmasterPriceUsd\" IS NULL OR \"WebmasterPriceUsd\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -1620,6 +1890,44 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Navigation("Site");
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SiteWebmasterOffer", b =>
+                {
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.Site", "Site")
+                        .WithMany("WebmasterOffers")
+                        .HasForeignKey("SiteDomain")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.Webmaster", "Webmaster")
+                        .WithMany("Offers")
+                        .HasForeignKey("WebmasterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Site");
+
+                    b.Navigation("Webmaster");
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SiteWebmasterOfferLinkbuilderMailbox", b =>
+                {
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.LinkbuilderMailbox", "LinkbuilderMailbox")
+                        .WithMany("OfferLinks")
+                        .HasForeignKey("LinkbuilderMailboxId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.SiteWebmasterOffer", "SiteWebmasterOffer")
+                        .WithMany("LinkbuilderMailboxes")
+                        .HasForeignKey("SiteWebmasterOfferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LinkbuilderMailbox");
+
+                    b.Navigation("SiteWebmasterOffer");
+                });
+
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SystemJobArtifact", b =>
                 {
                     b.HasOne("Redhead.SitesCatalog.Domain.Entities.SystemJobRun", "SystemJobRun")
@@ -1658,6 +1966,17 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.WebmasterOfferPrice", b =>
+                {
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.SiteWebmasterOffer", "SiteWebmasterOffer")
+                        .WithMany("Prices")
+                        .HasForeignKey("SiteWebmasterOfferId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SiteWebmasterOffer");
+                });
+
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.AhrefsSyncRun", b =>
                 {
                     b.Navigation("Items");
@@ -1679,6 +1998,11 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Navigation("ExportedDomainAccesses");
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LinkbuilderMailbox", b =>
+                {
+                    b.Navigation("OfferLinks");
+                });
+
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LocationGroup", b =>
                 {
                     b.Navigation("Items");
@@ -1689,11 +2013,25 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Navigation("PriceOptions");
 
                     b.Navigation("ServiceAvailabilities");
+
+                    b.Navigation("WebmasterOffers");
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SiteWebmasterOffer", b =>
+                {
+                    b.Navigation("LinkbuilderMailboxes");
+
+                    b.Navigation("Prices");
                 });
 
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.SystemJobRun", b =>
                 {
                     b.Navigation("Artifacts");
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.Webmaster", b =>
+                {
+                    b.Navigation("Offers");
                 });
 #pragma warning restore 612, 618
         }

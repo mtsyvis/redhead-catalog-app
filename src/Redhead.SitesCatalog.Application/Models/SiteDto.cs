@@ -10,6 +10,8 @@ public class SiteDto
     public string Domain { get; set; } = string.Empty;
     public double DR { get; set; }
     public long Traffic { get; set; }
+    public decimal? TrafficValueUsd { get; set; }
+    public int? PagesCount { get; set; }
     public string Location { get; set; } = string.Empty;
     public string? ImportedLocationRaw { get; set; }
     public string? Language { get; set; }

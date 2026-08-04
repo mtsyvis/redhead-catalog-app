@@ -158,6 +158,8 @@ public class SitesMapperTests
             Domain = "example.com",
             DR = 70,
             Traffic = 50000,
+            TrafficValueUsd = 1234.56m,
+            PagesCount = 987,
             Location = "US",
             Language = "EN",
             NumberDFLinks = 3,
@@ -207,6 +209,8 @@ public class SitesMapperTests
         Assert.Equal("example.com", response.Domain);
         Assert.Equal(70, response.DR);
         Assert.Equal(50000, response.Traffic);
+        Assert.Equal(1234.56m, response.TrafficValueUsd);
+        Assert.Equal(987, response.PagesCount);
         Assert.Equal("US", response.Location);
         Assert.Equal("EN", response.Language);
         Assert.Equal(3, response.NumberDFLinks);
@@ -289,6 +293,8 @@ public class SitesMapperTests
         var dto = new SiteDto
         {
             Domain = "example.com",
+            TrafficValueUsd = 1234.56m,
+            PagesCount = 987,
             CreatedAtUtc = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             UpdatedAtUtc = new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc),
             CreatedBy = "creator@test.com",
@@ -303,6 +309,8 @@ public class SitesMapperTests
         Assert.Equal(default, response.UpdatedAtUtc);
         Assert.Null(response.CreatedBy);
         Assert.Null(response.UpdatedBy);
+        Assert.Null(response.TrafficValueUsd);
+        Assert.Null(response.PagesCount);
     }
 
     [Fact]

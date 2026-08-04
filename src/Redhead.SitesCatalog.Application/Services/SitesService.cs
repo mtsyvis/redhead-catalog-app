@@ -54,6 +54,8 @@ public class SitesService : ISitesService
                 Domain = s.Domain,
                 DR = s.DR,
                 Traffic = s.Traffic,
+                TrafficValueUsd = s.TrafficValueUsd,
+                PagesCount = s.PagesCount,
                 Location = s.LocationKey == null
                     ? LocationDisplayFormatter.OtherDisplayName
                     : s.CanonicalLocation != null
@@ -321,6 +323,8 @@ public class SitesService : ISitesService
                 Domain = s.Domain,
                 DR = s.DR,
                 Traffic = s.Traffic,
+                TrafficValueUsd = s.TrafficValueUsd,
+                PagesCount = s.PagesCount,
                 Location = s.LocationKey == null
                     ? LocationDisplayFormatter.OtherDisplayName
                     : s.CanonicalLocation != null
@@ -451,6 +455,8 @@ public class SitesService : ISitesService
                 Domain = s.Domain,
                 DR = s.DR,
                 Traffic = s.Traffic,
+                TrafficValueUsd = s.TrafficValueUsd,
+                PagesCount = s.PagesCount,
                 Location = s.LocationKey == null
                     ? LocationDisplayFormatter.OtherDisplayName
                     : s.CanonicalLocation != null

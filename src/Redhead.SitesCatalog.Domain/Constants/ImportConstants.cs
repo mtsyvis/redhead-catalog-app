@@ -45,6 +45,10 @@ public static class ImportConstants
     /// </summary>
     public const string ImportArtifactSlugSitesUpdate = "sites-update";
 
+    public const string ImportTypeWebmasterOffers = "WebmasterOffers";
+
+    public const string ImportArtifactSlugWebmasterOffers = "webmaster-offers";
+
     /// <summary>
     /// Default batch size for site inserts
     /// </summary>
@@ -107,7 +111,77 @@ public static class ImportConstants
         public const string SponsoredTag = "SponsoredTag";
         public const string Term = "Term";
         public const string Language = "Language";
+        public const string TrafficValueUsd = "TrafficValueUsd";
+        public const string PagesCount = "PagesCount";
     }
+
+    public static class WebmasterOffersImportColumns
+    {
+        public const string Domain = "Domain";
+        public const string ContactRawText = "ContactRawText";
+        public const string OutreachSenderRawText = "OutreachSenderRawText";
+        public const string LinkbuilderMailboxRawText = "LinkbuilderMailboxRawText";
+        public const string Term = "Term";
+        public const string MainWebmasterPriceUsd = "MainWebmasterPriceUsd";
+        public const string MainWebmasterPriceDetails = "MainWebmasterPriceDetails";
+        public const string CasinoWebmasterPriceUsd = "CasinoWebmasterPriceUsd";
+        public const string CasinoWebmasterPriceDetails = "CasinoWebmasterPriceDetails";
+        public const string CryptoWebmasterPriceUsd = "CryptoWebmasterPriceUsd";
+        public const string CryptoWebmasterPriceDetails = "CryptoWebmasterPriceDetails";
+        public const string DatingWebmasterPriceUsd = "DatingWebmasterPriceUsd";
+        public const string DatingWebmasterPriceDetails = "DatingWebmasterPriceDetails";
+        public const string LinkInsertionWebmasterPriceUsd = "LinkInsertionWebmasterPriceUsd";
+        public const string LinkInsertionWebmasterPriceDetails = "LinkInsertionWebmasterPriceDetails";
+        public const string LinkInsertion18PlusWebmasterPriceUsd = "LinkInsertion18PlusWebmasterPriceUsd";
+        public const string LinkInsertion18PlusWebmasterPriceDetails = "LinkInsertion18PlusWebmasterPriceDetails";
+        public const string BannerWebmasterPriceUsd = "BannerWebmasterPriceUsd";
+        public const string BannerWebmasterPriceDetails = "BannerWebmasterPriceDetails";
+        public const string Banner18PlusWebmasterPriceUsd = "Banner18PlusWebmasterPriceUsd";
+        public const string Banner18PlusWebmasterPriceDetails = "Banner18PlusWebmasterPriceDetails";
+        public const string HomepageTextLinkWebmasterPriceUsd = "HomepageTextLinkWebmasterPriceUsd";
+        public const string HomepageTextLinkWebmasterPriceDetails = "HomepageTextLinkWebmasterPriceDetails";
+        public const string HomepageTextLink18PlusWebmasterPriceUsd = "HomepageTextLink18PlusWebmasterPriceUsd";
+        public const string HomepageTextLink18PlusWebmasterPriceDetails = "HomepageTextLink18PlusWebmasterPriceDetails";
+        public const string LinkPolicyText = "LinkPolicyText";
+        public const string DfLinksRawText = "DfLinksRawText";
+        public const string SponsoredTagRawText = "SponsoredTagRawText";
+        public const string CommentText = "CommentText";
+        public const string ClientRawText = "ClientRawText";
+    }
+
+    public static readonly string[] WebmasterOffersImportColumnsInOrder =
+    [
+        WebmasterOffersImportColumns.Domain,
+        WebmasterOffersImportColumns.MainWebmasterPriceDetails,
+        WebmasterOffersImportColumns.MainWebmasterPriceUsd,
+        WebmasterOffersImportColumns.CasinoWebmasterPriceDetails,
+        WebmasterOffersImportColumns.CasinoWebmasterPriceUsd,
+        WebmasterOffersImportColumns.CryptoWebmasterPriceDetails,
+        WebmasterOffersImportColumns.CryptoWebmasterPriceUsd,
+        WebmasterOffersImportColumns.DatingWebmasterPriceDetails,
+        WebmasterOffersImportColumns.DatingWebmasterPriceUsd,
+        WebmasterOffersImportColumns.LinkInsertionWebmasterPriceDetails,
+        WebmasterOffersImportColumns.LinkInsertionWebmasterPriceUsd,
+        WebmasterOffersImportColumns.LinkInsertion18PlusWebmasterPriceDetails,
+        WebmasterOffersImportColumns.LinkInsertion18PlusWebmasterPriceUsd,
+        WebmasterOffersImportColumns.BannerWebmasterPriceDetails,
+        WebmasterOffersImportColumns.BannerWebmasterPriceUsd,
+        WebmasterOffersImportColumns.Banner18PlusWebmasterPriceDetails,
+        WebmasterOffersImportColumns.Banner18PlusWebmasterPriceUsd,
+        WebmasterOffersImportColumns.HomepageTextLinkWebmasterPriceDetails,
+        WebmasterOffersImportColumns.HomepageTextLinkWebmasterPriceUsd,
+        WebmasterOffersImportColumns.HomepageTextLink18PlusWebmasterPriceDetails,
+        WebmasterOffersImportColumns.HomepageTextLink18PlusWebmasterPriceUsd,
+        WebmasterOffersImportColumns.LinkPolicyText,
+        WebmasterOffersImportColumns.DfLinksRawText,
+        WebmasterOffersImportColumns.SponsoredTagRawText,
+        WebmasterOffersImportColumns.Term,
+        WebmasterOffersImportColumns.LinkbuilderMailboxRawText,
+        WebmasterOffersImportColumns.OutreachSenderRawText,
+        WebmasterOffersImportColumns.ContactRawText,
+        WebmasterOffersImportColumns.CommentText,
+        WebmasterOffersImportColumns.ClientRawText
+    ];
 
     /// <summary>
     /// Required base column names for insert sites import. Header order is flexible.
@@ -146,6 +220,8 @@ public static class ImportConstants
         SitesImportColumns.NumberDFLinks,
         SitesImportColumns.SponsoredTag,
         SitesImportColumns.Language,
+        SitesImportColumns.TrafficValueUsd,
+        SitesImportColumns.PagesCount,
     };
 
 }

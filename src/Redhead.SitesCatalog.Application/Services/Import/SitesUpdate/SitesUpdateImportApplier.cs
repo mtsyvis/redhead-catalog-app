@@ -19,6 +19,16 @@ internal static class SitesUpdateImportApplier
             site.Traffic = update.Traffic;
         }
 
+        if (update.PresentColumns.Contains(ImportConstants.SitesImportColumns.TrafficValueUsd))
+        {
+            site.TrafficValueUsd = update.TrafficValueUsd;
+        }
+
+        if (update.PresentColumns.Contains(ImportConstants.SitesImportColumns.PagesCount))
+        {
+            site.PagesCount = update.PagesCount;
+        }
+
         if (update.PresentColumns.Contains(ImportConstants.SitesImportColumns.Location))
         {
             site.Location = update.Location ?? string.Empty;

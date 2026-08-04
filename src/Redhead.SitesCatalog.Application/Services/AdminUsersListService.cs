@@ -171,9 +171,10 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 user.Role == AppRoles.SuperAdmin ? 0 :
                 user.Role == AppRoles.Admin ? 1 :
                 user.Role == AppRoles.Editor ? 2 :
-                user.Role == AppRoles.Internal ? 3 :
-                user.Role == AppRoles.Client ? 4 :
-                user.Role == AppRoles.Lite ? 5 :
+                user.Role == AppRoles.Linkbuilder ? 3 :
+                user.Role == AppRoles.Internal ? 4 :
+                user.Role == AppRoles.Client ? 5 :
+                user.Role == AppRoles.Lite ? 6 :
                 int.MaxValue)
             .ThenBy(user => user.NormalizedEmail)
             .ThenBy(user => user.Id);

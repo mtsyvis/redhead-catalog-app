@@ -23,6 +23,8 @@ internal static class SitesExportColumnRegistry
         Exportable("domain", "Domain", site => XlsxCell.Text(site.Domain), 28),
         Exportable("dr", "DR", site => XlsxCell.Number(Convert.ToDecimal(site.DR, CultureInfo.InvariantCulture), XlsxCellStyle.Integer), 8),
         Exportable("traffic", "Traffic", site => XlsxCell.Number(site.Traffic, XlsxCellStyle.Integer), 14),
+        Exportable("trafficValueUsd", "Traffic Value USD", site => XlsxCell.Number(site.TrafficValueUsd, XlsxCellStyle.Decimal), 18, NonClientOnly),
+        Exportable("pagesCount", "Pages", site => XlsxCell.Number(site.PagesCount, XlsxCellStyle.Integer), 12, NonClientOnly),
         Exportable("location", "Location", site => XlsxCell.Text(LocationDisplayFormatter.Format(site.LocationKey, site.CanonicalLocation?.DisplayName, site.Location)), 14),
         ExportableWithTerm("priceUsd", "Price USD", (site, selectedTermKey, priceCellMode) => FormatMainPrice(site, selectedTermKey, priceCellMode), 24),
         ExportableWithTerm("priceCasino", "Casino", (site, selectedTermKey, priceCellMode) => FormatOptionalService(site, PriceType.Casino, selectedTermKey, priceCellMode), 24),

@@ -6,8 +6,10 @@ import {
   importSites,
   importSitesUpdate,
   importLastPublished,
+  importWebmasterOffers,
   type SitesImportResult,
   type UpdateImportResult,
+  type WebmasterOffersImportResult,
   MAX_IMPORT_FILE_SIZE_BYTES,
   FILE_TOO_LARGE_MESSAGE,
   ACCEPT_FILES,
@@ -28,7 +30,9 @@ import {
 import { SitesImportInstructions } from '../components/imports/SitesImportInstructions';
 import { useAuth } from '../contexts/AuthContext';
 import { UpdateImportResultCard } from '../components/imports/UpdateImportResultCard';
+import { WebmasterOffersImportResultCard } from '../components/imports/WebmasterOffersImportResultCard';
 import { useUserRoles } from '../hooks/useUserRoles';
+import { WebmasterOffersImportInstructions } from '../components/imports/WebmasterOffersImportInstructions';
 
 const IMPORT_RESULT_STORAGE_PREFIX = 'redhead.importResults.v1';
 
@@ -53,12 +57,67 @@ const IMPORT_ROUTES = [
     path: '/imports/last-published-import',
     label: 'Last Published Import',
   },
+  {
+    key: 'webmaster-offers-import',
+    path: '/imports/webmaster-offers-import',
+    label: 'Webmaster Offers Import',
+    requiresWebmasterOffersImport: true,
+  },
 ] as const;
 
 type ImportRoute = (typeof IMPORT_ROUTES)[number];
 
 function buildPersistedStateKey(userId: string, importKey: string) {
   return `${IMPORT_RESULT_STORAGE_PREFIX}.${userId}.${importKey}`;
+}
+
+function WebmasterOffersImportTab({ persistedStateKey }: { readonly persistedStateKey: string }) {
+  const {
+    file,
+    fileInputKey,
+    loading,
+    error,
+    result,
+    persistedResult,
+    setError,
+    clearImportState,
+    handleFileChange,
+    handleSubmit,
+  } = useImportTab<WebmasterOffersImportResult>(importWebmasterOffers, {
+    maxFileSizeBytes: MAX_IMPORT_FILE_SIZE_BYTES,
+    fileTooLargeMessage: FILE_TOO_LARGE_MESSAGE,
+    persistedStateKey,
+  });
+
+  return (
+    <ImportTabContent
+      instructions={<WebmasterOffersImportInstructions />}
+      uploadSection={
+        <ImportUploadSection
+          file={file}
+          fileInputKey={fileInputKey}
+          loading={loading}
+          accept={ACCEPT_FILES}
+          maxFileSizeBytes={MAX_IMPORT_FILE_SIZE_BYTES}
+          onFileChange={handleFileChange}
+          onSubmit={handleSubmit}
+        />
+      }
+      error={error}
+      onClearError={() => setError(null)}
+      result={
+        result ? (
+          <WebmasterOffersImportResultCard
+            result={result}
+            fileName={persistedResult?.fileName}
+            fileSize={persistedResult?.fileSize}
+            completedAtUtc={persistedResult?.completedAtUtc}
+            onStartNewImport={clearImportState}
+          />
+        ) : null
+      }
+    />
+  );
 }
 
 function getTodayUtcDateInputValue() {
@@ -201,6 +260,10 @@ function ImportRouteContent({
     return <AvailabilityImportTab persistedStateKey={persistedStateKey} />;
   }
 
+  if (activeImport.key === 'webmaster-offers-import') {
+    return <WebmasterOffersImportTab persistedStateKey={persistedStateKey} />;
+  }
+
   return (
     <UpdateImportTab
       resultTitle="Last published import result"
@@ -240,10 +303,13 @@ function ImportRouteContent({
 
 export function Imports() {
   const { user } = useAuth();
-  const { canRunImports } = useUserRoles();
+  const { canRunImports, canImportWebmasterOffers } = useUserRoles();
   const location = useLocation();
   const navigate = useNavigate();
-  const activeImport = IMPORT_ROUTES.find((route) => route.path === location.pathname);
+  const visibleImportRoutes = IMPORT_ROUTES.filter((route) =>
+    !('requiresWebmasterOffersImport' in route) || canImportWebmasterOffers
+  );
+  const activeImport = visibleImportRoutes.find((route) => route.path === location.pathname);
 
   if (!canRunImports) {
     return <Navigate to="/sites" replace />;
@@ -265,7 +331,7 @@ export function Imports() {
         onChange={(_event, nextPath) => navigate(nextPath)}
         sx={{ mb: 3 }}
       >
-        {IMPORT_ROUTES.map((route) => (
+        {visibleImportRoutes.map((route) => (
           <Tab key={route.path} label={route.label} value={route.path} />
         ))}
       </Tabs>

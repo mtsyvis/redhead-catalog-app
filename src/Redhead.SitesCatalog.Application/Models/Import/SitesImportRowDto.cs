@@ -18,6 +18,10 @@ public class SitesImportRowDto
     public double? DR { get; set; }
     public string? TrafficRaw { get; set; }
     public long? Traffic { get; set; }
+    public string? TrafficValueUsdRaw { get; set; }
+    public decimal? TrafficValueUsd { get; set; }
+    public string? PagesCountRaw { get; set; }
+    public int? PagesCount { get; set; }
     public string? Location { get; set; }
     public string? NumberDFLinksRaw { get; set; }
     public int? NumberDFLinks { get; set; }

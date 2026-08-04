@@ -556,6 +556,24 @@ public class SitesQueryBuilder : ISitesQueryBuilder
             SortFields.Traffic => direction == SortingDefaults.Descending
                 ? query.OrderByDescending(s => s.Traffic)
                 : query.OrderBy(s => s.Traffic),
+            SortFields.TrafficValueUsd => direction == SortingDefaults.Descending
+                ? query
+                    .OrderBy(s => s.TrafficValueUsd == null ? 1 : 0)
+                    .ThenByDescending(s => s.TrafficValueUsd)
+                    .ThenBy(s => s.Domain)
+                : query
+                    .OrderBy(s => s.TrafficValueUsd == null ? 1 : 0)
+                    .ThenBy(s => s.TrafficValueUsd)
+                    .ThenBy(s => s.Domain),
+            SortFields.PagesCount => direction == SortingDefaults.Descending
+                ? query
+                    .OrderBy(s => s.PagesCount == null ? 1 : 0)
+                    .ThenByDescending(s => s.PagesCount)
+                    .ThenBy(s => s.Domain)
+                : query
+                    .OrderBy(s => s.PagesCount == null ? 1 : 0)
+                    .ThenBy(s => s.PagesCount)
+                    .ThenBy(s => s.Domain),
             SortFields.Location => direction == SortingDefaults.Descending
                 ? query.OrderByDescending(s => s.Location)
                 : query.OrderBy(s => s.Location),

@@ -74,6 +74,46 @@ internal static class SitesUpdateImportRowValidator
             }
         }
 
+        if (presentColumns.Contains(ImportConstants.SitesImportColumns.TrafficValueUsd))
+        {
+            if (string.IsNullOrWhiteSpace(row.TrafficValueUsdRaw))
+            {
+                update = update with { TrafficValueUsd = null };
+            }
+            else if (!row.TrafficValueUsd.HasValue)
+            {
+                return RowError(row, domain, ImportConstants.SitesImportColumns.TrafficValueUsd, row.TrafficValueUsdRaw, "Invalid TrafficValueUsd value.");
+            }
+            else if (row.TrafficValueUsd.Value < 0)
+            {
+                return RowError(row, domain, ImportConstants.SitesImportColumns.TrafficValueUsd, row.TrafficValueUsdRaw, "TrafficValueUsd must be 0 or greater.");
+            }
+            else
+            {
+                update = update with { TrafficValueUsd = row.TrafficValueUsd.Value };
+            }
+        }
+
+        if (presentColumns.Contains(ImportConstants.SitesImportColumns.PagesCount))
+        {
+            if (string.IsNullOrWhiteSpace(row.PagesCountRaw))
+            {
+                update = update with { PagesCount = null };
+            }
+            else if (!row.PagesCount.HasValue)
+            {
+                return RowError(row, domain, ImportConstants.SitesImportColumns.PagesCount, row.PagesCountRaw, "Invalid PagesCount value.");
+            }
+            else if (row.PagesCount.Value < 0)
+            {
+                return RowError(row, domain, ImportConstants.SitesImportColumns.PagesCount, row.PagesCountRaw, "PagesCount must be 0 or greater.");
+            }
+            else
+            {
+                update = update with { PagesCount = row.PagesCount.Value };
+            }
+        }
+
         if (presentColumns.Contains(ImportConstants.SitesImportColumns.Location))
         {
             var location = row.Location?.Trim() ?? string.Empty;
@@ -266,6 +306,8 @@ internal static class SitesUpdateImportRowValidator
 
         return (!presentColumns.Contains(ImportConstants.SitesImportColumns.DR) || string.IsNullOrWhiteSpace(row.DRRaw))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Traffic) || string.IsNullOrWhiteSpace(row.TrafficRaw))
+               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.TrafficValueUsd) || string.IsNullOrWhiteSpace(row.TrafficValueUsdRaw))
+               && (!presentColumns.Contains(ImportConstants.SitesImportColumns.PagesCount) || string.IsNullOrWhiteSpace(row.PagesCountRaw))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Location) || string.IsNullOrWhiteSpace(row.Location))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.NumberDFLinks) || string.IsNullOrWhiteSpace(row.NumberDFLinksRaw))
                && (!presentColumns.Contains(ImportConstants.SitesImportColumns.Language) || string.IsNullOrWhiteSpace(row.Language))

@@ -21,7 +21,10 @@ public static class DecimalParsingHelper
             return false;
         }
 
-        var normalized = s.Trim();
+        var normalized = s.Trim()
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("\u00A0", string.Empty, StringComparison.Ordinal)
+            .Replace("\u202F", string.Empty, StringComparison.Ordinal);
 
         if (normalized.Contains(',') && !normalized.Contains('.'))
         {

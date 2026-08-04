@@ -32,6 +32,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<SiteMetricSnapshot> SiteMetricSnapshots => Set<SiteMetricSnapshot>();
     public DbSet<AhrefsSyncRun> AhrefsSyncRuns => Set<AhrefsSyncRun>();
     public DbSet<AhrefsSyncRunItem> AhrefsSyncRunItems => Set<AhrefsSyncRunItem>();
+    public DbSet<Webmaster> Webmasters => Set<Webmaster>();
+    public DbSet<LinkbuilderMailbox> LinkbuilderMailboxes => Set<LinkbuilderMailbox>();
+    public DbSet<SiteWebmasterOffer> SiteWebmasterOffers => Set<SiteWebmasterOffer>();
+    public DbSet<SiteWebmasterOfferLinkbuilderMailbox> SiteWebmasterOfferLinkbuilderMailboxes => Set<SiteWebmasterOfferLinkbuilderMailbox>();
+    public DbSet<WebmasterOfferPrice> WebmasterOfferPrices => Set<WebmasterOfferPrice>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

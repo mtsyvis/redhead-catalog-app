@@ -46,6 +46,18 @@ function formatNullableInteger(row: GridRow, value: number | null): string {
   return formatCell(row, value, (v) => (v == null ? '—' : String(v)));
 }
 
+function formatNullableCurrency(row: GridRow, value: number | null): string {
+  return formatCell(row, value, (v) =>
+    v == null
+      ? '—'
+      : new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          maximumFractionDigits: 2,
+        }).format(v)
+  );
+}
+
 function formatAuditDate(row: GridRow, value: string | null | undefined): string {
   if (isNotFoundRow(row) || !value) return '—';
 
@@ -523,6 +535,24 @@ export function useSitesColumns({
             return new Intl.NumberFormat('en-US').format(value as number);
           },
         },
+        ...(!isClient
+          ? [
+              {
+                ...gridColumnDefaults('trafficValueUsd', columnWidths),
+                field: 'trafficValueUsd',
+                type: 'number',
+                valueFormatter: (value, row) =>
+                  formatNullableCurrency(row, value as number | null),
+              } as GridColDef<GridRow>,
+              {
+                ...gridColumnDefaults('pagesCount', columnWidths),
+                field: 'pagesCount',
+                type: 'number',
+                valueFormatter: (value, row) =>
+                  formatNullableInteger(row, value as number | null),
+              } as GridColDef<GridRow>,
+            ]
+          : []),
         {
           ...gridColumnDefaults('location', columnWidths),
           field: 'location',

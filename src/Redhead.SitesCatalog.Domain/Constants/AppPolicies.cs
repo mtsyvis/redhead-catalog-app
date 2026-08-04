@@ -14,6 +14,8 @@ public static class AppPolicies
     public const string RoleSettingsManageAccess = "RoleSettingsManageAccess";
     public const string AnalyticsReadAccess = "AnalyticsReadAccess";
     public const string AhrefsSyncManageAccess = "AhrefsSyncManageAccess";
+    public const string WebmasterOffersReadAccess = "WebmasterOffersReadAccess";
+    public const string WebmasterOffersImportAccess = "WebmasterOffersImportAccess";
 
     public static readonly IReadOnlyDictionary<string, string> PermissionPolicies =
         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -29,6 +31,8 @@ public static class AppPolicies
             [AppPermissions.RoleSettingsRead] = RoleSettingsReadAccess,
             [AppPermissions.RoleSettingsManage] = RoleSettingsManageAccess,
             [AppPermissions.AnalyticsRead] = AnalyticsReadAccess,
-            [AppPermissions.AhrefsSyncManage] = AhrefsSyncManageAccess
+            [AppPermissions.AhrefsSyncManage] = AhrefsSyncManageAccess,
+            [AppPermissions.WebmasterOffersRead] = WebmasterOffersReadAccess,
+            [AppPermissions.WebmasterOffersImport] = WebmasterOffersImportAccess
         };
 }
