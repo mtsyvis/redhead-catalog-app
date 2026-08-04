@@ -23,8 +23,6 @@ export const SITES_IMPORT_INSTRUCTIONS = {
     'NumberDFLinks',
     'SponsoredTag',
     'Language',
-    'TrafficValueUsd',
-    'PagesCount',
   ],
   pricingColumns: [
     'Term',
@@ -51,6 +49,8 @@ export const SITES_UPDATE_IMPORT_INSTRUCTIONS = {
     'NumberDFLinks',
     'SponsoredTag',
     'Language',
+    'TrafficValueUsd',
+    'PagesCount',
   ],
   pricingColumns: [
     'Term',

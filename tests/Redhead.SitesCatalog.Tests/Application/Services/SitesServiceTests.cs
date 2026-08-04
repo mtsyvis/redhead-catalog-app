@@ -1773,6 +1773,48 @@ public class SitesServiceTests : IDisposable
         Assert.Equal(30000, result.Items[2].Traffic); // crypto.com
     }
 
+    public static TheoryData<string, string, string[]> InternalMetricSortCases => new()
+    {
+        {
+            SortFields.TrafficValueUsd,
+            SortingDefaults.Ascending,
+            new[] { "example.com", "lowdr.com", "crypto.com", "gambling.com", "test.com" }
+        },
+        {
+            SortFields.TrafficValueUsd,
+            SortingDefaults.Descending,
+            new[] { "gambling.com", "crypto.com", "example.com", "lowdr.com", "test.com" }
+        },
+        {
+            SortFields.PagesCount,
+            SortingDefaults.Ascending,
+            new[] { "crypto.com", "gambling.com", "example.com", "lowdr.com", "test.com" }
+        },
+        {
+            SortFields.PagesCount,
+            SortingDefaults.Descending,
+            new[] { "lowdr.com", "example.com", "crypto.com", "gambling.com", "test.com" }
+        }
+    };
+
+    [Theory]
+    [MemberData(nameof(InternalMetricSortCases))]
+    public async Task GetSitesAsync_SortByInternalMetric_ReturnsSortedResultsWithNullsLast(
+        string sortBy,
+        string sortDir,
+        string[] expectedDomains)
+    {
+        // Arrange
+        SetInternalMetricsForSorting();
+        await _context.SaveChangesAsync();
+
+        // Act
+        var domains = await GetSortedDomainsAsync(sortBy, sortDir);
+
+        // Assert
+        Assert.Equal(expectedDomains, domains);
+    }
+
     [Fact]
     public async Task GetSitesAsync_SortByPriceUsdDesc_ReturnsSortedResults()
     {
@@ -3575,6 +3617,22 @@ public class SitesServiceTests : IDisposable
         _context.Sites.Single(s => s.Domain == "gambling.com").NumberDFLinks = 10;
         _context.Sites.Single(s => s.Domain == "crypto.com").NumberDFLinks = 1;
         _context.Sites.Single(s => s.Domain == "lowdr.com").NumberDFLinks = null;
+    }
+
+    private void SetInternalMetricsForSorting()
+    {
+        SetInternalMetrics("example.com", 100m, 20);
+        SetInternalMetrics("test.com", null, null);
+        SetInternalMetrics("gambling.com", 300m, 5);
+        SetInternalMetrics("crypto.com", 200m, 5);
+        SetInternalMetrics("lowdr.com", 100m, 100);
+    }
+
+    private void SetInternalMetrics(string domain, decimal? trafficValueUsd, int? pagesCount)
+    {
+        var site = _context.Sites.Single(s => s.Domain == domain);
+        site.TrafficValueUsd = trafficValueUsd;
+        site.PagesCount = pagesCount;
     }
 
     private void SetTerms()

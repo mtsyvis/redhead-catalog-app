@@ -8,6 +8,8 @@ public static class SortFields
     public const string Domain = "domain";
     public const string DR = "dr";
     public const string Traffic = "traffic";
+    public const string TrafficValueUsd = "trafficvalueusd";
+    public const string PagesCount = "pagescount";
     public const string Location = "location";
     public const string PriceUsd = "priceusd";
     public const string PriceCasino = "pricecasino";
