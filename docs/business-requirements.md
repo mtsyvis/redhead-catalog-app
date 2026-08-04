@@ -419,7 +419,7 @@ Storage rules:
 * Unmapped mailbox aliases produce import warnings but do not invalidate the row.
 * `DfLinksRawText` and `SponsoredTagRawText` are optional raw-text fields stored on each webmaster offer. They are independent from the site's structured DF-link count and sponsored-tag fields.
 * `TermRawText` is preserved. Empty, invalid, or unsupported terms are stored as No term for phase 1.
-* Phase 1 supports positive finite year terms only for parsed webmaster offer terms.
+* Phase 1 supports No term, `permanent`, and positive finite year terms for parsed webmaster offer terms.
 * Webmaster offer status defaults to `Active`; `Inactive` is reserved for future cleanup.
 
 Raw webmaster price types in phase 1:
@@ -478,7 +478,7 @@ Current term rules:
 * Empty term means unknown: all three term fields are empty.
 * `permanent` means `TermType = Permanent` and the value/unit fields are empty.
 * `N year` or `N years` means `TermType = Finite`, `TermValue = N`, and `TermUnit = Year`.
-* Only positive integer year terms are currently valid. Month/day/lifetime/abbreviated values are not supported.
+* Finite terms support only positive integer year values. Month/day/lifetime/abbreviated values are not supported.
 * The internal `unknown` term key is displayed as `No term`.
 
 ### Quarantine
