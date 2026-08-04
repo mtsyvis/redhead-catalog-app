@@ -13,6 +13,7 @@ interface PriceTypeColumn {
   readonly label: string;
   readonly stringValue: Exclude<WebmasterOfferPriceType, number>;
   readonly numericValue: number;
+  readonly width?: number;
 }
 
 const PRICE_TYPE_COLUMNS: readonly PriceTypeColumn[] = [
@@ -29,12 +30,18 @@ const PRICE_TYPE_COLUMNS: readonly PriceTypeColumn[] = [
     label: 'Homepage Text Link 18+',
     stringValue: 'HomepageTextLink18Plus',
     numericValue: 9,
+    width: 210,
   },
 ];
 
-export const PRICE_COLUMN_WIDTH = 150;
-export const PRICE_GRID_TEMPLATE = `repeat(${PRICE_TYPE_COLUMNS.length}, ${PRICE_COLUMN_WIDTH}px)`;
-export const PRICE_MATRIX_MIN_WIDTH = PRICE_TYPE_COLUMNS.length * PRICE_COLUMN_WIDTH;
+const DEFAULT_PRICE_COLUMN_WIDTH = 150;
+export const PRICE_GRID_TEMPLATE = PRICE_TYPE_COLUMNS
+  .map((column) => `${column.width ?? DEFAULT_PRICE_COLUMN_WIDTH}px`)
+  .join(' ');
+export const PRICE_MATRIX_MIN_WIDTH = PRICE_TYPE_COLUMNS.reduce(
+  (total, column) => total + (column.width ?? DEFAULT_PRICE_COLUMN_WIDTH),
+  0
+);
 
 function formatCurrency(value: number | null) {
   if (value == null) return null;
@@ -82,22 +89,34 @@ function PriceCell({ price }: { readonly price: WebmasterOfferPrice | undefined 
   const details = price?.webmasterPriceDetails?.trim();
   const primary = formatRawPriceValue(price);
   const isEmpty = primary === '—';
+  const hideEmptyPrimary = isEmpty && Boolean(details);
 
   return (
-    <Box sx={{ px: 1.25, py: 1, minWidth: 0 }}>
-      <Typography
-        variant="body2"
-        sx={{ fontWeight: isEmpty ? 400 : 600, color: priceValueColor(price), lineHeight: 1.2 }}
-      >
-        {primary}
-      </Typography>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        px: 1.25,
+        py: 1,
+        minWidth: 0,
+      }}
+    >
+      {!hideEmptyPrimary && (
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: isEmpty ? 400 : 600, color: priceValueColor(price), lineHeight: 1.2 }}
+        >
+          {primary}
+        </Typography>
+      )}
       {details && (
         <Typography
           variant="caption"
           color="text.secondary"
           sx={{
             display: 'block',
-            mt: 0.25,
+            mt: hideEmptyPrimary ? 0 : 0.25,
             whiteSpace: 'pre-wrap',
             overflowWrap: 'anywhere',
             lineHeight: 1.25,
@@ -118,7 +137,10 @@ export function WebmasterOfferPriceHeader() {
           key={column.stringValue}
           sx={{ display: 'flex', alignItems: 'center', px: 1.25, py: 1, minWidth: 0 }}
         >
-          <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.25 }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 600, lineHeight: 1.25, whiteSpace: 'nowrap' }}
+          >
             {column.label}
           </Typography>
         </Box>

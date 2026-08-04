@@ -51,7 +51,7 @@ export function WebmasterOfferDetails({ offer }: { readonly offer: WebmasterOffe
         <WebmasterOfferTextBlock label="Contact" value={offer.contactRawText} />
         <WebmasterOfferTextBlock label="Outreach Sender" value={offer.outreachSenderRawText} />
         <WebmasterOfferTextBlock
-          label="Imported Mailbox Text"
+          label="Linkbuilder Mailbox"
           value={offer.linkbuilderMailboxRawText}
         />
         {mailboxLabels.length > 0 && (
@@ -73,9 +73,10 @@ export function WebmasterOfferDetails({ offer }: { readonly offer: WebmasterOffe
       </Stack>
 
       <Stack spacing={1.5}>
+        <WebmasterOfferTextBlock label="Sponsored Tag" value={offer.sponsoredTagRawText} />
         <WebmasterOfferTextBlock label="Link Policy" value={offer.linkPolicyText} />
         <WebmasterOfferTextBlock label="DF Links" value={offer.dfLinksRawText} />
-        <WebmasterOfferTextBlock label="Imported Term" value={offer.termRawText} />
+        <WebmasterOfferTextBlock label="Term" value={offer.termRawText} />
       </Stack>
 
       <Stack spacing={1.5}>

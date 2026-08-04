@@ -24,10 +24,9 @@ import {
 
 const OFFER_WIDTH = 112;
 const STATUS_TERM_WIDTH = 168;
-const SPONSORED_TAG_WIDTH = 160;
 const PRIMARY_EMAIL_WIDTH = 220;
-const METADATA_WIDTH = OFFER_WIDTH + STATUS_TERM_WIDTH + SPONSORED_TAG_WIDTH + PRIMARY_EMAIL_WIDTH;
-const COMPARISON_GRID_TEMPLATE = `${OFFER_WIDTH}px ${STATUS_TERM_WIDTH}px ${SPONSORED_TAG_WIDTH}px ${PRIMARY_EMAIL_WIDTH}px ${PRICE_GRID_TEMPLATE}`;
+const METADATA_WIDTH = OFFER_WIDTH + STATUS_TERM_WIDTH + PRIMARY_EMAIL_WIDTH;
+const COMPARISON_GRID_TEMPLATE = `${OFFER_WIDTH}px ${STATUS_TERM_WIDTH}px ${PRIMARY_EMAIL_WIDTH}px ${PRICE_GRID_TEMPLATE}`;
 const COMPARISON_MIN_WIDTH = METADATA_WIDTH + PRICE_MATRIX_MIN_WIDTH;
 
 const STATUS_LABELS: Record<number | string, string> = {
@@ -100,7 +99,6 @@ function DesktopComparisonHeader() {
     >
       <ComparisonHeaderCell>Offer</ComparisonHeaderCell>
       <ComparisonHeaderCell>Status &amp; Term</ComparisonHeaderCell>
-      <ComparisonHeaderCell>Sponsored Tag</ComparisonHeaderCell>
       <ComparisonHeaderCell>Primary Email</ComparisonHeaderCell>
       <WebmasterOfferPriceHeader />
     </Box>
@@ -152,7 +150,7 @@ function DesktopOfferRow({ offer, index, expanded, onChange }: OfferRowProps) {
             py: 1,
             minWidth: 0,
             display: 'flex',
-            alignItems: 'flex-start',
+            alignItems: 'center',
             justifyContent: 'space-between',
             gap: 0.5,
           }}
@@ -171,7 +169,7 @@ function DesktopOfferRow({ offer, index, expanded, onChange }: OfferRowProps) {
             py: 1,
             minWidth: 0,
             display: 'flex',
-            alignItems: 'flex-start',
+            alignItems: 'center',
             gap: 0.75,
             flexWrap: 'wrap',
           }}
@@ -179,16 +177,7 @@ function DesktopOfferRow({ offer, index, expanded, onChange }: OfferRowProps) {
           <OfferStatusChip status={offer.status} />
           <TermChip label={offer.termLabel || 'No term'} />
         </Box>
-        <Box sx={{ px: 1.5, py: 1, minWidth: 0 }}>
-          <Typography
-            variant="body2"
-            color={offer.sponsoredTagRawText?.trim() ? 'text.primary' : 'text.secondary'}
-            sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
-          >
-            {offer.sponsoredTagRawText?.trim() || '—'}
-          </Typography>
-        </Box>
-        <Box sx={{ px: 1.5, py: 1, minWidth: 0 }}>
+        <Box sx={{ px: 1.5, py: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
           <Typography
             variant="body2"
             color={offer.primaryEmail?.trim() ? 'text.primary' : 'text.secondary'}
@@ -255,18 +244,7 @@ function MobileOfferRow({ offer, index, expanded, onChange }: OfferRowProps) {
             sx={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none' }}
           />
         </Box>
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-            gap: 1.5,
-            mb: 1.5,
-          }}
-        >
-          <WebmasterOfferTextBlock
-            label="Sponsored Tag"
-            value={offer.sponsoredTagRawText || '—'}
-          />
+        <Box sx={{ mb: 1.5 }}>
           <WebmasterOfferTextBlock label="Primary Email" value={offer.primaryEmail || '—'} />
         </Box>
         <Box
