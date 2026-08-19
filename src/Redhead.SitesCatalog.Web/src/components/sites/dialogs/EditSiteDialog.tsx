@@ -1,32 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type SyntheticEvent } from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Autocomplete,
   Box,
-  Button,
-  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
   FormControlLabel,
   MenuItem,
-  Paper,
-  Stack,
   Switch,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-
 import type {
   LocationFilterOption,
   ServiceAvailabilityStatusValue,
@@ -34,18 +24,15 @@ import type {
 } from '../../../types/sites.types';
 import { sitesService } from '../../../services/sites.service';
 import { ApiClientError } from '../../../services/api.client';
+import { useChangeHistory } from '../../../hooks/useChangeHistory';
 import { BrandButton } from '../../common/BrandButton';
-import { ChangeHistoryAccordion } from '../../common/ChangeHistoryAccordion';
-import {
-  SERVICE_AVAILABILITY_STATUS,
-  SERVICE_AVAILABILITY_STATUS_OPTIONS,
-} from '../../../utils/serviceAvailability';
+import { ChangeHistoryContent } from '../../common/ChangeHistoryContent';
+import { SERVICE_AVAILABILITY_STATUS } from '../../../utils/serviceAvailability';
 import { LANGUAGE_OPTIONS, getLanguageOption } from '../../../utils/language';
 import {
   PRICE_TYPE,
   TERM_KEY_OPTIONS,
   type PriceTypeValue,
-  formatTermFilterLabel,
 } from '../../../utils/pricing';
 import {
   buildUpdateSitePayload,
@@ -54,16 +41,18 @@ import {
   createEmptyPricingRow,
   createInitialFormState,
   EMPTY_FORM_STATE,
+  getEditSiteFormSignature,
   getPriceRowsForType,
-  pricingAmountErrorKey,
-  pricingStatusErrorKey,
-  pricingTermErrorKey,
-  PRICING_SECTIONS,
   validateEditSiteForm,
 } from './EditSiteDialog.helpers';
 import type { EditSiteFormState, PricingPriceRow } from './EditSiteDialog.helpers';
-
-// --- Types ---
+import {
+  EditSitePricingTab,
+} from './EditSitePricingTab';
+import {
+  createDefaultPricingExpansion,
+  type PricingExpansionState,
+} from './EditSitePricingTab.utils';
 
 type Props = {
   open: boolean;
@@ -73,22 +62,34 @@ type Props = {
 };
 
 const OTHER_LOCATION_FORM_VALUE = '__OTHER__';
-type PricingExpansionState = Partial<Record<PriceTypeValue, boolean>>;
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+}
+
+function resolveInitialLocationValue(
+  site: Site,
+  locationOptions: LocationFilterOption[]
+): string {
+  if (locationOptions.length === 0) return site.location ?? '';
+  if (site.location === 'Other') return OTHER_LOCATION_FORM_VALUE;
+  if (locationOptions.some((option) => option.key === site.location)) return site.location;
+
+  return locationOptions.find((option) => option.displayName === site.location)?.key ?? site.location;
+}
 
 function clearPricingFieldErrors(errors: Record<string, string[]>): Record<string, string[]> {
   const entries = Object.entries(errors).filter(([key]) => !key.startsWith('pricing.'));
   return entries.length === Object.keys(errors).length ? errors : Object.fromEntries(entries);
-}
-
-function getTermOptionsForRow(row: PricingPriceRow) {
-  if (TERM_KEY_OPTIONS.some((option) => option.termKey === row.termKey)) {
-    return TERM_KEY_OPTIONS;
-  }
-
-  return [
-    ...TERM_KEY_OPTIONS,
-    { termKey: row.termKey, label: formatTermFilterLabel(row.termKey) },
-  ];
 }
 
 function getNextTermKey(rows: PricingPriceRow[], priceType: PriceTypeValue): string {
@@ -98,87 +99,13 @@ function getNextTermKey(rows: PricingPriceRow[], priceType: PriceTypeValue): str
   return TERM_KEY_OPTIONS.find((option) => !usedTerms.has(option.termKey))?.termKey ?? 'unknown';
 }
 
-function getAvailabilityLabel(status: ServiceAvailabilityStatusValue): string {
-  return (
-    SERVICE_AVAILABILITY_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
-    'Unknown'
-  );
-}
-
-function getSectionErrorKeys(priceType: PriceTypeValue, rows: PricingPriceRow[]): string[] {
-  const rowKeys = rows.flatMap((row) => [
-    pricingAmountErrorKey(row.id),
-    pricingTermErrorKey(row.id),
-  ]);
-
-  return priceType === PRICE_TYPE.Main
-    ? rowKeys
-    : [pricingStatusErrorKey(priceType), ...rowKeys];
-}
-
-function hasPricingSectionErrors(
-  priceType: PriceTypeValue,
-  rows: PricingPriceRow[],
-  errors: Record<string, string[]>
-): boolean {
-  return getSectionErrorKeys(priceType, rows).some((key) => Boolean(errors[key]?.length));
-}
-
-function shouldExpandPricingSection(
-  form: EditSiteFormState,
-  priceType: PriceTypeValue,
-  errors: Record<string, string[]>
-): boolean {
-  const rows = getPriceRowsForType(form, priceType);
-  if (priceType === PRICE_TYPE.Main) return true;
-  if (hasPricingSectionErrors(priceType, rows, errors)) return true;
-
-  const status = form.pricingStatuses[priceType] ?? SERVICE_AVAILABILITY_STATUS.Unknown;
-  return rows.length > 0 || status === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice;
-}
-
-function createDefaultPricingExpansion(
-  form: EditSiteFormState,
-  errors: Record<string, string[]> = {}
-): PricingExpansionState {
-  return Object.fromEntries(
-    PRICING_SECTIONS.map((section) => [
-      section.priceType,
-      shouldExpandPricingSection(form, section.priceType, errors),
-    ])
-  ) as PricingExpansionState;
-}
-
-function getPricingHeaderSummary(
-  priceType: PriceTypeValue,
-  rows: PricingPriceRow[],
-  status: ServiceAvailabilityStatusValue
-): string {
-  const termLabel = rows.length === 1 ? '1 term' : `${rows.length} terms`;
-
-  if (priceType === PRICE_TYPE.Main) {
-    return rows.length === 1 ? '1 price' : `${rows.length} prices`;
-  }
-
-  if (rows.length > 0 || status === SERVICE_AVAILABILITY_STATUS.Available) {
-    return `Has price · ${termLabel}`;
-  }
-
-  return getAvailabilityLabel(status);
-}
-
-function getAvailabilityMessage(status: ServiceAvailabilityStatusValue): string | null {
-  if (status === SERVICE_AVAILABILITY_STATUS.AvailableWithUnknownPrice) return 'Price unknown.';
-  if (status === SERVICE_AVAILABILITY_STATUS.NotAvailable) return 'Service is not available.';
-  if (status === SERVICE_AVAILABILITY_STATUS.Unknown) return 'No availability information.';
-  return null;
-}
-
-// --- Main component ---
-
 export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>) {
-  const [form, setForm] = useState<EditSiteFormState>(
+  const [tab, setTab] = useState(0);
+  const [form, setForm] = useState<EditSiteFormState>(() =>
     site ? createInitialFormState(site) : EMPTY_FORM_STATE
+  );
+  const [initialFormSignature, setInitialFormSignature] = useState(() =>
+    getEditSiteFormSignature(site ? createInitialFormState(site) : EMPTY_FORM_STATE)
   );
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -188,14 +115,20 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
   const [locationOptions, setLocationOptions] = useState<LocationFilterOption[]>([]);
   const [locationOptionsLoading, setLocationOptionsLoading] = useState(false);
   const [locationOptionsError, setLocationOptionsError] = useState<string | null>(null);
+  const history = useChangeHistory(open && site ? site.domain : null, async () => {
+    if (!site) return [];
+    return sitesService.getHistory(site.domain);
+  });
 
   useEffect(() => {
     if (!open || !site) return;
     const nextForm = createInitialFormState(site);
     setForm(nextForm);
+    setInitialFormSignature(getEditSiteFormSignature(nextForm));
     setFieldErrors({});
     setExpandedPricingSections(createDefaultPricingExpansion(nextForm));
     setSaving(false);
+    setTab(0);
   }, [open, site]);
 
   useEffect(() => {
@@ -229,14 +162,11 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
           setLocationOptionsError('Location options could not be loaded.');
         }
       } finally {
-        if (!cancelled) {
-          setLocationOptionsLoading(false);
-        }
+        if (!cancelled) setLocationOptionsLoading(false);
       }
     };
 
-    loadLocationOptions();
-
+    void loadLocationOptions();
     return () => {
       cancelled = true;
     };
@@ -245,17 +175,18 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
   useEffect(() => {
     if (!open || !site || locationOptions.length === 0) return;
 
-    setForm((prev) => {
-      if (locationOptions.some((option) => option.key === prev.location)) {
-        return prev;
-      }
+    const resolvedLocation = resolveInitialLocationValue(site, locationOptions);
+    setInitialFormSignature(getEditSiteFormSignature({
+      ...createInitialFormState(site),
+      location: resolvedLocation,
+    }));
 
-      if (site.location === 'Other') {
-        return { ...prev, location: OTHER_LOCATION_FORM_VALUE };
-      }
-
-      const matchingOption = locationOptions.find((option) => option.displayName === site.location);
-      return matchingOption ? { ...prev, location: matchingOption.key } : prev;
+    setForm((previous) => {
+      if (locationOptions.some((option) => option.key === previous.location)) return previous;
+      if (site.location === 'Other') return { ...previous, location: resolvedLocation };
+      return resolvedLocation !== site.location
+        ? { ...previous, location: resolvedLocation }
+        : previous;
     });
   }, [open, site, locationOptions]);
 
@@ -263,46 +194,48 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     key: K,
     value: EditSiteFormState[K]
   ) => {
-    const nextForm = { ...form, [key]: value };
-    setForm(nextForm);
-    setFieldErrors((prev) => clearFieldError(prev, key));
+    setForm((previous) => ({ ...previous, [key]: value }));
+    setFieldErrors((previous) => clearFieldError(previous, key));
   };
 
   const handleAddPrice = (priceType: PriceTypeValue) => {
-    setForm((prev) => {
-      const termKey = getNextTermKey(prev.pricingRows, priceType);
+    setForm((previous) => {
+      const termKey = getNextTermKey(previous.pricingRows, priceType);
       const nextRow = { ...createEmptyPricingRow(priceType), termKey };
       return {
-        ...prev,
-        pricingRows: [...prev.pricingRows, nextRow],
+        ...previous,
+        pricingRows: [...previous.pricingRows, nextRow],
         pricingStatuses:
           priceType === PRICE_TYPE.Main
-            ? prev.pricingStatuses
-            : { ...prev.pricingStatuses, [priceType]: SERVICE_AVAILABILITY_STATUS.Available },
+            ? previous.pricingStatuses
+            : {
+                ...previous.pricingStatuses,
+                [priceType]: SERVICE_AVAILABILITY_STATUS.Available,
+              },
       };
     });
-    setExpandedPricingSections((prev) => ({ ...prev, [priceType]: true }));
+    setExpandedPricingSections((previous) => ({ ...previous, [priceType]: true }));
     setFieldErrors(clearPricingFieldErrors);
   };
 
   const handleDeletePrice = (rowId: string) => {
-    setForm((prev) => {
-      const removedRow = prev.pricingRows.find((row) => row.id === rowId);
-      const pricingRows = prev.pricingRows.filter((row) => row.id !== rowId);
+    setForm((previous) => {
+      const removedRow = previous.pricingRows.find((row) => row.id === rowId);
+      const pricingRows = previous.pricingRows.filter((row) => row.id !== rowId);
       const shouldResetStatus =
         removedRow &&
         removedRow.priceType !== PRICE_TYPE.Main &&
         !pricingRows.some((row) => row.priceType === removedRow.priceType);
 
       return {
-        ...prev,
+        ...previous,
         pricingRows,
         pricingStatuses: shouldResetStatus
           ? {
-              ...prev.pricingStatuses,
+              ...previous.pricingStatuses,
               [removedRow.priceType]: SERVICE_AVAILABILITY_STATUS.Unknown,
             }
-          : prev.pricingStatuses,
+          : previous.pricingStatuses,
       };
     });
     setFieldErrors(clearPricingFieldErrors);
@@ -313,17 +246,13 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     key: 'termKey' | 'amountUsd',
     value: string
   ) => {
-    setForm((prev) => ({
-      ...prev,
-      pricingRows: prev.pricingRows.map((row) =>
+    setForm((previous) => ({
+      ...previous,
+      pricingRows: previous.pricingRows.map((row) =>
         row.id === rowId ? { ...row, [key]: value } : row
       ),
     }));
     setFieldErrors(clearPricingFieldErrors);
-  };
-
-  const handlePricingSectionChange = (priceType: PriceTypeValue, expanded: boolean) => {
-    setExpandedPricingSections((prev) => ({ ...prev, [priceType]: expanded }));
   };
 
   const handleServiceStatusChange = (
@@ -339,17 +268,19 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
       return;
     }
 
-    setForm((prev) => {
-      return {
-        ...prev,
-        pricingRows:
-          status === SERVICE_AVAILABILITY_STATUS.Available
-            ? prev.pricingRows
-            : prev.pricingRows.filter((row) => row.priceType !== priceType),
-        pricingStatuses: { ...prev.pricingStatuses, [priceType]: status },
-      };
-    });
+    setForm((previous) => ({
+      ...previous,
+      pricingRows:
+        status === SERVICE_AVAILABILITY_STATUS.Available
+          ? previous.pricingRows
+          : previous.pricingRows.filter((row) => row.priceType !== priceType),
+      pricingStatuses: { ...previous.pricingStatuses, [priceType]: status },
+    }));
     setFieldErrors(clearPricingFieldErrors);
+  };
+
+  const selectTabForErrors = (errors: Record<string, string[]>) => {
+    setTab(Object.keys(errors).some((key) => key.startsWith('pricing.')) ? 1 : 0);
   };
 
   const handleSave = async () => {
@@ -362,8 +293,9 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
 
     if (Object.keys(localErrors).length > 0) {
       setFieldErrors(localErrors);
-      setExpandedPricingSections((prev) => ({
-        ...prev,
+      selectTabForErrors(localErrors);
+      setExpandedPricingSections((previous) => ({
+        ...previous,
         ...createDefaultPricingExpansion(form, localErrors),
       }));
       return;
@@ -372,14 +304,17 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     setFieldErrors({});
     setSaving(true);
     try {
-      const payload = buildUpdateSitePayload(form);
-      const updated = await sitesService.updateSite(site.domain, payload);
+      const updated = await sitesService.updateSite(
+        site.domain,
+        buildUpdateSitePayload(form)
+      );
       onSaved(updated);
     } catch (err) {
       if (err instanceof ApiClientError && err.fieldErrors) {
         setFieldErrors(err.fieldErrors);
-        setExpandedPricingSections((prev) => ({
-          ...prev,
+        selectTabForErrors(err.fieldErrors);
+        setExpandedPricingSections((previous) => ({
+          ...previous,
           ...createDefaultPricingExpansion(form, err.fieldErrors),
         }));
       } else {
@@ -388,6 +323,11 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleTabChange = (_event: SyntheticEvent, nextTab: number) => {
+    setTab(nextTab);
+    if (nextTab === 2) void history.load();
   };
 
   const currentLocationOption =
@@ -400,8 +340,10 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
       ? [currentLocationOption, ...locationOptions]
       : locationOptions;
   const hasValidLocation = locationOptions.some((option) => option.key === form.location);
+  const isDirty = getEditSiteFormSignature(form) !== initialFormSignature;
   const canSave =
     Boolean(site) &&
+    isDirty &&
     !saving &&
     !locationOptionsLoading &&
     !locationOptionsError &&
@@ -435,412 +377,278 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
           : 'Choose a canonical location or Unknown to replace Other.'}
       </Box>
     ) : undefined);
+  const lastUpdatedAt = site?.updatedAtUtc ?? site?.createdAtUtc;
+  const lastUpdatedBy = site?.updatedBy ?? site?.createdBy ?? 'system';
+
+  const close = () => {
+    if (!saving) onClose();
+  };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Edit site</DialogTitle>
-      <DialogContent>
+    <Dialog
+      open={open}
+      onClose={close}
+      maxWidth="lg"
+      fullWidth
+      slotProps={{ paper: { sx: { height: 'calc(100% - 64px)' } } }}
+    >
+      <DialogTitle sx={{ pb: site ? 1.5 : 2 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: { xs: 'flex-start', sm: 'center' },
+            justifyContent: 'space-between',
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 0.5,
+            minWidth: 0,
+          }}
+        >
+          <Typography variant="h6" component="div" sx={{ fontWeight: 600, minWidth: 0 }}>
+            Edit site
+            {site && (
+              <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>
+                {' '}· {site.domain}
+              </Box>
+            )}
+          </Typography>
+          {site && lastUpdatedAt && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ flexShrink: 0, textAlign: { xs: 'left', sm: 'right' } }}
+            >
+              Updated {formatDateTime(lastUpdatedAt)} by {lastUpdatedBy}
+            </Typography>
+          )}
+        </Box>
+      </DialogTitle>
+
+      {site && (
+        <Tabs
+          value={tab}
+          onChange={handleTabChange}
+          sx={{
+            flexShrink: 0,
+            px: { xs: 1, sm: 3 },
+            borderTop: 1,
+            borderBottom: 1,
+            borderColor: 'divider',
+          }}
+        >
+          <Tab label="Site details" />
+          <Tab label="Prices" />
+          <Tab label="History" />
+        </Tabs>
+      )}
+
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column' }}>
         {fieldErrors._form?.[0] && (
-          <Box sx={{ mb: 2, color: 'error.main', fontSize: 14 }}>{fieldErrors._form[0]}</Box>
+          <Alert severity="error" sx={{ mb: 2 }}>{fieldErrors._form[0]}</Alert>
         )}
 
-        {site && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField label="Domain" value={site.domain} disabled size="small" fullWidth />
-
-            <TextField
-              label="DR"
-              type="number"
-              inputProps={{ min: 0, max: 100 }}
-              value={form.dr}
-              onChange={(e) => updateField('dr', e.target.value)}
-              size="small"
-              fullWidth
-              error={Boolean(fieldErrors.dr?.length)}
-              helperText={fieldErrors.dr?.[0]}
-            />
-
-            <TextField
-              label="Traffic"
-              type="number"
-              inputProps={{ min: 0, step: 1 }}
-              value={form.traffic}
-              onChange={(e) => updateField('traffic', e.target.value)}
-              size="small"
-              fullWidth
-              error={Boolean(fieldErrors.traffic?.length)}
-              helperText={fieldErrors.traffic?.[0]}
-            />
-
-            <Autocomplete
-              size="small"
-              options={editLocationOptions}
-              value={currentLocationOption}
-              loading={locationOptionsLoading}
-              disabled={Boolean(locationOptionsError)}
-              getOptionLabel={(option) => option.displayName}
-              getOptionDisabled={(option) => option.key === OTHER_LOCATION_FORM_VALUE}
-              isOptionEqualToValue={(option, value) => option.key === value.key}
-              onChange={(_, option) =>
-                updateField('location', option?.key ?? '')
-              }
-              renderInput={(params) => (
+        {site && tab === 0 && (
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) minmax(0, 1fr)' },
+              gap: 2,
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Typography variant="subtitle2">Site information &amp; status</Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
                 <TextField
-                  {...params}
-                  label="Location"
-                  fullWidth
-                  color={locationNeedsReplacement ? 'warning' : 'primary'}
-                  error={Boolean(fieldErrors.location?.length || locationOptionsError)}
-                  helperText={locationHelperText}
-                  sx={
-                    locationNeedsReplacement
-                      ? {
-                          '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: 'warning.main',
-                          },
-                          '&:hover .MuiOutlinedInput-notchedOutline': {
-                            borderColor: 'warning.dark',
-                          },
-                        }
-                      : undefined
-                  }
-                  InputProps={{
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {locationOptionsLoading ? (
-                          <CircularProgress color="inherit" size={18} />
-                        ) : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
-                  }}
+                  label="DR"
+                  type="number"
+                  inputProps={{ min: 0, max: 100 }}
+                  value={form.dr}
+                  onChange={(event) => updateField('dr', event.target.value)}
+                  size="small"
+                  error={Boolean(fieldErrors.dr?.length)}
+                  helperText={fieldErrors.dr?.[0]}
+                />
+                <TextField
+                  label="Traffic"
+                  type="number"
+                  inputProps={{ min: 0, step: 1 }}
+                  value={form.traffic}
+                  onChange={(event) => updateField('traffic', event.target.value)}
+                  size="small"
+                  error={Boolean(fieldErrors.traffic?.length)}
+                  helperText={fieldErrors.traffic?.[0]}
+                />
+              </Box>
+
+              <Autocomplete
+                size="small"
+                options={editLocationOptions}
+                value={currentLocationOption}
+                loading={locationOptionsLoading}
+                disabled={Boolean(locationOptionsError)}
+                getOptionLabel={(option) => option.displayName}
+                getOptionDisabled={(option) => option.key === OTHER_LOCATION_FORM_VALUE}
+                isOptionEqualToValue={(option, value) => option.key === value.key}
+                onChange={(_, option) => updateField('location', option?.key ?? '')}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Location"
+                    color={locationNeedsReplacement ? 'warning' : 'primary'}
+                    error={Boolean(fieldErrors.location?.length || locationOptionsError)}
+                    helperText={locationHelperText}
+                    sx={locationNeedsReplacement ? {
+                      '& .MuiOutlinedInput-notchedOutline': { borderColor: 'warning.main' },
+                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'warning.dark' },
+                    } : undefined}
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {locationOptionsLoading && <CircularProgress color="inherit" size={18} />}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+              />
+
+              {locationOptionsError && (
+                <Alert severity="warning">
+                  Location cannot be edited until options are available.
+                </Alert>
+              )}
+
+              <TextField
+                select
+                label="Language"
+                value={form.language}
+                onChange={(event) => updateField('language', event.target.value)}
+                size="small"
+                error={Boolean(fieldErrors.language?.length)}
+                helperText={fieldErrors.language?.[0] ?? 'Optional'}
+              >
+                <MenuItem value="">Empty</MenuItem>
+                {languageOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                ))}
+              </TextField>
+
+              <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1 }}>
+                <FormControlLabel
+                  control={(
+                    <Switch
+                      checked={form.isQuarantined}
+                      onChange={(event) => updateField('isQuarantined', event.target.checked)}
+                    />
+                  )}
+                  label="Unavailable (quarantined)"
+                />
+              </Box>
+              {form.isQuarantined && (
+                <TextField
+                  label="Reason (optional)"
+                  value={form.quarantineReason}
+                  onChange={(event) => updateField('quarantineReason', event.target.value)}
+                  size="small"
+                  multiline
+                  minRows={2}
+                  maxRows={4}
+                  error={Boolean(fieldErrors.quarantineReason?.length)}
+                  helperText={fieldErrors.quarantineReason?.[0]}
                 />
               )}
-            />
+            </Box>
 
-            {locationOptionsError && (
-              <Alert severity="warning">
-                Location cannot be edited until options are available.
-              </Alert>
-            )}
-
-            <TextField
-              select
-              label="Language"
-              value={form.language}
-              onChange={(e) => updateField('language', e.target.value)}
-              size="small"
-              fullWidth
-              error={Boolean(fieldErrors.language?.length)}
-              helperText={fieldErrors.language?.[0] ?? 'Optional'}
-            >
-              <MenuItem value="">Empty</MenuItem>
-              {languageOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </TextField>
-
-            <Paper variant="outlined" sx={{ p: 2, borderRadius: 1 }}>
-              <Stack spacing={1}>
-                <Typography variant="subtitle2">Pricing</Typography>
-                {PRICING_SECTIONS.map((section) => {
-                  const rows = getPriceRowsForType(form, section.priceType);
-                  const status =
-                    form.pricingStatuses[section.priceType] ??
-                    SERVICE_AVAILABILITY_STATUS.Unknown;
-                  const rowsVisible =
-                    section.priceType === PRICE_TYPE.Main ||
-                    status === SERVICE_AVAILABILITY_STATUS.Available;
-                  const hasSectionErrors = hasPricingSectionErrors(
-                    section.priceType,
-                    rows,
-                    fieldErrors
-                  );
-                  const availabilityMessage = getAvailabilityMessage(status);
-                  const isExpanded = Boolean(expandedPricingSections[section.priceType]);
-
-                  return (
-                    <Accordion
-                      key={section.priceType}
-                      variant="outlined"
-                      disableGutters
-                      expanded={isExpanded}
-                      onChange={(_event, expanded) =>
-                        handlePricingSectionChange(section.priceType, expanded)
-                      }
-                      sx={{
-                        borderRadius: 1,
-                        bgcolor: 'background.paper',
-                        '&::before': { display: 'none' },
-                        '& + &': { mt: 1 },
-                      }}
-                    >
-                      <AccordionSummary
-                        expandIcon={<ExpandMoreIcon />}
-                        sx={{
-                          minHeight: 44,
-                          px: 1.5,
-                          '&.Mui-expanded': { minHeight: 44 },
-                          '& .MuiAccordionSummary-content': {
-                            my: 0.75,
-                            alignItems: 'center',
-                            minWidth: 0,
-                          },
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 1.5,
-                            width: '100%',
-                            minWidth: 0,
-                          }}
-                        >
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                            {section.label}
-                          </Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                            {hasSectionErrors && (
-                              <Chip
-                                label="Needs attention"
-                                size="small"
-                                color="error"
-                                variant="outlined"
-                              />
-                            )}
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                              sx={{ whiteSpace: 'nowrap' }}
-                            >
-                              {getPricingHeaderSummary(section.priceType, rows, status)}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </AccordionSummary>
-
-                      <AccordionDetails sx={{ px: 1.5, pt: 0, pb: 1.25 }}>
-                        <Stack spacing={1}>
-
-                        {section.isOptional && (
-                          <TextField
-                            select
-                            label="Availability"
-                            value={status}
-                            onChange={(e) =>
-                              handleServiceStatusChange(
-                                section.priceType,
-                                Number(e.target.value) as ServiceAvailabilityStatusValue
-                              )
-                            }
-                            size="small"
-                            inputProps={{ 'aria-label': `${section.label} availability` }}
-                            sx={{ maxWidth: 240 }}
-                            error={Boolean(fieldErrors[pricingStatusErrorKey(section.priceType)]?.length)}
-                            helperText={fieldErrors[pricingStatusErrorKey(section.priceType)]?.[0]}
-                          >
-                            {SERVICE_AVAILABILITY_STATUS_OPTIONS.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                        )}
-
-                        {rowsVisible && (
-                          <>
-                            {rows.length > 0 && (
-                              <Stack spacing={0.5}>
-                                <Box
-                                  sx={{
-                                    display: { xs: 'none', sm: 'grid' },
-                                    gridTemplateColumns: 'minmax(180px, 260px) 150px 32px',
-                                    gap: 1,
-                                    alignItems: 'center',
-                                    px: 0.25,
-                                  }}
-                                >
-                                  <Typography variant="caption" color="text.secondary">
-                                    Term
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    Amount USD
-                                  </Typography>
-                                </Box>
-                                {rows.map((row) => (
-                                  <Box
-                                    key={row.id}
-                                    sx={{
-                                      display: 'grid',
-                                      gridTemplateColumns: {
-                                        xs: 'minmax(0, 1fr) minmax(112px, 140px) 32px',
-                                        sm: 'minmax(180px, 260px) 150px 32px',
-                                      },
-                                      gap: 0.75,
-                                      py: 0.25,
-                                      alignItems: 'flex-start',
-                                    }}
-                                  >
-                                    <TextField
-                                      select
-                                      value={row.termKey}
-                                      onChange={(e) =>
-                                        handlePriceRowChange(row.id, 'termKey', e.target.value)
-                                      }
-                                      size="small"
-                                      inputProps={{ 'aria-label': `${section.label} term` }}
-                                      error={Boolean(fieldErrors[pricingTermErrorKey(row.id)]?.length)}
-                                      helperText={fieldErrors[pricingTermErrorKey(row.id)]?.[0]}
-                                    >
-                                      {getTermOptionsForRow(row).map((option) => (
-                                        <MenuItem key={option.termKey} value={option.termKey}>
-                                          {option.label}
-                                        </MenuItem>
-                                      ))}
-                                    </TextField>
-                                    <TextField
-                                      type="number"
-                                      inputProps={{
-                                        min: 1,
-                                        step: '1',
-                                        'aria-label': `${section.label} amount USD`,
-                                      }}
-                                      value={row.amountUsd}
-                                      onChange={(e) =>
-                                        handlePriceRowChange(row.id, 'amountUsd', e.target.value)
-                                      }
-                                      size="small"
-                                      error={Boolean(fieldErrors[pricingAmountErrorKey(row.id)]?.length)}
-                                      helperText={fieldErrors[pricingAmountErrorKey(row.id)]?.[0]}
-                                    />
-                                    <IconButton
-                                      aria-label={`Delete ${section.label} price`}
-                                      onClick={() => handleDeletePrice(row.id)}
-                                      size="small"
-                                      sx={{ mt: 0.25, width: 32, height: 32 }}
-                                    >
-                                      <DeleteOutlineIcon fontSize="small" />
-                                    </IconButton>
-                                  </Box>
-                                ))}
-                              </Stack>
-                            )}
-                          </>
-                        )}
-
-                        {!rowsVisible && availabilityMessage && (
-                          <Typography variant="body2" color="text.secondary">
-                            {availabilityMessage}
-                          </Typography>
-                        )}
-
-                        <Box>
-                          <Button
-                            variant="text"
-                            color="primary"
-                            size="small"
-                            startIcon={<AddIcon fontSize="small" />}
-                            aria-label={`Add ${section.label} term price`}
-                            onClick={() => handleAddPrice(section.priceType)}
-                            sx={{ textTransform: 'none', px: 0.5 }}
-                          >
-                            Add term price
-                          </Button>
-                        </Box>
-                        </Stack>
-                      </AccordionDetails>
-                    </Accordion>
-                  );
-                })}
-              </Stack>
-            </Paper>
-
-            <TextField
-              label="Niche"
-              value={form.niche}
-              onChange={(e) => updateField('niche', e.target.value)}
-              size="small"
-              fullWidth
-              error={Boolean(fieldErrors.niche?.length)}
-              helperText={fieldErrors.niche?.[0]}
-            />
-
-            <TextField
-              label="Categories"
-              value={form.categories}
-              onChange={(e) => updateField('categories', e.target.value)}
-              size="small"
-              fullWidth
-              multiline
-              minRows={2}
-              error={Boolean(fieldErrors.categories?.length)}
-              helperText={fieldErrors.categories?.[0]}
-            />
-
-            <TextField
-              label="Number DF Links"
-              type="number"
-              inputProps={{ min: 1, step: 1 }}
-              value={form.numberDFLinks}
-              onChange={(e) => updateField('numberDFLinks', e.target.value)}
-              size="small"
-              fullWidth
-              error={Boolean(fieldErrors.numberDFLinks?.length)}
-              helperText={fieldErrors.numberDFLinks?.[0] ?? 'Optional positive whole number'}
-            />
-
-            <TextField
-              label="Sponsored Tag"
-              value={form.sponsoredTag}
-              onChange={(e) => updateField('sponsoredTag', e.target.value)}
-              size="small"
-              fullWidth
-              error={Boolean(fieldErrors.sponsoredTag?.length)}
-              helperText={fieldErrors.sponsoredTag?.[0]}
-            />
-
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={form.isQuarantined}
-                  onChange={(e) => updateField('isQuarantined', e.target.checked)}
-                />
-              }
-              label="Unavailable (quarantined)"
-            />
-
-            {form.isQuarantined && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Typography variant="subtitle2">Content details</Typography>
               <TextField
-                label="Reason (optional)"
-                value={form.quarantineReason}
-                onChange={(e) => updateField('quarantineReason', e.target.value)}
+                label="Niche"
+                value={form.niche}
+                onChange={(event) => updateField('niche', event.target.value)}
                 size="small"
-                fullWidth
-                multiline
-                minRows={2}
-                error={Boolean(fieldErrors.quarantineReason?.length)}
-                helperText={fieldErrors.quarantineReason?.[0]}
+                error={Boolean(fieldErrors.niche?.length)}
+                helperText={fieldErrors.niche?.[0]}
               />
-            )}
-
-            <ChangeHistoryAccordion
-              entityKey={site.domain}
-              loadHistory={() => sitesService.getHistory(site.domain)}
-            />
+              <TextField
+                label="Number DF Links"
+                type="number"
+                inputProps={{ min: 1, step: 1 }}
+                value={form.numberDFLinks}
+                onChange={(event) => updateField('numberDFLinks', event.target.value)}
+                size="small"
+                error={Boolean(fieldErrors.numberDFLinks?.length)}
+                helperText={fieldErrors.numberDFLinks?.[0] ?? 'Optional positive whole number'}
+              />
+              <TextField
+                label="Sponsored Tag"
+                value={form.sponsoredTag}
+                onChange={(event) => updateField('sponsoredTag', event.target.value)}
+                size="small"
+                error={Boolean(fieldErrors.sponsoredTag?.length)}
+                helperText={fieldErrors.sponsoredTag?.[0]}
+              />
+              <TextField
+                label="Categories"
+                value={form.categories}
+                onChange={(event) => updateField('categories', event.target.value)}
+                size="small"
+                multiline
+                minRows={3}
+                maxRows={6}
+                error={Boolean(fieldErrors.categories?.length)}
+                helperText={fieldErrors.categories?.[0]}
+                sx={{
+                  flex: { md: 1 },
+                  minHeight: { md: 0 },
+                  '& .MuiInputBase-root': {
+                    height: { md: '100%' },
+                    alignItems: 'flex-start',
+                  },
+                  '& .MuiInputBase-inputMultiline': {
+                    height: { md: '100% !important' },
+                    maxHeight: { md: 'none !important' },
+                    overflow: { md: 'auto !important' },
+                  },
+                }}
+              />
+            </Box>
           </Box>
         )}
+
+        {site && tab === 1 && (
+          <EditSitePricingTab
+            form={form}
+            fieldErrors={fieldErrors}
+            expandedSections={expandedPricingSections}
+            onSectionChange={(priceType, expanded) =>
+              setExpandedPricingSections((previous) => ({
+                ...previous,
+                [priceType]: expanded,
+              }))
+            }
+            onServiceStatusChange={handleServiceStatusChange}
+            onPriceRowChange={handlePriceRowChange}
+            onDeletePrice={handleDeletePrice}
+            onAddPrice={handleAddPrice}
+          />
+        )}
+
+        {site && tab === 2 && (
+          <ChangeHistoryContent
+            items={history.items}
+            loading={history.loading}
+            error={history.error}
+          />
+        )}
       </DialogContent>
-      <DialogActions>
-        <BrandButton onClick={onClose} disabled={saving}>
-          Cancel
-        </BrandButton>
+
+      <DialogActions sx={{ borderTop: 1, borderColor: 'divider' }}>
+        <BrandButton onClick={close} disabled={saving}>Cancel</BrandButton>
         <BrandButton kind="primary" onClick={handleSave} disabled={!canSave}>
-          Save
+          {saving ? <CircularProgress size={18} color="inherit" /> : 'Save changes'}
         </BrandButton>
       </DialogActions>
     </Dialog>

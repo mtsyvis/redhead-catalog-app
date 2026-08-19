@@ -270,3 +270,20 @@ export function buildUpdateSitePayload(form: EditSiteFormState): UpdateSitePaylo
     quarantineReason: form.isQuarantined ? (form.quarantineReason.trim() || null) : null,
   };
 }
+
+export function getEditSiteFormSignature(form: EditSiteFormState): string {
+  const payload = buildUpdateSitePayload(form);
+  const prices = [...payload.pricing.prices].sort((left, right) =>
+    left.priceType - right.priceType ||
+    left.termKey.localeCompare(right.termKey) ||
+    left.amountUsd - right.amountUsd
+  );
+
+  return JSON.stringify({
+    ...payload,
+    pricing: {
+      ...payload.pricing,
+      prices,
+    },
+  });
+}
