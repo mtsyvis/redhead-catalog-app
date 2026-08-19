@@ -27,7 +27,9 @@ public static class RolePermissionMatrix
                 AppPermissions.SitesBrowse,
                 AppPermissions.SitesMultiSearch,
                 AppPermissions.SitesEdit,
-                AppPermissions.TableViewsManage
+                AppPermissions.TableViewsManage,
+                AppPermissions.WebmasterOffersRead,
+                AppPermissions.WebmasterOffersManage
             },
             [AppRoles.Linkbuilder] = new HashSet<string>(StringComparer.Ordinal)
             {

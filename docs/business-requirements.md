@@ -57,7 +57,7 @@ Current static permission model:
 
 * `SuperAdmin`: all permissions.
 * `Admin`: sites browse, Multi-search, site editing, exports, imports, user read, role settings read, analytics read, table views, Ahrefs sync management, webmaster offers read, import, and manual editing.
-* `Editor`: sites browse, Multi-search, site editing, and table views.
+* `Editor`: sites browse, Multi-search, site editing, table views, and webmaster offers read and manual editing.
 * `Linkbuilder`: sites browse, Multi-search, table views, and webmaster offers read.
 * `Internal`: sites browse, Multi-search, exports, and table views.
 * `Client`: sites browse, Multi-search, exports, and client-safe table views.
@@ -105,6 +105,7 @@ Current rules:
 
 * Can browse and filter the sites catalog, use Multi-search, saved filters, internal site fields, price-column copy actions, and table views.
 * Can edit sites through the same manual edit form and server-side validation as `Admin`, including quarantine fields.
+* Can access Webmaster Offers search, view raw webmaster offer data, manually edit webmaster offers, and view their manual change history.
 * Cannot access imports, exports, Google Drive integration, analytics, Ahrefs sync, user management, or role settings.
 * Export is always disabled and cannot be enabled by role settings or per-user overrides.
 
@@ -395,11 +396,11 @@ Webmaster offers store supply-side publisher/webmaster offer data. This data is 
 
 Access rules:
 
-* `SuperAdmin`, `Admin`, and `Linkbuilder` can view webmaster offers, raw webmaster prices, contact raw text, outreach sender raw text, linkbuilder mailbox raw text, parsed linkbuilder mailboxes, offer notes, client raw text, terms, and status.
+* `SuperAdmin`, `Admin`, `Editor`, and `Linkbuilder` can view webmaster offers, raw webmaster prices, contact raw text, outreach sender raw text, linkbuilder mailbox raw text, parsed linkbuilder mailboxes, offer notes, client raw text, terms, and status.
 * `SuperAdmin` and `Admin` can run Webmaster Offers Import.
-* `SuperAdmin` and `Admin` can manually edit webmaster offers and view their manual change history.
+* `SuperAdmin`, `Admin`, and `Editor` can manually edit webmaster offers and view their manual change history.
 * `Linkbuilder` can read webmaster offers but cannot import, edit, export, or download raw webmaster data.
-* `Editor`, `Internal`, `Client`, and `Lite` have no webmaster-offer permissions.
+* `Internal`, `Client`, and `Lite` have no webmaster-offer permissions.
 * Client-safe site responses, table views, and exports must never expose webmaster offers or raw webmaster data.
 
 Storage rules:
@@ -1069,9 +1070,9 @@ Rules:
 * `SuperAdmin` export settings are shown as unlimited and not editable.
 * `Lite`, `Editor`, and `Linkbuilder` export settings are shown as disabled and are not editable at role or user level.
 * The Imports page shows Webmaster Offers Import only to `SuperAdmin` and `Admin`.
-* The Webmaster Offers page is available only to `SuperAdmin`, `Admin`, and `Linkbuilder`.
+* The Webmaster Offers page is available only to `SuperAdmin`, `Admin`, `Editor`, and `Linkbuilder`.
 * Webmaster Offers UI supports domain search and comparison of offers, contacts, outreach sender text, linkbuilder mailbox raw text, parsed mailboxes, raw prices by service, term, link policy, DF links raw text, sponsored tag raw text, comments, client raw text, and status.
-* `SuperAdmin` and `Admin` can open an edit dialog for an offer. `Linkbuilder` remains read-only.
+* `SuperAdmin`, `Admin`, and `Editor` can open an edit dialog for an offer. `Linkbuilder` remains read-only.
 * The edit dialog can update status, effective structured term, offer-level raw text fields except `ContactRawText` and `LinkbuilderMailboxRawText`, structured linkbuilder mailboxes, and all ten raw price types. Webmaster fields, primary email, contact raw text, imported linkbuilder mailbox text, site domain, imported raw term, and import fingerprint are read-only.
 * Manual price editing enforces the same availability/amount consistency as import: numeric prices are positive with at most two decimal places; `YES`, `NO`, and `Unknown` have no numeric amount; Main supports only numeric price or Unknown.
 * Saving uses `UpdatedAtUtc` for optimistic concurrency and returns a conflict when another user has changed the offer.

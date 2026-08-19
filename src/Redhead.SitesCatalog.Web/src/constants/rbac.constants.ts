@@ -40,7 +40,14 @@ export const ROLE_PERMISSION_MATRIX: Record<AppRole, readonly AppPermission[]> =
     'WebmasterOffersImport',
     'WebmasterOffersManage',
   ],
-  Editor: ['SitesBrowse', 'SitesMultiSearch', 'SitesEdit', 'TableViewsManage'],
+  Editor: [
+    'SitesBrowse',
+    'SitesMultiSearch',
+    'SitesEdit',
+    'TableViewsManage',
+    'WebmasterOffersRead',
+    'WebmasterOffersManage',
+  ],
   Linkbuilder: ['SitesBrowse', 'SitesMultiSearch', 'TableViewsManage', 'WebmasterOffersRead'],
   Internal: ['SitesBrowse', 'SitesMultiSearch', 'SitesExport', 'TableViewsManage'],
   Client: ['SitesBrowse', 'SitesMultiSearch', 'SitesExport', 'TableViewsManage'],
@@ -68,7 +75,7 @@ export const ROLE_METADATA: Record<
   Editor: {
     label: 'Editor',
     description: 'Internal catalog editor without import or export access.',
-    capabilities: 'Browse, multi-search, edit sites, and manage table views.',
+    capabilities: 'Browse, multi-search, edit sites and webmaster offers, and manage table views.',
   },
   Linkbuilder: {
     label: 'Linkbuilder',
