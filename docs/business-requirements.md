@@ -56,7 +56,7 @@ General rules:
 Current static permission model:
 
 * `SuperAdmin`: all permissions.
-* `Admin`: sites browse, Multi-search, site editing, exports, imports, user read, role settings read, analytics read, table views, Ahrefs sync management, webmaster offers read, and webmaster offers import.
+* `Admin`: sites browse, Multi-search, site editing, exports, imports, user read, role settings read, analytics read, table views, Ahrefs sync management, webmaster offers read, import, and manual editing.
 * `Editor`: sites browse, Multi-search, site editing, and table views.
 * `Linkbuilder`: sites browse, Multi-search, table views, and webmaster offers read.
 * `Internal`: sites browse, Multi-search, exports, and table views.
@@ -90,7 +90,7 @@ Current rules:
 
 * `Admin` can access admin areas allowed by backend policies.
 * `Admin` can run catalog imports and update catalog data where backend policies allow it.
-* `Admin` can run Webmaster Offers Import and view raw webmaster offer data.
+* `Admin` can run Webmaster Offers Import and view or manually edit raw webmaster offer data.
 * `Admin` can read Business Demand and Export Activity analytics.
 * `Admin` must not be able to create users.
 * `Admin` must not be able to change role export limits.
@@ -397,6 +397,7 @@ Access rules:
 
 * `SuperAdmin`, `Admin`, and `Linkbuilder` can view webmaster offers, raw webmaster prices, contact raw text, outreach sender raw text, linkbuilder mailbox raw text, parsed linkbuilder mailboxes, offer notes, client raw text, terms, and status.
 * `SuperAdmin` and `Admin` can run Webmaster Offers Import.
+* `SuperAdmin` and `Admin` can manually edit webmaster offers and view their manual change history.
 * `Linkbuilder` can read webmaster offers but cannot import, edit, export, or download raw webmaster data.
 * `Editor`, `Internal`, `Client`, and `Lite` have no webmaster-offer permissions.
 * Client-safe site responses, table views, and exports must never expose webmaster offers or raw webmaster data.
@@ -416,13 +417,16 @@ Storage rules:
 * If an email appears on the same line as a reply/direction marker, reply markers such as `отвечают`, `ответ`, `answer`, `reply`, `отв`, or `otv` take priority over generic direction/location markers such as `писать сюда`, `write here`, `сюда`, `здесь`, or `тут`, regardless of line order. Within the highest matching priority group, the first marked email is stored as `PrimaryEmail`.
 * If no marker exists and exactly one email exists in `ContactRawText`, that email is stored as `PrimaryEmail`.
 * If no marker exists and multiple emails exist in `ContactRawText`, `PrimaryEmail` remains empty and the raw contact text remains the source of truth.
-* Raw `LinkbuilderMailboxRawText` is always preserved.
+* Raw `LinkbuilderMailboxRawText` is always preserved and is read-only after import.
 * Parsed linkbuilder mailboxes are linked best-effort against seeded active mailbox emails and aliases.
 * Unmapped mailbox aliases produce import warnings but do not invalidate the row.
 * `DfLinksRawText` and `SponsoredTagRawText` are optional raw-text fields stored on each webmaster offer. They are independent from the site's structured DF-link count and sponsored-tag fields.
 * `TermRawText` is preserved. Empty, invalid, or unsupported terms are stored as No term for phase 1.
 * Phase 1 supports No term, `permanent`, and positive finite year terms for parsed webmaster offer terms.
 * Webmaster offer status defaults to `Active`; `Inactive` is reserved for future cleanup.
+* Manual offer edits set `UpdatedAtUtc` and `UpdatedBy` but do not change `WebmasterId`, the linked webmaster record, `ContactRawText`, `SiteDomain`, `ImportFingerprint`, `CreatedAtUtc`, or `TermRawText`.
+* Submitting a webmaster offer without any effective field changes does not update `UpdatedAtUtc` or `UpdatedBy` and does not create a change-history entry.
+* `ImportFingerprint` remains the immutable source identity after a manual edit so re-importing the original source row remains idempotent.
 
 Raw webmaster price types in phase 1:
 
@@ -495,6 +499,19 @@ Rules:
 * `QuarantineUpdatedAtUtc` is updated when quarantine state is changed by import or edit.
 * When quarantine is turned off manually, `QuarantineReason` should be cleared.
 * Quarantined sites remain in the catalog and can still appear in filtered results depending on the selected quarantine filter.
+
+### Manual change history
+
+Manual edits to Sites and webmaster offers create change-history entries in the same database save as the edited entity.
+
+Rules:
+
+* Each entry stores entity type, entity identifier, action, source, change timestamp, acting user email, and the changed field values before and after the edit.
+* Site manual-edit history includes editable site fields, quarantine fields, term-aware prices, and service availability.
+* Webmaster-offer manual-edit history includes status, effective term, editable raw offer fields, structured linkbuilder mailboxes, and raw webmaster prices.
+* History endpoints return the newest 100 entries and are available only to users with the corresponding edit permission.
+* The history added in this phase covers manual edits only. Imports, Ahrefs sync, and other background updates do not create general entity-change-history entries.
+* Traffic/DR metric history remains a separate business history with its own snapshot rules.
 
 ### Traffic/DR metric history
 
@@ -1053,14 +1070,20 @@ Rules:
 * `Lite`, `Editor`, and `Linkbuilder` export settings are shown as disabled and are not editable at role or user level.
 * The Imports page shows Webmaster Offers Import only to `SuperAdmin` and `Admin`.
 * The Webmaster Offers page is available only to `SuperAdmin`, `Admin`, and `Linkbuilder`.
-* Webmaster Offers UI supports domain search and read-only comparison of offers, contacts, outreach sender text, linkbuilder mailbox raw text, parsed mailboxes, raw prices by service, term, link policy, DF links raw text, sponsored tag raw text, comments, client raw text, and status.
+* Webmaster Offers UI supports domain search and comparison of offers, contacts, outreach sender text, linkbuilder mailbox raw text, parsed mailboxes, raw prices by service, term, link policy, DF links raw text, sponsored tag raw text, comments, client raw text, and status.
+* `SuperAdmin` and `Admin` can open an edit dialog for an offer. `Linkbuilder` remains read-only.
+* The edit dialog can update status, effective structured term, offer-level raw text fields except `ContactRawText` and `LinkbuilderMailboxRawText`, structured linkbuilder mailboxes, and all ten raw price types. Webmaster fields, primary email, contact raw text, imported linkbuilder mailbox text, site domain, imported raw term, and import fingerprint are read-only.
+* Manual price editing enforces the same availability/amount consistency as import: numeric prices are positive with at most two decimal places; `YES`, `NO`, and `Unknown` have no numeric amount; Main supports only numeric price or Unknown.
+* Saving uses `UpdatedAtUtc` for optimistic concurrency and returns a conflict when another user has changed the offer.
+* Successful saves refresh the domain search result because price changes can change offer ordering.
+* Manual Site and webmaster-offer edit forms expose the corresponding manual change history.
 * Offers are displayed as compact independently expandable comparison rows sorted by effective numeric price ascending. Effective price is the numeric Main price when present, otherwise the lowest numeric price among the other raw price types. Offers without any numeric price are placed last. Equal effective prices are ordered newest first, then by offer ID. Multiple offers can be expanded at the same time; all offers are collapsed by default after search.
 * Leading offer metadata columns show offer number, status and term, and primary email. Offer dates and sponsored tag raw text are not shown in the comparison row.
 * All ten raw price types are shown in a horizontally scrollable comparison matrix. The table, including offer metadata, scrolls horizontally as one surface. Each price cell shows the numeric USD amount, `YES`, `NO`, or `—` as its primary value. The full raw price-details text is shown in secondary typography and wraps without truncation. If there is no numeric/status value but price details exist, the empty-value dash is omitted and only the secondary price-details text is shown.
 * Table typography, header treatment, status treatment, density, hover feedback, and empty-value presentation follow the Sites table patterns; all empty table values use the same `—` presentation.
 * Expanded offer details remain anchored while the comparison table scrolls. They show contact raw text, outreach sender text, sponsored tag raw text, link policy, DF links raw text, comments, client raw text, linkbuilder mailbox raw text, parsed mailboxes, and raw term. Price details are not repeated in a separate table.
 * The last successful Webmaster Offers query and response are cached in browser `sessionStorage` for one hour and restored when the user returns to the page in the same browser tab. The search field clear action removes the query, displayed result, errors, expanded state, and cached entry.
-* Webmaster Offers UI must not include edit controls or raw-data export controls in phase 1.
+* Webmaster Offers UI must not include raw-data export controls.
 * `SuperAdmin` and `Admin` can access an Analytics page for Business Demand based on Client export requests.
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
 * Business Demand price range analytics aggregate the selected `priceUsd`, Casino, Crypto, Link Insert, Link Insert Casino, or Dating price range stored in export analytics snapshots. Service price ranges are labelled with the service name so equal ranges for different price types remain distinct. Term-aware pricing adds selected term demand and price-range-by-term demand; export logs without `termKey` are counted as `Any term`.

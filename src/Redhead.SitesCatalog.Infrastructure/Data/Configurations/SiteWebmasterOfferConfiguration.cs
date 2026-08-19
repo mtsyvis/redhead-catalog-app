@@ -78,6 +78,9 @@ public sealed class SiteWebmasterOfferConfiguration : IEntityTypeConfiguration<S
         builder.Property(offer => offer.UpdatedAtUtc)
             .IsRequired();
 
+        builder.Property(offer => offer.UpdatedBy)
+            .HasMaxLength(320);
+
         builder.HasOne(offer => offer.Site)
             .WithMany(site => site.WebmasterOffers)
             .HasForeignKey(offer => offer.SiteDomain)

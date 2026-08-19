@@ -2579,6 +2579,28 @@ public class SitesServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateSiteAsync_ChangedFields_WritesManualChangeHistory()
+    {
+        // Arrange
+        var site = await _context.Sites
+            .Include(item => item.PriceOptions)
+            .Include(item => item.ServiceAvailabilities)
+            .FirstAsync(item => item.Domain == "example.com");
+        var request = RequestFrom(site, isQuarantined: true, "History test");
+        request.DR = site.DR + 5;
+
+        // Act
+        await _service.UpdateSiteAsync("example.com", request, TestAuditUserEmail, CancellationToken.None);
+
+        // Assert
+        var history = Assert.Single(_context.EntityChangeHistories);
+        Assert.Equal("Site", history.EntityType);
+        Assert.Equal("example.com", history.EntityId);
+        Assert.Equal(TestAuditUserEmail, history.ChangedBy);
+        Assert.Contains("History test", history.ChangesJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task UpdateSiteAsync_UnknownDomain_ReturnsNull()
     {
         var request = new UpdateSiteRequest

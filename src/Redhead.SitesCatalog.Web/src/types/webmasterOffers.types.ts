@@ -51,8 +51,44 @@ export interface WebmasterOffer {
   status: WebmasterOfferStatus;
   createdAtUtc: string;
   updatedAtUtc: string;
+  updatedBy: string | null;
   linkbuilderMailboxes: WebmasterOfferMailbox[];
   prices: WebmasterOfferPrice[];
+}
+
+export interface WebmasterOfferEdit {
+  offer: WebmasterOffer;
+  availableMailboxes: WebmasterOfferMailboxOption[];
+}
+
+export interface WebmasterOfferMailboxOption {
+  id: string;
+  email: string;
+  displayName: string;
+  isActive: boolean;
+}
+
+export interface UpdateWebmasterOfferPricePayload {
+  priceType: number;
+  availabilityStatus: number;
+  webmasterPriceUsd: number | null;
+  webmasterPriceDetails: string | null;
+}
+
+export interface UpdateWebmasterOfferPayload {
+  expectedUpdatedAtUtc: string;
+  status: number;
+  outreachSenderRawText: string | null;
+  linkPolicyText: string | null;
+  dfLinksRawText: string | null;
+  sponsoredTagRawText: string | null;
+  commentText: string | null;
+  clientRawText: string | null;
+  termType: number | null;
+  termValue: number | null;
+  termUnit: number | null;
+  linkbuilderMailboxIds: string[];
+  prices: UpdateWebmasterOfferPricePayload[];
 }
 
 export interface WebmasterOfferMailbox {

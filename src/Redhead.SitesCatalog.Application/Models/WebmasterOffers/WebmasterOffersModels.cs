@@ -29,6 +29,7 @@ public sealed class WebmasterOfferDto
     public SiteWebmasterOfferStatus Status { get; init; }
     public DateTime CreatedAtUtc { get; init; }
     public DateTime UpdatedAtUtc { get; init; }
+    public string? UpdatedBy { get; init; }
     public IReadOnlyList<WebmasterOfferMailboxDto> LinkbuilderMailboxes { get; init; } = [];
     public IReadOnlyList<WebmasterOfferPriceDto> Prices { get; init; } = [];
 }

@@ -35,6 +35,7 @@ import type {
 import { sitesService } from '../../../services/sites.service';
 import { ApiClientError } from '../../../services/api.client';
 import { BrandButton } from '../../common/BrandButton';
+import { ChangeHistoryAccordion } from '../../common/ChangeHistoryAccordion';
 import {
   SERVICE_AVAILABILITY_STATUS,
   SERVICE_AVAILABILITY_STATUS_OPTIONS,
@@ -826,6 +827,11 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
                 helperText={fieldErrors.quarantineReason?.[0]}
               />
             )}
+
+            <ChangeHistoryAccordion
+              entityKey={site.domain}
+              loadHistory={() => sitesService.getHistory(site.domain)}
+            />
           </Box>
         )}
       </DialogContent>

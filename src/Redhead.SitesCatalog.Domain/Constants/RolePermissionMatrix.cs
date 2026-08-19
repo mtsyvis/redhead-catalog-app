@@ -19,7 +19,8 @@ public static class RolePermissionMatrix
                 AppPermissions.AnalyticsRead,
                 AppPermissions.AhrefsSyncManage,
                 AppPermissions.WebmasterOffersRead,
-                AppPermissions.WebmasterOffersImport
+                AppPermissions.WebmasterOffersImport,
+                AppPermissions.WebmasterOffersManage
             },
             [AppRoles.Editor] = new HashSet<string>(StringComparer.Ordinal)
             {

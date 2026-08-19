@@ -32,6 +32,7 @@ export function useUserRoles() {
   const canManageAhrefsSync = hasPermission('AhrefsSyncManage');
   const canReadWebmasterOffers = hasPermission('WebmasterOffersRead');
   const canImportWebmasterOffers = hasPermission('WebmasterOffersImport');
+  const canManageWebmasterOffers = hasPermission('WebmasterOffersManage');
 
   return {
     roles,
@@ -58,5 +59,6 @@ export function useUserRoles() {
     canManageAhrefsSync,
     canReadWebmasterOffers,
     canImportWebmasterOffers,
+    canManageWebmasterOffers,
   };
 }

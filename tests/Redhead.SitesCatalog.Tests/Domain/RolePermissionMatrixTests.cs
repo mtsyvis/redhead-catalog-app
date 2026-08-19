@@ -94,6 +94,18 @@ public sealed class RolePermissionMatrixTests
     }
 
     [Fact]
+    public void GetRolesForPermission_WebmasterOffersManage_ReturnsOnlySuperAdminAndAdmin()
+    {
+        // Arrange
+
+        // Act
+        var roles = RolePermissionMatrix.GetRolesForPermission(AppPermissions.WebmasterOffersManage);
+
+        // Assert
+        Assert.Equal([AppRoles.SuperAdmin, AppRoles.Admin], roles);
+    }
+
+    [Fact]
     public void GetPermissions_ForEveryActiveRole_OnlyUsesKnownPermissions()
     {
         // Arrange

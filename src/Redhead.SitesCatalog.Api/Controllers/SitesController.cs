@@ -291,6 +291,16 @@ public class SitesController : ControllerBase
         return Ok(SitesMapper.ToSiteResponse(updated));
     }
 
+    [HttpGet("{domain}/history")]
+    [Authorize(Policy = AppPolicies.SitesEditAccess)]
+    public async Task<ActionResult<IReadOnlyList<Application.Models.ChangeHistory.EntityChangeHistoryDto>>> GetSiteHistory(
+        string domain,
+        CancellationToken cancellationToken)
+    {
+        var history = await _sitesService.GetSiteHistoryAsync(domain, cancellationToken);
+        return Ok(history);
+    }
+
     private bool CanViewInternalSiteFields()
     {
         var user = HttpContext?.User;

@@ -19,6 +19,7 @@ export const APP_PERMISSIONS = [
   'AhrefsSyncManage',
   'WebmasterOffersRead',
   'WebmasterOffersImport',
+  'WebmasterOffersManage',
 ] as const;
 export type AppPermission = (typeof APP_PERMISSIONS)[number];
 
@@ -37,6 +38,7 @@ export const ROLE_PERMISSION_MATRIX: Record<AppRole, readonly AppPermission[]> =
     'AhrefsSyncManage',
     'WebmasterOffersRead',
     'WebmasterOffersImport',
+    'WebmasterOffersManage',
   ],
   Editor: ['SitesBrowse', 'SitesMultiSearch', 'SitesEdit', 'TableViewsManage'],
   Linkbuilder: ['SitesBrowse', 'SitesMultiSearch', 'TableViewsManage', 'WebmasterOffersRead'],

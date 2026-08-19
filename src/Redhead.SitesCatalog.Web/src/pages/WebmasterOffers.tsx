@@ -15,6 +15,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import { BrandButton } from '../components/common/BrandButton';
 import { PageShell } from '../components/layout/PageShell';
 import { WebmasterOffersComparison } from '../components/webmaster-offers/WebmasterOffersComparison';
+import { EditWebmasterOfferDialog } from '../components/webmaster-offers/EditWebmasterOfferDialog';
 import { useUserRoles } from '../hooks/useUserRoles';
 import { webmasterOffersService } from '../services/webmasterOffers.service';
 import type { WebmasterOffersSearchResult } from '../types/webmasterOffers.types';
@@ -29,7 +30,7 @@ function pluralizeOffers(count: number) {
 }
 
 export function WebmasterOffers() {
-  const { canReadWebmasterOffers } = useUserRoles();
+  const { canReadWebmasterOffers, canManageWebmasterOffers } = useUserRoles();
   const [cachedSearch] = useState(readCachedWebmasterOffersSearch);
   const [domain, setDomain] = useState(cachedSearch?.query ?? '');
   const [result, setResult] = useState<WebmasterOffersSearchResult | null>(
@@ -38,6 +39,7 @@ export function WebmasterOffers() {
   const [expandedOfferIds, setExpandedOfferIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
 
   if (!canReadWebmasterOffers) {
     return <Navigate to="/sites" replace />;
@@ -80,6 +82,23 @@ export function WebmasterOffers() {
       }
       return next;
     });
+  };
+
+  const handleOfferSaved = async () => {
+    setEditingOfferId(null);
+    if (!result?.siteFound) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const refreshed = await webmasterOffersService.getByDomain(result.domain);
+      setResult(refreshed);
+      cacheWebmasterOffersSearch(result.domain, refreshed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Offer was saved, but the results could not be refreshed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -143,10 +162,20 @@ export function WebmasterOffers() {
               offers={result.offers}
               expandedOfferIds={expandedOfferIds}
               onExpandedOfferChange={handleExpandedOfferChange}
+              canEdit={canManageWebmasterOffers}
+              onEditOffer={setEditingOfferId}
             />
           )}
         </Stack>
       )}
+
+      <EditWebmasterOfferDialog
+        open={Boolean(editingOfferId)}
+        offerId={editingOfferId}
+        domain={result?.domain ?? domain.trim()}
+        onClose={() => setEditingOfferId(null)}
+        onSaved={handleOfferSaved}
+      />
     </PageShell>
   );
 }

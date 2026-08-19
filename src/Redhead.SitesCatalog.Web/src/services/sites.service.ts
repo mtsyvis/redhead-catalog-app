@@ -1,4 +1,5 @@
 import { apiClient } from './api.client';
+import type { EntityChangeHistoryItem } from '../types/changeHistory.types';
 import { notifySessionExpired } from './sessionExpired';
 import type {
   Site,
@@ -59,6 +60,12 @@ class SitesService {
     this.clearFilterOptionsCache();
 
     return updated;
+  }
+
+  async getHistory(domain: string): Promise<EntityChangeHistoryItem[]> {
+    return apiClient.get<EntityChangeHistoryItem[]>(
+      `${this.baseUrl}/${encodeURIComponent(domain)}/history`
+    );
   }
 
   /**

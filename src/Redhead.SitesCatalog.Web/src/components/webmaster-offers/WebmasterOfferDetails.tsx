@@ -50,24 +50,30 @@ export function WebmasterOfferDetails({ offer }: { readonly offer: WebmasterOffe
       <Stack spacing={1.5}>
         <WebmasterOfferTextBlock label="Contact" value={offer.contactRawText} />
         <WebmasterOfferTextBlock label="Outreach Sender" value={offer.outreachSenderRawText} />
-        <WebmasterOfferTextBlock
-          label="Linkbuilder Mailbox"
-          value={offer.linkbuilderMailboxRawText}
-        />
-        {mailboxLabels.length > 0 && (
+        {(mailboxLabels.length > 0 || Boolean(offer.linkbuilderMailboxRawText?.trim())) && (
           <Box>
             <Typography
               variant="caption"
               color="text.secondary"
               sx={{ display: 'block', mb: 0.75 }}
             >
-              Matched Mailboxes
+              Linkbuilder
             </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {mailboxLabels.map((label) => (
-                <Chip key={label} size="small" label={label} variant="outlined" />
-              ))}
-            </Stack>
+            {mailboxLabels.length > 0 && (
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {mailboxLabels.map((label) => (
+                  <Chip key={label} size="small" label={label} variant="outlined" />
+                ))}
+              </Stack>
+            )}
+            {mailboxLabels.length === 0 && (
+              <Typography
+                variant="body2"
+                sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.45 }}
+              >
+                {offer.linkbuilderMailboxRawText}
+              </Typography>
+            )}
           </Box>
         )}
       </Stack>
@@ -76,7 +82,7 @@ export function WebmasterOfferDetails({ offer }: { readonly offer: WebmasterOffe
         <WebmasterOfferTextBlock label="Sponsored Tag" value={offer.sponsoredTagRawText} />
         <WebmasterOfferTextBlock label="Link Policy" value={offer.linkPolicyText} />
         <WebmasterOfferTextBlock label="DF Links" value={offer.dfLinksRawText} />
-        <WebmasterOfferTextBlock label="Term" value={offer.termRawText} />
+        <WebmasterOfferTextBlock label="Imported Term" value={offer.termRawText} />
       </Stack>
 
       <Stack spacing={1.5}>

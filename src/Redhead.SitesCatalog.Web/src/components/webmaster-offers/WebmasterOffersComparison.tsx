@@ -4,11 +4,13 @@ import {
   AccordionSummary,
   Box,
   Chip,
+  IconButton,
   Paper,
   Stack,
   Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { alpha } from '@mui/material/styles';
 import type { WebmasterOffer, WebmasterOfferStatus } from '../../types/webmasterOffers.types';
 import {
@@ -22,7 +24,7 @@ import {
   WebmasterOfferPriceHeader,
 } from './WebmasterOfferPriceMatrix';
 
-const OFFER_WIDTH = 112;
+const OFFER_WIDTH = 140;
 const STATUS_TERM_WIDTH = 168;
 const PRIMARY_EMAIL_WIDTH = 220;
 const METADATA_WIDTH = OFFER_WIDTH + STATUS_TERM_WIDTH + PRIMARY_EMAIL_WIDTH;
@@ -110,9 +112,11 @@ interface OfferRowProps {
   readonly index: number;
   readonly expanded: boolean;
   readonly onChange: (expanded: boolean) => void;
+  readonly canEdit: boolean;
+  readonly onEdit: () => void;
 }
 
-function DesktopOfferRow({ offer, index, expanded, onChange }: OfferRowProps) {
+function DesktopOfferRow({ offer, index, expanded, onChange, canEdit, onEdit }: OfferRowProps) {
   return (
     <Accordion
       expanded={expanded}
@@ -158,10 +162,25 @@ function DesktopOfferRow({ offer, index, expanded, onChange }: OfferRowProps) {
           <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
             Offer {index + 1}
           </Typography>
-          <ExpandMoreIcon
-            fontSize="small"
-            sx={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }}
-          />
+          <Stack direction="row" spacing={0.25} alignItems="center">
+            {canEdit && (
+              <IconButton
+                aria-label={`Edit offer ${index + 1}`}
+                size="small"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEdit();
+                }}
+                onFocus={(event) => event.stopPropagation()}
+              >
+                <EditOutlinedIcon fontSize="small" />
+              </IconButton>
+            )}
+            <ExpandMoreIcon
+              fontSize="small"
+              sx={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }}
+            />
+          </Stack>
         </Box>
         <Box
           sx={{
@@ -212,7 +231,7 @@ function DesktopOfferRow({ offer, index, expanded, onChange }: OfferRowProps) {
   );
 }
 
-function MobileOfferRow({ offer, index, expanded, onChange }: OfferRowProps) {
+function MobileOfferRow({ offer, index, expanded, onChange, canEdit, onEdit }: OfferRowProps) {
   return (
     <Accordion
       expanded={expanded}
@@ -239,10 +258,25 @@ function MobileOfferRow({ offer, index, expanded, onChange }: OfferRowProps) {
             <OfferStatusChip status={offer.status} />
             <TermChip label={offer.termLabel || 'No term'} />
           </Stack>
-          <ExpandMoreIcon
-            fontSize="small"
-            sx={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none' }}
-          />
+          <Stack direction="row" spacing={0.25} alignItems="center">
+            {canEdit && (
+              <IconButton
+                aria-label={`Edit offer ${index + 1}`}
+                size="small"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEdit();
+                }}
+                onFocus={(event) => event.stopPropagation()}
+              >
+                <EditOutlinedIcon fontSize="small" />
+              </IconButton>
+            )}
+            <ExpandMoreIcon
+              fontSize="small"
+              sx={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none' }}
+            />
+          </Stack>
         </Box>
         <Box sx={{ mb: 1.5 }}>
           <WebmasterOfferTextBlock label="Primary Email" value={offer.primaryEmail || '—'} />
@@ -284,12 +318,16 @@ export interface WebmasterOffersComparisonProps {
   readonly offers: readonly WebmasterOffer[];
   readonly expandedOfferIds: ReadonlySet<string>;
   readonly onExpandedOfferChange: (offerId: string, expanded: boolean) => void;
+  readonly canEdit: boolean;
+  readonly onEditOffer: (offerId: string) => void;
 }
 
 export function WebmasterOffersComparison({
   offers,
   expandedOfferIds,
   onExpandedOfferChange,
+  canEdit,
+  onEditOffer,
 }: WebmasterOffersComparisonProps) {
   return (
     <>
@@ -302,6 +340,8 @@ export function WebmasterOffersComparison({
             index={index}
             expanded={expandedOfferIds.has(offer.id)}
             onChange={(expanded) => onExpandedOfferChange(offer.id, expanded)}
+            canEdit={canEdit}
+            onEdit={() => onEditOffer(offer.id)}
           />
         ))}
       </Paper>
@@ -314,6 +354,8 @@ export function WebmasterOffersComparison({
             index={index}
             expanded={expandedOfferIds.has(offer.id)}
             onChange={(expanded) => onExpandedOfferChange(offer.id, expanded)}
+            canEdit={canEdit}
+            onEdit={() => onEditOffer(offer.id)}
           />
         ))}
       </Box>

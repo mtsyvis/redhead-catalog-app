@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Redhead.SitesCatalog.Application.Audit;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Models.ChangeHistory;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -395,6 +397,7 @@ public class SitesService : ISitesService
             return null;
         }
 
+        var historyBefore = EntityChangeHistoryRecorder.CaptureSite(site);
         var previousCacheSnapshot = SiteUpdateCacheSnapshot.FromSite(site);
         var now = DateTime.UtcNow;
         var location = _locationNormalizer.Normalize(request.Location);
@@ -440,6 +443,16 @@ public class SitesService : ISitesService
 
         site.UpdatedAtUtc = now;
         site.UpdatedBy = AuditUserFormatter.Format(userEmail);
+        var historyAfter = EntityChangeHistoryRecorder.CaptureSite(site);
+        EntityChangeHistoryRecorder.RecordUpdate(
+            _context,
+            EntityChangeHistoryConstants.SiteEntityType,
+            site.Domain,
+            historyBefore,
+            historyAfter,
+            EntityChangeHistoryConstants.ManualSource,
+            userEmail,
+            now);
         await _context.SaveChangesAsync(cancellationToken);
         SiteUpdateCacheInvalidation.InvalidateAfterSiteUpdate(
             _sitesCatalogCache,
@@ -489,6 +502,23 @@ public class SitesService : ISitesService
         await AttachPricingAsync(new List<SiteDto> { dto }, cancellationToken);
 
         return dto;
+    }
+
+    public async Task<IReadOnlyList<EntityChangeHistoryDto>> GetSiteHistoryAsync(
+        string domain,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = DomainNormalizer.Normalize(domain);
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return [];
+        }
+
+        return await EntityChangeHistoryRecorder.GetHistoryAsync(
+            _context,
+            EntityChangeHistoryConstants.SiteEntityType,
+            normalized,
+            cancellationToken);
     }
 
     private void ReplacePricingCollections(Site site, UpdateSitePricingRequest pricing, DateTime now)

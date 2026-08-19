@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -266,6 +267,246 @@ public sealed class WebmasterOffersServiceTests : IDisposable
         Assert.Equal(
             [fallbackOfferId, lowerMainOfferId, higherMainOfferId, noNumericPriceOfferId],
             result.Offers.Select(offer => offer.Id));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ValidRequest_UpdatesOfferAndWritesHistoryWithoutChangingImportedIdentityData()
+    {
+        // Arrange
+        var originalTime = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        var webmasterId = Guid.NewGuid();
+        var offerId = Guid.NewGuid();
+        var mailboxId = Guid.NewGuid();
+        const string fingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        _context.Sites.Add(new Site
+        {
+            Domain = "edit.com",
+            DR = 30,
+            Traffic = 1000,
+            Location = "US",
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        });
+        _context.Webmasters.Add(new Webmaster
+        {
+            Id = webmasterId,
+            ContactRawText = "original@example.com",
+            NormalizedContactRawText = "original@example.com",
+            PrimaryEmail = "original@example.com",
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        });
+        _context.LinkbuilderMailboxes.Add(new LinkbuilderMailbox
+        {
+            Id = mailboxId,
+            Email = "outreach@example.com",
+            DisplayName = "Outreach",
+            IsActive = true,
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        });
+        _context.SiteWebmasterOffers.Add(new SiteWebmasterOffer
+        {
+            Id = offerId,
+            SiteDomain = "edit.com",
+            WebmasterId = webmasterId,
+            ImportFingerprint = fingerprint,
+            ContactRawText = "original@example.com",
+            LinkbuilderMailboxRawText = "Imported Outreach Alias",
+            Status = SiteWebmasterOfferStatus.Active,
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        });
+        _context.WebmasterOfferPrices.Add(new WebmasterOfferPrice
+        {
+            Id = Guid.NewGuid(),
+            SiteWebmasterOfferId = offerId,
+            PriceType = WebmasterOfferPriceType.Main,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available,
+            WebmasterPriceUsd = 100m,
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        });
+        await _context.SaveChangesAsync();
+        var request = new UpdateWebmasterOfferRequest
+        {
+            ExpectedUpdatedAtUtc = originalTime,
+            Status = SiteWebmasterOfferStatus.Inactive,
+            CommentText = "Updated conditions",
+            TermType = TermType.Finite,
+            TermValue = 2,
+            TermUnit = TermUnit.Year,
+            LinkbuilderMailboxIds = [mailboxId],
+            Prices =
+            [
+                new UpdateWebmasterOfferPriceRequest
+                {
+                    PriceType = WebmasterOfferPriceType.Main,
+                    AvailabilityStatus = ServiceAvailabilityStatus.Available,
+                    WebmasterPriceUsd = 125m,
+                    WebmasterPriceDetails = "new price"
+                }
+            ]
+        };
+
+        // Act
+        var result = await _sut.UpdateAsync(offerId, request, "admin@example.com");
+
+        // Assert
+        Assert.Equal(WebmasterOfferUpdateStatus.Success, result.Status);
+        var updated = await _context.SiteWebmasterOffers
+            .Include(offer => offer.Prices)
+            .Include(offer => offer.LinkbuilderMailboxes)
+            .SingleAsync(offer => offer.Id == offerId);
+        Assert.Equal(SiteWebmasterOfferStatus.Inactive, updated.Status);
+        Assert.Equal("original@example.com", updated.ContactRawText);
+        Assert.Equal("Imported Outreach Alias", updated.LinkbuilderMailboxRawText);
+        Assert.Equal("admin@example.com", updated.UpdatedBy);
+        Assert.Equal(fingerprint, updated.ImportFingerprint);
+        Assert.Equal(webmasterId, updated.WebmasterId);
+        Assert.Equal(125m, Assert.Single(updated.Prices).WebmasterPriceUsd);
+        Assert.Single(updated.LinkbuilderMailboxes);
+
+        var webmaster = await _context.Webmasters.SingleAsync(item => item.Id == webmasterId);
+        Assert.Equal("original@example.com", webmaster.ContactRawText);
+        Assert.Equal("original@example.com", webmaster.PrimaryEmail);
+
+        var history = Assert.Single(_context.EntityChangeHistories);
+        Assert.Equal(offerId.ToString("D"), history.EntityId);
+        Assert.Equal("admin@example.com", history.ChangedBy);
+        Assert.Contains("Updated conditions", history.ChangesJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"field\":\"Contact\"", history.ChangesJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"field\":\"Linkbuilder mailbox raw text\"", history.ChangesJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_UnchangedRequest_DoesNotUpdateAuditFieldsOrWriteHistory()
+    {
+        // Arrange
+        var originalTime = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        var webmasterId = Guid.NewGuid();
+        var offerId = Guid.NewGuid();
+        _context.Sites.Add(new Site
+        {
+            Domain = "unchanged.com",
+            DR = 30,
+            Traffic = 1000,
+            Location = "US",
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        });
+        _context.Webmasters.Add(new Webmaster
+        {
+            Id = webmasterId,
+            ContactRawText = "contact@example.com",
+            NormalizedContactRawText = "contact@example.com",
+            PrimaryEmail = "contact@example.com",
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        });
+        _context.SiteWebmasterOffers.Add(new SiteWebmasterOffer
+        {
+            Id = offerId,
+            SiteDomain = "unchanged.com",
+            WebmasterId = webmasterId,
+            ImportFingerprint = new string('u', 64),
+            ContactRawText = "contact@example.com",
+            Status = SiteWebmasterOfferStatus.Active,
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        });
+        _context.WebmasterOfferPrices.Add(new WebmasterOfferPrice
+        {
+            Id = Guid.NewGuid(),
+            SiteWebmasterOfferId = offerId,
+            PriceType = WebmasterOfferPriceType.Main,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available,
+            WebmasterPriceUsd = 100m,
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        });
+        await _context.SaveChangesAsync();
+        var request = new UpdateWebmasterOfferRequest
+        {
+            ExpectedUpdatedAtUtc = originalTime,
+            Status = SiteWebmasterOfferStatus.Active,
+            Prices =
+            [
+                new UpdateWebmasterOfferPriceRequest
+                {
+                    PriceType = WebmasterOfferPriceType.Main,
+                    AvailabilityStatus = ServiceAvailabilityStatus.Available,
+                    WebmasterPriceUsd = 100m
+                }
+            ]
+        };
+
+        // Act
+        var result = await _sut.UpdateAsync(offerId, request, "admin@example.com");
+
+        // Assert
+        Assert.Equal(WebmasterOfferUpdateStatus.Success, result.Status);
+        _context.ChangeTracker.Clear();
+        var unchanged = await _context.SiteWebmasterOffers
+            .Include(offer => offer.Prices)
+            .SingleAsync(offer => offer.Id == offerId);
+        Assert.Equal(originalTime, unchanged.UpdatedAtUtc);
+        Assert.Null(unchanged.UpdatedBy);
+        Assert.Equal(originalTime, Assert.Single(unchanged.Prices).UpdatedAtUtc);
+        Assert.Empty(_context.EntityChangeHistories);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StaleTimestamp_ReturnsConflictWithoutChanges()
+    {
+        // Arrange
+        var now = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        var webmasterId = Guid.NewGuid();
+        var offerId = Guid.NewGuid();
+        _context.Sites.Add(new Site
+        {
+            Domain = "conflict.com",
+            DR = 30,
+            Traffic = 1000,
+            Location = "US",
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _context.Webmasters.Add(new Webmaster
+        {
+            Id = webmasterId,
+            ContactRawText = "contact@example.com",
+            NormalizedContactRawText = "contact@example.com",
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        _context.SiteWebmasterOffers.Add(new SiteWebmasterOffer
+        {
+            Id = offerId,
+            SiteDomain = "conflict.com",
+            WebmasterId = webmasterId,
+            ImportFingerprint = new string('c', 64),
+            ContactRawText = "contact@example.com",
+            Status = SiteWebmasterOfferStatus.Active,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+        await _context.SaveChangesAsync();
+        var request = new UpdateWebmasterOfferRequest
+        {
+            ExpectedUpdatedAtUtc = now.AddMinutes(-1),
+            Status = SiteWebmasterOfferStatus.Inactive
+        };
+
+        // Act
+        var result = await _sut.UpdateAsync(offerId, request, "admin@example.com");
+
+        // Assert
+        Assert.Equal(WebmasterOfferUpdateStatus.Conflict, result.Status);
+        var offer = await _context.SiteWebmasterOffers.SingleAsync(item => item.Id == offerId);
+        Assert.Equal(SiteWebmasterOfferStatus.Active, offer.Status);
+        Assert.Equal("contact@example.com", offer.ContactRawText);
+        Assert.Empty(_context.EntityChangeHistories);
     }
 
     private static SiteWebmasterOffer CreateOffer(

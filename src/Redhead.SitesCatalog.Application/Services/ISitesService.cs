@@ -1,4 +1,5 @@
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Models.ChangeHistory;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
@@ -56,4 +57,8 @@ public interface ISitesService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Updated site DTO or null if not found</returns>
     Task<SiteDto?> UpdateSiteAsync(string domain, UpdateSiteRequest request, string? userEmail, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<EntityChangeHistoryDto>> GetSiteHistoryAsync(
+        string domain,
+        CancellationToken cancellationToken = default);
 }
