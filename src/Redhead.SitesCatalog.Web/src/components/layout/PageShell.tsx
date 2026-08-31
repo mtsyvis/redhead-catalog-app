@@ -84,6 +84,7 @@ export const PageShell: React.FC<PageShellProps> = ({
   const getCurrentTab = () => {
     if (location.pathname === '/sites') return '/sites';
     if (location.pathname.startsWith('/webmaster-offers')) return '/webmaster-offers';
+    if (location.pathname.startsWith('/webmasters')) return '/webmasters';
     if (location.pathname.startsWith('/imports')) return '/imports';
     if (location.pathname.startsWith('/admin')) return '/admin';
     return false;
@@ -143,6 +144,8 @@ export const PageShell: React.FC<PageShellProps> = ({
                 <Tabs
                   value={getCurrentTab()}
                   onChange={handleTabChange}
+                  variant="scrollable"
+                  scrollButtons="auto"
                   sx={{
                     '& .MuiTab-root': {
                       color: 'text.secondary',
@@ -153,6 +156,9 @@ export const PageShell: React.FC<PageShellProps> = ({
                   }}
                 >
                   <Tab label="Sites" value="/sites" />
+                  {canReadWebmasterOffers && (
+                    <Tab label="Webmasters" value="/webmasters" />
+                  )}
                   {canReadWebmasterOffers && (
                     <Tab label="Webmaster Offers" value="/webmaster-offers" />
                   )}

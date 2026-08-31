@@ -34,6 +34,8 @@ public sealed class ControllerPolicyTests
     [InlineData(typeof(ImportController), nameof(ImportController.ImportWebmasterOffers), AppPolicies.ImportsRunAccess)]
     [InlineData(typeof(ImportController), nameof(ImportController.ImportWebmasterOffers), AppPolicies.WebmasterOffersImportAccess)]
     [InlineData(typeof(WebmasterOffersController), nameof(WebmasterOffersController.GetByDomain), AppPolicies.WebmasterOffersReadAccess)]
+    [InlineData(typeof(WebmastersController), nameof(WebmastersController.Search), AppPolicies.WebmasterOffersReadAccess)]
+    [InlineData(typeof(WebmastersController), nameof(WebmastersController.GetWorkspace), AppPolicies.WebmasterOffersReadAccess)]
     [InlineData(typeof(AnalyticsController), nameof(AnalyticsController.GetBusinessDemand), AppPolicies.AnalyticsReadAccess)]
     [InlineData(typeof(AnalyticsController), nameof(AnalyticsController.GetExportActivity), AppPolicies.AnalyticsReadAccess)]
     [InlineData(typeof(AnalyticsController), nameof(AnalyticsController.GetExportLogDetails), AppPolicies.AnalyticsReadAccess)]

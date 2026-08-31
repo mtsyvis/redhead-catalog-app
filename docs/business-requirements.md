@@ -451,6 +451,30 @@ Raw price rules:
 * Details without amount are allowed.
 * Empty amount and empty details create no price row.
 
+### Webmaster Contact search and offer review
+
+The read-only `/webmasters` page is a webmaster-centric workflow that is separate from the existing domain-centric `/webmaster-offers` page.
+
+Access and search rules:
+
+* The page and both `/api/webmasters` read endpoints use the existing Webmaster Offers read permission. They are available to `SuperAdmin`, `Admin`, `Editor`, and `Linkbuilder`; other roles have no access.
+* Search uses a trimmed, case-insensitive substring match against `SiteWebmasterOffer.ContactRawText` and requires at least three characters.
+* Empty and shorter queries do not query or return webmaster records.
+* Search runs automatically after a short debounce. The page has no Search button and does not show a minimum-length notification.
+* Results are grouped by current `WebmasterId`, not by offer, and are paginated server-side.
+* Each result shows the current primary email when detected, representative and matching raw Contact evidence, total and active offer counts, distinct domain count, and latest offer update date.
+* Results are ordered by latest offer update descending and then by webmaster identifier for deterministic pagination.
+* Selecting a result loads its workspace through a separate request; search results do not preload workspaces.
+
+Workspace rules:
+
+* The workspace is full-width below the search results and groups every offer for the selected webmaster by normalized catalog domain. Each domain group explicitly shows the selected webmaster's offer count and, when non-zero, the aggregate count of offers from other webmasters for the same domain.
+* Each domain group flags exceptional catalog states: a missing catalog site or a quarantined site, including the quarantine reason when present. Normally available catalog sites have no redundant availability badge.
+* Other-webmaster context is count-only: the Contact data, prices, and offer details of other webmasters are not returned in the selected webmaster workspace.
+* Each offer shows its status, structured and imported raw term, `ContactRawText` import evidence, other available raw offer fields, all stored raw price rows, and each raw price availability status.
+* The page is for search and review only. It has no offer selection or candidate-source controls and does not update catalog prices, offer status, quarantine state, or any database record.
+* The page has no raw-data export controls.
+
 ### Additional site fields
 
 `Language` is optional and stores the main language classification for a site.
@@ -1071,6 +1095,8 @@ Rules:
 * `Lite`, `Editor`, and `Linkbuilder` export settings are shown as disabled and are not editable at role or user level.
 * The Imports page shows Webmaster Offers Import only to `SuperAdmin` and `Admin`.
 * The Webmaster Offers page is available only to `SuperAdmin`, `Admin`, `Editor`, and `Linkbuilder`.
+* Webmaster Offers domain search uses the same full-width search-field pattern as Sites Catalog. It runs automatically after a short debounce without a separate Search button; pressing Enter runs it immediately.
+* The Webmasters page is available to the same roles and provides the separate Contact-based read-only search and offer-review workflow described above.
 * Webmaster Offers UI supports domain search and comparison of offers, contacts, outreach sender text, linkbuilder mailbox raw text, parsed mailboxes, raw prices by service, term, link policy, DF links raw text, sponsored tag raw text, comments, client raw text, and status.
 * `SuperAdmin`, `Admin`, and `Editor` can open an edit dialog for an offer. `Linkbuilder` remains read-only.
 * The edit dialog can update status, effective structured term, offer-level raw text fields except `ContactRawText` and `LinkbuilderMailboxRawText`, structured linkbuilder mailboxes, and all ten raw price types. Webmaster fields, primary email, contact raw text, imported linkbuilder mailbox text, site domain, imported raw term, and import fingerprint are read-only.

@@ -1,11 +1,10 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
   Alert,
+  Box,
   CircularProgress,
   IconButton,
-  Paper,
   Stack,
   TextField,
   Typography,
@@ -25,6 +24,8 @@ import {
   readCachedWebmasterOffersSearch,
 } from '../utils/webmasterOffersSearchCache';
 
+const SEARCH_DEBOUNCE_MS = 400;
+
 function pluralizeOffers(count: number) {
   return count === 1 ? `${count} offer` : `${count} offers`;
 }
@@ -40,34 +41,69 @@ export function WebmasterOffers() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
+  const searchRequestSequence = useRef(0);
+  const lastSearchKey = useRef(cachedSearch?.query.trim().toLowerCase() ?? '');
 
-  if (!canReadWebmasterOffers) {
-    return <Navigate to="/sites" replace />;
-  }
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    const trimmed = domain.trim();
+  const runSearch = useCallback(async (query: string, force = false) => {
+    const trimmed = query.trim();
     if (!trimmed) return;
+
+    const searchKey = trimmed.toLowerCase();
+    if (!force && lastSearchKey.current === searchKey) return;
+    lastSearchKey.current = searchKey;
+    const requestSequence = ++searchRequestSequence.current;
 
     setLoading(true);
     setError(null);
     try {
       const searchResult = await webmasterOffersService.getByDomain(trimmed);
+      if (searchRequestSequence.current !== requestSequence) return;
       setResult(searchResult);
       setExpandedOfferIds(new Set());
       cacheWebmasterOffersSearch(trimmed, searchResult);
     } catch (err) {
+      if (searchRequestSequence.current !== requestSequence) return;
+      lastSearchKey.current = '';
       setError(err instanceof Error ? err.message : 'Failed to load webmaster offers');
     } finally {
-      setLoading(false);
+      if (searchRequestSequence.current === requestSequence) {
+        setLoading(false);
+      }
     }
+  }, []);
+
+  useEffect(() => {
+    if (!canReadWebmasterOffers) return;
+
+    const timer = window.setTimeout(() => {
+      void runSearch(domain);
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [canReadWebmasterOffers, domain, runSearch]);
+
+  if (!canReadWebmasterOffers) {
+    return <Navigate to="/sites" replace />;
+  }
+
+  const handleDomainChange = (value: string) => {
+    searchRequestSequence.current += 1;
+    lastSearchKey.current = '';
+    setDomain(value);
+    setResult(null);
+    setExpandedOfferIds(new Set());
+    setLoading(false);
+    setError(null);
+    clearCachedWebmasterOffersSearch();
   };
 
   const handleClearSearch = () => {
+    searchRequestSequence.current += 1;
+    lastSearchKey.current = '';
     setDomain('');
     setResult(null);
     setExpandedOfferIds(new Set());
+    setLoading(false);
     setError(null);
     clearCachedWebmasterOffersSearch();
   };
@@ -103,44 +139,54 @@ export function WebmasterOffers() {
 
   return (
     <PageShell title="Webmaster Offers" maxWidth="xl">
-      <Paper component="form" onSubmit={handleSubmit} sx={{ p: 2, mb: 3 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-          <TextField
-            label="Domain"
-            value={domain}
-            onChange={(event) => setDomain(event.target.value)}
-            placeholder="example.com"
-            size="small"
-            fullWidth
-            InputProps={{
-              endAdornment: domain ? (
-                <IconButton
-                  aria-label="Clear search"
-                  edge="end"
-                  size="small"
-                  disabled={loading}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={handleClearSearch}
-                  sx={{ color: 'text.secondary' }}
-                >
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              ) : undefined,
-            }}
-          />
-          <BrandButton
-            type="submit"
-            disabled={loading || !domain.trim()}
-            startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <SearchIcon />}
-            sx={{ minWidth: 120 }}
-          >
-            Search
-          </BrandButton>
-        </Stack>
-      </Paper>
+      <Box sx={{ mb: 1.5 }}>
+        <TextField
+          fullWidth
+          placeholder="Search by domain (example.com or https://www.example.com/path)"
+          value={domain}
+          onChange={(event) => handleDomainChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              void runSearch(domain, true);
+            }
+          }}
+          inputProps={{
+            'aria-label': 'Search webmaster offers by domain',
+          }}
+          InputProps={{
+            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+            endAdornment: loading || domain ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {loading && <CircularProgress size={18} color="inherit" />}
+                {domain && (
+                  <IconButton
+                    aria-label="Clear search"
+                    edge="end"
+                    size="small"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={handleClearSearch}
+                    sx={{ color: 'text.secondary' }}
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </Box>
+            ) : undefined,
+          }}
+        />
+      </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <Alert
+          severity="error"
+          sx={{ mb: 3 }}
+          action={
+            <BrandButton size="small" onClick={() => void runSearch(domain, true)}>
+              Retry
+            </BrandButton>
+          }
+        >
           {error}
         </Alert>
       )}
