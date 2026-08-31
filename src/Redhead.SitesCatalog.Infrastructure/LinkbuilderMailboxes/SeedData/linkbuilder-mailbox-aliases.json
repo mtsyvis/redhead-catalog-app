@@ -135,6 +135,44 @@
       }
     },
     {
+      "email": "ellieyantsan@gmail.com",
+      "displayName": "Ellie Yantsan",
+      "aliases": [
+        "ell",
+        "ellie",
+        "элли",
+        "ellie yantsan",
+        "ellieyantsan",
+        "ellieyantsan@gmail.com"
+      ],
+      "confidence": "high_user_confirmed",
+      "observedTokens": {
+        "Ell": 24,
+        "Ellie": 19,
+        "ellie": 6,
+        "элли": 2,
+        "ellieyantsan@gmail.com": 9
+      }
+    },
+    {
+      "email": "evelina.brown0407@gmail.com",
+      "displayName": "Evelina Brown",
+      "aliases": [
+        "evel",
+        "evelina",
+        "evelina brown",
+        "evelina.brown0407",
+        "evelina.brown0407@gmail.com"
+      ],
+      "confidence": "high_user_confirmed",
+      "observedTokens": {
+        "Evel": 19,
+        "Evelina": 5,
+        "evelina": 5,
+        "evelina.brown0407@gmail.com": 6
+      }
+    },
+    {
       "email": "eva.shultz@rhda.net",
       "displayName": "Eva Shultz",
       "aliases": [
@@ -151,31 +189,6 @@
     }
   ],
   "ambiguousOrLegacyObservedTokens": [
-    {
-      "tokenFamily": "Ell / Ellie",
-      "observedTokens": {
-        "Ell": 24,
-        "Ellie": 19,
-        "ellie": 6,
-        "элли": 2,
-        "ellieyantsan@gmail.com": 9
-      },
-      "suggestedAction": "Do not auto-map to alice.yang@rhda.net unless Redhead confirms. Preserve as legacy/unmapped mailbox alias.",
-      "candidateCanonicalEmail": null,
-      "confidence": "ambiguous"
-    },
-    {
-      "tokenFamily": "Evel / Evelina",
-      "observedTokens": {
-        "Evel": 19,
-        "Evelina": 5,
-        "evelina": 5,
-        "evelina.brown0407@gmail.com": 6
-      },
-      "suggestedAction": "Do not auto-map to eva.shultz@rhda.net because Evelina and Eva may represent different previous working mailboxes/connections. Preserve as legacy/unmapped mailbox alias.",
-      "candidateCanonicalEmail": null,
-      "confidence": "ambiguous"
-    },
     {
       "tokenFamily": "Robert",
       "observedTokens": {
