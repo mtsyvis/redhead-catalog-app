@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Redhead.SitesCatalog.Application.Audit;
 using Redhead.SitesCatalog.Application.Models.ChangeHistory;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
@@ -157,6 +158,11 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
         var historyBefore = EntityChangeHistoryRecorder.CaptureWebmasterOffer(offer);
         var utcNow = DateTime.UtcNow;
         var now = new DateTime(utcNow.Ticks - (utcNow.Ticks % 10), DateTimeKind.Utc);
+        // Every effective save must advance the version, even within the same PostgreSQL microsecond.
+        if (now <= offer.UpdatedAtUtc)
+        {
+            now = offer.UpdatedAtUtc.AddTicks(10);
+        }
 
         offer.Status = request.Status;
         offer.OutreachSenderRawText = request.OutreachSenderRawText;
@@ -195,7 +201,27 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
         offer.UpdatedAtUtc = now;
         offer.UpdatedBy = AuditUserFormatter.Format(userEmail);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            _context.ChangeTracker.Clear();
+            return new WebmasterOfferUpdateResult { Status = WebmasterOfferUpdateStatus.Conflict };
+        }
+        catch (DbUpdateException exception) when (
+            exception.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+                ConstraintName: "IX_WebmasterOfferPrices_SiteWebmasterOfferId_PriceType"
+                    or "PK_SiteWebmasterOfferLinkbuilderMailboxes"
+            })
+        {
+            // A concurrent child insert can hit its unique key before EF checks the offer version.
+            _context.ChangeTracker.Clear();
+            return new WebmasterOfferUpdateResult { Status = WebmasterOfferUpdateStatus.Conflict };
+        }
 
         return new WebmasterOfferUpdateResult
         {
@@ -239,6 +265,8 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                     CreatedAtUtc = now
                 };
                 offer.Prices.Add(price);
+                // With an assigned GUID, navigation discovery would treat this new row as an update.
+                _context.WebmasterOfferPrices.Add(price);
             }
 
             price.AvailabilityStatus = request.AvailabilityStatus;

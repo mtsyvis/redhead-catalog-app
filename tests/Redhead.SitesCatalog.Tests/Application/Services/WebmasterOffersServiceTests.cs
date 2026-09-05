@@ -379,6 +379,114 @@ public sealed class WebmasterOffersServiceTests : IDisposable
         Assert.DoesNotContain("\"field\":\"Linkbuilder mailbox raw text\"", history.ChangesJson, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(WebmasterOfferPriceType.Main, ServiceAvailabilityStatus.Available, false)]
+    [InlineData(WebmasterOfferPriceType.Casino, ServiceAvailabilityStatus.Available, false)]
+    [InlineData(WebmasterOfferPriceType.Crypto, ServiceAvailabilityStatus.Available, false)]
+    [InlineData(WebmasterOfferPriceType.Dating, ServiceAvailabilityStatus.Available, false)]
+    [InlineData(WebmasterOfferPriceType.LinkInsertion, ServiceAvailabilityStatus.Available, false)]
+    [InlineData(WebmasterOfferPriceType.LinkInsertion18Plus, ServiceAvailabilityStatus.Available, false)]
+    [InlineData(WebmasterOfferPriceType.Banner, ServiceAvailabilityStatus.Available, false)]
+    [InlineData(WebmasterOfferPriceType.Banner18Plus, ServiceAvailabilityStatus.Available, false)]
+    [InlineData(WebmasterOfferPriceType.HomepageTextLink, ServiceAvailabilityStatus.Available, false)]
+    [InlineData(WebmasterOfferPriceType.HomepageTextLink18Plus, ServiceAvailabilityStatus.Available, false)]
+    [InlineData(WebmasterOfferPriceType.Casino, ServiceAvailabilityStatus.AvailableWithUnknownPrice, false)]
+    [InlineData(WebmasterOfferPriceType.Casino, ServiceAvailabilityStatus.NotAvailable, false)]
+    [InlineData(WebmasterOfferPriceType.Casino, ServiceAvailabilityStatus.Unknown, false)]
+    [InlineData(WebmasterOfferPriceType.Main, ServiceAvailabilityStatus.Available, true)]
+    [InlineData(WebmasterOfferPriceType.Casino, ServiceAvailabilityStatus.Available, true)]
+    public async Task UpdateAsync_UnknownPrice_PersistsPriceAndHistory(
+        WebmasterOfferPriceType priceType,
+        ServiceAvailabilityStatus availabilityStatus,
+        bool hasExistingPriceRow)
+    {
+        // Arrange
+        var originalTime = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        var webmaster = new Webmaster
+        {
+            Id = Guid.NewGuid(),
+            ContactRawText = "contact@example.com",
+            NormalizedContactRawText = "contact@example.com",
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        };
+        var offer = CreateOffer(Guid.NewGuid(), "a", webmaster.Id, originalTime);
+        offer.Webmaster = webmaster;
+        offer.TermType = TermType.Finite;
+        offer.TermValue = 2;
+        offer.TermUnit = TermUnit.Year;
+        _context.Sites.Add(new Site
+        {
+            Domain = offer.SiteDomain,
+            Location = "US",
+            CreatedAtUtc = originalTime,
+            UpdatedAtUtc = originalTime
+        });
+        _context.SiteWebmasterOffers.Add(offer);
+        Guid? existingPriceId = null;
+        if (hasExistingPriceRow)
+        {
+            var existingPrice = CreatePrice(offer.Id, priceType, 100m, originalTime);
+            existingPrice.AvailabilityStatus = ServiceAvailabilityStatus.Unknown;
+            existingPrice.WebmasterPriceUsd = null;
+            existingPrice.WebmasterPriceDetails = "Ask for price";
+            existingPriceId = existingPrice.Id;
+            _context.WebmasterOfferPrices.Add(existingPrice);
+        }
+
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+        decimal? amount = availabilityStatus == ServiceAvailabilityStatus.Available ? 169.50m : null;
+        var request = new UpdateWebmasterOfferRequest
+        {
+            ExpectedUpdatedAtUtc = originalTime,
+            Status = SiteWebmasterOfferStatus.Active,
+            TermType = offer.TermType,
+            TermValue = offer.TermValue,
+            TermUnit = offer.TermUnit,
+            Prices =
+            [
+                new UpdateWebmasterOfferPriceRequest
+                {
+                    PriceType = priceType,
+                    AvailabilityStatus = availabilityStatus,
+                    WebmasterPriceUsd = amount,
+                    WebmasterPriceDetails = "Updated price details"
+                }
+            ]
+        };
+
+        // Act
+        var result = await _sut.UpdateAsync(offer.Id, request, "editor@example.com");
+
+        // Assert
+        Assert.Equal(WebmasterOfferUpdateStatus.Success, result.Status);
+        _context.ChangeTracker.Clear();
+        var saved = await _context.SiteWebmasterOffers.Include(item => item.Prices).SingleAsync();
+        var price = Assert.Single(saved.Prices);
+        Assert.NotEqual(Guid.Empty, price.Id);
+        if (existingPriceId.HasValue)
+        {
+            Assert.Equal(existingPriceId.Value, price.Id);
+        }
+        Assert.Equal(price.Id, Assert.Single(result.Offer!.Prices).Id);
+        Assert.Equal(priceType, price.PriceType);
+        Assert.Equal(availabilityStatus, price.AvailabilityStatus);
+        Assert.Equal(amount, price.WebmasterPriceUsd);
+        Assert.Equal("Updated price details", price.WebmasterPriceDetails);
+        Assert.Equal(TermType.Finite, price.TermType);
+        Assert.Equal(2, price.TermValue);
+        Assert.Equal(TermUnit.Year, price.TermUnit);
+        Assert.Equal(hasExistingPriceRow ? originalTime : saved.UpdatedAtUtc, price.CreatedAtUtc);
+        Assert.Equal(saved.UpdatedAtUtc, price.UpdatedAtUtc);
+        Assert.True(saved.UpdatedAtUtc > originalTime);
+        Assert.Equal("editor@example.com", saved.UpdatedBy);
+        var history = Assert.Single(await _context.EntityChangeHistories.ToListAsync());
+        Assert.Equal(offer.Id.ToString("D"), history.EntityId);
+        Assert.Equal("editor@example.com", history.ChangedBy);
+        Assert.Contains("Updated price details", history.ChangesJson, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task UpdateAsync_UnchangedRequest_DoesNotUpdateAuditFieldsOrWriteHistory()
     {
