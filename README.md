@@ -173,6 +173,22 @@ dotnet ef database update \
 dotnet clean redhead-catalog-app.sln
 ```
 
+### Optional PostgreSQL integration tests for webmaster offers
+
+PostgreSQL integration tests are in `tests/Redhead.SitesCatalog.Tests/Integration/`.
+The default backend test run skips `WebmasterOffersPostgresTests`. To verify concurrent saves,
+transaction rollback, and the unique-price migration against PostgreSQL, set
+`REDHEAD_TEST_POSTGRES` to a **test server** connection string and run:
+
+```bash
+REDHEAD_TEST_POSTGRES='Host=localhost;Port=5433;Database=postgres;Username=postgres;Password=postgres' \
+  dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~WebmasterOffersPostgresTests
+```
+
+The database user needs permission to create databases. Each test migrates a fresh database
+named `redhead_offer_test_<random id>` and drops that database afterward. Do not point these
+tests at production. Without the environment variable, the regular backend unit tests still run.
+
 ### Business Demand analytics load benchmark
 
 An opt-in local benchmark for `GET /api/admin/analytics/business-demand` is available in:

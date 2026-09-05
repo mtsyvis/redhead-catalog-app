@@ -278,6 +278,30 @@ docker compose up -d --build
 
 Do not run destructive Docker commands such as `docker compose down -v` unless you intentionally want to delete persistent volumes.
 
+## Before deploying webmaster offer concurrency and unique prices
+
+Migration `20260905070440_EnforceWebmasterOfferConcurrencyAndUniquePrices` enforces one price row
+per webmaster offer and price type. Before deploying this update, take a backup and run this
+read-only check in the PostgreSQL shell described under Database access:
+
+```sql
+SELECT "SiteWebmasterOfferId", "PriceType", COUNT(*) AS "RowCount"
+FROM "WebmasterOfferPrices"
+GROUP BY "SiteWebmasterOfferId", "PriceType"
+HAVING COUNT(*) > 1;
+```
+
+If any rows are returned, postpone deployment and review the conflicting price records with
+the responsible manager. Do not automatically choose the newest or cheapest price: the rows
+may contain different amounts, statuses, or details. Back up the full conflicting records
+before any approved reconciliation, then rerun the check and migration.
+
+The migration deliberately stops with an explanatory error if duplicates exist. It does not
+delete or merge prices; its transaction preserves the existing data and index on failure.
+On a clean database it replaces the existing non-unique index with a unique index. Deploy the
+schema and application update together; the new application also checks the offer version
+at database write time and returns HTTP 409 for competing saves.
+
 ## Logs and status
 
 Show current containers:

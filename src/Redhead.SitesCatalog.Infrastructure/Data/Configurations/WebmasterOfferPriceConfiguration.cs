@@ -61,7 +61,8 @@ public sealed class WebmasterOfferPriceConfiguration : IEntityTypeConfiguration<
             .HasForeignKey(price => price.SiteWebmasterOfferId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(price => new { price.SiteWebmasterOfferId, price.PriceType });
+        builder.HasIndex(price => new { price.SiteWebmasterOfferId, price.PriceType })
+            .IsUnique();
         builder.HasIndex(price => price.PriceType);
     }
 }
