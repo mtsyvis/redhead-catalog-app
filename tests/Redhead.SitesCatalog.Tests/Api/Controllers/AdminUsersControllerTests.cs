@@ -676,8 +676,8 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(UserInvitationToken.Hash(token), userManager.CreatedUser?.InvitationTokenHash);
         Assert.InRange(
             payload.InvitationExpiresAtUtc,
-            DateTime.UtcNow.AddHours(23),
-            DateTime.UtcNow.AddHours(25));
+            DateTime.UtcNow.AddHours(47),
+            DateTime.UtcNow.AddHours(49));
     }
 
     [Fact]
@@ -767,8 +767,8 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(payload.InvitationExpiresAtUtc, targetUser.InvitationExpiresAtUtc);
         Assert.InRange(
             payload.InvitationExpiresAtUtc,
-            DateTime.UtcNow.AddHours(23),
-            DateTime.UtcNow.AddHours(25));
+            DateTime.UtcNow.AddHours(47),
+            DateTime.UtcNow.AddHours(49));
     }
 
     [Fact]
@@ -1141,6 +1141,12 @@ public sealed class AdminUsersControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<ReactivateUserResponse>(ok.Value);
         Assert.Equal("ReactivationLinkCreated", payload.Outcome);
+        Assert.NotNull(payload.LinkExpiresAtUtc);
+        Assert.Equal(payload.LinkExpiresAtUtc, targetUser.InvitationExpiresAtUtc);
+        Assert.InRange(
+            payload.LinkExpiresAtUtc.Value,
+            DateTime.UtcNow.AddHours(47),
+            DateTime.UtcNow.AddHours(49));
         Assert.Equal(nameof(InvitationEmailSendStatus.Sent), payload.EmailDeliveryStatus);
         Assert.Null(payload.FallbackUrl);
         Assert.False(targetUser.IsActive);
@@ -1332,8 +1338,8 @@ public sealed class AdminUsersControllerTests
         Assert.NotNull(payload.LinkExpiresAtUtc);
         Assert.InRange(
             payload.LinkExpiresAtUtc.Value,
-            DateTime.UtcNow.AddHours(23),
-            DateTime.UtcNow.AddHours(25));
+            DateTime.UtcNow.AddHours(47),
+            DateTime.UtcNow.AddHours(49));
     }
 
     [Theory]
@@ -1406,6 +1412,11 @@ public sealed class AdminUsersControllerTests
         // Assert
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = Assert.IsType<ReissueReactivationResponse>(ok.Value);
+        Assert.Equal(payload.ReactivationExpiresAtUtc, targetUser.InvitationExpiresAtUtc);
+        Assert.InRange(
+            payload.ReactivationExpiresAtUtc,
+            DateTime.UtcNow.AddHours(47),
+            DateTime.UtcNow.AddHours(49));
         Assert.Null(payload.FallbackUrl);
         Assert.NotEqual(oldTokenHash, targetUser.InvitationTokenHash);
         Assert.False(targetUser.IsActive);

@@ -31,7 +31,7 @@ export const ReactivationResultDialog: React.FC<ReactivationResultDialogProps> =
         notice={<Alert severity="warning">{notice} Copy and share the link securely.</Alert>}
         valueLabel="Reactivation link"
         value={fallbackUrl}
-        helperText="This single-use link is shown only once and expires in 24 hours."
+        helperText="This single-use link is shown only once and expires in 48 hours."
         copyLabel="Copy link"
         copyErrorMessage="Could not copy. Please copy the link manually."
         onClose={onClose}

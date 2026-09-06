@@ -31,7 +31,7 @@ export const InvitationResultDialog: React.FC<InvitationResultDialogProps> = ({
       }
       valueLabel="Activation link"
       value={activationUrl}
-      helperText="This link is shown only once and expires in 24 hours."
+      helperText="This link is shown only once and expires in 48 hours."
       copyLabel="Copy link"
       copyErrorMessage="Could not copy. Please copy the link manually."
       onClose={onClose}

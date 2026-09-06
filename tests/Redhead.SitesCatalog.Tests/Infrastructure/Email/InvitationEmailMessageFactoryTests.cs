@@ -15,7 +15,7 @@ public sealed class InvitationEmailMessageFactoryTests
         var request = new InvitationEmailSendRequest(
             "invited@example.com",
             activationUrl,
-            DateTime.UtcNow.AddHours(24));
+            DateTime.UtcNow.AddHours(48));
         var options = new EmailOptions
         {
             FromName = "Redhead Catalog",
@@ -55,8 +55,8 @@ public sealed class InvitationEmailMessageFactoryTests
         Assert.DoesNotContain("font-weight: 700; color: #41302b;", htmlBody);
         Assert.Equal(1, htmlBody.Split("The Redhead Digital Agency team").Length - 1);
         Assert.Contains("single-use", textBody);
-        Assert.Contains("24 hours", textBody);
-        Assert.Contains("24 hours", htmlBody);
+        Assert.Contains("48 hours", textBody);
+        Assert.Contains("48 hours", htmlBody);
         Assert.Contains("If you were not expecting this invitation", textBody);
         Assert.Contains("If you were not expecting this invitation", htmlBody);
         Assert.Contains("background-color: #ff7c32", htmlBody);
@@ -87,7 +87,7 @@ public sealed class InvitationEmailMessageFactoryTests
         });
         Assert.DoesNotContain("<img src=\"http", htmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.True(
-            htmlBody.IndexOf("24 hours", StringComparison.Ordinal) <
+            htmlBody.IndexOf("48 hours", StringComparison.Ordinal) <
             htmlBody.IndexOf("If the button does not work", StringComparison.Ordinal));
         Assert.DoesNotContain("password", textBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("SuperAdmin", htmlBody, StringComparison.OrdinalIgnoreCase);
@@ -103,7 +103,7 @@ public sealed class InvitationEmailMessageFactoryTests
         var request = new InvitationEmailSendRequest(
             "returning@example.com",
             reactivationUrl,
-            DateTime.UtcNow.AddHours(24),
+            DateTime.UtcNow.AddHours(48),
             AccountAccessEmailKind.Reactivation);
         var options = new EmailOptions
         {
@@ -120,6 +120,8 @@ public sealed class InvitationEmailMessageFactoryTests
         var htmlBody = Assert.IsType<string>(message.HtmlBody);
         Assert.Contains("Reactivate your account", textBody);
         Assert.Contains("Reactivate account", htmlBody);
+        Assert.Contains("48 hours", textBody);
+        Assert.Contains("48 hours", htmlBody);
         Assert.Contains("Choose a new password", textBody);
         Assert.Contains("remains disabled", htmlBody);
         Assert.Contains(reactivationUrl, textBody);

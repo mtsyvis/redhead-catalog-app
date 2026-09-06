@@ -172,13 +172,13 @@ Rules:
 * `SuperAdmin` password reset is unavailable for Google-only users.
 * Creating a user requires email, role, and an optional internal `SuperAdmin` note.
 * The system generates a cryptographically random single-use activation token and stores only its SHA-256 hash.
-* The activation link is displayed to `SuperAdmin` once and expires 24 hours after creation.
+* The activation link is displayed to `SuperAdmin` once and expires 48 hours after creation.
 * After a new invitation, invitation reissue, reactivation, or reactivation reissue is persisted, the system attempts to send the applicable account link to the user's email address.
 * Email failure must not roll back or invalidate the saved account link. The `SuperAdmin` must receive a safe warning and a one-time fallback link when email is not sent.
 * Reactivating an already activated password user issues a single-use reactivation link instead of a temporary password. The user remains disabled until they use the link and choose a new password.
-* Account-link emails contain HTML and plain-text content, identify links as single-use with a 24-hour expiry, and must not contain passwords, roles, internal notes, or technical SMTP details.
+* Account-link emails contain HTML and plain-text content, identify links as single-use with a 48-hour expiry, and must not contain passwords, roles, internal notes, or technical SMTP details.
 * Account-link email branding must remain correctly sized and readable in light and dark email-client themes, with a safe fallback for clients that force color inversion or ignore theme media queries.
-* If the link is lost or expires, `SuperAdmin` may reissue it for a pending or expired invitation. Reissuing invalidates the previous link and starts a new 24-hour period.
+* If the link is lost or expires, `SuperAdmin` may reissue it for a pending or expired invitation. Reissuing invalidates the previous link and starts a new 48-hour period.
 * Invitation tokens and activation links must not be logged.
 * Account status is exposed as `Active`, `PendingActivation`, `InvitationExpired`, `PendingReactivation`, `ReactivationExpired`, or `Disabled`.
 * The invited user provides the required `DisplayName` and a password satisfying the normal Identity password policy.
@@ -190,7 +190,7 @@ Rules:
 * After password reset, `MustChangePassword` must be set to `true` again.
 * A valid reactivation link lets the user choose a new password, consumes the link, reactivates the account, and signs the user in immediately.
 * Pending reactivation keeps `IsActive = false`, so the previous password and existing sessions cannot restore access before the link is completed.
-* `SuperAdmin` may reissue a pending or expired reactivation link. Reissue invalidates the previous link and starts a new 24-hour period.
+* `SuperAdmin` may reissue a pending or expired reactivation link. Reissue invalidates the previous link and starts a new 48-hour period.
 * Reactivating a disabled, never-activated user issues a new activation link instead.
 * Reactivation preserves display name, internal `SuperAdmin` note, Google Drive connection, saved filters, table views, and user history.
 * Reactivation clears per-user export limit overrides.

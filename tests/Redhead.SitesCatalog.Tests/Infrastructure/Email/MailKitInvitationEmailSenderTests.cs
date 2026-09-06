@@ -73,7 +73,7 @@ public sealed class MailKitInvitationEmailSenderTests
         => new(
             "invited@example.com",
             "https://catalog.rhda.us/activate-account?token=abc123",
-            DateTime.UtcNow.AddHours(24));
+            DateTime.UtcNow.AddHours(48));
 
     private static EmailOptions CreateEnabledOptions()
         => new()
