@@ -29,6 +29,7 @@ import type { GridColDef, GridPaginationModel, GridRowParams } from '@mui/x-data
 import { PageShell } from '../components/layout/PageShell';
 import { BrandButton } from '../components/common/BrandButton';
 import { InvitationResultDialog } from '../components/admin/InvitationResultDialog';
+import { ClientSelectionLimitDialog } from '../components/admin/ClientSelectionLimitDialog';
 import { ReactivationResultDialog } from '../components/admin/ReactivationResultDialog';
 import { OneTimeValueDialog } from '../components/admin/OneTimeValueDialog';
 import { useAuth } from '../contexts/AuthContext';
@@ -207,6 +208,7 @@ export const AdminUsers: React.FC = () => {
   const [rowActionsUser, setRowActionsUser] = useState<UserListItemType | null>(null);
 
   const [editExportLimitUser, setEditExportLimitUser] = useState<UserListItemType | null>(null);
+  const [editSelectionLimitUser, setEditSelectionLimitUser] = useState<UserListItemType | null>(null);
   const [exportLimitOption, setExportLimitOption] = useState<ExportLimitOverrideOption>('role-default');
   const [exportLimitRowsInput, setExportLimitRowsInput] = useState('');
   const [clientUsageLimitInputs, setClientUsageLimitInputs] = useState<ClientUsageLimitInputs>(
@@ -1125,6 +1127,14 @@ export const AdminUsers: React.FC = () => {
             Edit export limit
           </MenuItem>
         )}
+        {rowActionsCanEditNote && rowActionsUser?.role === 'Client' && (
+          <MenuItem onClick={() => {
+            setEditSelectionLimitUser(rowActionsUser);
+            handleCloseRowActions();
+          }}>
+            Edit selection limit
+          </MenuItem>
+        )}
         {rowActionsCanEditNote && rowActionsUser && (
           <MenuItem onClick={() => handleOpenEditNote(rowActionsUser)}>
             Edit super admin note
@@ -1641,6 +1651,17 @@ export const AdminUsers: React.FC = () => {
           </BrandButton>
         </DialogActions>
       </Dialog>
+
+      {editSelectionLimitUser && <ClientSelectionLimitDialog
+        key={editSelectionLimitUser.id}
+        userId={editSelectionLimitUser.id}
+        email={editSelectionLimitUser.email}
+        onClose={() => setEditSelectionLimitUser(null)}
+        onSaved={() => {
+          setSuccessMessage(`Selection limit updated for ${editSelectionLimitUser.email}.`);
+          setEditSelectionLimitUser(null);
+        }}
+      />}
 
       <Dialog
         open={!!editNoteUser}

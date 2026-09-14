@@ -41,6 +41,16 @@ Health endpoint:
 https://catalog.rhda.us/api/health
 ```
 
+## Client catalog protection
+
+* The existing startup migration process applies `AddClientCatalogProtection` before serving requests. Take the usual pre-deployment database backup. The migration adds a nullable personal selection override to `AspNetUsers` and the indexed `ClientCatalogRequests` activity table. Existing users inherit the 100-site selection size; existing export policies are preserved.
+* Set `ClientCatalog__RequestsPerMinute` in the deployment environment to a positive integer (default 60). Compose passes it to the app. Changes require restarting the app. Search, Multi-search, export preview, Excel and Google Drive export share this threshold per authenticated Client account.
+* Rate limiting uses an in-memory sliding window within the current single app instance. Restart resets the minute counter. Before running multiple app replicas, replace this with coordinated distributed enforcement; selection limits remain database-backed.
+* Activity records store user ID, UTC time, route, HTTP status and issued search/Multi-search domains. They do not store cookies, passwords, raw search/filter bodies, or IP addresses. Completed exports are combined from the existing exported-domain records when displaying unique-site totals.
+* A background job removes catalog request records older than 30 days every six hours. Existing export-record retention is unchanged. SuperAdmin can inspect hour/day/week totals in the selection-limit dialog.
+* Activity logging runs on response completion in a fresh database scope, so it records the final HTTP status after exception handling (including 400/403 rather than a provisional 500). Logging is best effort: database errors produce a warning rather than breaking catalog responses. Records may be absent if the process stops before completion or persistence; statistics are not a billing ledger. Check API logs for `Could not persist Client catalog activity` or cleanup failures and monitor the activity table size. Recording a response means issuing data, not proof a person read it or a disconnected client received every byte.
+* Tune the request threshold using legitimate client activity and 429 counts. No new hourly/daily/weekly viewing quota is enforced. Slow collection and collection across accounts remain possible.
+
 ## Important files
 
 ```txt

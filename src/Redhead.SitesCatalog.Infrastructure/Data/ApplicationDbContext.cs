@@ -12,6 +12,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     }
 
     public DbSet<Site> Sites => Set<Site>();
+    public DbSet<ClientCatalogRequest> ClientCatalogRequests => Set<ClientCatalogRequest>();
     public DbSet<SitePriceOption> SitePriceOptions => Set<SitePriceOption>();
     public DbSet<SiteServiceAvailability> SiteServiceAvailabilities => Set<SiteServiceAvailability>();
     public DbSet<RoleSettings> RoleSettings => Set<RoleSettings>();

@@ -322,7 +322,7 @@ public sealed class GoogleDriveExportServiceTests
             new SitesQueryBuilder(db),
             new EffectiveExportPolicyService(db),
             new ExportUsageLimitService(db),
-            new SitesExcelExportGenerator());
+            new SitesExcelExportGenerator(), new ClientCatalogService(db));
 
         return new GoogleDriveExportService(
             db,

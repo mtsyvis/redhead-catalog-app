@@ -175,3 +175,10 @@ export const ROLES = APP_ROLES;
 export type Role = AppRole;
 export { NON_SUPER_ADMIN_ROLES };
 export type { NonSuperAdminRole };
+export interface ClientSelectionLimit {
+  overrideRows: number | null;
+  effectiveRows: number;
+  defaultRows: number;
+  maxRows: number;
+  activity: { period: string; requests: number; rateLimitedRequests: number; uniqueSites: number }[];
+}

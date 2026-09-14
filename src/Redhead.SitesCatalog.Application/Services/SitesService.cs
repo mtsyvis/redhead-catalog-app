@@ -42,9 +42,12 @@ public class SitesService : ISitesService
         var total = await sitesQuery.CountAsync(cancellationToken);
 
         // Apply pagination
-        var pageSize = Math.Clamp(query.PageSize, 1, PaginationDefaults.MaxPageSize);
+        var pageSize = Math.Clamp(query.PageSize, 1, query.SelectionLimit ?? PaginationDefaults.MaxPageSize);
         var page = Math.Max(PaginationDefaults.DefaultPage, query.Page);
-        var skip = (page - 1) * pageSize;
+        var offset = (long)(page - 1) * pageSize;
+        var skip = (int)Math.Min(offset, int.MaxValue);
+        if (query.SelectionLimit is { } selectionLimit)
+            pageSize = (int)Math.Min(pageSize, Math.Max(0L, selectionLimit - offset));
 
         // Execute query and map to DTOs
         var sites = await sitesQuery

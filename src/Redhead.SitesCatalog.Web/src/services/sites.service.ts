@@ -3,6 +3,8 @@ import type { EntityChangeHistoryItem } from '../types/changeHistory.types';
 import { notifySessionExpired } from './sessionExpired';
 import type {
   Site,
+  ExportPreview,
+  ExportPreviewPayload,
   SitesListResponse,
   SitesQueryParams,
   LocationsResponse,
@@ -28,6 +30,10 @@ export interface ExportMetadata {
  * Service for sites-related API calls
  */
 class SitesService {
+  async previewExport(payload: ExportPreviewPayload): Promise<ExportPreview> {
+    return apiClient.post<ExportPreview, ExportPreviewPayload>('/api/export/preview', payload);
+  }
+
   private readonly baseUrl = '/api/sites';
   private filterOptionsCache: FilterOptionsResponse | null = null;
   private filterOptionsRequest: Promise<FilterOptionsResponse> | null = null;

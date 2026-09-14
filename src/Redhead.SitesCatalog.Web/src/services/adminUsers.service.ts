@@ -1,5 +1,6 @@
 import { ApiClient } from './api.client';
 import type {
+  ClientSelectionLimit,
   UserListQueryParams,
   UserListResponse,
   AdminUserDetails,
@@ -16,6 +17,14 @@ import type {
 } from '../types/adminUsers.types';
 
 export const adminUsersService = {
+  getSelectionLimit(id: string): Promise<ClientSelectionLimit> {
+    return ApiClient.get<ClientSelectionLimit>(`/api/admin/users/${encodeURIComponent(id)}/selection-limit`);
+  },
+
+  updateSelectionLimit(id: string, overrideRows: number | null): Promise<void> {
+    return ApiClient.put(`/api/admin/users/${encodeURIComponent(id)}/selection-limit`, { overrideRows });
+  },
+
   list(params: UserListQueryParams): Promise<UserListResponse> {
     const query = new URLSearchParams({
       userType: params.userType,

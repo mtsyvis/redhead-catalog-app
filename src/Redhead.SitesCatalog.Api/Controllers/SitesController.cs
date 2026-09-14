@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Redhead.SitesCatalog.Api.Mappers;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
@@ -17,19 +18,23 @@ public class SitesController : ControllerBase
 {
     private readonly ISitesService _sitesService;
     private readonly ILiteMultiSearchUsageService _liteMultiSearchUsageService;
+    private readonly IClientCatalogService _clientCatalogService;
 
     public SitesController(
         ISitesService sitesService,
-        ILiteMultiSearchUsageService liteMultiSearchUsageService)
+        ILiteMultiSearchUsageService liteMultiSearchUsageService,
+        IClientCatalogService clientCatalogService)
     {
         _sitesService = sitesService;
         _liteMultiSearchUsageService = liteMultiSearchUsageService;
+        _clientCatalogService = clientCatalogService;
     }
 
     /// <summary>
     /// Get sites with filtering, pagination, sorting, and body-only filters such as Stop list.
     /// </summary>
     [HttpPost("search")]
+    [EnableRateLimiting(ClientCatalogLimits.RateLimitPolicy)]
     [Authorize(Policy = AppPolicies.SitesBrowseAccess)]
     public async Task<ActionResult<SitesListResponse>> SearchSites(
         [FromBody] SitesQueryRequest request,
@@ -41,9 +46,21 @@ public class SitesController : ControllerBase
         }
 
         var query = SitesMapper.ToQuery(request);
+        if (User?.IsInRole(AppRoles.Client) == true)
+        {
+            query.SelectionLimit = await _clientCatalogService.GetSelectionLimitAsync(
+                User.FindFirstValue(ClaimTypes.NameIdentifier)!, cancellationToken);
+            query.Page = 1;
+            query.PageSize = query.SelectionLimit.Value;
+        }
 
         var result = await _sitesService.GetSitesAsync(query, cancellationToken);
         var response = SitesMapper.ToResponse(result, includeInternalFields: CanViewInternalSiteFields());
+        response.SelectionLimit = query.SelectionLimit;
+        if (HttpContext is { } httpContext)
+        {
+            httpContext.Items["ClientCatalogDomains"] = result.Items.Select(x => x.Domain).ToArray();
+        }
 
         return Ok(response);
     }
@@ -52,6 +69,7 @@ public class SitesController : ControllerBase
     /// Multi-search by domains/URLs: exact match on normalized Domain. Max 5000 inputs.
     /// </summary>
     [HttpPost("multi-search")]
+    [EnableRateLimiting(ClientCatalogLimits.RateLimitPolicy)]
     [Authorize(Policy = AppPolicies.SitesMultiSearchAccess)]
     public async Task<ActionResult<MultiSearchResponse>> MultiSearch(
         [FromBody] MultiSearchRequest request,
@@ -74,6 +92,12 @@ public class SitesController : ControllerBase
         }
 
         var parseResult = MultiSearchParser.Parse(request.QueryText);
+        if (User?.IsInRole(AppRoles.Client) == true)
+        {
+            var limit = await _clientCatalogService.GetSelectionLimitAsync(
+                User.FindFirstValue(ClaimTypes.NameIdentifier)!, cancellationToken);
+            ClientCatalogService.ValidateMultiSearch(parseResult.UniqueDomains.Count, limit);
+        }
         if (IsLiteUser())
         {
             var userId = HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -98,6 +122,10 @@ public class SitesController : ControllerBase
             cancellationToken);
 
         var includeInternalFields = CanViewInternalSiteFields();
+        if (HttpContext is { } httpContext)
+        {
+            httpContext.Items["ClientCatalogDomains"] = result.Found.Select(x => x.Domain).ToArray();
+        }
         var found = result.Found
             .Select(site => SitesMapper.ToSiteResponse(site, includeInternalFields))
             .ToList();

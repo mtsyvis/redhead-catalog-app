@@ -97,6 +97,20 @@ public static class EffectiveExportPolicyResolver
                 roleSettings.WeeklyExportOperationsLimit));
     }
 
+    public static EffectiveExportPolicy ApplySelectionLimit(EffectiveExportPolicy policy, int? selectionLimit)
+    {
+        if (policy.Mode == ExportLimitMode.Disabled || selectionLimit is not { } limit)
+        {
+            return policy;
+        }
+
+        return policy with
+        {
+            Mode = ExportLimitMode.Limited,
+            Rows = Math.Min(limit, policy.Mode == ExportLimitMode.Limited ? policy.Rows ?? limit : limit)
+        };
+    }
+
     private static int? ResolveClientUsageLimit(bool isClient, int? userOverride, int? roleDefault)
         => isClient ? userOverride ?? roleDefault : null;
 

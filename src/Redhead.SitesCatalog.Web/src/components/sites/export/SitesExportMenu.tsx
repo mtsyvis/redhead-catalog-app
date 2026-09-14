@@ -11,6 +11,7 @@ interface SitesExportMenuProps {
   exporting: boolean;
   loading: boolean;
   exportUsageLimits: CurrentUserProfileLimits | null;
+  selectionCount?: number;
   onDownloadExcel: () => void;
   onSaveToGoogleDrive: () => void;
 }
@@ -19,6 +20,7 @@ export function SitesExportMenu({
   exporting,
   loading,
   exportUsageLimits,
+  selectionCount,
   onDownloadExcel,
   onSaveToGoogleDrive,
 }: Readonly<SitesExportMenuProps>) {
@@ -96,7 +98,7 @@ export function SitesExportMenu({
           flexShrink: 0,
         }}
       >
-        {exporting ? 'Exporting...' : 'Export'}
+        {exporting ? 'Exporting...' : selectionCount == null ? 'Export' : `Export selection · ${selectionCount.toLocaleString()} sites`}
       </Button>
       <Menu
         id="sites-export-menu"
@@ -120,8 +122,9 @@ export function SitesExportMenu({
             Export results
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.5, color: 'text.secondary' }}>
-            Exports all matching rows with only the columns visible in this table. Search, filters,
-            sorting, and column order are used.
+            {selectionCount == null
+              ? 'Exports all matching rows with only the columns visible in this table. Search, filters, sorting, and column order are used.'
+              : 'Exports the current selection with visible columns and current sorting. Your export limits still apply; availability is checked before downloading or saving.'}
           </Typography>
           {usageRows.length > 0 && (
             <Box

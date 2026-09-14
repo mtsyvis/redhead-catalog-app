@@ -30,6 +30,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
+      ClientCatalog__RequestsPerMinute: ${ClientCatalog__RequestsPerMinute:-60}
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=redhead_sites_catalog;Username=postgres;Password=${POSTGRES_PASSWORD}
       SeedData__SuperAdmin__Email: ${SEED_SUPERADMIN_EMAIL}
       SeedData__SuperAdmin__Password: ${SEED_SUPERADMIN_PASSWORD}

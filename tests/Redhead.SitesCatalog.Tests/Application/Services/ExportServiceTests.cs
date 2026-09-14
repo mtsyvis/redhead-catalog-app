@@ -33,7 +33,7 @@ public class ExportServiceTests : IDisposable
             queryBuilder,
             new EffectiveExportPolicyService(_context),
             new ExportUsageLimitService(_context),
-            new SitesExcelExportGenerator());
+            new SitesExcelExportGenerator(), new ClientCatalogService(_context));
 
         SeedTestData();
     }
@@ -1538,7 +1538,7 @@ public class ExportServiceTests : IDisposable
         Assert.Equal(3, result.RequestedRows);
         Assert.Equal(3, result.ExportedRows);
         Assert.False(result.Truncated);
-        Assert.Equal(5000, result.LimitRows);
+        Assert.Equal(100, result.LimitRows);
     }
 
     [Fact]
@@ -2006,7 +2006,6 @@ public class ExportServiceTests : IDisposable
             ExcludedCategorySearchTerms = ["adult"],
             CasinoAvailability = [ServiceAvailabilityStatus.Available],
             LinkInsertAvailability = [ServiceAvailabilityStatus.Available],
-            StopListDomains = ["test.com"],
             Quarantine = QuarantineFilterValues.Exclude,
             LastPublishedToExclusive = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Page = 1,
@@ -2071,10 +2070,7 @@ public class ExportServiceTests : IDisposable
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "language" &&
             filter.GetProperty("value").EnumerateArray().Select(value => value.GetString()).SequenceEqual(["EN", "UNKNOWN"]));
-        Assert.Contains(filters, filter =>
-            filter.GetProperty("field").GetString() == "stopList" &&
-            filter.GetProperty("kind").GetString() == "boolean" &&
-            filter.GetProperty("value").GetBoolean());
+        Assert.DoesNotContain(filters, filter => filter.GetProperty("field").GetString() == "stopList");
         Assert.Contains(filters, filter =>
             filter.GetProperty("field").GetString() == "priceCasinoAvailability" &&
             filter.GetProperty("operator").GetString() == "in" &&

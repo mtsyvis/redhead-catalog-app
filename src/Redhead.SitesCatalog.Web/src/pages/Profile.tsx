@@ -47,7 +47,7 @@ function formatExportLimitValue(limits: CurrentUserProfileLimits | null | undefi
   return 'Not configured';
 }
 
-function getExportLimitDescription(limits: CurrentUserProfileLimits | null | undefined): string {
+function getExportLimitDescription(limits: CurrentUserProfileLimits | null | undefined, isClient: boolean): string {
   if (!limits) return 'No export limit is configured for this account.';
   if (limits.isUnlimited || limits.exportLimitMode === 'Unlimited') {
     return 'You can export all matching site rows.';
@@ -56,6 +56,9 @@ function getExportLimitDescription(limits: CurrentUserProfileLimits | null | und
     return 'Exports are disabled for this account.';
   }
   if (limits.exportLimitMode === 'Limited' && limits.exportLimitRows != null) {
+    if (isClient) {
+      return `Each export can include up to ${limits.exportLimitRows.toLocaleString()} sites from your current selection. Daily and weekly limits also apply. The available count is checked before export.`;
+    }
     return `Each export can include up to ${limits.exportLimitRows.toLocaleString()} matching site rows.`;
   }
 
@@ -256,7 +259,7 @@ export const Profile: React.FC = () => {
                     Rows per export: <strong>{formatExportLimitValue(limits)}</strong>
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {getExportLimitDescription(limits)}
+                    {getExportLimitDescription(limits, profile?.role === 'Client')}
                   </Typography>
                   {showClientExportUsage && limits && (
                     <>

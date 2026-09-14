@@ -8,6 +8,7 @@ import type { GoogleDriveDialogState } from '../components/sites/dialogs/GoogleD
 import type { SitesSnackbarState } from '../components/sites/feedback/SitesSnackbar';
 import type {
   GoogleDriveExportPayload,
+  ExportPreview,
   MultiSearchResponse,
   SitesQueryParams,
 } from '../types/sites.types';
@@ -82,6 +83,7 @@ export function useSitesExport({
   const location = useLocation();
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
+  const [pendingExport, setPendingExport] = useState<{ preview: ExportPreview; run: () => Promise<void> } | null>(null);
   const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [googleDriveDialog, setGoogleDriveDialog] = useState<GoogleDriveDialogState>({
     open: false,
@@ -177,8 +179,36 @@ export function useSitesExport({
     return { filters: params, visibleColumnKeys };
   }, [buildSitesQueryParams, multiSearchResult, searchText, visibleColumnKeys]);
 
-  const handleDownloadExport = useCallback(async () => {
+  const runWithExportState = useCallback(async (run: () => Promise<void>) => {
     setExporting(true);
+    try {
+      await run();
+    } finally {
+      setExporting(false);
+    }
+  }, []);
+
+  const requestExport = useCallback((run: () => Promise<void>) => runWithExportState(async () => {
+    if (!isClient) {
+      await run();
+      return;
+    }
+    try {
+      const preview = await sitesService.previewExport(buildGoogleDriveExportPayload());
+      if (preview.isBlocked) {
+        showSnackbar({ open: true, severity: 'warning',
+          message: getExportUsageLimitMessage(preview.reason) ?? 'Your export limit has been reached. Please try again later.' });
+      } else if (preview.exportableRows < preview.selectionRows) {
+        setPendingExport({ preview, run });
+      } else {
+        await run();
+      }
+    } catch (error) {
+      showSnackbar({ open: true, severity: 'error', message: error instanceof Error ? error.message : 'Could not check export availability.' });
+    }
+  }), [isClient, buildGoogleDriveExportPayload, showSnackbar, runWithExportState]);
+
+  const handleDownloadExport = useCallback(async () => {
     try {
       const params = buildSitesQueryParams(1, 1000000);
 
@@ -222,8 +252,6 @@ export function useSitesExport({
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Export failed';
       showSnackbar({ open: true, message, severity: 'error' });
-    } finally {
-      setExporting(false);
     }
   }, [
     buildSitesQueryParams,
@@ -244,8 +272,6 @@ export function useSitesExport({
       setGoogleDriveDialog({ open: true, reconnect: false });
       return;
     }
-
-    setExporting(true);
 
     try {
       const result = await sitesService.exportSitesToGoogleDrive(buildGoogleDriveExportPayload());
@@ -309,7 +335,7 @@ export function useSitesExport({
           severity: 'error',
           actionLabel: 'Download Excel',
           onAction: () => {
-            void handleDownloadExport();
+            void requestExport(handleDownloadExport);
           },
         });
       } else if (errorCode === GOOGLE_DRIVE_CONFIGURATION_MISSING) {
@@ -320,7 +346,7 @@ export function useSitesExport({
           severity: 'error',
           actionLabel: 'Download Excel',
           onAction: () => {
-            void handleDownloadExport();
+            void requestExport(handleDownloadExport);
           },
         });
       } else if (error instanceof ApiClientError && error.statusCode === 403) {
@@ -329,7 +355,7 @@ export function useSitesExport({
           message: error.message,
           severity: 'error',
         });
-      } else if (error instanceof ApiClientError && error.statusCode === 400) {
+      } else if (error instanceof ApiClientError && (error.statusCode === 400 || error.statusCode === 429)) {
         showSnackbar({
           open: true,
           message: error.message,
@@ -342,12 +368,10 @@ export function useSitesExport({
           severity: 'error',
           actionLabel: 'Download Excel',
           onAction: () => {
-            void handleDownloadExport();
+            void requestExport(handleDownloadExport);
           },
         });
       }
-    } finally {
-      setExporting(false);
     }
   }, [
     googleDriveStatus,
@@ -356,6 +380,7 @@ export function useSitesExport({
     loadExportUsageLimits,
     showSnackbar,
     handleDownloadExport,
+    requestExport,
   ]);
 
   const handleConnectGoogleDrive = useCallback(async () => {
@@ -385,8 +410,15 @@ export function useSitesExport({
     exportUsageLimits,
     googleDriveDialog,
     connectingGoogleDrive,
-    handleDownloadExport,
-    handleSaveToGoogleDrive,
+    handleDownloadExport: () => requestExport(handleDownloadExport),
+    handleSaveToGoogleDrive: () => requestExport(handleSaveToGoogleDrive),
+    pendingExport,
+    cancelPartialExport: () => setPendingExport(null),
+    confirmPartialExport: async () => {
+      const pending = pendingExport;
+      setPendingExport(null);
+      if (pending) await runWithExportState(pending.run);
+    },
     handleConnectGoogleDrive,
     closeGoogleDriveDialog,
   };

@@ -40,6 +40,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache();
+builder.Services.AddClientCatalogProtection(builder.Configuration);
 builder.Services.AddHttpClient();
 
 builder.Services.Configure<GoogleDriveOptions>(
@@ -252,6 +253,8 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseMiddleware<RejectDisabledUserMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<ClientCatalogActivityMiddleware>();
+app.UseRateLimiter();
 
 app.MapControllers();
 

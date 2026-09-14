@@ -652,7 +652,10 @@ public class SitesControllerTests
                     LiteMultiSearchConstants.MonthlyDomainLimit - count));
         }
 
-        return new SitesController(sitesService.Object, liteUsageService.Object);
+        var clientCatalog = new Mock<IClientCatalogService>();
+        clientCatalog.Setup(service => service.GetSelectionLimitAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ClientCatalogLimits.DefaultSelectionLimit);
+        return new SitesController(sitesService.Object, liteUsageService.Object, clientCatalog.Object);
     }
 
     private static ApiUpdateSiteRequest BuildValidUpdateRequest()

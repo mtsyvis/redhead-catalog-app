@@ -8,6 +8,8 @@ namespace Redhead.SitesCatalog.Application.Models;
 /// </summary>
 public class SitesQuery
 {
+    // Server-only ceiling; never mapped from the request body.
+    public int? SelectionLimit { get; set; }
     // Pagination
     public int Page { get; set; }
     public int PageSize { get; set; }

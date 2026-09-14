@@ -312,6 +312,15 @@ The emergency Sites export is disabled by default. When enabled, it uses a Googl
 
 Ahrefs sync is inactive by default and not part of the active production workflow. Traffic/DR history is saved through Sites update import.
 
+## Client catalog protection
+
+Client catalog protection defaults to selections of 100 sites and 60 data requests per minute per
+Client account. SuperAdmin manages personal selection sizes through `Edit selection limit` in
+the users menu; smaller export limits remain in effect. `ClientCatalog__RequestsPerMinute` controls
+the shared rate threshold (positive integer, default 60). The existing startup migration process
+applies `AddClientCatalogProtection` before serving requests. See `docs/business-requirements.md` for behavior
+and `docs/deployment.md` for activity retention and operational limitations.
+
 ## Quality gates
 
 Before considering a change complete, run the relevant checks.

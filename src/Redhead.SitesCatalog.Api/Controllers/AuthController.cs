@@ -126,7 +126,8 @@ public class AuthController : ControllerBase
             roles,
             limits.Mode == ExportLimitMode.Disabled,
             canChangePassword,
-            User?.FindFirstValue(AppClaimTypes.GoogleAvatarUrl)));
+            User?.FindFirstValue(AppClaimTypes.GoogleAvatarUrl),
+            role == AppRoles.Client ? ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride) : null));
     }
 
     [HttpGet("invitation")]

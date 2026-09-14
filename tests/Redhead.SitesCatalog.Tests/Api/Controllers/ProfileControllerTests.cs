@@ -56,7 +56,7 @@ public sealed class ProfileControllerTests
         Assert.False(payload.MustCompleteProfile);
         Assert.True(payload.GoogleDrive.Connected);
         Assert.Equal(ExportLimitMode.Limited, payload.Limits.ExportLimitMode);
-        Assert.Equal(5000, payload.Limits.ExportLimitRows);
+        Assert.Equal(100, payload.Limits.ExportLimitRows);
         Assert.False(payload.Limits.IsUnlimited);
         Assert.Equal(2, payload.Limits.DailyUniqueExportedDomainsUsed);
         Assert.Equal(1000, payload.Limits.DailyUniqueExportedDomainsLimit);
@@ -106,6 +106,7 @@ public sealed class ProfileControllerTests
     {
         // Arrange
         var user = CreateUser("Grace", "Hopper");
+        user.ClientSelectionLimitOverride = 300;
         var userManager = CreateUserManagerForCurrentUser(user);
         userManager.Setup(manager => manager.GetRolesAsync(user))
             .ReturnsAsync(new List<string> { AppRoles.Client });
@@ -129,6 +130,39 @@ public sealed class ProfileControllerTests
         Assert.Equal(ExportLimitMode.Limited, payload.Limits.ExportLimitMode);
         Assert.Equal(250, payload.Limits.ExportLimitRows);
         Assert.False(payload.Limits.IsUnlimited);
+    }
+
+    [Theory]
+    [InlineData(AppRoles.Client, null, ExportLimitMode.Limited, 5000, ExportLimitMode.Limited, 100)]
+    [InlineData(AppRoles.Client, 300, ExportLimitMode.Limited, 5000, ExportLimitMode.Limited, 300)]
+    [InlineData(AppRoles.Client, 300, ExportLimitMode.Limited, 50, ExportLimitMode.Limited, 50)]
+    [InlineData(AppRoles.Client, null, ExportLimitMode.Unlimited, null, ExportLimitMode.Limited, 100)]
+    [InlineData(AppRoles.Client, 300, ExportLimitMode.Unlimited, null, ExportLimitMode.Limited, 300)]
+    [InlineData(AppRoles.Client, 300, ExportLimitMode.Disabled, null, ExportLimitMode.Disabled, null)]
+    [InlineData(AppRoles.SuperAdmin, 300, ExportLimitMode.Unlimited, null, ExportLimitMode.Unlimited, null)]
+    [InlineData(AppRoles.Admin, 300, ExportLimitMode.Limited, 5000, ExportLimitMode.Limited, 5000)]
+    public async Task GetProfile_ShowsExportLimitAfterApplyingClientSelectionSize(
+        string role, int? selectionLimit, ExportLimitMode configuredMode, int? configuredRows,
+        ExportLimitMode expectedMode, int? expectedRows)
+    {
+        // Arrange
+        var user = CreateUser("Ada", "Lovelace");
+        user.ClientSelectionLimitOverride = selectionLimit;
+        var userManager = CreateUserManagerForCurrentUser(user);
+        userManager.Setup(manager => manager.GetRolesAsync(user)).ReturnsAsync(new List<string> { role });
+        var policyService = CreatePolicyService(user, role,
+            new EffectiveExportPolicy(configuredMode, configuredRows, false, EffectivePolicySource.Role));
+        var sut = CreateController(userManager, CreateGoogleDriveService(user.Id, connected: false), policyService);
+
+        // Act
+        var result = await sut.GetProfile(CancellationToken.None);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<CurrentUserProfileResponse>(ok.Value);
+        Assert.Equal(expectedMode, payload.Limits.ExportLimitMode);
+        Assert.Equal(expectedRows, payload.Limits.ExportLimitRows);
+        Assert.Equal(expectedMode == ExportLimitMode.Unlimited, payload.Limits.IsUnlimited);
     }
 
     [Fact]
@@ -182,6 +216,8 @@ public sealed class ProfileControllerTests
         Assert.Equal("Grace Hopper", user.DisplayName);
         Assert.Equal("Grace Hopper", payload.DisplayName);
         Assert.False(payload.MustCompleteProfile);
+        Assert.Equal(100, payload.Limits.ExportLimitRows);
+        Assert.Equal(ExportLimitMode.Limited, payload.Limits.ExportLimitMode);
         userManager.Verify(manager => manager.UpdateAsync(user), Times.Once);
     }
 

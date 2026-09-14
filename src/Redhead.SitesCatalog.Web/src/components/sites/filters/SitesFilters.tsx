@@ -77,6 +77,7 @@ interface SitesFiltersProps {
   multiSearchMode?: boolean;
   onMultiSearchModeChange?: (enabled: boolean) => void;
   liteMode?: boolean;
+  clientSelectionLimit?: number;
   canFilterQuarantine?: boolean;
   filterOptionsRefreshKey?: number;
   savedFilterSets?: SavedFilterSet[];
@@ -254,6 +255,7 @@ export function SitesFilters({
   multiSearchMode = false,
   onMultiSearchModeChange,
   liteMode = false,
+  clientSelectionLimit,
   filterOptionsRefreshKey = 0,
   savedFilterSets = [],
   activeSavedFilterSetId = null,
@@ -500,14 +502,14 @@ export function SitesFilters({
   const searchValue = multiSearchMode ? searchDraft : filters.search;
   const rawMultiSearchInputCount = multiSearchMode ? countMultiSearchInputs(searchValue) : 0;
   const uniqueMultiSearchDomainCount =
-    multiSearchMode && liteMode ? countUniqueMultiSearchDomains(searchValue) : 0;
-  const multiSearchDisplayCount = liteMode
+    multiSearchMode && (liteMode || clientSelectionLimit != null) ? countUniqueMultiSearchDomains(searchValue) : 0;
+  const multiSearchDisplayCount = liteMode || clientSelectionLimit != null
     ? uniqueMultiSearchDomainCount
     : rawMultiSearchInputCount;
   const multiSearchDisplayLimit = liteMode
     ? LITE_MULTI_SEARCH_LIMIT
-    : DEFAULT_MULTI_SEARCH_LIMIT;
-  const multiSearchDisplayLabel = liteMode ? 'unique domains' : 'inputs';
+    : clientSelectionLimit ?? DEFAULT_MULTI_SEARCH_LIMIT;
+  const multiSearchDisplayLabel = liteMode || clientSelectionLimit != null ? 'unique domains' : 'inputs';
   const globalMultiSearchLimitExceeded =
     multiSearchMode && rawMultiSearchInputCount > DEFAULT_MULTI_SEARCH_LIMIT;
   const roleMultiSearchLimitExceeded =
@@ -516,8 +518,8 @@ export function SitesFilters({
     globalMultiSearchLimitExceeded || roleMultiSearchLimitExceeded;
   const multiSearchHelperText = globalMultiSearchLimitExceeded
     ? `Too many inputs. Limit is ${DEFAULT_MULTI_SEARCH_LIMIT.toLocaleString('en-US')}.`
-    : roleMultiSearchLimitExceeded && liteMode
-      ? `Too many unique domains. Limit is ${LITE_MULTI_SEARCH_LIMIT.toLocaleString('en-US')}.`
+    : roleMultiSearchLimitExceeded
+      ? `Too many unique domains. Limit is ${multiSearchDisplayLimit.toLocaleString('en-US')}.`
       : `${multiSearchDisplayCount.toLocaleString('en-US')} / ${multiSearchDisplayLimit.toLocaleString('en-US')} ${multiSearchDisplayLabel}`;
   const multiSearchActionLabel = liteMode ? 'Check' : 'Search';
 

@@ -141,6 +141,19 @@ Current rules:
 * Can export if export is enabled for the role or user.
 * Cannot access admin, import, user-management, or catalog-editing features.
 
+### Client catalog protection
+
+* `Client` has a selection size of 100 sites by default. Only `SuperAdmin` can set a personal override from 1 to 5,000, or reset it to 100, using `Edit selection limit` in the Client user's action menu. The setting is not available for other target roles. Role changes preserve the setting, but it applies only while the user is `Client`.
+* Normal Client search returns only the first N matches in the selected sort order, including search without filters. The API ignores requested pages and page sizes for Client and returns the whole capped selection with the full matching count. Sorting uses domain as a deterministic tie-breaker.
+* The table shows the full matching count and asks the client to refine filters or change sorting when results exceed N. There is no pagination for selections of up to 100 rows; larger selections have local pages of 100, strictly within the returned selection.
+* Client Multi-search accepts at most N unique normalized domains per request, including not-found domains. The global 5,000 raw-input limit still applies. Searches have no new daily/weekly volume quota; repeated searches are allowed subject to request-rate protection.
+* Client can use Stop list in normal catalog search, export and export preview, and include it in saved filter sets. Exclusions apply before the matching count and first-N selection; the selection size, export limits and request-rate protection still apply. Stop list is paused in Multi-search, as for other browsing roles. The risk of progressively retrieving more sites by excluding previous selections is accepted to preserve this workflow.
+* Client Excel and Google Drive exports stay within the same first-N selection for the active filters/sorting. The smaller existing per-export row cap still applies, as do disabled-export settings and rolling export quotas. Repeating an export never advances to the next selection or fills from rows beyond it. Export recomputes the selection against current catalog data; it is not a frozen historical snapshot.
+* Before Client exports, a read-only preview evaluates exportable found rows using the same limits. If only part is allowed, show the available count and ask whether to export that part. Preview does not generate a workbook, consume export quotas or create export logs. Export checks limits again, so concurrent changes may change final availability. Multi-search retains its existing separate Not found sheet.
+* Client catalog searches, Multi-search, export previews, Excel exports and Google Drive exports share a per-account request-rate limit across tabs, sessions and IP addresses. The initial default is 60 requests per rolling minute. Excess requests return a temporary restriction; the frontend preserves the last successful results and filters and offers Retry. Failed searches disable export until a search succeeds, so old rows cannot be exported under a failed new query.
+* Record request counts, rate-limited requests, and unique sites issued via catalog search/Multi-search plus completed exports. Repeated site domains count once per reporting window; not-found Multi-search inputs do not count as issued sites. SuperAdmin can see last-hour, last-24-hour and last-7-day totals in the selection-limit dialog. This observation does not impose a new viewing quota.
+* Other roles, including Lite's existing per-request and monthly checks, are unchanged. These controls hinder bulk collection but do not prevent gradual collection through changing filters or multiple accounts.
+
 ### Lite
 
 `Lite` is a restricted external/client role for Multi-search checks only.
@@ -216,6 +229,7 @@ Rules:
 * `SuperAdmin` is always unlimited and must not be editable.
 * Only `SuperAdmin` can edit role export limits or per-user export overrides.
 * Users can view their own effective export limit on `/profile`.
+* For `Client`, `/profile` shows the smaller of the selection size and the configured per-export row limit. An unlimited export setting is still capped by the selection size; disabled exports remain disabled. Daily/weekly usage and quotas are shown separately. The description explains that exports use the current selection and availability is checked before export.
 * Export must use the same current filters/search/multi-search context that the user sees in the grid.
 * If export is limited, the exported file must be capped by the effective limit.
 * If export is disabled, the UI should prevent export and the backend must reject export.
@@ -752,7 +766,7 @@ Input rules:
 
 Display rules:
 
-* In Multi-search mode, the input shows a live counter matching backend limits: non-`Lite` users see raw input count against 5,000 inputs; `Lite` users see unique normalized domains against 50 domains, while the global 5,000 raw-input cap still applies.
+* In Multi-search mode, the input shows a live counter matching backend limits: `Client` users see unique normalized domains against their personal selection limit (100 by default); `Lite` users see unique normalized domains against 50 domains; other users see raw input count against 5,000 inputs. The global 5,000 raw-input cap applies to all roles.
 * `Lite` users see the `/sites` page as `Domain Check`; before the first search, the grid area shows a compact empty state instead of table controls and empty pagination.
 * Found rows are shown in the same sites grid as normal search results.
 * By default, found and not found rows are shown together in normalized input order after duplicate removal.
