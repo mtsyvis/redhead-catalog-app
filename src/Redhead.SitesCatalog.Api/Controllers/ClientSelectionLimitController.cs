@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
-using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Application.Models;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
@@ -12,7 +12,8 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 [ApiController]
 [Route("api/admin/users/{id}/selection-limit")]
 [Authorize(Policy = AppPolicies.UsersManageAccess)]
-public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> users, IClientCatalogActivityService activity) : ControllerBase
+public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> users, IClientCatalogActivityService activity,
+    ClientCatalogBurstLimiter burstLimiter) : ControllerBase
 {
     public sealed record UpdateRequest([Range(1, ClientCatalogLimits.MaxSelectionLimit)] int? OverrideRows);
     public sealed record LimitResponse(int? OverrideRows, int EffectiveRows, int DefaultRows, int MaxRows,
@@ -56,8 +57,15 @@ public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> 
             return BadRequest(new { message = $"Enter a whole number between 1 and {ClientCatalogLimits.MaxSelectionLimit}." });
         }
 
+        var resetBurst = ClientCatalogLimits.IsBurstExempt(ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride)) ||
+            ClientCatalogLimits.IsBurstExempt(ClientCatalogLimits.Resolve(request.OverrideRows));
+
         user.ClientSelectionLimitOverride = request.OverrideRows;
         var result = await users.UpdateAsync(user);
+        if (result.Succeeded && resetBurst)
+        {
+            burstLimiter.Reset(user.Id);
+        }
         return result.Succeeded ? NoContent() : Conflict(new { message = "The user changed. Reload and try again." });
     }
 }

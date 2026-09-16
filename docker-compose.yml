@@ -31,6 +31,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       ClientCatalog__RequestsPerMinute: ${ClientCatalog__RequestsPerMinute:-60}
+      ClientCatalog__UniqueSitesPerFiveMinutes: ${ClientCatalog__UniqueSitesPerFiveMinutes:-2000}
+      ClientCatalog__AlertUniqueSitesPerHour: ${ClientCatalog__AlertUniqueSitesPerHour:-5000}
+      ClientCatalog__AlertEmails: ${ClientCatalog__AlertEmails:-mtsyvis2405@gmail.com,dmitry.s@redheaddigital.agency}
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=redhead_sites_catalog;Username=postgres;Password=${POSTGRES_PASSWORD}
       SeedData__SuperAdmin__Email: ${SEED_SUPERADMIN_EMAIL}
       SeedData__SuperAdmin__Password: ${SEED_SUPERADMIN_PASSWORD}

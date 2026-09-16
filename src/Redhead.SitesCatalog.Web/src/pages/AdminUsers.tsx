@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import type { ClientCatalogAlert } from '../types/adminUsers.types';
+import { ClientCatalogAlertDialog } from '../components/admin/ClientCatalogAlertDialog';
 import { Navigate, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -161,6 +163,8 @@ export const AdminUsers: React.FC = () => {
   const { canReadUsers, canManageUsers, isSuperAdmin } = useUserRoles();
   const navigate = useNavigate();
   const [users, setUsers] = useState<UserListItemType[]>([]);
+  const [catalogAlerts, setCatalogAlerts] = useState<ClientCatalogAlert[]>([]);
+  const [selectedCatalogAlert, setSelectedCatalogAlert] = useState<ClientCatalogAlert | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [userType, setUserType] = useState<UserTypeFilter>('all');
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
@@ -242,6 +246,7 @@ export const AdminUsers: React.FC = () => {
 
       setUsers(response.items);
       setTotalCount(response.totalCount);
+      setCatalogAlerts(await adminUsersService.catalogAlerts());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
@@ -785,6 +790,7 @@ export const AdminUsers: React.FC = () => {
         renderCell: (params) => {
           const profileName = getProfileName(params.row);
           const isCurrentUserRow = params.row.id === currentUser?.id;
+          const catalogAlert = catalogAlerts.find(alert => alert.userId === params.row.id);
           const missingNameLabel = params.row.accountStatus === 'InvitationExpired'
             ? 'Invitation expired'
             : params.row.accountStatus === 'PendingActivation'
@@ -820,6 +826,8 @@ export const AdminUsers: React.FC = () => {
                     }}
                   />
                 )}
+                {catalogAlert && <Chip size="small" color="warning" label="Suspicious activity"
+                  onClick={event => { event.stopPropagation(); setSelectedCatalogAlert(catalogAlert); }} />}
               </Box>
               <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
                 {params.row.email}
@@ -965,6 +973,7 @@ export const AdminUsers: React.FC = () => {
     ],
     [
       actionLoadingId,
+      catalogAlerts,
       canModifyUser,
       canManageUsers,
       currentUser?.id,
@@ -1019,6 +1028,18 @@ export const AdminUsers: React.FC = () => {
           {error}
         </Alert>
       )}
+      {selectedCatalogAlert && <ClientCatalogAlertDialog
+        key={selectedCatalogAlert.id} alert={selectedCatalogAlert} canReview={canManageUsers}
+        onClose={() => setSelectedCatalogAlert(null)}
+        onReviewed={() => { setSelectedCatalogAlert(null); void loadUsers(); }}
+      />}
+      {catalogAlerts.length > 0 && <Alert severity="warning" sx={{ mb: 2 }}>
+        {catalogAlerts.length} account(s) require a catalog activity review.
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+          {catalogAlerts.map(alert => <Chip key={alert.id} size="small" label={alert.email ?? alert.userId}
+            onClick={() => setSelectedCatalogAlert(alert)} />)}
+        </Box>
+      </Alert>}
       {successMessage && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage(null)}>
           {successMessage}

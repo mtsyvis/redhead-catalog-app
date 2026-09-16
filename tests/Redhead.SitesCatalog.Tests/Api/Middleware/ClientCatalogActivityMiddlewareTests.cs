@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
@@ -81,6 +82,41 @@ public sealed class ClientCatalogActivityMiddlewareTests
         // Assert
         Assert.Null(exception);
         Assert.Equal(200, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task BurstLimit_Returns429WithRetryAfter_AndLogsNoIssuedSites()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var databaseName = Guid.NewGuid().ToString();
+        services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(databaseName));
+        await using var provider = services.BuildServiceProvider();
+        var completion = new CompletionFeature();
+        var context = CreateContext(completion);
+        var now = DateTimeOffset.UtcNow;
+        var middleware = new ClientCatalogActivityMiddleware(_ => throw new ClientCatalogBurstLimitExceededException(now.AddSeconds(120), now),
+            NullLogger<ClientCatalogActivityMiddleware>.Instance);
+        var handler = new GlobalExceptionHandler(NullLogger<GlobalExceptionHandler>.Instance);
+
+        // Act
+        var exception = await Record.ExceptionAsync(() => middleware.InvokeAsync(context,
+            provider.GetRequiredService<IServiceScopeFactory>(), TimeProvider.System));
+        await handler.TryHandleAsync(context, exception!, CancellationToken.None);
+        await completion.CompleteAsync();
+        context.Response.Body.Position = 0;
+        using var response = await JsonDocument.ParseAsync(context.Response.Body);
+        await using var scope = provider.CreateAsyncScope();
+        var activity = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().ClientCatalogRequests.SingleAsync();
+
+        // Assert
+        Assert.Equal(429, context.Response.StatusCode);
+        Assert.Equal("120", context.Response.Headers.RetryAfter);
+        Assert.Equal("ClientCatalogBurstLimited", response.RootElement.GetProperty("code").GetString());
+        Assert.Equal(120, response.RootElement.GetProperty("retryAfterSeconds").GetInt32());
+        Assert.Contains("Try again in 120 seconds or narrow your filters", response.RootElement.GetProperty("message").GetString());
+        Assert.Equal(429, activity.StatusCode);
+        Assert.Empty(activity.Domains);
     }
 
     private static DefaultHttpContext CreateContext(CompletionFeature completion)

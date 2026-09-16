@@ -317,8 +317,21 @@ Ahrefs sync is inactive by default and not part of the active production workflo
 Client catalog protection defaults to selections of 100 sites and 60 data requests per minute per
 Client account. SuperAdmin manages personal selection sizes through `Edit selection limit` in
 the users menu; smaller export limits remain in effect. `ClientCatalog__RequestsPerMinute` controls
-the shared rate threshold (positive integer, default 60). The existing startup migration process
-applies `AddClientCatalogProtection` before serving requests. See `docs/business-requirements.md` for behavior
+the shared rate threshold (positive integer, default 60). `ClientCatalog__UniqueSitesPerFiveMinutes`
+sets the shared short-term distinct-site budget (positive integer, default 2,000) for Clients with selections of 100 or fewer.
+Personal selections above 100 disable this five-minute guard, while request-rate protection,
+export limits, activity statistics and hourly alert emails remain enabled. Raising the selection clears its
+counter; lowering it back to 100 or fewer starts a fresh protected counter.
+A selection reaching the budget succeeds; requests exceeding it receive `429` and a computed `Retry-After`.
+Capacity frees as domains leave the rolling five-minute window. Repeated or smaller selections can still
+succeed. The UI preserves results and offers Retry or narrower filters, without a fixed pause or status polling.
+Request/domain counters live in one app instance and reset on restart.
+At `ClientCatalog__AlertUniqueSitesPerHour` unique domains in an hour (default 5,000), a background check
+flags the account in Users and queues one email per incident to `ClientCatalog__AlertEmails`
+(comma/semicolon-separated; defaults to `mtsyvis2405@gmail.com,dmitry.s@redheaddigital.agency`). Compose uses these recipients when the environment setting is unset or empty; a non-empty value overrides them. Delivery uses the existing enabled SMTP configuration.
+Admin review clears the flag and suppresses new alerts for 60 minutes without changing catalog limits or disabling the account. After that hour, the hourly threshold can trigger a new alert even if activity stayed high.
+The existing startup migration process applies `AddClientCatalogProtection` and
+`AddClientCatalogAlertsAndCooldown`, `UseTimeBasedClientCatalogAlertReview` and `RemoveClientCatalogFixedPause` before serving requests. See `docs/business-requirements.md` for behavior
 and `docs/deployment.md` for activity retention and operational limitations.
 
 ## Quality gates

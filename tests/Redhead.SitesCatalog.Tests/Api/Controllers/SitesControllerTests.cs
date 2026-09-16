@@ -7,6 +7,7 @@ using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;

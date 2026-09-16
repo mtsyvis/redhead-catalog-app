@@ -5,7 +5,7 @@ using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
-namespace Redhead.SitesCatalog.Application.Services;
+namespace Redhead.SitesCatalog.Application.Services.ClientCatalog;
 
 public interface IClientCatalogActivityService
 {

@@ -1,9 +1,14 @@
+using Redhead.SitesCatalog.Domain.ClientCatalog;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using Redhead.SitesCatalog.Api.BackgroundJobs.ClientCatalogActivityCleanup;
-using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Api.BackgroundJobs.ClientCatalogAlerts;
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Infrastructure.Options;
+using Redhead.SitesCatalog.Infrastructure.Email;
 
 namespace Redhead.SitesCatalog.Api.DependencyInjection;
 
@@ -11,12 +16,17 @@ public static class ClientCatalogServiceCollectionExtensions
 {
     public static IServiceCollection AddClientCatalogProtection(this IServiceCollection services, IConfiguration configuration)
     {
-        var requests = configuration.GetValue("ClientCatalog:RequestsPerMinute", 60);
-        if (requests < 1)
+        services.AddOptions<ClientCatalogOptions>().Bind(configuration.GetSection(ClientCatalogOptions.SectionName))
+            .Validate(ClientCatalogOptions.IsValid, "Client catalog settings require positive limits and valid alert email addresses.")
+            .ValidateOnStart();
+        services.AddSingleton(provider =>
         {
-            throw new InvalidOperationException("ClientCatalog:RequestsPerMinute must be positive.");
-        }
-
+            var settings = provider.GetRequiredService<IOptions<ClientCatalogOptions>>().Value;
+            return new ClientCatalogBurstLimiter(provider.GetRequiredService<TimeProvider>(), settings.UniqueSitesPerFiveMinutes);
+        });
+        services.AddScoped<IClientCatalogAlertEmailSender, ClientCatalogAlertEmailSender>();
+        services.AddScoped<ClientCatalogAlertService>();
+        services.AddHostedService<ClientCatalogAlertHostedService>();
         services.AddScoped<IClientCatalogService, ClientCatalogService>();
         services.AddScoped<IClientCatalogActivityService, ClientCatalogActivityService>();
         services.AddHostedService<ClientCatalogActivityCleanupHostedService>();
@@ -24,7 +34,10 @@ public static class ClientCatalogServiceCollectionExtensions
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.AddPolicy(ClientCatalogLimits.RateLimitPolicy, context =>
-                CreatePartition(context, requests));
+            {
+                var settings = context.RequestServices.GetRequiredService<IOptions<ClientCatalogOptions>>().Value;
+                return CreatePartition(context, settings.RequestsPerMinute);
+            });
             options.OnRejected = async (rejected, cancellationToken) =>
             {
                 rejected.HttpContext.Response.Headers.RetryAfter = "60";

@@ -182,3 +182,12 @@ export interface ClientSelectionLimit {
   maxRows: number;
   activity: { period: string; requests: number; rateLimitedRequests: number; uniqueSites: number }[];
 }
+export interface ClientCatalogAlert {
+  id: number;
+  userId: string;
+  email: string | null;
+  detectedAtUtc: string;
+  uniqueSites: number;
+  threshold: number;
+  emailSentAtUtc: string | null;
+}

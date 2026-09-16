@@ -64,6 +64,11 @@ export function ClientSelectionLimitDialog({ userId, email, onClose, onSaved }: 
             Limits catalog results and unique domains per Multi-search. Exports stay within this selection;
             smaller export limits and daily/weekly quotas still apply. Selections above 100 sites have pages within the selection only.
           </Typography>
+          <Alert severity="info">
+            A selection limit above 100 disables the five-minute data limit.
+            {' '}Activity monitoring and admin notifications remain enabled, as do request-rate and export limits.
+            {' '}Returning to 100 or fewer sites re-enables protection with a fresh counter.
+          </Alert>
           <Typography variant="subtitle2">Catalog activity</Typography>
           {data.activity.map((window) => <Box key={window.period}>
             <Typography variant="body2">{window.period}: {window.uniqueSites.toLocaleString()} unique sites</Typography>

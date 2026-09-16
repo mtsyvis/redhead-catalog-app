@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Models;
@@ -93,6 +94,7 @@ public class ExportService : IExportService
 
         var sites = ApplyAllowedDomains(candidateSites, usageEvaluation);
         await AttachExportPricingAsync(sites, cancellationToken);
+        await EnsureBurstLimitAsync(userId, evaluation, sites, cancellationToken);
 
         return CreatePreparedExportResult(
             sites: sites,
@@ -192,6 +194,7 @@ public class ExportService : IExportService
         var sites = ApplyAllowedDomains(candidateSites, usageEvaluation);
         await AttachExportPricingAsync(sites, cancellationToken);
 
+        await EnsureBurstLimitAsync(userId, evaluation, sites, cancellationToken);
         return CreatePreparedExportResult(
             sites: sites,
             notFoundDomains: notFound,
@@ -335,7 +338,15 @@ public class ExportService : IExportService
     private sealed record SelectionEvaluation(
         EffectiveExportPolicy Policy, int RequestedRows, List<Site> CandidateSites,
         ExportUsageLimitEvaluation Usage, DateTime TimestampUtc, List<string> NotFoundDomains,
-        MultiSearchParseResult? ParseResult, int MatchedCount);
+        MultiSearchParseResult? ParseResult, int MatchedCount, int? SelectionLimit);
+
+    private async Task EnsureBurstLimitAsync(string userId, SelectionEvaluation evaluation, IReadOnlyCollection<Site> sites, CancellationToken cancellationToken)
+    {
+        if (evaluation.SelectionLimit is { } limit)
+        {
+            await _clientCatalogService.EnsureBurstLimitAsync(userId, sites.Select(site => site.Domain).ToArray(), limit, cancellationToken: cancellationToken);
+        }
+    }
 
     // Read-only preparation shared by preview and both export destinations.
     private async Task<SelectionEvaluation> EvaluateSelectionAsync(
@@ -383,13 +394,17 @@ public class ExportService : IExportService
             : await GetMultiSearchExportSitesAsync(filtered, parsed.UniqueDomains, query, policy, cancellationToken);
         var nowUtc = DateTime.UtcNow;
         var usage = await EvaluateUsageLimitsAsync(userId, userRole, policy, candidates, nowUtc, cancellationToken);
-        return new SelectionEvaluation(policy, requestedRows, candidates, usage, nowUtc, notFound, parsed, matchedCount);
+        return new SelectionEvaluation(policy, requestedRows, candidates, usage, nowUtc, notFound, parsed, matchedCount, selectionLimit);
     }
 
     public async Task<ExportPreview> PreviewAsync(SitesQuery query, string? searchText, string userId,
         string userRole, CancellationToken cancellationToken = default)
     {
         var evaluation = await EvaluateSelectionAsync(query, searchText, userId, userRole, cancellationToken);
+        if (!evaluation.Usage.IsBlocked && evaluation.SelectionLimit is { } limit)
+        {
+            await _clientCatalogService.EnsureBurstLimitAsync(userId, evaluation.Usage.AllowedDomains.ToArray(), limit, consume: false, cancellationToken);
+        }
         return new ExportPreview(evaluation.RequestedRows, evaluation.Usage.AllowedDomains.Count,
             evaluation.NotFoundDomains.Count, evaluation.Usage.IsBlocked,
             evaluation.Usage.BlockedReason ?? evaluation.Usage.TruncationReason);

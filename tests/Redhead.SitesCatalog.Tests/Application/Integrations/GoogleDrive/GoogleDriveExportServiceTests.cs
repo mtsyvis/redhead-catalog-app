@@ -8,6 +8,7 @@ using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Infrastructure.Options;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -322,7 +323,8 @@ public sealed class GoogleDriveExportServiceTests
             new SitesQueryBuilder(db),
             new EffectiveExportPolicyService(db),
             new ExportUsageLimitService(db),
-            new SitesExcelExportGenerator(), new ClientCatalogService(db));
+            new SitesExcelExportGenerator(), new ClientCatalogService(db,
+                new ClientCatalogBurstLimiter(TimeProvider.System, ClientCatalogLimits.DefaultUniqueSitesPerFiveMinutes)));
 
         return new GoogleDriveExportService(
             db,

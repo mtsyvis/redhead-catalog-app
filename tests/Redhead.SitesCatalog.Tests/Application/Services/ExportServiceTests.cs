@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -33,7 +34,8 @@ public class ExportServiceTests : IDisposable
             queryBuilder,
             new EffectiveExportPolicyService(_context),
             new ExportUsageLimitService(_context),
-            new SitesExcelExportGenerator(), new ClientCatalogService(_context));
+            new SitesExcelExportGenerator(), new ClientCatalogService(_context,
+                new ClientCatalogBurstLimiter(TimeProvider.System, ClientCatalogLimits.DefaultUniqueSitesPerFiveMinutes)));
 
         SeedTestData();
     }

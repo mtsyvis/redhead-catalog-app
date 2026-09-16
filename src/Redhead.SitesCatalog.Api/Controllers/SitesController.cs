@@ -6,6 +6,7 @@ using Redhead.SitesCatalog.Api.Mappers;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Domain.Constants;
 
@@ -55,6 +56,11 @@ public class SitesController : ControllerBase
         }
 
         var result = await _sitesService.GetSitesAsync(query, cancellationToken);
+        if (query.SelectionLimit is { } selectionLimit)
+        {
+            await _clientCatalogService.EnsureBurstLimitAsync(User.FindFirstValue(ClaimTypes.NameIdentifier)!,
+                result.Items.Select(site => site.Domain).ToArray(), selectionLimit, cancellationToken: cancellationToken);
+        }
         var response = SitesMapper.ToResponse(result, includeInternalFields: CanViewInternalSiteFields());
         response.SelectionLimit = query.SelectionLimit;
         if (HttpContext is { } httpContext)
@@ -92,11 +98,13 @@ public class SitesController : ControllerBase
         }
 
         var parseResult = MultiSearchParser.Parse(request.QueryText);
+        int? selectionLimit = null;
         if (User?.IsInRole(AppRoles.Client) == true)
         {
             var limit = await _clientCatalogService.GetSelectionLimitAsync(
                 User.FindFirstValue(ClaimTypes.NameIdentifier)!, cancellationToken);
             ClientCatalogService.ValidateMultiSearch(parseResult.UniqueDomains.Count, limit);
+            selectionLimit = limit;
         }
         if (IsLiteUser())
         {
@@ -120,6 +128,12 @@ public class SitesController : ControllerBase
             parseResult.UniqueDomains,
             parseResult.Duplicates,
             cancellationToken);
+
+        if (selectionLimit is { } clientLimit)
+        {
+            await _clientCatalogService.EnsureBurstLimitAsync(User.FindFirstValue(ClaimTypes.NameIdentifier)!,
+                result.Found.Select(site => site.Domain).ToArray(), clientLimit, cancellationToken: cancellationToken);
+        }
 
         var includeInternalFields = CanViewInternalSiteFields();
         if (HttpContext is { } httpContext)

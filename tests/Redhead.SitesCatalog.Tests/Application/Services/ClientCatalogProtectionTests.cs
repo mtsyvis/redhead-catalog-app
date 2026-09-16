@@ -14,6 +14,7 @@ using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -29,6 +30,7 @@ public sealed class ClientCatalogProtectionTests : IDisposable
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
     private readonly MemoryCache _cache = new(new MemoryCacheOptions());
     private const string UserId = "client";
+    private readonly ClientCatalogBurstLimiter _burstLimiter = new(TimeProvider.System, ClientCatalogLimits.DefaultUniqueSitesPerFiveMinutes);
 
     public ClientCatalogProtectionTests()
     {
@@ -283,15 +285,166 @@ public sealed class ClientCatalogProtectionTests : IDisposable
         Assert.False(RolePermissionMatrix.HasPermission(AppRoles.Admin, AppPermissions.UsersManage));
     }
 
+    [Theory]
+    [InlineData("search")]
+    [InlineData("multi-search")]
+    [InlineData("preview")]
+    [InlineData("multi-preview")]
+    [InlineData("excel")]
+    [InlineData("multi-excel")]
+    [InlineData("drive")]
+    [InlineData("multi-drive")]
+    public async Task BurstLimit_RejectsNewSitesAcrossEveryDataPath(string path)
+    {
+        // Arrange
+        _burstLimiter.EnsureAllowed(UserId, Enumerable.Range(1, 2000).Select(i => $"previous{i}.com").ToArray(), 100);
+        var export = CreateExport();
+        var controller = CreateController();
+
+        // Act
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            switch (path)
+            {
+                case "search":
+                    await controller.SearchSites(new SitesQueryRequest(), CancellationToken.None);
+                    break;
+                case "multi-search":
+                    await controller.MultiSearch(new MultiSearchRequest { QueryText = "site001.com" }, CancellationToken.None);
+                    break;
+                case "preview":
+                case "multi-preview":
+                    await export.PreviewAsync(new SitesQuery(), path == "preview" ? null : "site001.com", UserId, AppRoles.Client);
+                    break;
+                case "excel":
+                    await export.ExportSitesAsExcelAsync(new SitesQuery(), UserId, "client@example.com", AppRoles.Client, ["domain"]);
+                    break;
+                case "multi-excel":
+                    await export.ExportMultiSearchAsExcelAsync("site001.com", new SitesQuery(), UserId, "client@example.com", AppRoles.Client, ["domain"]);
+                    break;
+                case "drive":
+                    await export.PrepareSitesExportAsync(new SitesQuery(), UserId, "client@example.com", AppRoles.Client, ["domain"], ExportConstants.DestinationGoogleDrive);
+                    break;
+                case "multi-drive":
+                    await export.PrepareMultiSearchExportAsync("site001.com", new SitesQuery(), UserId, "client@example.com", AppRoles.Client, ["domain"], ExportConstants.DestinationGoogleDrive);
+                    break;
+            }
+        });
+
+        // Assert
+        Assert.IsType<ClientCatalogBurstLimitExceededException>(exception);
+        Assert.Empty(_db.ExportLogs);
+        Assert.Empty(_db.ExportedDomainAccesses);
+    }
+
+    [Fact]
+    public async Task BurstLimit_AllowsPreviouslyViewedSitesAndEmptyResults_ButRejectsNewSites()
+    {
+        // Arrange
+        _burstLimiter.EnsureAllowed(UserId, Enumerable.Range(1, 1900).Select(i => $"previous{i}.com").ToArray(), 100);
+        var controller = CreateController();
+        var export = CreateExport();
+
+        // Act
+        await controller.SearchSites(new SitesQueryRequest(), CancellationToken.None);
+        var repeat = await Record.ExceptionAsync(() => controller.MultiSearch(new MultiSearchRequest { QueryText = "site001.com" }, CancellationToken.None));
+        var exported = await Record.ExceptionAsync(() => export.ExportSitesAsExcelAsync(new SitesQuery(), UserId, "client@example.com", AppRoles.Client, ["domain"]));
+        var blocked = await Record.ExceptionAsync(() => controller.SearchSites(
+            new SitesQueryRequest { StopListDomains = ["site001.com"] }, CancellationToken.None));
+        var missing = await Record.ExceptionAsync(() => controller.MultiSearch(new MultiSearchRequest { QueryText = "missing.com" }, CancellationToken.None));
+
+        // Assert
+        Assert.Null(repeat);
+        Assert.Null(exported);
+        Assert.IsType<ClientCatalogBurstLimitExceededException>(blocked);
+        Assert.Null(missing);
+    }
+
+    [Fact]
+    public async Task BurstLimit_ExportChargesOnlyAllowedRows_AndPreviewDoesNotReserveThem()
+    {
+        // Arrange
+        _burstLimiter.EnsureAllowed(UserId, Enumerable.Range(1, 1950).Select(i => $"previous{i}.com").ToArray(), 100);
+        var policy = _db.RoleSettings.Single(x => x.RoleName == AppRoles.Client);
+        policy.ExportLimitMode = ExportLimitMode.Limited;
+        policy.ExportLimitRows = 50;
+        await _db.SaveChangesAsync();
+        var export = CreateExport();
+
+        // Act
+        var preview = await export.PreviewAsync(new SitesQuery(), null, UserId, AppRoles.Client);
+        await CreateController().MultiSearch(new MultiSearchRequest
+        {
+            QueryText = string.Join(' ', Enumerable.Range(101, 50).Select(i => $"site{i:000}.com"))
+        }, CancellationToken.None);
+        var blocked = await Record.ExceptionAsync(() => export.ExportSitesAsExcelAsync(new SitesQuery(), UserId,
+            "client@example.com", AppRoles.Client, ["domain"]));
+        var alreadyViewed = await Record.ExceptionAsync(() => export.ExportMultiSearchAsExcelAsync("site101.com", new SitesQuery(), UserId,
+            "client@example.com", AppRoles.Client, ["domain"]));
+
+        // Assert
+        Assert.Equal(50, preview.ExportableRows);
+        Assert.IsType<ClientCatalogBurstLimitExceededException>(blocked);
+        Assert.Null(alreadyViewed);
+    }
+
+    [Fact]
+    public async Task BurstLimit_DoesNotRestrictInternalRoles()
+    {
+        // Arrange
+        _burstLimiter.EnsureAllowed(UserId, Enumerable.Range(1, 2000).Select(i => $"previous{i}.com").ToArray(), 100);
+
+        // Act
+        var search = await CreateController(AppRoles.Internal).SearchSites(new SitesQueryRequest(), CancellationToken.None);
+        var export = await CreateExport().ExportSitesAsExcelAsync(new SitesQuery(), UserId, "internal@example.com", AppRoles.Internal, ["domain"]);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(search.Result);
+        Assert.Equal(350, export.ExportedRows);
+    }
+
+    [Theory]
+    [InlineData(101)]
+    [InlineData(5000)]
+    public async Task TrustedClient_SearchMultiSearchPreviewAndExportsBypassBurstBudget_ExportCapStillApplies(int selectionLimit)
+    {
+        // Arrange
+        _burstLimiter.EnsureAllowed(UserId, Enumerable.Range(1, 2000).Select(i => $"previous{i}.com").ToArray(), 100);
+        var user = _db.Users.Single();
+        user.ClientSelectionLimitOverride = selectionLimit;
+        var policy = _db.RoleSettings.Single(row => row.RoleName == AppRoles.Client);
+        policy.ExportLimitMode = ExportLimitMode.Limited;
+        policy.ExportLimitRows = 50;
+        await _db.SaveChangesAsync();
+        var controller = CreateController();
+        var export = CreateExport();
+
+        // Act
+        var search = await controller.SearchSites(new SitesQueryRequest(), CancellationToken.None);
+        var multi = await controller.MultiSearch(new MultiSearchRequest { QueryText = "site001.com" }, CancellationToken.None);
+        var preview = await export.PreviewAsync(new SitesQuery(), null, UserId, AppRoles.Client);
+        var excel = await export.ExportSitesAsExcelAsync(new SitesQuery(), UserId, "client@example.com", AppRoles.Client, ["domain"]);
+        var drive = await export.PrepareMultiSearchExportAsync("site001.com", new SitesQuery(), UserId,
+            "client@example.com", AppRoles.Client, ["domain"], ExportConstants.DestinationGoogleDrive);
+
+        // Assert
+        var result = Assert.IsType<SitesListResponse>(Assert.IsType<OkObjectResult>(search.Result).Value);
+        Assert.Equal(Math.Min(350, selectionLimit), result.Items.Count);
+        Assert.IsType<OkObjectResult>(multi.Result);
+        Assert.Equal(50, preview.ExportableRows);
+        Assert.Equal(50, excel.ExportedRows);
+        Assert.Equal(1, drive.ExportedRows);
+    }
+
     private SitesController CreateController(string role = AppRoles.Client)
         => new(new SitesService(_db, new SitesQueryBuilder(_db), new SitesCatalogCache(_cache), new LocationNormalizer()),
-            Mock.Of<ILiteMultiSearchUsageService>(), new ClientCatalogService(_db))
+            Mock.Of<ILiteMultiSearchUsageService>(), new ClientCatalogService(_db, _burstLimiter))
         {
             ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(role) }
         };
 
     private ExportService CreateExport(IClientCatalogService? limits = null) => new(_db, new SitesQueryBuilder(_db), new EffectiveExportPolicyService(_db),
-        new ExportUsageLimitService(_db), new SitesExcelExportGenerator(), limits ?? new ClientCatalogService(_db));
+        new ExportUsageLimitService(_db), new SitesExcelExportGenerator(), limits ?? new ClientCatalogService(_db, _burstLimiter));
 
     [Theory]
     [InlineData("preview", false)]
