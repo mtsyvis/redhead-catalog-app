@@ -6,6 +6,7 @@ using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Application.Validation;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 
@@ -109,6 +110,11 @@ public class ProfileController : ControllerBase
         EffectiveExportPolicy limits,
         ExportUsageSummary usage)
     {
+        int? selectionLimit = role == AppRoles.Client
+            ? ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride)
+            : null;
+        limits = EffectiveExportPolicyResolver.ApplySelectionLimit(limits, selectionLimit);
+
         return new CurrentUserProfileResponse(
             user.Email ?? string.Empty,
             role,

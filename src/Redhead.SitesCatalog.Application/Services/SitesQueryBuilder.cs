@@ -551,11 +551,11 @@ public class SitesQueryBuilder : ISitesQueryBuilder
                 ? query.OrderByDescending(s => s.Domain)
                 : query.OrderBy(s => s.Domain),
             SortFields.DR => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.DR)
-                : query.OrderBy(s => s.DR),
+                ? query.OrderByDescending(s => s.DR).ThenBy(s => s.Domain)
+                : query.OrderBy(s => s.DR).ThenBy(s => s.Domain),
             SortFields.Traffic => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.Traffic)
-                : query.OrderBy(s => s.Traffic),
+                ? query.OrderByDescending(s => s.Traffic).ThenBy(s => s.Domain)
+                : query.OrderBy(s => s.Traffic).ThenBy(s => s.Domain),
             SortFields.TrafficValueUsd => direction == SortingDefaults.Descending
                 ? query
                     .OrderBy(s => s.TrafficValueUsd == null ? 1 : 0)
@@ -575,8 +575,8 @@ public class SitesQueryBuilder : ISitesQueryBuilder
                     .ThenBy(s => s.PagesCount)
                     .ThenBy(s => s.Domain),
             SortFields.Location => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.Location)
-                : query.OrderBy(s => s.Location),
+                ? query.OrderByDescending(s => s.Location).ThenBy(s => s.Domain)
+                : query.OrderBy(s => s.Location).ThenBy(s => s.Domain),
             SortFields.PriceUsd => direction == SortingDefaults.Descending
                 ? ApplyPriceOptionSorting(query, PriceType.Main, selectedTermKey, descending: true)
                 : ApplyPriceOptionSorting(query, PriceType.Main, selectedTermKey, descending: false),
@@ -610,11 +610,11 @@ public class SitesQueryBuilder : ISitesQueryBuilder
                     .ThenBy(s => s.TermType == TermType.Finite && s.TermUnit == TermUnit.Year ? s.TermValue : null)
                     .ThenBy(s => s.Domain),
             SortFields.CreatedAt => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.CreatedAtUtc)
-                : query.OrderBy(s => s.CreatedAtUtc),
+                ? query.OrderByDescending(s => s.CreatedAtUtc).ThenBy(s => s.Domain)
+                : query.OrderBy(s => s.CreatedAtUtc).ThenBy(s => s.Domain),
             SortFields.UpdatedAt => direction == SortingDefaults.Descending
-                ? query.OrderByDescending(s => s.UpdatedAtUtc)
-                : query.OrderBy(s => s.UpdatedAtUtc),
+                ? query.OrderByDescending(s => s.UpdatedAtUtc).ThenBy(s => s.Domain)
+                : query.OrderBy(s => s.UpdatedAtUtc).ThenBy(s => s.Domain),
             SortFields.LastPublishedDate => direction == SortingDefaults.Descending
                 ? query
                     .OrderBy(s => s.LastPublishedDate == null ? 1 : 0)

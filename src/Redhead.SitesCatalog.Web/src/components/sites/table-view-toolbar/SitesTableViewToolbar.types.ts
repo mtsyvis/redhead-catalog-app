@@ -21,6 +21,7 @@ export interface SitesTableViewToolbarProps {
   exporting: boolean;
   loading: boolean;
   exportUsageLimits: CurrentUserProfileLimits | null;
+  selectionCount?: number;
   resultCount: number;
   resultSearchedCount?: number;
   resultNotFoundCount?: number;

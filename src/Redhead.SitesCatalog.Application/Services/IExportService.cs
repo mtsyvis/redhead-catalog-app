@@ -8,6 +8,8 @@ namespace Redhead.SitesCatalog.Application.Services;
 /// </summary>
 public interface IExportService
 {
+    Task<ExportPreview> PreviewAsync(SitesQuery query, string? searchText, string userId, string userRole,
+        CancellationToken cancellationToken = default);
     /// <summary>
     /// Export sites as Excel with effective policy enforcement (role + per-user override).
     /// </summary>

@@ -43,6 +43,7 @@ export function SitesTableViewToolbar({
   exporting,
   loading,
   exportUsageLimits,
+  selectionCount,
   resultCount,
   resultSearchedCount = 0,
   resultNotFoundCount = 0,
@@ -530,6 +531,7 @@ export function SitesTableViewToolbar({
             exporting={exporting}
             loading={loading}
             exportUsageLimits={exportUsageLimits}
+            selectionCount={selectionCount}
             onDownloadExcel={onDownloadExcel}
             onSaveToGoogleDrive={onSaveToGoogleDrive}
           />

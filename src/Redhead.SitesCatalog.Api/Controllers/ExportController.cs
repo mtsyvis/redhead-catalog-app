@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Redhead.SitesCatalog.Api.Mappers;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Models.Export;
@@ -18,10 +19,21 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = AppPolicies.SitesExportAccess)]
+[EnableRateLimiting(ClientCatalogLimits.RateLimitPolicy)]
 public class ExportController : ControllerBase
 {
     private readonly IExportService _exportService;
     private readonly IGoogleDriveExportService _googleDriveExportService;
+
+    [HttpPost("preview")]
+    public async Task<ActionResult<ExportPreview>> Preview([FromBody] ExportPreviewRequest request, CancellationToken cancellationToken)
+    {
+        var user = GetRequiredUserContext();
+        var query = request.SearchText is null
+            ? SitesMapper.ToQuery(request.Filters ?? new SitesQueryRequest())
+            : ToMultiSearchQuery(request.Filters);
+        return Ok(await _exportService.PreviewAsync(query, request.SearchText, user.UserId, user.UserRole, cancellationToken));
+    }
 
     public ExportController(
         IExportService exportService,

@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Models;
@@ -21,19 +22,22 @@ public class ExportService : IExportService
     private readonly IEffectiveExportPolicyService _effectiveExportPolicyService;
     private readonly IExportUsageLimitService _exportUsageLimitService;
     private readonly ISitesExcelExportGenerator _excelExportGenerator;
+    private readonly IClientCatalogService _clientCatalogService;
 
     public ExportService(
         ApplicationDbContext context,
         ISitesQueryBuilder queryBuilder,
         IEffectiveExportPolicyService effectiveExportPolicyService,
         IExportUsageLimitService exportUsageLimitService,
-        ISitesExcelExportGenerator excelExportGenerator)
+        ISitesExcelExportGenerator excelExportGenerator,
+        IClientCatalogService clientCatalogService)
     {
         _context = context;
         _queryBuilder = queryBuilder;
         _effectiveExportPolicyService = effectiveExportPolicyService;
         _exportUsageLimitService = exportUsageLimitService;
         _excelExportGenerator = excelExportGenerator;
+        _clientCatalogService = clientCatalogService;
     }
 
     public async Task<ExportResult> ExportSitesAsExcelAsync(
@@ -66,24 +70,12 @@ public class ExportService : IExportService
         CancellationToken cancellationToken = default)
     {
         var visibleExportColumns = SitesExportColumnRegistry.ValidateRequestedColumns(visibleColumnKeys, userRole);
-        var policy = await GetEnabledPolicyAsync(userId, userRole, cancellationToken);
-
-        var sitesQuery = _queryBuilder.BuildQuery(
-            _context.Sites.AsNoTracking().Include(site => site.CanonicalLocation),
-            query);
-
-        var requestedRows = await sitesQuery.CountAsync(cancellationToken);
-        var nowUtc = DateTime.UtcNow;
-
-        var candidateSites = await ApplyRowsPerExportLimit(sitesQuery, policy)
-            .ToListAsync(cancellationToken);
-        var usageEvaluation = await EvaluateUsageLimitsAsync(
-            userId,
-            userRole,
-            policy,
-            candidateSites,
-            nowUtc,
-            cancellationToken);
+        var evaluation = await EvaluateSelectionAsync(query, null, userId, userRole, cancellationToken);
+        var policy = evaluation.Policy;
+        var requestedRows = evaluation.RequestedRows;
+        var candidateSites = evaluation.CandidateSites;
+        var usageEvaluation = evaluation.Usage;
+        var nowUtc = evaluation.TimestampUtc;
 
         await ThrowIfUsageLimitBlockedAsync(
             userId: userId,
@@ -102,6 +94,7 @@ public class ExportService : IExportService
 
         var sites = ApplyAllowedDomains(candidateSites, usageEvaluation);
         await AttachExportPricingAsync(sites, cancellationToken);
+        await EnsureBurstLimitAsync(userId, evaluation, sites, cancellationToken);
 
         return CreatePreparedExportResult(
             sites: sites,
@@ -170,57 +163,17 @@ public class ExportService : IExportService
         CancellationToken cancellationToken = default)
     {
         var visibleExportColumns = SitesExportColumnRegistry.ValidateRequestedColumns(visibleColumnKeys, userRole);
-        if (StopListParser.HasAnyInput(query.StopListDomains))
-        {
-            throw new RequestValidationException(StopListConstants.MultiSearchNotSupportedMessage);
-        }
-
-        var parseResult = MultiSearchParser.Parse(searchText);
-        var policy = await GetEnabledPolicyAsync(userId, userRole, cancellationToken);
-
-        var isClientRole = string.Equals(userRole, AppRoles.Client, StringComparison.Ordinal);
-
-        IQueryable<Site> baseQuery = _context.Sites
-            .AsNoTracking()
-            .Include(site => site.CanonicalLocation)
-            .Where(s => parseResult.UniqueDomains.Contains(s.Domain));
-
-        // "Not found" must mean "not present in DB", not "not included due to export limit".
-        // Compute matched domains from the base query BEFORE applying policy limits.
-        var matchedDomains = await baseQuery
-            .Select(s => s.Domain)
-            .ToListAsync(cancellationToken);
-        var multiSearchFoundCount = matchedDomains.Count;
-        var matchedSet = new HashSet<string>(matchedDomains, StringComparer.Ordinal);
-        var notFound = parseResult.UniqueDomains
-            .Where(d => !matchedSet.Contains(d))
-            .ToList();
-
-        var filteredQuery = _queryBuilder.BuildQuery(baseQuery, query);
-
-        var requestedRows = await filteredQuery.CountAsync(cancellationToken);
-        var nowUtc = DateTime.UtcNow;
-
-        var candidateSites = await GetMultiSearchExportSitesAsync(
-            filteredQuery,
-            parseResult.UniqueDomains,
-            query,
-            policy,
-            cancellationToken);
-
-        var usageEvaluation = await EvaluateUsageLimitsAsync(
-            userId,
-            userRole,
-            policy,
-            candidateSites,
-            nowUtc,
-            cancellationToken);
-
-        var searchContext = isClientRole
+        var evaluation = await EvaluateSelectionAsync(query, searchText, userId, userRole, cancellationToken);
+        var policy = evaluation.Policy;
+        var requestedRows = evaluation.RequestedRows;
+        var candidateSites = evaluation.CandidateSites;
+        var usageEvaluation = evaluation.Usage;
+        var nowUtc = evaluation.TimestampUtc;
+        var notFound = evaluation.NotFoundDomains;
+        var parseResult = evaluation.ParseResult!;
+        var searchContext = userRole == AppRoles.Client
             ? ExportAnalyticsSnapshotBuilder.CreateMultiSearchContext(
-                parseResult.InputCount,
-                parseResult.UniqueDomains.Count,
-                multiSearchFoundCount)
+                parseResult.InputCount, parseResult.UniqueDomains.Count, evaluation.MatchedCount)
             : null;
 
         await ThrowIfUsageLimitBlockedAsync(
@@ -241,6 +194,7 @@ public class ExportService : IExportService
         var sites = ApplyAllowedDomains(candidateSites, usageEvaluation);
         await AttachExportPricingAsync(sites, cancellationToken);
 
+        await EnsureBurstLimitAsync(userId, evaluation, sites, cancellationToken);
         return CreatePreparedExportResult(
             sites: sites,
             notFoundDomains: notFound,
@@ -370,21 +324,90 @@ public class ExportService : IExportService
             cancellationToken);
 
     private async Task<EffectiveExportPolicy> GetEnabledPolicyAsync(
-        string userId,
-        string userRole,
-        CancellationToken cancellationToken)
+        string userId, string userRole, int? selectionLimit, CancellationToken cancellationToken)
     {
-        var policy = await _effectiveExportPolicyService.GetEffectivePolicyAsync(
-            userId,
-            userRole,
-            cancellationToken);
-
+        var policy = await _effectiveExportPolicyService.GetEffectivePolicyAsync(userId, userRole, cancellationToken);
         if (policy.Mode == ExportLimitMode.Disabled)
         {
             throw new ExportDisabledException(userRole, ExportConstants.ExportDisabledMessage);
         }
 
-        return policy;
+        return EffectiveExportPolicyResolver.ApplySelectionLimit(policy, selectionLimit);
+    }
+
+    private sealed record SelectionEvaluation(
+        EffectiveExportPolicy Policy, int RequestedRows, List<Site> CandidateSites,
+        ExportUsageLimitEvaluation Usage, DateTime TimestampUtc, List<string> NotFoundDomains,
+        MultiSearchParseResult? ParseResult, int MatchedCount, int? SelectionLimit);
+
+    private async Task EnsureBurstLimitAsync(string userId, SelectionEvaluation evaluation, IReadOnlyCollection<Site> sites, CancellationToken cancellationToken)
+    {
+        if (evaluation.SelectionLimit is { } limit)
+        {
+            await _clientCatalogService.EnsureBurstLimitAsync(userId, sites.Select(site => site.Domain).ToArray(), limit, cancellationToken: cancellationToken);
+        }
+    }
+
+    // Read-only preparation shared by preview and both export destinations.
+    private async Task<SelectionEvaluation> EvaluateSelectionAsync(
+        SitesQuery query, string? searchText, string userId, string userRole, CancellationToken cancellationToken)
+    {
+        MultiSearchParseResult? parsed = null;
+        if (searchText is not null)
+        {
+            if (StopListParser.HasAnyInput(query.StopListDomains))
+            {
+                throw new RequestValidationException(StopListConstants.MultiSearchNotSupportedMessage);
+            }
+            parsed = MultiSearchParser.Parse(searchText);
+        }
+
+        int? selectionLimit = userRole == AppRoles.Client
+            ? await _clientCatalogService.GetSelectionLimitAsync(userId, cancellationToken)
+            : null;
+        var policy = await GetEnabledPolicyAsync(userId, userRole, selectionLimit, cancellationToken);
+        IQueryable<Site> baseQuery = _context.Sites.AsNoTracking().Include(site => site.CanonicalLocation);
+        var notFound = new List<string>();
+        var matchedCount = 0;
+        if (parsed is not null)
+        {
+            if (selectionLimit is { } limit)
+            {
+                ClientCatalogService.ValidateMultiSearch(parsed.UniqueDomains.Count, limit);
+            }
+            baseQuery = baseQuery.Where(x => parsed.UniqueDomains.Contains(x.Domain));
+            // Not found means absent from the catalog, before filters and limits.
+            var matched = await baseQuery.Select(x => x.Domain).ToListAsync(cancellationToken);
+            matchedCount = matched.Count;
+            var matchedSet = matched.ToHashSet(StringComparer.Ordinal);
+            notFound = parsed.UniqueDomains.Where(domain => !matchedSet.Contains(domain)).ToList();
+        }
+
+        var filtered = _queryBuilder.BuildQuery(baseQuery, query);
+        var requestedRows = await filtered.CountAsync(cancellationToken);
+        if (selectionLimit is { } selection)
+        {
+            requestedRows = Math.Min(requestedRows, selection);
+        }
+        var candidates = parsed is null
+            ? await ApplyRowsPerExportLimit(filtered, policy).ToListAsync(cancellationToken)
+            : await GetMultiSearchExportSitesAsync(filtered, parsed.UniqueDomains, query, policy, cancellationToken);
+        var nowUtc = DateTime.UtcNow;
+        var usage = await EvaluateUsageLimitsAsync(userId, userRole, policy, candidates, nowUtc, cancellationToken);
+        return new SelectionEvaluation(policy, requestedRows, candidates, usage, nowUtc, notFound, parsed, matchedCount, selectionLimit);
+    }
+
+    public async Task<ExportPreview> PreviewAsync(SitesQuery query, string? searchText, string userId,
+        string userRole, CancellationToken cancellationToken = default)
+    {
+        var evaluation = await EvaluateSelectionAsync(query, searchText, userId, userRole, cancellationToken);
+        if (!evaluation.Usage.IsBlocked && evaluation.SelectionLimit is { } limit)
+        {
+            await _clientCatalogService.EnsureBurstLimitAsync(userId, evaluation.Usage.AllowedDomains.ToArray(), limit, consume: false, cancellationToken);
+        }
+        return new ExportPreview(evaluation.RequestedRows, evaluation.Usage.AllowedDomains.Count,
+            evaluation.NotFoundDomains.Count, evaluation.Usage.IsBlocked,
+            evaluation.Usage.BlockedReason ?? evaluation.Usage.TruncationReason);
     }
 
     private async Task<ExportUsageLimitEvaluation> EvaluateUsageLimitsAsync(

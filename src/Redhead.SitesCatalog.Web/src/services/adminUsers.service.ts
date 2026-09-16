@@ -1,5 +1,7 @@
 import { ApiClient } from './api.client';
+import type { ClientCatalogAlert } from '../types/adminUsers.types';
 import type {
+  ClientSelectionLimit,
   UserListQueryParams,
   UserListResponse,
   AdminUserDetails,
@@ -16,6 +18,21 @@ import type {
 } from '../types/adminUsers.types';
 
 export const adminUsersService = {
+  catalogAlerts(): Promise<ClientCatalogAlert[]> {
+    return ApiClient.get<ClientCatalogAlert[]>('/api/admin/catalog-alerts');
+  },
+
+  reviewCatalogAlert(id: number): Promise<void> {
+    return ApiClient.post<void>(`/api/admin/catalog-alerts/${id}/review`);
+  },
+  getSelectionLimit(id: string): Promise<ClientSelectionLimit> {
+    return ApiClient.get<ClientSelectionLimit>(`/api/admin/users/${encodeURIComponent(id)}/selection-limit`);
+  },
+
+  updateSelectionLimit(id: string, overrideRows: number | null): Promise<void> {
+    return ApiClient.put(`/api/admin/users/${encodeURIComponent(id)}/selection-limit`, { overrideRows });
+  },
+
   list(params: UserListQueryParams): Promise<UserListResponse> {
     const query = new URLSearchParams({
       userType: params.userType,

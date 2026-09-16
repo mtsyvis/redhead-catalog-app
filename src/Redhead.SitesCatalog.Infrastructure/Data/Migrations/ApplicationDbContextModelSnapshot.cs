@@ -335,6 +335,9 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Property<DateTime?>("ActivatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("ClientSelectionLimitOverride")
+                        .HasColumnType("integer");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
@@ -474,6 +477,84 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.HasIndex("SortOrder");
 
                     b.ToTable("CanonicalLocations", (string)null);
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ClientCatalogAlert", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("DetectedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EmailSentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("NextEmailAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewedByUserId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Threshold")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UniqueSites")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("\"ReviewedAtUtc\" IS NULL");
+
+                    b.ToTable("ClientCatalogAlerts");
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ClientCatalogRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.PrimitiveCollection<string[]>("Domains")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("StatusCode")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimestampUtc");
+
+                    b.HasIndex("UserId", "TimestampUtc");
+
+                    b.ToTable("ClientCatalogRequests");
                 });
 
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.EntityChangeHistory", b =>
@@ -1838,6 +1919,24 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Run");
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ClientCatalogAlert", b =>
+                {
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ClientCatalogRequest", b =>
+                {
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.ExportAnalyticsSnapshot", b =>

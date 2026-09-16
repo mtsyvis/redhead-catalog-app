@@ -15,6 +15,7 @@ export interface UserInfo {
   isExportDisabled: boolean;
   canChangePassword: boolean;
   avatarUrl: string | null;
+  selectionLimit?: number | null;
 }
 
 /**

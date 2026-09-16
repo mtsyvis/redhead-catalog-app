@@ -71,4 +71,5 @@ public record UserInfoResponse(
     IList<string> Roles,
     bool IsExportDisabled,
     bool CanChangePassword,
-    string? AvatarUrl);
+    string? AvatarUrl,
+    int? SelectionLimit = null);

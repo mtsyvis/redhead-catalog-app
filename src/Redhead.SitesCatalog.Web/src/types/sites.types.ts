@@ -33,6 +33,7 @@ export interface Site {
  * Paginated response from /api/sites
  */
 export interface SitesListResponse {
+  selectionLimit?: number | null;
   items: Site[];
   total: number;
 }
@@ -266,6 +267,19 @@ export interface MultiSearchResponse {
 /**
  * Request body for POST /api/export/sites-multi-search.xlsx
  */
+export interface ExportPreview {
+  selectionRows: number;
+  exportableRows: number;
+  notFoundRows: number;
+  isBlocked: boolean;
+  reason: string | null;
+}
+
+export interface ExportPreviewPayload {
+  filters?: SitesQueryParams;
+  searchText?: string;
+}
+
 export interface ExportMultiSearchPayload {
   searchText: string;
   filters: SitesQueryParams;

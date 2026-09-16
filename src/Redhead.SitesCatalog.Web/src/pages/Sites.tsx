@@ -3,6 +3,10 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   List,
   ListItem,
   ListItemText,
@@ -205,6 +209,9 @@ export function Sites() {
   });
 
   const { user } = useAuth();
+  const [serverSelectionLimit, setServerSelectionLimit] = useState<number | null>(null);
+  const selectionLimit = isClient ? (serverSelectionLimit ?? user?.selectionLimit ?? 100) : undefined;
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const canExport = canExportSites && !user?.isExportDisabled;
   const tableViews = useSitesTableViews({ isClient: clientSafeRole, enabled: canManageTableViews });
   const savedFilters = useSitesSavedFilters({ enabled: canBrowseSites });
@@ -246,7 +253,7 @@ export function Sites() {
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
-    pageSize: 25,
+    pageSize: isClient ? 100 : 25,
   });
 
   const [sortModel, setSortModel] = useState<GridSortModel>([{ field: 'domain', sort: 'asc' }]);
@@ -354,6 +361,9 @@ export function Sites() {
     connectingGoogleDrive,
     handleDownloadExport,
     handleSaveToGoogleDrive,
+    pendingExport,
+    confirmPartialExport,
+    cancelPartialExport,
     handleConnectGoogleDrive,
     closeGoogleDriveDialog,
   } = useSitesExport({
@@ -366,14 +376,16 @@ export function Sites() {
     showSnackbar: setSnackbar,
   });
 
+  const requestPage = isClient ? 1 : paginationModel.page + 1;
+  const requestPageSize = isClient ? 100 : paginationModel.pageSize;
   const loadSites = useCallback(async () => {
     const requestId = loadSitesRequestIdRef.current + 1;
     loadSitesRequestIdRef.current = requestId;
     setLoading(true);
     try {
       const params = buildSitesQueryParams(
-        paginationModel.page + 1, // API uses 1-based pagination
-        paginationModel.pageSize
+        requestPage,
+        requestPageSize
       );
 
       const response = await sitesService.getSites(params);
@@ -383,20 +395,21 @@ export function Sites() {
 
       setSites(response.items);
       setTotal(response.total);
+      setServerSelectionLimit(response.selectionLimit ?? null);
+      setCatalogError(null);
     } catch (error) {
       if (requestId !== loadSitesRequestIdRef.current) {
         return;
       }
 
       console.error('Failed to load sites:', error);
-      setSites([]);
-      setTotal(0);
+      setCatalogError(error instanceof Error ? error.message : 'Could not load sites. Please try again.');
     } finally {
       if (requestId === loadSitesRequestIdRef.current) {
         setLoading(false);
       }
     }
-  }, [paginationModel, buildSitesQueryParams]);
+  }, [requestPage, requestPageSize, buildSitesQueryParams]);
 
   useEffect(() => {
     if (multiSearchMode || filtersDebouncePending) return;
@@ -415,12 +428,14 @@ export function Sites() {
       sitesService
         .multiSearch(query)
         .then((res) => {
+          setCatalogError(null);
           setPaginationModel((prev) => ({ ...prev, page: 0 }));
           setMultiSearchResult(res);
           setMultiSearchAppliedText(query);
           setMultiSearchRunId((current) => current + 1);
         })
         .catch((err) => {
+          setCatalogError(err instanceof Error ? err.message : 'Multi-search failed. Please try again.');
           console.error('Multi-search failed:', err);
           setSnackbar({
             open: true,
@@ -814,6 +829,21 @@ export function Sites() {
 
   return (
     <PageShell maxWidth="xl">
+      <Dialog open={pendingExport !== null} onClose={cancelPartialExport} fullWidth maxWidth="xs">
+        <DialogTitle>Export part of your selection</DialogTitle>
+        <DialogContent>
+          {pendingExport && <Typography>
+            Your current limits allow exporting {pendingExport.preview.exportableRows} of {pendingExport.preview.selectionRows} sites.
+            {pendingExport.preview.notFoundRows > 0 && ` The Not found sheet includes ${pendingExport.preview.notFoundRows} domains.`}
+            {' '}Limits will be checked again when the export starts.
+          </Typography>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cancelPartialExport}>Cancel</Button>
+          <Button onClick={() => void confirmPartialExport()}>Export available sites</Button>
+        </DialogActions>
+      </Dialog>
+
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0, flexDirection: 'column' }}>
         <Box sx={{ mb: 1 }}>
           <Typography variant="h4">{isLite ? 'Domain Check' : 'Sites Catalog'}</Typography>
@@ -826,6 +856,7 @@ export function Sites() {
           multiSearchMode={multiSearchMode}
           onMultiSearchModeChange={isLite ? undefined : handleMultiSearchModeChange}
           liteMode={isLite}
+          clientSelectionLimit={selectionLimit}
           filterOptionsRefreshKey={filterOptionsRefreshKey}
           savedFilterSets={canBrowseSites ? savedFilters.filterSets : []}
           activeSavedFilterSetId={canBrowseSites ? savedFilters.activeFilterSetId : null}
@@ -865,6 +896,14 @@ export function Sites() {
           </Alert>
         )}
 
+        {catalogError && <Alert severity="warning" sx={{ mb: 1 }} action={
+          <Button color="inherit" size="small" disabled={loading || multiSearchLoading}
+            onClick={() => multiSearchMode ? handleFiltersApply() : void loadSites()}>Retry</Button>
+        }>{catalogError} Previous results are kept until a new search succeeds.</Alert>}
+        {isClient && !multiSearchMode && !catalogError && <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          Showing {Math.min(total, selectionLimit ?? 100).toLocaleString()} of {total.toLocaleString()} sites.
+          {total > (selectionLimit ?? 100) && ' Refine filters or change sorting to find the sites you need.'}
+        </Typography>}
         <Paper
           sx={{
             display: 'flex',
@@ -915,9 +954,10 @@ export function Sites() {
                 hiddenFilteredColumns={hiddenFilteredColumns}
                 canExport={canExport}
                 exporting={exporting}
-                loading={loading || tableViews.loading}
+                loading={loading || multiSearchLoading || tableViews.loading || filtersDebouncePending || !!catalogError}
+                selectionCount={isClient ? (isMultiSearchView ? gridRowCount - gridNotFoundRowCount : Math.min(total, selectionLimit ?? 100)) : undefined}
                 exportUsageLimits={exportUsageLimits}
-                resultCount={gridRowCount}
+                resultCount={isClient && !isMultiSearchView ? Math.min(total, selectionLimit ?? 100) : gridRowCount}
                 resultSearchedCount={gridSearchedRowCount}
                 resultNotFoundCount={gridNotFoundRowCount}
                 resultHiddenNotFoundCount={hiddenNotFoundRowCount}
@@ -945,15 +985,19 @@ export function Sites() {
                     if (isNotFoundRow(params.row)) return 'SitesGrid-notFoundRow';
                     return params.row.isQuarantined ? 'SitesGrid-unavailableRow' : '';
                   }}
-                  rowCount={gridRowCount}
+                  rowCount={isClient || isMultiSearchView ? undefined : gridRowCount}
                   loading={gridLoading}
-                  pageSizeOptions={[10, 25, 50, 100]}
+                  pageSizeOptions={isClient ? [100] : [10, 25, 50, 100]}
+                  hideFooterPagination={isClient && gridRows.length <= 100}
                   paginationModel={paginationModel}
-                  paginationMode={isMultiSearchView ? 'client' : 'server'}
+                  paginationMode={isClient || isMultiSearchView ? 'client' : 'server'}
                   onPaginationModelChange={setPaginationModel}
                   sortingMode="server"
                   sortModel={sortModel}
-                  onSortModelChange={setSortModel}
+                  onSortModelChange={(model) => {
+                    setSortModel(model);
+                    setPaginationModel((previous) => ({ ...previous, page: 0 }));
+                  }}
                   onColumnWidthChange={handleColumnWidthChange}
                   density={tableViews.density}
                   columnVisibilityModel={tableViews.columnVisibilityModel}

@@ -28,6 +28,19 @@ public class GlobalExceptionHandler : IExceptionHandler
         Exception exception,
         CancellationToken cancellationToken)
     {
+        if (exception is ClientCatalogBurstLimitExceededException burstLimit)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            httpContext.Response.Headers.RetryAfter = burstLimit.RetryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            await httpContext.Response.WriteAsJsonAsync(new
+            {
+                code = "ClientCatalogBurstLimited",
+                message = burstLimit.Message,
+                retryAfterSeconds = burstLimit.RetryAfterSeconds
+            }, cancellationToken);
+            return true;
+        }
+
         _logger.LogError(
             exception,
             "An unhandled exception occurred. Path: {Path}, Method: {Method}",
