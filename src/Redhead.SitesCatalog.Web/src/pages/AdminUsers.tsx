@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import type { ClientCatalogAlert } from '../types/adminUsers.types';
 import { ClientCatalogAlertDialog } from '../components/admin/ClientCatalogAlertDialog';
 import { Navigate, useNavigate } from 'react-router-dom';
@@ -24,8 +24,11 @@ import {
   Tooltip,
   ToggleButton,
   ToggleButtonGroup,
+  InputAdornment,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridPaginationModel, GridRowParams } from '@mui/x-data-grid';
 import { PageShell } from '../components/layout/PageShell';
@@ -59,7 +62,8 @@ type ClientUsageLimitInputs = Record<ClientUsageLimitInputName, string>;
 const USER_TYPE_OPTIONS: Array<{ value: UserTypeFilter; label: string; emptyMessage: string }> = [
   { value: 'all', label: 'All users', emptyMessage: 'No users found.' },
   { value: 'internal', label: 'Internal users', emptyMessage: 'No internal users found.' },
-  { value: 'clients', label: 'Clients / Lite', emptyMessage: 'No client or Lite users found.' },
+  { value: 'clients', label: 'Clients', emptyMessage: 'No clients found.' },
+  { value: 'lite', label: 'Lite', emptyMessage: 'No Lite users found.' },
 ];
 
 const SUPER_ADMIN_NOTE_MAX_LENGTH = 1000;
@@ -167,6 +171,11 @@ export const AdminUsers: React.FC = () => {
   const [selectedCatalogAlert, setSelectedCatalogAlert] = useState<ClientCatalogAlert | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [userType, setUserType] = useState<UserTypeFilter>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const usersRequestSequence = useRef(0);
+  const searchActive = Boolean(searchInput.trim() || search);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 25,
@@ -230,14 +239,17 @@ export const AdminUsers: React.FC = () => {
   const normalRoles = NON_SUPER_ADMIN_ROLES;
 
   const loadUsers = useCallback(async (fallbackToPreviousPage = false) => {
+    const requestSequence = ++usersRequestSequence.current;
     setLoading(true);
     setError(null);
     try {
       const response = await adminUsersService.list({
         userType,
+        search,
         page: paginationModel.page + 1,
         pageSize: paginationModel.pageSize,
       });
+      if (usersRequestSequence.current !== requestSequence) return;
 
       if (fallbackToPreviousPage && response.items.length === 0 && response.page > 1) {
         setPaginationModel((prev) => ({ ...prev, page: response.page - 2 }));
@@ -246,13 +258,24 @@ export const AdminUsers: React.FC = () => {
 
       setUsers(response.items);
       setTotalCount(response.totalCount);
-      setCatalogAlerts(await adminUsersService.catalogAlerts());
+      const alerts = await adminUsersService.catalogAlerts();
+      if (usersRequestSequence.current === requestSequence) setCatalogAlerts(alerts);
     } catch (err) {
+      if (usersRequestSequence.current !== requestSequence) return;
       setError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
-      setLoading(false);
+      if (usersRequestSequence.current === requestSequence) setLoading(false);
     }
-  }, [paginationModel.page, paginationModel.pageSize, userType]);
+  }, [paginationModel.page, paginationModel.pageSize, userType, search]);
+
+  React.useEffect(() => {
+    if (searchInput.trim() === search) return;
+    const timer = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPaginationModel((prev) => ({ ...prev, page: 0 }));
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [searchInput, search]);
 
   const loadRoleSettings = useCallback(async () => {
     try {
@@ -265,6 +288,7 @@ export const AdminUsers: React.FC = () => {
 
   React.useEffect(() => {
     loadUsers();
+    return () => { usersRequestSequence.current += 1; };
   }, [loadUsers]);
 
   React.useEffect(() => {
@@ -741,6 +765,13 @@ export const AdminUsers: React.FC = () => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
   };
 
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setSearch('');
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
+    searchInputRef.current?.focus();
+  };
+
   const handleShowAllUsers = () => {
     setUserType('all');
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
@@ -769,9 +800,13 @@ export const AdminUsers: React.FC = () => {
       }}
     >
       <Typography variant="body2" color="text.secondary">
-        {selectedUserTypeOption.emptyMessage}
+        {searchActive ? 'No users match this email or display name.' : selectedUserTypeOption.emptyMessage}
       </Typography>
-      {userType !== 'all' && (
+      {searchActive ? (
+        <BrandButton kind="outline" size="small" onClick={handleClearSearch}>
+          Clear search
+        </BrandButton>
+      ) : userType !== 'all' && (
         <BrandButton kind="outline" size="small" onClick={handleShowAllUsers}>
           Show all users
         </BrandButton>
@@ -1046,11 +1081,39 @@ export const AdminUsers: React.FC = () => {
         </Alert>
       )}
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2 }}>
+      <TextField
+        fullWidth
+        inputRef={searchInputRef}
+        placeholder="Search all users by email or display name"
+        value={searchInput}
+        onChange={(event) => setSearchInput(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            setSearch(searchInput.trim());
+            setPaginationModel((prev) => ({ ...prev, page: 0 }));
+          }
+        }}
+        slotProps={{
+          htmlInput: { 'aria-label': 'Search all users by email or display name' },
+          input: {
+            startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>,
+            endAdornment: searchInput ? (
+              <InputAdornment position="end">
+                <IconButton size="small" aria-label="Clear search" onClick={handleClearSearch}>
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ) : undefined,
+          },
+        }}
+        sx={{ mb: 2 }}
+      />
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', minHeight: 40, mb: 2, gap: 2 }}>
         <Typography variant="h6">
-          {selectedUserTypeOption.label}
+          {searchActive ? 'Search results' : selectedUserTypeOption.label}
         </Typography>
-        <ToggleButtonGroup
+        {searchActive ? <Chip label="All roles" size="small" variant="outlined" /> : <ToggleButtonGroup
           value={userType}
           exclusive
           size="small"
@@ -1071,7 +1134,7 @@ export const AdminUsers: React.FC = () => {
               {option.label}
             </ToggleButton>
           ))}
-        </ToggleButtonGroup>
+        </ToggleButtonGroup>}
       </Box>
 
       <Paper>
@@ -1080,7 +1143,7 @@ export const AdminUsers: React.FC = () => {
           columns={columns}
           getRowId={(row) => row.id}
           rowCount={totalCount}
-          loading={loading}
+          loading={loading || searchInput.trim() !== search}
           pageSizeOptions={[10, 25, 50, 100]}
           paginationModel={paginationModel}
           paginationMode="server"

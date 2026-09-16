@@ -30,7 +30,18 @@ public sealed class AdminUsersListService : IAdminUsersListService
         AdminUsersListQuery query,
         CancellationToken cancellationToken = default)
     {
-        var usersQuery = ApplyUserTypeFilter(BuildUsersQuery(), query.UserType);
+        var usersQuery = BuildUsersQuery();
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim().ToLowerInvariant();
+            usersQuery = usersQuery.Where(user =>
+                user.Email.ToLower().Contains(search) ||
+                (user.DisplayName != null && user.DisplayName.ToLower().Contains(search)));
+        }
+        else
+        {
+            usersQuery = ApplyUserTypeFilter(usersQuery, query.UserType);
+        }
 
         var totalCount = await usersQuery.CountAsync(cancellationToken);
         var totalPages = CalculateTotalPages(totalCount, query.PageSize);
@@ -156,7 +167,8 @@ public sealed class AdminUsersListService : IAdminUsersListService
         return userType switch
         {
             AdminUsersListUserTypes.Clients => query.Where(user =>
-                user.Role == AppRoles.Client || user.Role == AppRoles.Lite),
+                user.Role == AppRoles.Client),
+            AdminUsersListUserTypes.Lite => query.Where(user => user.Role == AppRoles.Lite),
             AdminUsersListUserTypes.Internal => query.Where(user =>
                 user.Role != AppRoles.Client && user.Role != AppRoles.Lite),
             _ => query

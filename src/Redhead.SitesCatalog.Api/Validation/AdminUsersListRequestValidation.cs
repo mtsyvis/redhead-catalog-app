@@ -11,16 +11,17 @@ public static class AdminUsersListRequestValidation
     {
         if (string.IsNullOrWhiteSpace(request.UserType))
         {
-            return "Invalid userType. Allowed values: all, internal, clients.";
+            return "Invalid userType. Allowed values: all, internal, clients, lite.";
         }
 
         var userType = NormalizeUserType(request.UserType);
         if (userType is not (
             AdminUsersListUserTypes.All or
             AdminUsersListUserTypes.Internal or
-            AdminUsersListUserTypes.Clients))
+            AdminUsersListUserTypes.Clients or
+            AdminUsersListUserTypes.Lite))
         {
-            return "Invalid userType. Allowed values: all, internal, clients.";
+            return "Invalid userType. Allowed values: all, internal, clients, lite.";
         }
 
         if (request.Page < 1)

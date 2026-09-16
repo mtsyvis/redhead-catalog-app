@@ -55,6 +55,7 @@ public sealed record SuperAdminUserListItem : UserListItem
 public class UserListRequest
 {
     public string UserType { get; set; } = AdminUsersListUserTypes.All;
+    public string? Search { get; set; }
     public int Page { get; set; } = PaginationDefaults.DefaultPage;
     public int PageSize { get; set; } = PaginationDefaults.DefaultPageSize;
 }

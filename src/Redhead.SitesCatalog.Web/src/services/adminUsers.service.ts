@@ -39,6 +39,9 @@ export const adminUsersService = {
       page: String(params.page),
       pageSize: String(params.pageSize),
     });
+    if (params.search?.trim()) {
+      query.set('search', params.search.trim());
+    }
 
     return ApiClient.get<UserListResponse>(`/api/admin/users?${query.toString()}`);
   },

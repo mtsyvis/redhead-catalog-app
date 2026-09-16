@@ -34,10 +34,11 @@ export interface UserListItem {
   superAdminNote?: string | null;
 }
 
-export type UserTypeFilter = 'all' | 'internal' | 'clients';
+export type UserTypeFilter = 'all' | 'internal' | 'clients' | 'lite';
 
 export interface UserListQueryParams {
   userType: UserTypeFilter;
+  search?: string;
   page: number;
   pageSize: number;
 }

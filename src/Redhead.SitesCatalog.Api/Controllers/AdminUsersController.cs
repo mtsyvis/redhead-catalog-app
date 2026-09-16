@@ -673,6 +673,7 @@ public class AdminUsersController : ControllerBase
         return new AdminUsersListQuery
         {
             UserType = AdminUsersListRequestValidation.NormalizeUserType(request.UserType),
+            Search = request.Search,
             Page = request.Page,
             PageSize = request.PageSize
         };

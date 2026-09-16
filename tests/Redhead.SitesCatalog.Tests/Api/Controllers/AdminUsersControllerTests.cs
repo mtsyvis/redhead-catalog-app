@@ -509,9 +509,13 @@ public sealed class AdminUsersControllerTests
             payload.Items.Select(item => item.Role));
     }
 
-    [Fact]
-    public async Task ListUsers_WithClientsFilter_ReturnsClientAndLiteUsers()
+    [Theory]
+    [InlineData("clients", AppRoles.Client)]
+    [InlineData("lite", AppRoles.Lite)]
+    [InlineData(" LITE ", AppRoles.Lite)]
+    public async Task ListUsers_WithExternalRoleFilter_ReturnsOnlySelectedRole(string userType, string expectedRole)
     {
+        // Arrange
         await using var db = CreateDbContext();
         await SeedRoleSettingsAsync(db);
         await AddUserAsync(db, "admin-1", "admin@example.com", AppRoles.Admin);
@@ -520,11 +524,81 @@ public sealed class AdminUsersControllerTests
 
         var sut = CreateController(db);
 
-        var result = await sut.ListUsers(new UserListRequest { UserType = "clients" }, CancellationToken.None);
+        // Act
+        var result = await sut.ListUsers(new UserListRequest { UserType = userType }, CancellationToken.None);
 
+        // Assert
         var payload = GetOkPayload(result);
-        Assert.Equal(2, payload.TotalCount);
-        Assert.Equal([AppRoles.Client, AppRoles.Lite], payload.Items.Select(item => item.Role));
+        Assert.Equal(1, payload.TotalCount);
+        Assert.Equal(expectedRole, Assert.Single(payload.Items).Role);
+    }
+
+    [Theory]
+    [InlineData("all", " MATCH ", 2)]
+    [InlineData("clients", "MATCH", 2)]
+    [InlineData("lite", "match", 2)]
+    [InlineData("internal", "match", 2)]
+    [InlineData("all", "PERSON@", 1)]
+    [InlineData("all", "NAME", 1)]
+    [InlineData("all", "secret-note", 0)]
+    [InlineData("all", "%", 0)]
+    [InlineData("all", "_", 0)]
+    [InlineData("all", "no-match", 0)]
+    [InlineData("clients", "  ", 1)]
+    [InlineData("lite", null, 1)]
+    [InlineData("all", "", 3)]
+    public async Task ListUsers_WithSearch_MatchesEmailOrNameAcrossAllRoles(
+        string userType, string? search, int expectedCount)
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(db, "client", "match.person@example.com", AppRoles.Client);
+        await AddUserAsync(db, "lite", "lite@example.com", AppRoles.Lite,
+            isActive: false, firstName: "Match", lastName: "Name");
+        await AddUserAsync(db, "admin", "admin@example.com", AppRoles.Admin,
+            superAdminNote: "secret-note match");
+        var sut = CreateController(db);
+
+        // Act
+        var result = await sut.ListUsers(new UserListRequest { UserType = userType, Search = search }, CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        Assert.Equal(expectedCount, payload.TotalCount);
+        Assert.Equal(expectedCount, payload.Items.Count);
+        if (expectedCount == 2)
+        {
+            Assert.Equal(["client", "lite"], payload.Items.Select(item => item.Id));
+        }
+        if (search == "PERSON@") Assert.Equal("client", Assert.Single(payload.Items).Id);
+        if (search == "NAME") Assert.Equal("lite", Assert.Single(payload.Items).Id);
+    }
+
+    [Fact]
+    public async Task ListUsers_WithSearch_FiltersBeforeCountingAndPagination()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(db, "admin", "admin@example.com", AppRoles.Admin);
+        for (var i = 1; i <= 12; i++)
+        {
+            await AddUserAsync(db, $"client-{i:00}", $"match-{i:00}@example.com", AppRoles.Client);
+        }
+        var sut = CreateController(db);
+
+        // Act
+        var result = await sut.ListUsers(
+            new UserListRequest { UserType = "lite", Search = "match", Page = 2, PageSize = 10 },
+            CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        Assert.Equal(12, payload.TotalCount);
+        Assert.Equal(2, payload.TotalPages);
+        Assert.Equal(2, payload.Page);
+        Assert.Equal(["client-11", "client-12"], payload.Items.Select(item => item.Id));
     }
 
     [Fact]
