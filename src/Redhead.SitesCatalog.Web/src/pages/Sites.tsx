@@ -195,6 +195,8 @@ export function Sites() {
   const [multiSearchAppliedText, setMultiSearchAppliedText] = useState('');
   const [multiSearchLoading, setMultiSearchLoading] = useState(false);
   const [multiSearchRunId, setMultiSearchRunId] = useState(0);
+  const lastMultiSearchRequest = useRef<{ query: string; id: string } | null>(null);
+  const multiSearchPending = useRef(false);
   const [filterOptionsRefreshKey, setFilterOptionsRefreshKey] = useState(0);
   const [duplicatesAnchor, setDuplicatesAnchor] = useState<HTMLElement | null>(null);
   const [editSite, setEditSite] = useState<Site | null>(null);
@@ -416,17 +418,22 @@ export function Sites() {
     loadSites();
   }, [filtersDebouncePending, loadSites, multiSearchMode]);
 
-  const handleFiltersApply = (appliedFilters: FiltersType = filters) => {
+  const handleFiltersApply = (appliedFilters: FiltersType = filters, retry = false) => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
     if (!multiSearchMode) {
       setDebouncedFilters(appliedFilters);
     }
     if (multiSearchMode) {
-      const query = appliedFilters.search.trim();
+      if (multiSearchPending.current) return;
+      const previous = lastMultiSearchRequest.current;
+      const query = retry && previous ? previous.query : appliedFilters.search.trim();
       if (!query) return;
+      const requestId = retry && previous ? previous.id : crypto.randomUUID();
+      lastMultiSearchRequest.current = { query, id: requestId };
+      multiSearchPending.current = true;
       setMultiSearchLoading(true);
       sitesService
-        .multiSearch(query)
+        .multiSearch(query, requestId)
         .then((res) => {
           setCatalogError(null);
           setPaginationModel((prev) => ({ ...prev, page: 0 }));
@@ -443,7 +450,10 @@ export function Sites() {
             severity: 'error',
           });
         })
-        .finally(() => setMultiSearchLoading(false));
+        .finally(() => {
+          multiSearchPending.current = false;
+          setMultiSearchLoading(false);
+        });
     }
   };
 
@@ -454,7 +464,8 @@ export function Sites() {
     savedFilters.setActiveFilterSetId(filterSet.id);
     setFilters(nextFilters);
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
-    handleFiltersApply(nextFilters);
+    // Multi-search filters operate on the existing results, without a new search event.
+    if (!multiSearchMode) handleFiltersApply(nextFilters);
   };
 
   const handleCreateSavedFilterSet = async (
@@ -898,7 +909,7 @@ export function Sites() {
 
         {catalogError && <Alert severity="warning" sx={{ mb: 1 }} action={
           <Button color="inherit" size="small" disabled={loading || multiSearchLoading}
-            onClick={() => multiSearchMode ? handleFiltersApply() : void loadSites()}>Retry</Button>
+            onClick={() => multiSearchMode ? handleFiltersApply(filters, true) : void loadSites()}>Retry</Button>
         }>{catalogError} Previous results are kept until a new search succeeds.</Alert>}
         {isClient && !multiSearchMode && !catalogError && <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           Showing {Math.min(total, selectionLimit ?? 100).toLocaleString()} of {total.toLocaleString()} sites.

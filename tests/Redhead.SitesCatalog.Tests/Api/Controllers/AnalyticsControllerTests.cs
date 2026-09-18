@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Moq;

@@ -13,6 +13,7 @@ public static class AppPermissions
     public const string RoleSettingsRead = "RoleSettingsRead";
     public const string RoleSettingsManage = "RoleSettingsManage";
     public const string AnalyticsRead = "AnalyticsRead";
+    public const string MissingDomainsAnalyticsRead = "MissingDomainsAnalyticsRead";
     public const string AhrefsSyncManage = "AhrefsSyncManage";
     public const string WebmasterOffersRead = "WebmasterOffersRead";
     public const string WebmasterOffersImport = "WebmasterOffersImport";
@@ -31,6 +32,7 @@ public static class AppPermissions
         RoleSettingsRead,
         RoleSettingsManage,
         AnalyticsRead,
+        MissingDomainsAnalyticsRead,
         AhrefsSyncManage,
         WebmasterOffersRead,
         WebmasterOffersImport,

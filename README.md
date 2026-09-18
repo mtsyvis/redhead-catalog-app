@@ -67,6 +67,11 @@ redhead-catalog-app/
 └── redhead-catalog-app.sln
 ```
 
+Analytics services live under `src/Redhead.SitesCatalog.Application/Services/Analytics/`:
+
+* `ExportAnalytics/` contains the Business Demand and Export Activity services, their interfaces, and export snapshot builders, parsers, and formatters.
+* `MissingDomainsAnalytics/` contains the missing-domain recording/reporting service and its interface.
+
 ## Prerequisites
 
 Required:
@@ -200,6 +205,26 @@ tools/Redhead.SitesCatalog.AnalyticsLoadTest
 It can seed synthetic export analytics data, measure the protected endpoint with SuperAdmin credentials, and clean up seeded benchmark rows. It is intentionally not part of the main solution or normal test suite.
 
 See [tools/Redhead.SitesCatalog.AnalyticsLoadTest/README.md](tools/Redhead.SitesCatalog.AnalyticsLoadTest/README.md) for commands.
+
+### Missing Domains analytics
+
+Analytics separates `Exports` from `Multi-search`. Missing Domains records successful Client/Lite
+Multi-search demand from deployment onward and supports UTC periods, role/domain filters,
+current catalog presence, unique-user counts, and a paginated domain ranking. The independent
+`MissingDomainsAnalyticsRead` permission is initially granted to SuperAdmin and Admin.
+Apply the `AddMissingDomainsAnalytics` EF migration through the normal migration workflow.
+History is retained when a domain is added to Sites; existing searches cannot be backfilled.
+
+Opt-in PostgreSQL checks create, migrate, and drop isolated `redhead_analytics_test_<random id>`
+databases. They verify concurrent retry deduplication and server-side report aggregation.
+Set `REDHEAD_TEST_POSTGRES` to a **test server** connection string whose user may create
+databases, then run:
+
+```bash
+dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~MissingDomainsAnalyticsPostgresTests
+```
+
+Without this environment variable, these PostgreSQL tests are skipped; ordinary analytics unit tests still run.
 
 ### Frontend
 

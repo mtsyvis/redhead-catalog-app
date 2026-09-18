@@ -2,7 +2,7 @@ using System.Globalization;
 using Redhead.SitesCatalog.Application.Models.Analytics;
 using Redhead.SitesCatalog.Domain.Constants;
 
-namespace Redhead.SitesCatalog.Application.Services.Analytics;
+namespace Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 
 internal static class ExportLogDetailsMapper
 {

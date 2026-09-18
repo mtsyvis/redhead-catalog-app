@@ -5,6 +5,21 @@ namespace Redhead.SitesCatalog.Tests.Domain;
 public sealed class RolePermissionMatrixTests
 {
     [Fact]
+    public void MissingDomainsAnalytics_IsIndependentPermission_ForAdminAndSuperAdminOnly()
+    {
+        // Arrange
+        var permission = AppPermissions.MissingDomainsAnalyticsRead;
+
+        // Act
+        var roles = RolePermissionMatrix.GetRolesForPermission(permission);
+
+        // Assert
+        Assert.Equal([AppRoles.SuperAdmin, AppRoles.Admin], roles);
+        Assert.NotEqual(AppPermissions.AnalyticsRead, permission);
+        Assert.Equal(AppPolicies.MissingDomainsAnalyticsReadAccess, AppPolicies.PermissionPolicies[permission]);
+    }
+
+    [Fact]
     public void GetPermissions_SuperAdminRole_ReturnsEveryKnownPermission()
     {
         // Arrange

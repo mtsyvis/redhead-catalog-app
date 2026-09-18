@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Application.Services.Analytics.MissingDomainsAnalytics;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -19,6 +20,70 @@ namespace Redhead.SitesCatalog.Tests;
 
 public class SitesControllerTests
 {
+    [Theory]
+    [InlineData(AppRoles.Client, true)]
+    [InlineData(AppRoles.Lite, true)]
+    [InlineData(AppRoles.Admin, false)]
+    [InlineData(AppRoles.SuperAdmin, false)]
+    [InlineData(AppRoles.Internal, false)]
+    public async Task MultiSearch_RecordsOnlyMissingDomains_ForClientAndLite(string role, bool recorded)
+    {
+        // Arrange
+        var sites = new Mock<ISitesService>();
+        sites.Setup(x => x.MultiSearchSitesAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MultiSearchSitesResult
+            {
+                Found = [new SiteDto { Domain = "quarantined.com", IsQuarantined = true }],
+                NotFound = ["missing.com"], Duplicates = []
+            });
+        var analytics = new Mock<IMissingDomainsAnalyticsService>();
+        var controller = CreateController(sites, analytics: analytics);
+        SetUser(controller, role, "test@example.com");
+        var requestId = Guid.NewGuid();
+
+        // Act
+        var result = await controller.MultiSearch(new MultiSearchRequest
+        {
+            QueryText = "missing.com quarantined.com", SearchRequestId = requestId,
+            Filters = new SitesQueryRequest { DrMin = 99 }
+        }, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result.Result);
+        analytics.Verify(x => x.RecordAsync("user-1", role, requestId,
+            It.Is<IReadOnlyList<string>>(domains => domains.SequenceEqual(new[] { "missing.com" })),
+            It.IsAny<CancellationToken>()), recorded ? Times.Once() : Times.Never());
+        if (!recorded) analytics.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("empty-id")]
+    [InlineData("selection-limit")]
+    [InlineData("stop-list")]
+    [InlineData("lite-limit")]
+    public async Task MultiSearch_RejectedRequest_DoesNotRecordAnalytics(string scenario)
+    {
+        // Arrange
+        var analytics = new Mock<IMissingDomainsAnalyticsService>();
+        var liteUsage = new Mock<ILiteMultiSearchUsageService>();
+        liteUsage.Setup(x => x.TryConsumeAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LiteMultiSearchUsageResult(LiteMultiSearchUsageStatus.MonthlyLimitExceeded, 1, 3000, 3000, 0));
+        var controller = CreateController(new Mock<ISitesService>(), liteUsage, analytics);
+        SetUser(controller, scenario == "lite-limit" ? AppRoles.Lite : AppRoles.Client, "test@example.com");
+        var request = new MultiSearchRequest { QueryText = "missing.com", SearchRequestId = Guid.NewGuid() };
+        if (scenario == "empty-id") request.SearchRequestId = Guid.Empty;
+        if (scenario == "selection-limit") request.QueryText = string.Join(' ', Enumerable.Range(0, 101).Select(i => $"site{i}.com"));
+        if (scenario == "stop-list") request.StopListDomains = ["excluded.com"];
+
+        // Act
+        var exception = await Record.ExceptionAsync(() => controller.MultiSearch(request, CancellationToken.None));
+
+        // Assert
+        if (scenario == "selection-limit") Assert.IsType<RequestValidationException>(exception);
+        else Assert.Null(exception);
+        analytics.VerifyNoOtherCalls();
+    }
+
     [Fact]
     public void SitesQueryRequest_DefaultValues_AreCorrect()
     {
@@ -635,7 +700,8 @@ public class SitesControllerTests
 
     private static SitesController CreateController(
         Mock<ISitesService> sitesService,
-        Mock<ILiteMultiSearchUsageService>? liteUsageService = null)
+        Mock<ILiteMultiSearchUsageService>? liteUsageService = null,
+        Mock<IMissingDomainsAnalyticsService>? analytics = null)
     {
         if (liteUsageService == null)
         {
@@ -656,7 +722,8 @@ public class SitesControllerTests
         var clientCatalog = new Mock<IClientCatalogService>();
         clientCatalog.Setup(service => service.GetSelectionLimitAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ClientCatalogLimits.DefaultSelectionLimit);
-        return new SitesController(sitesService.Object, liteUsageService.Object, clientCatalog.Object);
+        return new SitesController(sitesService.Object, liteUsageService.Object, clientCatalog.Object,
+            (analytics ?? new Mock<IMissingDomainsAnalyticsService>()).Object);
     }
 
     private static ApiUpdateSiteRequest BuildValidUpdateRequest()

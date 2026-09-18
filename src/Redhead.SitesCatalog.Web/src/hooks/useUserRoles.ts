@@ -29,6 +29,8 @@ export function useUserRoles() {
   const canReadRoleSettings = hasPermission('RoleSettingsRead');
   const canManageRoleSettings = hasPermission('RoleSettingsManage');
   const canReadAnalytics = hasPermission('AnalyticsRead');
+  const canReadMissingDomainsAnalytics = hasPermission('MissingDomainsAnalyticsRead');
+  const canReadAnyAnalytics = canReadAnalytics || canReadMissingDomainsAnalytics;
   const canManageAhrefsSync = hasPermission('AhrefsSyncManage');
   const canReadWebmasterOffers = hasPermission('WebmasterOffersRead');
   const canImportWebmasterOffers = hasPermission('WebmasterOffersImport');
@@ -56,6 +58,8 @@ export function useUserRoles() {
     canReadRoleSettings,
     canManageRoleSettings,
     canReadAnalytics,
+    canReadMissingDomainsAnalytics,
+    canReadAnyAnalytics,
     canManageAhrefsSync,
     canReadWebmasterOffers,
     canImportWebmasterOffers,

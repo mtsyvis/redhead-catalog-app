@@ -1,6 +1,6 @@
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Application.Services;
-using Redhead.SitesCatalog.Application.Services.Analytics;
+using Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 
 namespace Redhead.SitesCatalog.Application.Exports;
 

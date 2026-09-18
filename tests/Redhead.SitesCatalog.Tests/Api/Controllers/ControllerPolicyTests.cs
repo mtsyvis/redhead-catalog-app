@@ -40,6 +40,7 @@ public sealed class ControllerPolicyTests
     [InlineData(typeof(AnalyticsController), nameof(AnalyticsController.GetExportActivity), AppPolicies.AnalyticsReadAccess)]
     [InlineData(typeof(AnalyticsController), nameof(AnalyticsController.GetExportLogDetails), AppPolicies.AnalyticsReadAccess)]
     [InlineData(typeof(AnalyticsController), nameof(AnalyticsController.GetClientOptions), AppPolicies.AnalyticsReadAccess)]
+    [InlineData(typeof(MissingDomainsAnalyticsController), nameof(MissingDomainsAnalyticsController.Get), AppPolicies.MissingDomainsAnalyticsReadAccess)]
     public void Endpoint_UsesExpectedPolicy(Type controllerType, string methodName, string expectedPolicy)
     {
         // Arrange

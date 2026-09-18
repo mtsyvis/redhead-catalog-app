@@ -1,4 +1,4 @@
-namespace Redhead.SitesCatalog.Application.Services.Analytics;
+namespace Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 
 internal sealed record ExportAnalyticsLogRow(
     string UserId,

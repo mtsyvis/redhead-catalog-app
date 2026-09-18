@@ -3,13 +3,12 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Models.Exports;
-using Redhead.SitesCatalog.Application.Services.Analytics;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 
-namespace Redhead.SitesCatalog.Application.Services;
+namespace Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 
 public static class ExportAnalyticsSnapshotBuilder
 {

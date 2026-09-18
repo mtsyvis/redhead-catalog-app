@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Redhead.SitesCatalog.Application.Services.Analytics;
+namespace Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 
 internal static class QualityRangeFormatter
 {

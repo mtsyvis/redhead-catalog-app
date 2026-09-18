@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Application.Services.Analytics.MissingDomainsAnalytics;
 using Redhead.SitesCatalog.Domain.ClientCatalog;
 using System.Net;
 using System.Net.Http.Json;
@@ -43,6 +44,7 @@ public sealed class ClientCatalogBurstHttpTests
         var databaseName = Guid.NewGuid().ToString();
         builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(databaseName));
         builder.Services.AddSingleton(Mock.Of<ILiteMultiSearchUsageService>());
+        builder.Services.AddSingleton(Mock.Of<IMissingDomainsAnalyticsService>());
         var sites = new Mock<ISitesService>();
         sites.Setup(service => service.GetSitesAsync(It.IsAny<SitesQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((SitesQuery query, CancellationToken _) => new SitesListResult

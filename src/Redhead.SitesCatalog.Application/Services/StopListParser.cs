@@ -23,7 +23,7 @@ public static class StopListParser
             }
 
             var normalizedDomain = DomainNormalizer.Normalize(rawDomain);
-            if (!IsValidNormalizedDomain(normalizedDomain))
+            if (!DomainValidator.IsValidNormalizedDomain(normalizedDomain))
             {
                 throw new RequestValidationException(
                     $"Invalid stop-list domain '{rawDomain}'. Enter a valid domain or URL.");
@@ -45,39 +45,4 @@ public static class StopListParser
 
     public static bool HasAnyInput(IReadOnlyCollection<string>? rawDomains)
         => rawDomains?.Any(domain => !string.IsNullOrWhiteSpace(domain)) == true;
-
-    private static bool IsValidNormalizedDomain(string normalizedDomain)
-    {
-        if (string.IsNullOrWhiteSpace(normalizedDomain) || normalizedDomain.Length > 253)
-        {
-            return false;
-        }
-
-        if (!normalizedDomain.Contains('.', StringComparison.Ordinal) ||
-            normalizedDomain.Any(char.IsWhiteSpace) ||
-            normalizedDomain.Any(c => c is '/' or '?' or '#' or ':' or '@'))
-        {
-            return false;
-        }
-
-        var labels = normalizedDomain.Split('.');
-        return labels.All(IsValidDomainLabel);
-    }
-
-    private static bool IsValidDomainLabel(string label)
-    {
-        if (label.Length is 0 or > 63 ||
-            label[0] == '-' ||
-            label[^1] == '-')
-        {
-            return false;
-        }
-
-        return label.All(c =>
-            char.IsLetterOrDigit(c) ||
-            char.GetUnicodeCategory(c) is
-                System.Globalization.UnicodeCategory.NonSpacingMark or
-                System.Globalization.UnicodeCategory.SpacingCombiningMark ||
-            c == '-');
-    }
 }

@@ -30,6 +30,7 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
 export interface PageShellProps {
   children: React.ReactNode;
   title?: string;
+  compact?: boolean;
   actions?: React.ReactNode;
   maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
 }
@@ -40,6 +41,7 @@ export interface PageShellProps {
 export const PageShell: React.FC<PageShellProps> = ({
   children,
   title,
+  compact = false,
   actions,
   maxWidth = 'lg',
 }) => {
@@ -48,7 +50,7 @@ export const PageShell: React.FC<PageShellProps> = ({
     canRunImports,
     canReadUsers,
     canReadRoleSettings,
-    canReadAnalytics,
+    canReadAnyAnalytics,
     canManageAhrefsSync,
     canReadWebmasterOffers,
   } = useUserRoles();
@@ -92,7 +94,7 @@ export const PageShell: React.FC<PageShellProps> = ({
 
   const displayName = user?.displayName || user?.email;
   const canOpenAdminMenu =
-    canReadAnalytics || canReadUsers || canReadRoleSettings || canManageAhrefsSync;
+    canReadAnyAnalytics || canReadUsers || canReadRoleSettings || canManageAhrefsSync;
   const isAdminPath = location.pathname.startsWith('/admin');
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
@@ -186,7 +188,7 @@ export const PageShell: React.FC<PageShellProps> = ({
                       anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
                       transformOrigin={{ vertical: 'top', horizontal: 'left' }}
                     >
-                      {canReadAnalytics && (
+                      {canReadAnyAnalytics && (
                         <MenuItem onClick={() => handleAdminNav('/admin/analytics')}>
                           Analytics
                         </MenuItem>
@@ -265,7 +267,7 @@ export const PageShell: React.FC<PageShellProps> = ({
         maxWidth={maxWidth}
         sx={{
           flex: 1,
-          py: 4,
+          py: compact ? 2.5 : 4,
           display: 'flex',
           flexDirection: 'column',
         }}

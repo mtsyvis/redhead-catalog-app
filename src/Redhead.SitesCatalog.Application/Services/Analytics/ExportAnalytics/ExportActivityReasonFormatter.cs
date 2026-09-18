@@ -1,6 +1,6 @@
 using Redhead.SitesCatalog.Domain.Constants;
 
-namespace Redhead.SitesCatalog.Application.Services.Analytics;
+namespace Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 
 internal static class ExportActivityReasonFormatter
 {

@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Application.Services.Analytics.MissingDomainsAnalytics;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,15 +21,18 @@ public class SitesController : ControllerBase
     private readonly ISitesService _sitesService;
     private readonly ILiteMultiSearchUsageService _liteMultiSearchUsageService;
     private readonly IClientCatalogService _clientCatalogService;
+    private readonly IMissingDomainsAnalyticsService _missingDomainsAnalyticsService;
 
     public SitesController(
         ISitesService sitesService,
         ILiteMultiSearchUsageService liteMultiSearchUsageService,
-        IClientCatalogService clientCatalogService)
+        IClientCatalogService clientCatalogService,
+        IMissingDomainsAnalyticsService missingDomainsAnalyticsService)
     {
         _sitesService = sitesService;
         _liteMultiSearchUsageService = liteMultiSearchUsageService;
         _clientCatalogService = clientCatalogService;
+        _missingDomainsAnalyticsService = missingDomainsAnalyticsService;
     }
 
     /// <summary>
@@ -95,6 +99,11 @@ public class SitesController : ControllerBase
                 Status = StatusCodes.Status400BadRequest,
                 Detail = StopListConstants.MultiSearchNotSupportedMessage
             });
+        }
+
+        if (request.SearchRequestId == Guid.Empty)
+        {
+            return BadRequest(new { message = "SearchRequestId must not be empty." });
         }
 
         var parseResult = MultiSearchParser.Parse(request.QueryText);
@@ -166,6 +175,15 @@ public class SitesController : ControllerBase
             NotFound = result.NotFound,
             Duplicates = result.Duplicates
         };
+
+        var analyticsRole = User?.IsInRole(AppRoles.Client) == true ? AppRoles.Client
+            : IsLiteUser() ? AppRoles.Lite : null;
+        if (analyticsRole != null && parseResult.UniqueDomains.Count > 0)
+        {
+            await _missingDomainsAnalyticsService.RecordAsync(
+                User!.FindFirstValue(ClaimTypes.NameIdentifier)!, analyticsRole,
+                request.SearchRequestId ?? Guid.NewGuid(), result.NotFound, cancellationToken);
+        }
 
         return Ok(response);
     }

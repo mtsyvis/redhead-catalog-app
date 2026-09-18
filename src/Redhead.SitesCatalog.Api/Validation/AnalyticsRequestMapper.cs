@@ -1,6 +1,7 @@
 using System.Globalization;
 using Redhead.SitesCatalog.Api.Models.Analytics;
 using Redhead.SitesCatalog.Application.Models.Analytics;
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Api.Validation;
@@ -50,16 +51,10 @@ public static class AnalyticsRequestMapper
             return AnalyticsQueryMapping<ExportActivityAnalyticsQuery>.Invalid(common.Error);
         }
 
-        if (request.Page < 1)
+        var paginationError = ValidatePagination(request.Page, request.PageSize);
+        if (paginationError != null)
         {
-            return AnalyticsQueryMapping<ExportActivityAnalyticsQuery>.Invalid(
-                "Page must be greater than or equal to 1.");
-        }
-
-        if (request.PageSize is not (10 or 25 or 50 or 100))
-        {
-            return AnalyticsQueryMapping<ExportActivityAnalyticsQuery>.Invalid(
-                "Invalid pageSize. Allowed values: 10, 25, 50, 100.");
+            return AnalyticsQueryMapping<ExportActivityAnalyticsQuery>.Invalid(paginationError);
         }
 
         var filters = common.Query!;
@@ -74,6 +69,90 @@ public static class AnalyticsRequestMapper
             RecentExportsPage = request.Page,
             RecentExportsPageSize = request.PageSize
         });
+    }
+
+    public static AnalyticsQueryMapping<MissingDomainsAnalyticsQuery> ToMissingDomainsQuery(
+        MissingDomainsAnalyticsRequest request,
+        DateTimeOffset nowUtc)
+    {
+        var to = DateOnly.FromDateTime(nowUtc.UtcDateTime);
+        var from = to.AddDays(-29);
+        if (request.AllTime && (!string.IsNullOrWhiteSpace(request.From) || !string.IsNullOrWhiteSpace(request.To)))
+        {
+            return AnalyticsQueryMapping<MissingDomainsAnalyticsQuery>.Invalid(
+                "All time cannot be combined with from/to dates.");
+        }
+
+        if ((!string.IsNullOrWhiteSpace(request.From) && !TryParseDate(request.From, out from)) ||
+            (!string.IsNullOrWhiteSpace(request.To) && !TryParseDate(request.To, out to)))
+        {
+            return AnalyticsQueryMapping<MissingDomainsAnalyticsQuery>.Invalid(
+                "Invalid date. Expected format: yyyy-MM-dd.");
+        }
+
+        if (from > to || to == DateOnly.MaxValue)
+        {
+            return AnalyticsQueryMapping<MissingDomainsAnalyticsQuery>.Invalid(
+                "Choose a valid date range with From earlier than or equal to To.");
+        }
+
+        var paginationError = ValidatePagination(request.Page, request.PageSize);
+        if (paginationError != null)
+        {
+            return AnalyticsQueryMapping<MissingDomainsAnalyticsQuery>.Invalid(paginationError);
+        }
+
+        var role = request.Role?.Trim().ToLowerInvariant();
+        if (role is not (null or "" or "all" or "client" or "lite"))
+        {
+            return AnalyticsQueryMapping<MissingDomainsAnalyticsQuery>.Invalid(
+                "Invalid role. Allowed values: Client, Lite.");
+        }
+
+        var status = request.CatalogStatus?.Trim().ToLowerInvariant();
+        if (status is not (null or "" or "all" or "missing" or "added"))
+        {
+            return AnalyticsQueryMapping<MissingDomainsAnalyticsQuery>.Invalid(
+                "Invalid catalog status. Allowed values: missing, added.");
+        }
+
+        if (request.Domain?.Length > 253)
+        {
+            return AnalyticsQueryMapping<MissingDomainsAnalyticsQuery>.Invalid(
+                "Domain search must not exceed 253 characters.");
+        }
+
+        return AnalyticsQueryMapping<MissingDomainsAnalyticsQuery>.Valid(new MissingDomainsAnalyticsQuery
+        {
+            FromUtc = request.AllTime ? null : from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            ToUtc = request.AllTime ? null : to.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            Role = role == "client" ? AppRoles.Client : role == "lite" ? AppRoles.Lite : null,
+            Domain = DomainNormalizer.Normalize(request.Domain),
+            IsInCatalog = status == "added" ? true : status == "missing" ? false : null,
+            Page = request.Page,
+            PageSize = request.PageSize
+        });
+    }
+
+    private static string? ValidatePagination(int page, int pageSize)
+    {
+        if (page < PaginationDefaults.DefaultPage)
+        {
+            return $"Page must be greater than or equal to {PaginationDefaults.DefaultPage}.";
+        }
+
+        if (!PaginationDefaults.AnalyticsPageSizes.Contains(pageSize))
+        {
+            return $"Invalid pageSize. Allowed values: {string.Join(", ", PaginationDefaults.AnalyticsPageSizes)}.";
+        }
+
+        var offset = ((long)page - PaginationDefaults.DefaultPage) * pageSize;
+        if (offset > int.MaxValue)
+        {
+            return "Page is too large for the selected pageSize.";
+        }
+
+        return null;
     }
 
     private static AnalyticsQueryMapping<AnalyticsCommonFilters> MapCommonFilters(

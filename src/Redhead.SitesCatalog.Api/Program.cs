@@ -1,3 +1,5 @@
+using Redhead.SitesCatalog.Application.Services.Analytics.MissingDomainsAnalytics;
+using Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.OAuth.Claims;
@@ -68,6 +70,7 @@ builder.Services.AddScoped<IWebmasterSearchService, WebmasterSearchService>();
 builder.Services.AddScoped<ILiteMultiSearchUsageService, LiteMultiSearchUsageService>();
 builder.Services.AddScoped<IAdminUsersListService, AdminUsersListService>();
 builder.Services.AddScoped<IBusinessDemandAnalyticsService, BusinessDemandAnalyticsService>();
+builder.Services.AddScoped<IMissingDomainsAnalyticsService, MissingDomainsAnalyticsService>();
 builder.Services.AddScoped<IExportActivityAnalyticsService, ExportActivityAnalyticsService>();
 builder.Services.AddScoped<IAccountSetupService, AccountSetupService>();
 builder.Services.AddScoped<IGoogleAccountAuthenticationService, GoogleAccountAuthenticationService>();

@@ -1,6 +1,6 @@
 using Redhead.SitesCatalog.Application.Models.Analytics;
 
-namespace Redhead.SitesCatalog.Application.Services;
+namespace Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 
 public interface IExportActivityAnalyticsService
 {

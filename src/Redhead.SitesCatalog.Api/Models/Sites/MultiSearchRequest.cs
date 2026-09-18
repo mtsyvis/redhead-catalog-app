@@ -5,6 +5,9 @@ namespace Redhead.SitesCatalog.Api.Models.Sites;
 /// </summary>
 public class MultiSearchRequest
 {
+    /// <summary>Stable across technical retries; a new id for each deliberate search.</summary>
+    public Guid? SearchRequestId { get; set; }
+
     /// <summary>
     /// Domains or URLs separated by whitespace (spaces, newlines, tabs). Max 5000 inputs.
     /// </summary>

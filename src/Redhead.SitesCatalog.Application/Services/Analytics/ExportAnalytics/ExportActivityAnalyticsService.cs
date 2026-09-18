@@ -1,12 +1,11 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models.Analytics;
-using Redhead.SitesCatalog.Application.Services.Analytics;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
-namespace Redhead.SitesCatalog.Application.Services;
+namespace Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 
 public sealed class ExportActivityAnalyticsService : IExportActivityAnalyticsService
 {

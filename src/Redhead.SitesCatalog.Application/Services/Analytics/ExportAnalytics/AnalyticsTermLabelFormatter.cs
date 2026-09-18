@@ -1,7 +1,7 @@
 using System.Globalization;
 using Redhead.SitesCatalog.Domain;
 
-namespace Redhead.SitesCatalog.Application.Services.Analytics;
+namespace Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 
 internal static class AnalyticsTermLabelFormatter
 {

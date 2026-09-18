@@ -17,6 +17,7 @@ public static class RolePermissionMatrix
                 AppPermissions.UsersRead,
                 AppPermissions.RoleSettingsRead,
                 AppPermissions.AnalyticsRead,
+                AppPermissions.MissingDomainsAnalyticsRead,
                 AppPermissions.AhrefsSyncManage,
                 AppPermissions.WebmasterOffersRead,
                 AppPermissions.WebmasterOffersImport,

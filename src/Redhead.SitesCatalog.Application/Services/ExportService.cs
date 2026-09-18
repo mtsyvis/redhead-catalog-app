@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Exports;

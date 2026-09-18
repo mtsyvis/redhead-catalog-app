@@ -93,6 +93,7 @@ Current rules:
 * `Admin` can run catalog imports and update catalog data where backend policies allow it.
 * `Admin` can run Webmaster Offers Import and view or manually edit raw webmaster offer data.
 * `Admin` can read Business Demand and Export Activity analytics.
+* `Admin` can also read Missing Domains analytics through the independent `MissingDomainsAnalyticsRead` permission. It does not grant export analytics access; `AnalyticsRead` continues to protect the existing export reports. No additional role is introduced.
 * `Admin` must not be able to create users.
 * `Admin` must not be able to change role export limits.
 * `Admin` must not be able to change per-user export limit overrides.
@@ -802,6 +803,26 @@ Export rules:
 * Effective export limits apply to found rows.
 * `Lite` users cannot export Multi-search results.
 
+### Missing Domains analytics
+
+Purpose: identify demand from `Client` and `Lite` searches for domains absent from the catalog.
+
+* Record successful Multi-search requests from `Client` and `Lite` only, independently of exports. Store the user id, role at search time, UTC timestamp, and unique normalized missing domains. Do not store found domains or raw pasted input.
+* Missing means absent from the Sites catalog by exact normalized domain equality. Quarantined sites and found sites excluded by UI filters are not missing.
+* One unique normalized missing domain contributes one search count per successful deliberate search. Duplicates within the pasted list count once. Repeated deliberate searches by the same user count again, including on the same day.
+* The UI assigns a new `SearchRequestId` to each Search/Check action and reuses it for Retry. Concurrent/repeated deliveries with the same user id and search id must not duplicate analytics. For compatibility, callers omitting the id are treated as starting a new search; an empty GUID is invalid.
+* Requests rejected by validation, authentication, role permissions, request-rate limits, Client selection/burst limits, or Lite usage limits do not create analytics. Failed searches do not create analytics; if persistence succeeded but delivery failed, Retry does not duplicate the persisted event.
+* Sorting, pagination, changing filters/table views, and applying saved filters do not record a new search. Applying a saved filter in Multi-search operates on the existing result and does not issue another Multi-search request.
+* Analytics-only validation excludes malformed host names, single words such as `hello`, email addresses, IP addresses, ports, empty labels, and invalid DNS label characters/lengths. Valid internationalized domain names are accepted. This does not change search input acceptance, domain normalization, result display, or existing usage-limit rules. Subdomains remain separate keys under the existing exact matching rules. No DNS lookup is performed.
+* Store an idempotency record even when a successful non-empty search has no valid missing domains. A technical retry after a catalog change cannot introduce new missing-domain events for that search.
+* History is retained when a domain is later added to the catalog. Show its current status as `Now in catalog`; otherwise show `Still missing`. Quarantine does not change catalog presence. Subsequent searches where the site is found do not increase its missing-domain search count.
+* Analytics starts when this feature is deployed; historical missing-domain searches cannot be reconstructed from existing export snapshots or Lite usage counters. There is no automatic history expiry.
+* The report supports last 7/30/90 days (default 30), All time, and custom inclusive calendar dates in UTC; role (`Client`, `Lite`, both); current catalog status; and normalized domain substring search.
+* All report filters apply to the summary and table. Show unique missing domains, searches for missing domains (sum of per-domain search counts), and unique users across the entire matching selection. A user is counted once across domains; role filters use the recorded role, even if the account role later changes.
+* The paginated table contains Domain, Searches, Unique users, First searched, Last searched, and current Catalog status. First/last timestamps are within the selected period and matching filters and displayed in UTC. Default and fixed ordering is search count descending, then domain ascending for ties. Page sizes are 10, 25, 50, and 100.
+* If catalog updates shrink the matching selection, a request beyond its last page returns the last available page (page 1 for an empty selection). The UI uses the page returned by the API.
+* The report shows aggregate user counts, not individual identities, raw request logs, or raw JSON. A new role, outreach workflow, and report export are outside this feature's scope.
+
 ## Imports
 
 Imports must be predictable, validated, and safe for large CSV files.
@@ -1140,11 +1161,15 @@ Rules:
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
 * Business Demand price range analytics aggregate the selected `priceUsd`, Casino, Crypto, Link Insert, Link Insert Casino, or Dating price range stored in export analytics snapshots. Service price ranges are labelled with the service name so equal ranges for different price types remain distinct. Term-aware pricing adds selected term demand and price-range-by-term demand; export logs without `termKey` are counted as `Any term`.
 * Business Demand analytics are based on export requests, not all UI searches, and must not expose raw export logs or raw filter/sort/search snapshot JSON in the page.
-* `SuperAdmin` can access an Export Activity analytics tab based on Client export logs and exported-domain access records.
+* `SuperAdmin` and `Admin` can access an Export Activity analytics tab based on Client export logs and exported-domain access records.
 * Export Activity analytics summarize completed, partial, and blocked exports; unique exported domains; requested versus exported rows; daily export activity; per-client export results inside the selected period; and paginated recent export logs.
 * Export Activity page filters apply to the selected-period summaries, daily activity, per-client export summary table, and recent logs.
 * Export Activity recent logs must show readable filter and sort summaries and must not display raw snapshot JSON.
-* Export Activity recent logs allow `SuperAdmin` users to open a detail drawer for a selected log. The drawer loads details by log id, shows readable filter, sort, and search context, and keeps raw snapshot JSON collapsed under technical details.
+* Export Activity recent logs allow `SuperAdmin` and `Admin` users to open a detail drawer for a selected log. The drawer loads details by log id, shows readable filter, sort, and search context, and keeps raw snapshot JSON collapsed under technical details.
+* Analytics uses a compact heading with `Exports` and `Multi-search` section selectors in the same row (wrapping on small screens). Only sections allowed by the user's permissions are shown, and users with either analytics permission can open the Analytics navigation item and page.
+* Exports contains `Business Demand` and `Export Activity` report tabs above its export-specific filters. Multi-search directly displays Missing Domains without a redundant single-report tab. Each section preserves its own filters when switching sections. The page has no large permanent description above the filters.
+* Analytics displays results for the selected report and filters only. Responses from earlier selections cannot overwrite the current report; an invalid custom date range hides report results until corrected. Changing export filters resets its recent-exports pagination before loading.
+* Paginated analytics endpoints default to page 1 and 25 rows, accept page sizes 10/25/50/100, and reject non-positive pages, unsupported page sizes, or a row offset exceeding the 32-bit query limit with HTTP 400.
 
 ## Branding and UI direction
 

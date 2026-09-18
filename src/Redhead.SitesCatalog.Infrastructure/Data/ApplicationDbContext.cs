@@ -12,6 +12,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     }
 
     public DbSet<Site> Sites => Set<Site>();
+    public DbSet<MultiSearchAnalyticsRequest> MultiSearchAnalyticsRequests => Set<MultiSearchAnalyticsRequest>();
+    public DbSet<MissingDomainSearch> MissingDomainSearches => Set<MissingDomainSearch>();
     public DbSet<ClientCatalogRequest> ClientCatalogRequests => Set<ClientCatalogRequest>();
     public DbSet<ClientCatalogAlert> ClientCatalogAlerts => Set<ClientCatalogAlert>();
     public DbSet<SitePriceOption> SitePriceOptions => Set<SitePriceOption>();

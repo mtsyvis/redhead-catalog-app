@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Application.Services.Analytics.MissingDomainsAnalytics;
 using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
@@ -438,7 +439,8 @@ public sealed class ClientCatalogProtectionTests : IDisposable
 
     private SitesController CreateController(string role = AppRoles.Client)
         => new(new SitesService(_db, new SitesQueryBuilder(_db), new SitesCatalogCache(_cache), new LocationNormalizer()),
-            Mock.Of<ILiteMultiSearchUsageService>(), new ClientCatalogService(_db, _burstLimiter))
+            Mock.Of<ILiteMultiSearchUsageService>(), new ClientCatalogService(_db, _burstLimiter),
+            Mock.Of<IMissingDomainsAnalyticsService>())
         {
             ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(role) }
         };
