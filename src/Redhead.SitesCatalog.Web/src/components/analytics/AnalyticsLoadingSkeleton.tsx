@@ -1,78 +1,31 @@
 import { Box, Paper, Skeleton } from '@mui/material';
 
-const KPI_SKELETON_ITEMS = [0, 1, 2, 3];
-const SECTION_SKELETON_ITEMS = [0, 1, 2, 3];
-
-export function AnalyticsLoadingSkeleton() {
+export function AnalyticsLoadingSkeleton({ tableOnly = false }: { tableOnly?: boolean }) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' },
-          gap: 2,
-        }}
-      >
-        {KPI_SKELETON_ITEMS.map((item) => (
-          <KpiSkeletonCard key={item} />
-        ))}
-      </Box>
-
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' },
-          gap: 3,
-        }}
-      >
-        {SECTION_SKELETON_ITEMS.map((item) => (
-          <AnalyticsSectionSkeleton key={item} rows={5} />
-        ))}
-      </Box>
-
-      <AnalyticsSectionSkeleton rows={4} />
-      <AnalyticsSectionSkeleton rows={5} />
-      <AnalyticsSectionSkeleton rows={3} />
-    </Box>
-  );
-}
-
-function KpiSkeletonCard() {
-  return (
-    <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
-      <Skeleton animation="wave" variant="text" width="52%" height={20} sx={{ mb: 0.75 }} />
-      <Skeleton animation="wave" variant="text" width="38%" height={44} sx={{ mb: 1 }} />
-      <Skeleton animation="wave" variant="text" width="92%" height={18} />
-      <Skeleton animation="wave" variant="text" width="70%" height={18} />
-    </Paper>
-  );
-}
-
-function AnalyticsSectionSkeleton({ rows }: { rows: number }) {
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Skeleton animation="wave" variant="text" width={180} height={28} />
-      <Skeleton animation="wave" variant="text" width="82%" height={18} sx={{ mt: 0.5 }} />
-      <Skeleton animation="wave" variant="text" width="56%" height={18} sx={{ mb: 2 }} />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-        {Array.from({ length: rows }, (_value, index) => (
-          <Box
-            key={index}
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr) 88px',
-              gap: 2,
-              alignItems: 'center',
-            }}
-          >
-            <Box>
-              <Skeleton animation="wave" variant="text" width={`${72 - index * 7}%`} height={20} />
-              <Skeleton animation="wave" variant="rounded" width="100%" height={6} />
+    <Box aria-label="Loading analytics" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {!tableOnly && (
+        <Paper
+          variant="outlined"
+          sx={{ display: 'flex', flexWrap: 'wrap', px: 2, py: 1.25, gap: 2 }}
+        >
+          {[0, 1, 2, 3].map((item) => (
+            <Box key={item} sx={{ flex: '1 1 150px' }}>
+              <Skeleton width="65%" height={18} />
+              <Skeleton width={80} height={32} />
             </Box>
-            <Skeleton animation="wave" variant="text" width="100%" height={20} />
-          </Box>
+          ))}
+        </Paper>
+      )}
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mb: 1 }}>
+          <Skeleton width={220} height={28} />
+          {tableOnly && <Skeleton width="35%" height={28} />}
+        </Box>
+        <Skeleton variant="rounded" height={44} sx={{ mb: 1 }} />
+        {[0, 1, 2, 3, 4].map((item) => (
+          <Skeleton key={item} height={32} />
         ))}
-      </Box>
-    </Paper>
+      </Paper>
+    </Box>
   );
 }

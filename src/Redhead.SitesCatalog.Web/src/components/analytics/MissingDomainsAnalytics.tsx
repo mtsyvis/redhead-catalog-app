@@ -2,25 +2,26 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
+  Button,
   Chip,
+  InputAdornment,
   MenuItem,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
   TextField,
   Typography,
 } from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
+import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { BrandButton } from "../common/BrandButton";
 import { AnalyticsLoadingSkeleton } from "./AnalyticsLoadingSkeleton";
-import { KpiCard } from "./AnalyticsShared";
+import { AnalyticsInfo, AnalyticsMetrics } from "./AnalyticsShared";
+import { analyticsGridSx } from "./analyticsGridStyles";
 import { ApiClient } from "../../services/api.client";
-import { formatInteger } from "../../utils/numberFormat";
-import type { MissingDomainsAnalyticsResponse } from "../../types/missingDomainsAnalytics.types";
+import { dataGridLocaleText, formatInteger } from "../../utils/numberFormat";
+import type {
+  MissingDomainAnalyticsRow,
+  MissingDomainsAnalyticsResponse,
+} from "../../types/missingDomainsAnalytics.types";
 
 type Preset = "last7" | "last30" | "last90" | "all" | "custom";
 interface Filters {
@@ -51,16 +52,83 @@ const formatUtc = (value: string) =>
     minute: "2-digit",
   });
 
+const columns: GridColDef<MissingDomainAnalyticsRow>[] = [
+  {
+    field: "domain",
+    headerName: "Domain",
+    minWidth: 200,
+    flex: 1.3,
+    renderCell: ({ row }) => (
+      <Typography variant="body2" sx={{ overflowWrap: "anywhere", whiteSpace: "normal" }}>
+        {row.domain}
+      </Typography>
+    ),
+  },
+  {
+    field: "searches",
+    headerName: "Searches",
+    minWidth: 100,
+    flex: 0.5,
+    align: "right",
+    headerAlign: "right",
+    valueFormatter: (value: number) => formatInteger(value),
+  },
+  {
+    field: "uniqueUsers",
+    headerName: "Unique users",
+    minWidth: 120,
+    flex: 0.5,
+    align: "right",
+    headerAlign: "right",
+    valueFormatter: (value: number) => formatInteger(value),
+  },
+  {
+    field: "lastSearchedAtUtc",
+    headerName: "Last searched",
+    minWidth: 195,
+    flex: 1,
+    valueFormatter: (value: string) => formatUtc(value),
+  },
+  {
+    field: "firstSearchedAtUtc",
+    headerName: "First searched",
+    minWidth: 195,
+    flex: 1,
+    valueFormatter: (value: string) => formatUtc(value),
+  },
+  {
+    field: "isInCatalog",
+    headerName: "Catalog status",
+    minWidth: 150,
+    flex: 0.75,
+    renderCell: ({ row }) => (
+      <Chip
+        size="small"
+        variant="outlined"
+        color={row.isInCatalog ? "success" : "default"}
+        label={row.isInCatalog ? "Now in catalog" : "Still missing"}
+      />
+    ),
+  },
+];
+
+const defaultFilters = (): Filters => ({
+  preset: "last30",
+  ...utcRange(30),
+  role: "all",
+  status: "all",
+  domain: "",
+  page: 0,
+  pageSize: 25,
+});
+
 export function MissingDomainsAnalytics({ active }: { active: boolean }) {
-  const [filters, setFilters] = useState<Filters>(() => ({
-    preset: "last30",
-    ...utcRange(30),
-    role: "all",
-    status: "all",
-    domain: "",
-    page: 0,
-    pageSize: 25,
-  }));
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
+  const hasActiveFilters =
+    filters.preset !== "last30" ||
+    filters.role !== "all" ||
+    filters.status !== "all" ||
+    filters.domain !== "";
   const [result, setResult] = useState<{
     key: string;
     data?: MissingDomainsAnalyticsResponse;
@@ -124,12 +192,12 @@ export function MissingDomainsAnalytics({ active }: { active: boolean }) {
 
   return (
     <>
-      <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+      <Box sx={{ mb: 2 }}>
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr 1.3fr" },
-            gap: 2,
+            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr 1.4fr auto" },
+            gap: 1.5,
           }}
         >
           <TextField
@@ -173,23 +241,50 @@ export function MissingDomainsAnalytics({ active }: { active: boolean }) {
             label="Domain"
             placeholder="Search domain…"
             value={filters.domain}
-            slotProps={{ htmlInput: { maxLength: 253 } }}
+            slotProps={{
+              htmlInput: { maxLength: 253 },
+              inputLabel: { shrink: true },
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
             onChange={(event) => updateFilters({ domain: event.target.value })}
           />
+          {hasActiveFilters && (
+            <Button
+              size="small"
+              color="inherit"
+              sx={{
+                whiteSpace: "nowrap",
+                alignSelf: "center",
+                justifySelf: "end",
+                gridColumn: { xs: "1 / -1", lg: "auto" },
+              }}
+              onClick={() =>
+                setFilters((current) => ({ ...defaultFilters(), pageSize: current.pageSize }))
+              }
+            >
+              Reset filters
+            </Button>
+          )}
         </Box>
         {filters.preset === "custom" && (
           <Box
             sx={{
               display: "grid",
               gridTemplateColumns: { xs: "1fr", sm: "240px 240px" },
-              gap: 2,
+              gap: 1.5,
               mt: 2,
             }}
           >
             <TextField
               size="small"
               type="date"
-              label="From (UTC)"
+              label="From"
               value={filters.from}
               error={!!dateError}
               helperText={dateError}
@@ -199,7 +294,7 @@ export function MissingDomainsAnalytics({ active }: { active: boolean }) {
             <TextField
               size="small"
               type="date"
-              label="To (UTC)"
+              label="To"
               value={filters.to}
               error={!!dateError}
               slotProps={{ inputLabel: { shrink: true } }}
@@ -207,7 +302,7 @@ export function MissingDomainsAnalytics({ active }: { active: boolean }) {
             />
           </Box>
         )}
-      </Paper>
+      </Box>
       {error && (
         <Alert
           severity="error"
@@ -220,110 +315,76 @@ export function MissingDomainsAnalytics({ active }: { active: boolean }) {
           {error}
         </Alert>
       )}
-      {loading && <AnalyticsLoadingSkeleton />}
+      {loading && <AnalyticsLoadingSkeleton tableOnly />}
       {!dateError && data && (
         <>
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-              gap: 2,
-              mb: 2,
-            }}
-          >
-            <KpiCard
-              label="Unique missing domains"
-              value={data.uniqueDomains}
-              helperText="Not found at the time of search."
-            />
-            <KpiCard
-              label="Searches for missing domains"
-              value={data.searches}
-              helperText="Each domain counts once per search."
-            />
-            <KpiCard
-              label="Unique users"
-              value={data.uniqueUsers}
-              helperText={
-                filters.role === "all" ? "Client and Lite accounts." : `${filters.role} accounts.`
-              }
-            />
-          </Box>
           <Paper variant="outlined" sx={{ overflow: "hidden" }}>
             <Box
               sx={{
-                p: 2,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                gap: 1,
                 flexWrap: "wrap",
+                gap: 1,
+                px: 2,
+                py: 1.25,
               }}
             >
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Missing domains
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Missing domain demand
+                </Typography>
+                <AnalyticsInfo
+                  label="Missing domain demand"
+                  text="Domains not found at the time of Client and Lite multi-searches. First and last searches refer to the selected period."
+                />
+              </Box>
+              <AnalyticsMetrics
+                inline
+                metrics={[
+                  {
+                    label: data.uniqueDomains === 1 ? "domain" : "domains",
+                    value: data.uniqueDomains,
+                  },
+                  {
+                    label: "domain searches",
+                    value: data.searches,
+                    helperText:
+                      "Each missing domain counts once per multi-search. This is not the number of multi-search requests.",
+                  },
+                  { label: data.uniqueUsers === 1 ? "user" : "users", value: data.uniqueUsers },
+                ]}
+              />
             </Box>
-            <TableContainer>
-              <Table size="small" aria-label="Missing domain demand" sx={{ minWidth: 800 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Domain</TableCell>
-                    <TableCell align="right">Searches ↓</TableCell>
-                    <TableCell align="right">Unique users</TableCell>
-                    <TableCell>First searched</TableCell>
-                    <TableCell>Last searched</TableCell>
-                    <TableCell>Catalog status</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {data.items.map((row) => (
-                    <TableRow key={row.domain} hover>
-                      <TableCell sx={{ overflowWrap: "anywhere", maxWidth: 300 }}>
-                        {row.domain}
-                      </TableCell>
-                      <TableCell align="right">{formatInteger(row.searches)}</TableCell>
-                      <TableCell align="right">{formatInteger(row.uniqueUsers)}</TableCell>
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        {formatUtc(row.firstSearchedAtUtc)}
-                      </TableCell>
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        {formatUtc(row.lastSearchedAtUtc)}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          color={row.isInCatalog ? "success" : "default"}
-                          label={row.isInCatalog ? "Now in catalog" : "Still missing"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {data.items.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={6}
-                        sx={{ py: 4, textAlign: "center", color: "text.secondary" }}
-                      >
-                        No missing domains found for these filters. Analytics includes searches
-                        recorded since this feature was enabled.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <TablePagination
-              component="div"
-              count={data.uniqueDomains}
-              page={data.page - 1}
-              rowsPerPage={filters.pageSize}
-              rowsPerPageOptions={[10, 25, 50, 100]}
-              onPageChange={(_, page) => setFilters((current) => ({ ...current, page }))}
-              onRowsPerPageChange={(event) =>
-                updateFilters({ pageSize: Number(event.target.value) })
+            <DataGrid
+              aria-label="Missing domain demand"
+              rows={data.items}
+              columns={columns}
+              getRowId={(row) => row.domain}
+              rowCount={data.uniqueDomains}
+              paginationModel={{ page: data.page - 1, pageSize: filters.pageSize }}
+              paginationMode="server"
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPaginationModelChange={(model) =>
+                setFilters((current) => {
+                  const page = model.pageSize === current.pageSize ? model.page : 0;
+                  return page === current.page && model.pageSize === current.pageSize
+                    ? current
+                    : { ...current, page, pageSize: model.pageSize };
+                })
               }
+              localeText={{
+                ...dataGridLocaleText,
+                noRowsLabel:
+                  "No domains match these filters. Analytics includes searches recorded since this feature was enabled.",
+              }}
+              disableColumnSorting
+              disableColumnMenu
+              disableRowSelectionOnClick
+              autoHeight
+              getRowHeight={() => "auto"}
+              columnHeaderHeight={44}
+              sx={{ ...analyticsGridSx, border: 0, borderRadius: 0 }}
             />
           </Paper>
         </>

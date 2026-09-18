@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
-  Paper,
   Table,
   TableBody,
   TableCell,
@@ -10,11 +9,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import {
-  DataGrid,
-  type GridColDef,
-  type GridPaginationModel,
-} from '@mui/x-data-grid';
+import { DataGrid, type GridColDef, type GridPaginationModel } from '@mui/x-data-grid';
 import type {
   ExportActivityAnalytics,
   ExportActivityClientSummaryItem,
@@ -22,7 +17,13 @@ import type {
   ExportActivityRecentExportItem,
 } from '../../types/analytics.types';
 import { dataGridLocaleText, formatInteger } from '../../utils/numberFormat';
-import { AnalyticsSection, EmptyState, ExportStatusChip, KpiCard } from './AnalyticsShared';
+import {
+  AnalyticsSection,
+  EmptyState,
+  ExportStatusChip,
+  AnalyticsMetrics,
+} from './AnalyticsShared';
+import { analyticsGridSx } from './analyticsGridStyles';
 import {
   formatClientName,
   formatDateTime,
@@ -36,8 +37,6 @@ const EXPORT_ACTIVITY_KPI_HELPERS = {
   partialExports: 'Exports that were reduced because an export limit was reached.',
   blockedExports: 'Export attempts that did not produce a file.',
   uniqueExportedDomains: 'Unique domains actually exported in the selected period.',
-  requestedVsExported:
-    'Requested rows show what clients attempted to receive before limits. Exported rows show what clients actually received.',
 };
 
 export interface ExportActivityTabProps {
@@ -62,45 +61,45 @@ export function ExportActivityTab({
   }, []);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {noExportActivity && (
         <Alert severity="info">No export activity found for the selected filters.</Alert>
       )}
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' },
-          gap: 2,
-        }}
-      >
-        <KpiCard
-          label="Completed exports"
-          value={analytics.summary.completedExports}
-          helperText={EXPORT_ACTIVITY_KPI_HELPERS.completedExports}
-        />
-        <KpiCard
-          label="Partial exports"
-          value={analytics.summary.partialExports}
-          helperText={EXPORT_ACTIVITY_KPI_HELPERS.partialExports}
-        />
-        <KpiCard
-          label="Blocked exports"
-          value={analytics.summary.blockedExports}
-          helperText={EXPORT_ACTIVITY_KPI_HELPERS.blockedExports}
-        />
-        <KpiCard
-          label="Unique exported domains"
-          value={analytics.summary.uniqueExportedDomains}
-          helperText={EXPORT_ACTIVITY_KPI_HELPERS.uniqueExportedDomains}
-        />
-      </Box>
-
-      <RequestedVsExportedCard
-        requestedRows={analytics.summary.requestedRows}
-        exportedRows={analytics.summary.exportedRows}
+      <AnalyticsMetrics
+        metrics={[
+          {
+            label: 'Completed exports',
+            value: analytics.summary.completedExports,
+            helperText: EXPORT_ACTIVITY_KPI_HELPERS.completedExports,
+          },
+          {
+            label: 'Partial exports',
+            value: analytics.summary.partialExports,
+            helperText: EXPORT_ACTIVITY_KPI_HELPERS.partialExports,
+          },
+          {
+            label: 'Blocked exports',
+            value: analytics.summary.blockedExports,
+            helperText: EXPORT_ACTIVITY_KPI_HELPERS.blockedExports,
+          },
+          {
+            label: 'Unique exported domains',
+            value: analytics.summary.uniqueExportedDomains,
+            helperText: EXPORT_ACTIVITY_KPI_HELPERS.uniqueExportedDomains,
+          },
+          {
+            label: 'Requested rows',
+            value: analytics.summary.requestedRows,
+            helperText: 'Rows clients requested before export limits were applied.',
+          },
+          {
+            label: 'Exported rows',
+            value: analytics.summary.exportedRows,
+            helperText: 'Rows clients actually received after export limits were applied.',
+          },
+        ]}
       />
-
       <AnalyticsSection
         title="Exports over time"
         helperText="Groups export activity by day based on export timestamp."
@@ -134,33 +133,6 @@ export function ExportActivityTab({
         onClose={handleCloseDetails}
       />
     </Box>
-  );
-}
-
-function RequestedVsExportedCard({
-  requestedRows,
-  exportedRows,
-}: {
-  requestedRows: number;
-  exportedRows: number;
-}) {
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.75 }}>
-        Requested vs exported
-      </Typography>
-      <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mb: 1 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          Requested: {formatInteger(requestedRows)}
-        </Typography>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          Exported: {formatInteger(exportedRows)}
-        </Typography>
-      </Box>
-      <Typography variant="body2" color="text.secondary">
-        {EXPORT_ACTIVITY_KPI_HELPERS.requestedVsExported}
-      </Typography>
-    </Paper>
   );
 }
 
@@ -417,29 +389,6 @@ function RecentExportsTable({
     />
   );
 }
-
-const analyticsGridSx = {
-  '& .MuiDataGrid-cell': {
-    display: 'flex',
-    alignItems: 'center',
-    py: 0.75,
-  },
-  '& .MuiDataGrid-cell:focus': {
-    outline: 'none',
-  },
-  '& .MuiDataGrid-cell:focus-within': {
-    outline: 'none',
-  },
-  '& .MuiDataGrid-columnHeader': {
-    backgroundColor: 'action.hover',
-  },
-  '& .MuiDataGrid-columnHeader:focus': {
-    outline: 'none',
-  },
-  '& .MuiDataGrid-columnHeader:focus-within': {
-    outline: 'none',
-  },
-};
 
 const clickableAnalyticsGridSx = {
   ...analyticsGridSx,

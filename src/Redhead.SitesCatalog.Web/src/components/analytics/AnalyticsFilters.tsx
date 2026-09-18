@@ -4,7 +4,6 @@ import {
   FormControl,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   TextField,
 } from '@mui/material';
@@ -54,7 +53,7 @@ export function AnalyticsFilters({
   onStatusChange,
 }: AnalyticsFiltersProps) {
   return (
-    <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+    <Box sx={{ mb: 2 }}>
       <Box
         sx={{
           display: 'grid',
@@ -63,7 +62,7 @@ export function AnalyticsFilters({
             sm: 'repeat(2, minmax(0, 1fr))',
             lg: '1fr 1.4fr 1fr 1fr',
           },
-          gap: 2,
+          gap: 1.5,
           alignItems: 'flex-start',
         }}
       >
@@ -88,7 +87,7 @@ export function AnalyticsFilters({
           getOptionLabel={getClientOptionLabel}
           isOptionEqualToValue={(option, value) => option.id === value.id}
           onChange={(_event, option) =>
-            onClientIdChange(option?.id === 'all' ? null : option?.id ?? null)
+            onClientIdChange(option?.id === 'all' ? null : (option?.id ?? null))
           }
           loading={clientsLoading}
           renderInput={(params) => (
@@ -129,7 +128,7 @@ export function AnalyticsFilters({
           sx={{
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 240px))' },
-            gap: 2,
+            gap: 1.5,
             mt: 2,
           }}
         >
@@ -158,6 +157,6 @@ export function AnalyticsFilters({
           />
         </Box>
       )}
-    </Paper>
+    </Box>
   );
 }

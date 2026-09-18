@@ -17,7 +17,7 @@ import type {
 } from '../../types/analytics.types';
 import { getLanguageOption } from '../../utils/language';
 import { formatInteger } from '../../utils/numberFormat';
-import { AnalyticsSection, EmptyState, KpiCard } from './AnalyticsShared';
+import { AnalyticsSection, EmptyState, AnalyticsMetrics } from './AnalyticsShared';
 
 const KPI_HELPERS = {
   exportRequests:
@@ -36,45 +36,41 @@ export function BusinessDemandTab({ analytics }: { analytics: BusinessDemandAnal
   const noExportRequests = analytics.summary.exportRequests === 0;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {noExportRequests && (
         <Alert severity="info">No export requests found for the selected filters.</Alert>
       )}
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(4, 1fr)' },
-          gap: 2,
-        }}
-      >
-        <KpiCard
-          label="Export requests"
-          value={analytics.summary.exportRequests}
-          helperText={KPI_HELPERS.exportRequests}
-        />
-        <KpiCard
-          label="Clients with export activity"
-          value={analytics.summary.clientsWithExportActivity}
-          helperText={KPI_HELPERS.clientsWithExportActivity}
-        />
-        <KpiCard
-          label="Requested rows"
-          value={analytics.summary.requestedRows}
-          helperText={KPI_HELPERS.requestedRows}
-        />
-        <KpiCard
-          label="Exported domains"
-          value={analytics.summary.exportedDomains}
-          helperText={KPI_HELPERS.exportedDomains}
-        />
-      </Box>
+      <AnalyticsMetrics
+        metrics={[
+          {
+            label: 'Export requests',
+            value: analytics.summary.exportRequests,
+            helperText: KPI_HELPERS.exportRequests,
+          },
+          {
+            label: 'Active clients',
+            value: analytics.summary.clientsWithExportActivity,
+            helperText: KPI_HELPERS.clientsWithExportActivity,
+          },
+          {
+            label: 'Requested rows',
+            value: analytics.summary.requestedRows,
+            helperText: KPI_HELPERS.requestedRows,
+          },
+          {
+            label: 'Exported domains',
+            value: analytics.summary.exportedDomains,
+            helperText: KPI_HELPERS.exportedDomains,
+          },
+        ]}
+      />
 
       <Box
         sx={{
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' },
-          gap: 3,
+          gap: 2,
         }}
       >
         <AnalyticsSection
@@ -127,7 +123,9 @@ export function BusinessDemandTab({ analytics }: { analytics: BusinessDemandAnal
 
       <AnalyticsSection
         title="Service demand"
-        helperText={'Counts only export requests where the service filter was explicitly used. "Wanted / Available" means the client filtered for sites where the service is available, has a price, or is marked as YES. "Explicitly NO" means the client filtered for sites where the service is not available. Exports without this service filter are not counted.'}
+        helperText={
+          'Counts only export requests where the service filter was explicitly used. "Wanted / Available" means the client filtered for sites where the service is available, has a price, or is marked as YES. "Explicitly NO" means the client filtered for sites where the service is not available. Exports without this service filter are not counted.'
+        }
       >
         <ServiceDemandTable items={analytics.serviceDemand} />
       </AnalyticsSection>
@@ -232,12 +230,12 @@ function ServiceDemandTable({ items }: { items: ServiceDemand[] }) {
 
 function QualityDemandTables({ qualityDemand }: { qualityDemand: QualityDemand }) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box
         sx={{
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' },
-          gap: 3,
+          gap: 2,
         }}
       >
         <Box>
@@ -276,7 +274,7 @@ function QualityDemandTables({ qualityDemand }: { qualityDemand: QualityDemand }
         sx={{
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' },
-          gap: 3,
+          gap: 2,
         }}
       >
         <Box>
