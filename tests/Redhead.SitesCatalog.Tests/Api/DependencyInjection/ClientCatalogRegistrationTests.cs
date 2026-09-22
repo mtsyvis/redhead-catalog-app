@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Redhead.SitesCatalog.Api.BackgroundJobs.ClientCatalogAlerts;
 using Redhead.SitesCatalog.Api.DependencyInjection;
 using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Domain.Exceptions;
@@ -49,6 +51,22 @@ public sealed class ClientCatalogRegistrationTests
 
         // Assert
         Assert.IsType<OptionsValidationException>(exception);
+    }
+
+    [Fact]
+    public void Registration_UsesIndependentAlertAndAutoBanHostedServices()
+    {
+        // Arrange
+        using var provider = CreateProvider([]);
+
+        // Act
+        var hostedServiceTypes = provider.GetServices<IHostedService>()
+            .Select(service => service.GetType())
+            .ToList();
+
+        // Assert
+        Assert.Contains(typeof(ClientCatalogAlertHostedService), hostedServiceTypes);
+        Assert.Contains(typeof(ClientCatalogAutoBanHostedService), hostedServiceTypes);
     }
 
     private static ServiceProvider CreateProvider(Dictionary<string, string?> values)

@@ -13,7 +13,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 [Route("api/admin/users/{id}/selection-limit")]
 [Authorize(Policy = AppPolicies.UsersManageAccess)]
 public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> users, IClientCatalogActivityService activity,
-    ClientCatalogBurstLimiter burstLimiter) : ControllerBase
+    ClientCatalogBurstLimiter burstLimiter, TimeProvider clock) : ControllerBase
 {
     public sealed record UpdateRequest([Range(1, ClientCatalogLimits.MaxSelectionLimit)] int? OverrideRows);
     public sealed record LimitResponse(int? OverrideRows, int EffectiveRows, int DefaultRows, int MaxRows,
@@ -57,10 +57,17 @@ public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> 
             return BadRequest(new { message = $"Enter a whole number between 1 and {ClientCatalogLimits.MaxSelectionLimit}." });
         }
 
-        var resetBurst = ClientCatalogLimits.IsBurstExempt(ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride)) ||
-            ClientCatalogLimits.IsBurstExempt(ClientCatalogLimits.Resolve(request.OverrideRows));
+        var previousLimit = ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride);
+        var nextLimit = ClientCatalogLimits.Resolve(request.OverrideRows);
+        var wasExempt = ClientCatalogLimits.IsBurstExempt(previousLimit);
+        var isExempt = ClientCatalogLimits.IsBurstExempt(nextLimit);
+        var resetBurst = wasExempt || isExempt;
 
         user.ClientSelectionLimitOverride = request.OverrideRows;
+        if (wasExempt && !isExempt)
+        {
+            user.ClientCatalogAutoBanResetAtUtc = clock.GetUtcNow().UtcDateTime;
+        }
         var result = await users.UpdateAsync(user);
         if (result.Succeeded && resetBurst)
         {

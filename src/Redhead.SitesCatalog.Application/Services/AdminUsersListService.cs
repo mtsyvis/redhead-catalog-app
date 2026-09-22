@@ -3,6 +3,7 @@ using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Application.Validation;
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -15,15 +16,18 @@ public sealed class AdminUsersListService : IAdminUsersListService
     private readonly ApplicationDbContext _context;
     private readonly IGoogleDriveIntegrationService _googleDriveIntegrationService;
     private readonly IExportUsageLimitService _exportUsageLimitService;
+    private readonly IClientCatalogActivityService _clientCatalogActivityService;
 
     public AdminUsersListService(
         ApplicationDbContext context,
         IGoogleDriveIntegrationService googleDriveIntegrationService,
-        IExportUsageLimitService exportUsageLimitService)
+        IExportUsageLimitService exportUsageLimitService,
+        IClientCatalogActivityService clientCatalogActivityService)
     {
         _context = context;
         _googleDriveIntegrationService = googleDriveIntegrationService;
         _exportUsageLimitService = exportUsageLimitService;
+        _clientCatalogActivityService = clientCatalogActivityService;
     }
 
     public async Task<AdminUsersListResult> ListUsersAsync(
@@ -92,6 +96,23 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 DateTime.UtcNow,
                 cancellationToken)
             : null;
+        var clientCatalogActivity = string.Equals(listItem.Role, AppRoles.Client, StringComparison.Ordinal)
+            ? await _clientCatalogActivityService.GetActivityAsync(id, cancellationToken)
+            : null;
+        var latestAutoBan = string.Equals(listItem.Role, AppRoles.Client, StringComparison.Ordinal)
+            ? await _context.ClientCatalogAutoBans.AsNoTracking()
+                .Where(item => item.UserId == id)
+                .OrderByDescending(item => item.DetectedAtUtc)
+                .Select(item => new ClientCatalogAutoBanDetails(
+                    item.Id,
+                    item.DetectedAtUtc,
+                    item.UniqueSites,
+                    item.Threshold,
+                    item.ReviewedAtUtc,
+                    item.ReviewedByUserId,
+                    item.EmailSentAtUtc))
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
 
         return new AdminUserDetailsDto
         {
@@ -103,6 +124,8 @@ public sealed class AdminUsersListService : IAdminUsersListService
             MustChangePassword = user.MustChangePassword,
             Role = listItem.Role,
             IsActive = listItem.IsActive,
+            DisabledReason = listItem.DisabledReason,
+            DisabledAtUtc = listItem.DisabledAtUtc,
             IsGoogleOnly = listItem.IsGoogleOnly,
             AccountStatus = listItem.AccountStatus,
             ActivatedAtUtc = user.ActivatedAtUtc,
@@ -123,7 +146,9 @@ public sealed class AdminUsersListService : IAdminUsersListService
             IsExportLimitEditable = listItem.IsExportLimitEditable,
             GoogleDriveConnected = googleDrive.Connected,
             GoogleDrive = googleDrive,
-            ClientExportUsage = clientExportUsage
+            ClientExportUsage = clientExportUsage,
+            ClientCatalogActivity = clientCatalogActivity,
+            LatestClientCatalogAutoBan = latestAutoBan
         };
     }
 
@@ -144,6 +169,8 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 SuperAdminNote = user.SuperAdminNote,
                 Role = role.Name ?? string.Empty,
                 IsActive = user.IsActive,
+                DisabledReason = user.DisabledReason,
+                DisabledAtUtc = user.DisabledAtUtc,
                 IsGoogleOnly = user.PasswordHash == null && _context.UserLogins.Any(login =>
                     login.UserId == user.Id &&
                     login.LoginProvider == ExternalLoginProviders.Google),
@@ -215,6 +242,8 @@ public sealed class AdminUsersListService : IAdminUsersListService
             MustCompleteProfile = string.IsNullOrWhiteSpace(user.DisplayName),
             Role = role,
             IsActive = user.IsActive,
+            DisabledReason = user.DisabledReason,
+            DisabledAtUtc = user.DisabledAtUtc,
             IsGoogleOnly = user.IsGoogleOnly,
             AccountStatus = UserAccountStatuses.Resolve(
                 user.IsActive,
@@ -279,6 +308,8 @@ public sealed class AdminUsersListService : IAdminUsersListService
         public string? SuperAdminNote { get; init; }
         public string Role { get; init; } = string.Empty;
         public bool IsActive { get; init; }
+        public string? DisabledReason { get; init; }
+        public DateTime? DisabledAtUtc { get; init; }
         public bool IsGoogleOnly { get; init; }
         public bool MustChangePassword { get; init; }
         public DateTime? ActivatedAtUtc { get; init; }

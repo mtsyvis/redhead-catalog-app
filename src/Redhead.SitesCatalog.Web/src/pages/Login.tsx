@@ -33,6 +33,7 @@ interface LoginRouteState {
     hash?: string;
   };
   sessionExpired?: boolean;
+  accountDisabledMessage?: string;
 }
 
 const googleErrorMessages: Record<string, string> = {
@@ -41,6 +42,7 @@ const googleErrorMessages: Record<string, string> = {
   invalid: 'Google could not provide a verified email for this account.',
   'email-conflict': 'An account with this email already exists. Sign in with your existing credentials or contact an administrator.',
   disabled: 'This account has been disabled. Please contact an administrator.',
+  'auto-disabled': 'Your account has been disabled due to suspicious catalog activity. Please contact support.',
   failed: 'Google sign-in could not be completed. Please try again.',
 };
 
@@ -62,7 +64,9 @@ export const Login: React.FC = () => {
   const fromPathname = routeState?.from?.pathname || '/';
   const from = `${fromPathname}${routeState?.from?.search ?? ''}${routeState?.from?.hash ?? ''}`;
   const googleErrorCode = new URLSearchParams(location.search).get('googleAuth');
-  const displayedError = error || (googleErrorCode ? googleErrorMessages[googleErrorCode] : null);
+  const displayedError = error
+    || routeState?.accountDisabledMessage
+    || (googleErrorCode ? googleErrorMessages[googleErrorCode] : null);
 
   useEffect(() => {
     let cancelled = false;

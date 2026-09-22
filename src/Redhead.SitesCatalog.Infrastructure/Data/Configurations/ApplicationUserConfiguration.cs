@@ -82,5 +82,9 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
         builder.Property(u => u.SuperAdminNote)
             .HasMaxLength(1000)
             .IsRequired(false);
+
+        builder.Property(u => u.DisabledReason)
+            .HasMaxLength(50)
+            .IsRequired(false);
     }
 }

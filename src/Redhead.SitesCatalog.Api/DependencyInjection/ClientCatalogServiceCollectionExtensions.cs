@@ -26,7 +26,9 @@ public static class ClientCatalogServiceCollectionExtensions
         });
         services.AddScoped<IClientCatalogAlertEmailSender, ClientCatalogAlertEmailSender>();
         services.AddScoped<ClientCatalogAlertService>();
+        services.AddScoped<ClientCatalogAutoBanService>();
         services.AddHostedService<ClientCatalogAlertHostedService>();
+        services.AddHostedService<ClientCatalogAutoBanHostedService>();
         services.AddScoped<IClientCatalogService, ClientCatalogService>();
         services.AddScoped<IClientCatalogActivityService, ClientCatalogActivityService>();
         services.AddHostedService<ClientCatalogActivityCleanupHostedService>();

@@ -38,6 +38,8 @@ public class AdminUserListItemDto
     public bool MustCompleteProfile { get; init; }
     public string Role { get; init; } = string.Empty;
     public bool IsActive { get; init; }
+    public string? DisabledReason { get; init; }
+    public DateTime? DisabledAtUtc { get; init; }
     public bool IsGoogleOnly { get; init; }
     public string AccountStatus { get; init; } = string.Empty;
     public DateTime? InvitationExpiresAtUtc { get; init; }
@@ -64,4 +66,15 @@ public sealed class AdminUserDetailsDto : AdminUserListItemDto
     public bool GoogleDriveConnected { get; init; }
     public GoogleDriveStatusResponse GoogleDrive { get; init; } = null!;
     public ExportUsageSummary? ClientExportUsage { get; init; }
+    public IReadOnlyList<ClientCatalogActivityWindow>? ClientCatalogActivity { get; init; }
+    public ClientCatalogAutoBanDetails? LatestClientCatalogAutoBan { get; init; }
 }
+
+public sealed record ClientCatalogAutoBanDetails(
+    long Id,
+    DateTime DetectedAtUtc,
+    int UniqueSites,
+    int Threshold,
+    DateTime? ReviewedAtUtc,
+    string? ReviewedByUserId,
+    DateTime? EmailSentAtUtc);

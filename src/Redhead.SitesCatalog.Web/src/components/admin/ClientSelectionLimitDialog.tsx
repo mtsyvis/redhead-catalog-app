@@ -66,8 +66,9 @@ export function ClientSelectionLimitDialog({ userId, email, onClose, onSaved }: 
           </Typography>
           <Alert severity="info">
             A selection limit above 100 disables the five-minute data limit.
+            {' '}It also exempts the account from automatic 24-hour activity bans.
             {' '}Activity monitoring and admin notifications remain enabled, as do request-rate and export limits.
-            {' '}Returning to 100 or fewer sites re-enables protection with a fresh counter.
+            {' '}Returning to 100 or fewer sites starts fresh five-minute and automatic-ban protection windows.
           </Alert>
           <Typography variant="subtitle2">Catalog activity</Typography>
           {data.activity.map((window) => <Box key={window.period}>

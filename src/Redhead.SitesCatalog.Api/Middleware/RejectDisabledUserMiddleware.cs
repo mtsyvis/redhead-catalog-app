@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 
 namespace Redhead.SitesCatalog.Api.Middleware;
@@ -26,7 +27,22 @@ public class RejectDisabledUserMiddleware
                 await signInManager.SignOutAsync();
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/json";
-                await context.Response.WriteAsJsonAsync(new { message = "Your account has been disabled." });
+                if (string.Equals(user.DisabledReason, UserDisabledReasons.ClientCatalogAutoBan, StringComparison.Ordinal))
+                {
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        code = DisabledAccountResponseConstants.CatalogAutoDisabledCode,
+                        message = DisabledAccountResponseConstants.CatalogAutoDisabledMessage
+                    });
+                }
+                else
+                {
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        code = DisabledAccountResponseConstants.ManuallyDisabledCode,
+                        message = DisabledAccountResponseConstants.ManuallyDisabledMessage
+                    });
+                }
                 return;
             }
         }

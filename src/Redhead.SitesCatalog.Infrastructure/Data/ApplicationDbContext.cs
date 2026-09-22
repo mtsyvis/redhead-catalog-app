@@ -16,6 +16,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<MissingDomainSearch> MissingDomainSearches => Set<MissingDomainSearch>();
     public DbSet<ClientCatalogRequest> ClientCatalogRequests => Set<ClientCatalogRequest>();
     public DbSet<ClientCatalogAlert> ClientCatalogAlerts => Set<ClientCatalogAlert>();
+    public DbSet<ClientCatalogAutoBan> ClientCatalogAutoBans => Set<ClientCatalogAutoBan>();
+    public DbSet<ClientCatalogProtectionSettings> ClientCatalogProtectionSettings => Set<ClientCatalogProtectionSettings>();
     public DbSet<SitePriceOption> SitePriceOptions => Set<SitePriceOption>();
     public DbSet<SiteServiceAvailability> SiteServiceAvailabilities => Set<SiteServiceAvailability>();
     public DbSet<RoleSettings> RoleSettings => Set<RoleSettings>();

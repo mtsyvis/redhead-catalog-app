@@ -28,6 +28,8 @@ public record UserListItem
     public bool MustCompleteProfile { get; init; }
     public string Role { get; init; } = string.Empty;
     public bool IsActive { get; init; }
+    public string? DisabledReason { get; init; }
+    public DateTime? DisabledAtUtc { get; init; }
     public bool IsGoogleOnly { get; init; }
     public string AccountStatus { get; init; } = string.Empty;
     public DateTime? InvitationExpiresAtUtc { get; init; }
@@ -83,6 +85,8 @@ public record AdminUserDetailsResponse
     public bool MustChangePassword { get; init; }
     public string Role { get; init; } = string.Empty;
     public bool IsActive { get; init; }
+    public string? DisabledReason { get; init; }
+    public DateTime? DisabledAtUtc { get; init; }
     public bool IsGoogleOnly { get; init; }
     public string AccountStatus { get; init; } = string.Empty;
     public DateTime? ActivatedAtUtc { get; init; }
@@ -96,6 +100,8 @@ public record AdminUserDetailsResponse
     public bool GoogleDriveConnected { get; init; }
     public GoogleDriveStatusResponse GoogleDrive { get; init; } = new(false, null, null, null, false, false, false);
     public AdminUserClientExportUsageResponse? ClientExportUsage { get; init; }
+    public IReadOnlyList<ClientCatalogActivityWindow>? ClientCatalogActivity { get; init; }
+    public ClientCatalogAutoBanDetails? LatestClientCatalogAutoBan { get; init; }
     public int? DailyUniqueExportedDomainsLimitOverride { get; init; }
     public int? WeeklyUniqueExportedDomainsLimitOverride { get; init; }
     public int? DailyExportOperationsLimitOverride { get; init; }

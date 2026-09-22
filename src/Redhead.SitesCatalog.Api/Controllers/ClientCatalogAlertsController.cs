@@ -22,11 +22,14 @@ public sealed class ClientCatalogAlertsController(ApplicationDbContext db, TimeP
             .ToListAsync(cancellationToken));
 
     [HttpPost("{id:long}/review")]
-    [Authorize(Policy = AppPolicies.UsersManageAccess)]
+    [Authorize(Policy = AppPolicies.UsersManageAccess, Roles = AppRoles.SuperAdmin)]
     public async Task<IActionResult> Review(long id, CancellationToken cancellationToken)
     {
         var alert = await db.ClientCatalogAlerts.SingleOrDefaultAsync(alert => alert.Id == id, cancellationToken);
-        if (alert is null) return NotFound();
+        if (alert is null)
+        {
+            return NotFound();
+        }
         if (alert.ReviewedAtUtc is null)
         {
             alert.ReviewedAtUtc = clock.GetUtcNow().UtcDateTime;

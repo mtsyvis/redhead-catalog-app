@@ -1,5 +1,5 @@
 import { ApiClient } from './api.client';
-import type { ClientCatalogAlert } from '../types/adminUsers.types';
+import type { ClientCatalogAlert, ClientCatalogAutoBan } from '../types/adminUsers.types';
 import type {
   ClientSelectionLimit,
   UserListQueryParams,
@@ -24,6 +24,14 @@ export const adminUsersService = {
 
   reviewCatalogAlert(id: number): Promise<void> {
     return ApiClient.post<void>(`/api/admin/catalog-alerts/${id}/review`);
+  },
+
+  catalogAutoBans(): Promise<ClientCatalogAutoBan[]> {
+    return ApiClient.get<ClientCatalogAutoBan[]>('/api/admin/catalog-auto-bans');
+  },
+
+  reviewCatalogAutoBan(id: number): Promise<void> {
+    return ApiClient.post<void>(`/api/admin/catalog-auto-bans/${id}/review`);
   },
   getSelectionLimit(id: string): Promise<ClientSelectionLimit> {
     return ApiClient.get<ClientSelectionLimit>(`/api/admin/users/${encodeURIComponent(id)}/selection-limit`);

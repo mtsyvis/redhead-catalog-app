@@ -29,12 +29,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useState<SessionExpiredRoute | null>(null);
 
   useEffect(() => {
-    return registerSessionExpiredHandler(({ from }) => {
+    return registerSessionExpiredHandler(({ from, code, message }) => {
       setSessionExpiredRedirect(from);
       setUser(null);
       navigate('/login', {
         replace: true,
-        state: { from, sessionExpired: true },
+        state: {
+          from,
+          sessionExpired: true,
+          accountDisabledMessage: code === 'AccountAutoDisabled' ? message : undefined,
+        },
       });
     });
   }, [navigate]);

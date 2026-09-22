@@ -52,7 +52,11 @@ public sealed class ClientCatalogSelectionConcurrencyTests
             var catalog = new ClientCatalogService(db, limiter);
             await catalog.EnsureBurstLimitAsync("client", Enumerable.Range(0, 1000).Select(i => $"{i}.com").ToArray(), 100);
         }
-        var controller = new ClientSelectionLimitController(adminUsers, Mock.Of<IClientCatalogActivityService>(), limiter);
+        var controller = new ClientSelectionLimitController(
+            adminUsers,
+            Mock.Of<IClientCatalogActivityService>(),
+            limiter,
+            TimeProvider.System);
 
         // Act
         var response = await controller.Update("client", new ClientSelectionLimitController.UpdateRequest(nextLimit));

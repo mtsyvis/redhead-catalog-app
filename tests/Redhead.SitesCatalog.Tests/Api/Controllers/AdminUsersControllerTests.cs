@@ -14,6 +14,7 @@ using Redhead.SitesCatalog.Api.Security;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Invitations;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -1045,6 +1046,39 @@ public sealed class AdminUsersControllerTests
     }
 
     [Fact]
+    public async Task UpdateUserRole_WhenEnteringProtectedClientRole_StartsFreshAutoBanWindow()
+    {
+        // Arrange
+        var before = DateTime.UtcNow;
+        var targetUser = new ApplicationUser
+        {
+            Id = "internal-1",
+            Email = "internal@example.com",
+            IsActive = true,
+            ClientSelectionLimitOverride = 100
+        };
+        var userManager = new StubUserManager
+        {
+            CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+            CurrentRoles = new List<string> { AppRoles.SuperAdmin },
+            TargetUserById = targetUser,
+            TargetRoles = new List<string> { AppRoles.Internal }
+        };
+        await using var db = CreateDbContext();
+        var sut = CreateController(db, userManager);
+
+        // Act
+        var result = await sut.UpdateUserRole(
+            targetUser.Id,
+            new UpdateUserRoleRequest(AppRoles.Client));
+
+        // Assert
+        Assert.IsType<NoContentResult>(result);
+        Assert.NotNull(targetUser.ClientCatalogAutoBanResetAtUtc);
+        Assert.InRange(targetUser.ClientCatalogAutoBanResetAtUtc.Value, before, DateTime.UtcNow);
+    }
+
+    [Fact]
     public async Task UpdateUserRole_WhenCurrentUserIsAdmin_ReturnsForbid()
     {
         // Arrange
@@ -1282,6 +1316,7 @@ public sealed class AdminUsersControllerTests
         Assert.Null(payload.EmailDeliveryStatus);
         Assert.True(targetUser.IsActive);
         Assert.Equal(AppRoles.Client, userManager.AddedRole);
+        Assert.NotNull(targetUser.ClientCatalogAutoBanResetAtUtc);
         Assert.Empty(deliveryService.Requests);
         Assert.Equal(0, userManager.ResetPasswordCount);
     }
@@ -1876,7 +1911,8 @@ public sealed class AdminUsersControllerTests
             new AdminUsersListService(
                 db,
                 CreateGoogleDriveIntegrationService(db),
-                new ExportUsageLimitService(db)),
+                new ExportUsageLimitService(db),
+                new ClientCatalogActivityService(db, TimeProvider.System)),
             invitationDeliveryService ?? new StubInvitationDeliveryService(),
             NullLogger<AdminUsersController>.Instance);
     }

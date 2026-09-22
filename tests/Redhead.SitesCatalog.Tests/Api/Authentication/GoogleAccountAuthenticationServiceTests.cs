@@ -199,7 +199,7 @@ public sealed class GoogleAccountAuthenticationServiceTests
 
         // Assert
         Assert.Equal(GoogleAccountAuthenticationStatus.Disabled, result.Status);
-        Assert.Null(result.User);
+        Assert.Same(linkedUser, result.User);
         userManager.Verify(manager => manager.CreateAsync(It.IsAny<ApplicationUser>()), Times.Never);
     }
 

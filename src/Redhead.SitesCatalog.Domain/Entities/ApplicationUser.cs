@@ -7,6 +7,9 @@ public class ApplicationUser : IdentityUser
 {
     public int? ClientSelectionLimitOverride { get; set; }
     public bool IsActive { get; set; } = true;
+    public string? DisabledReason { get; set; }
+    public DateTime? DisabledAtUtc { get; set; }
+    public DateTime? ClientCatalogAutoBanResetAtUtc { get; set; }
     public bool MustChangePassword { get; set; } = true;
     public string? DisplayName { get; set; }
     public DateTime? ActivatedAtUtc { get; set; }

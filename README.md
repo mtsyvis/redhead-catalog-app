@@ -345,8 +345,10 @@ the users menu; smaller export limits remain in effect. `ClientCatalog__Requests
 the shared rate threshold (positive integer, default 60). `ClientCatalog__UniqueSitesPerFiveMinutes`
 sets the shared short-term distinct-site budget (positive integer, default 2,000) for Clients with selections of 100 or fewer.
 Personal selections above 100 disable this five-minute guard, while request-rate protection,
-export limits, activity statistics and hourly alert emails remain enabled. Raising the selection clears its
-counter; lowering it back to 100 or fewer starts a fresh protected counter.
+export limits, activity statistics and hourly alert emails remain enabled. These trusted selections are also
+exempt from automatic 24-hour activity bans. Raising the selection clears its
+counter; lowering it back to 100 or fewer starts a fresh five-minute counter and automatic-ban
+enforcement window. Assigning a protected Client role also starts a fresh automatic-ban window.
 A selection reaching the budget succeeds; requests exceeding it receive `429` and a computed `Retry-After`.
 Capacity frees as domains leave the rolling five-minute window. Repeated or smaller selections can still
 succeed. The UI preserves results and offers Retry or narrower filters, without a fixed pause or status polling.
@@ -355,8 +357,15 @@ At `ClientCatalog__AlertUniqueSitesPerHour` unique domains in an hour (default 5
 flags the account in Users and queues one email per incident to `ClientCatalog__AlertEmails`
 (comma/semicolon-separated; defaults to `mtsyvis2405@gmail.com,dmitry.s@redheaddigital.agency`). Compose uses these recipients when the environment setting is unset or empty; a non-empty value overrides them. Delivery uses the existing enabled SMTP configuration.
 Admin review clears the flag and suppresses new alerts for 60 minutes without changing catalog limits or disabling the account. After that hour, the hourly threshold can trigger a new alert even if activity stayed high.
+The database-backed automatic-ban setting is initially disabled with a 20,000-unique-site rolling-24-hour threshold.
+SuperAdmin can manage it through `GET`/`PUT /api/admin/client-catalog-protection`; a future UI page can use the same API.
+When enabled, the minute worker disables active Clients with selection limits of 100 or fewer at the threshold,
+records a reviewable incident, and emails the existing alert recipients. Only SuperAdmin can review incidents.
+Review clears both the auto-ban notification
+and any open hourly alert; reactivation uses the existing secure account flow and starts a fresh enforcement window.
 The existing startup migration process applies `AddClientCatalogProtection` and
-`AddClientCatalogAlertsAndCooldown`, `UseTimeBasedClientCatalogAlertReview` and `RemoveClientCatalogFixedPause` before serving requests. See `docs/business-requirements.md` for behavior
+`AddClientCatalogAlertsAndCooldown`, `UseTimeBasedClientCatalogAlertReview`, `RemoveClientCatalogFixedPause` and
+`AddClientCatalogAutoBan` before serving requests. See `docs/business-requirements.md` for behavior
 and `docs/deployment.md` for activity retention and operational limitations.
 
 ## Quality gates

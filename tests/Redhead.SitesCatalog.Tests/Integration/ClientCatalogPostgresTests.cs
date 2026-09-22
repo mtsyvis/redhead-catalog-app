@@ -11,6 +11,7 @@ using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Options;
 using Microsoft.Extensions.Options;
+using Moq;
 
 namespace Redhead.SitesCatalog.Tests.Integration;
 
@@ -81,7 +82,7 @@ public sealed class ClientCatalogPostgresTests : IAsyncLifetime
         db.ExportLogs.Add(export);
         await db.SaveChangesAsync();
         var sut = new ClientSelectionLimitController(users, new ClientCatalogActivityService(db, new FixedClock(now)),
-            new ClientCatalogBurstLimiter(new FixedClock(now), 1000));
+            new ClientCatalogBurstLimiter(new FixedClock(now), 1000), new FixedClock(now));
 
         // Act
         var update = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(300));
@@ -149,6 +150,68 @@ public sealed class ClientCatalogPostgresTests : IAsyncLifetime
         var alert = Assert.Single(await restartedDb.ClientCatalogAlerts.Where(row => row.UserId == user.Id).ToListAsync());
         Assert.Equal(3, alert.UniqueSites);
         Assert.Null(alert.EmailSentAtUtc);
+        Assert.False(db.Database.HasPendingModelChanges());
+    }
+
+    [PostgresFact]
+    public async Task AutoBan_UsesPostgresRollingUnion_AndExemptsTrustedSelections()
+    {
+        // Arrange
+        await using var db = CreateContext();
+        var now = new DateTime(2026, 9, 20, 8, 0, 0, DateTimeKind.Utc);
+        var role = new IdentityRole(AppRoles.Client);
+        var protectedUser = new ApplicationUser
+        {
+            UserName = "protected-auto-ban@example.com",
+            Email = "protected-auto-ban@example.com"
+        };
+        var trustedUser = new ApplicationUser
+        {
+            UserName = "trusted-auto-ban@example.com",
+            Email = "trusted-auto-ban@example.com",
+            ClientSelectionLimitOverride = 101
+        };
+        db.AddRange(role, protectedUser, trustedUser);
+        db.UserRoles.AddRange(
+            new IdentityUserRole<string> { UserId = protectedUser.Id, RoleId = role.Id },
+            new IdentityUserRole<string> { UserId = trustedUser.Id, RoleId = role.Id });
+        db.ClientCatalogRequests.AddRange(
+            Request(protectedUser.Id, now.AddMinutes(-1), 200, "a.example", "b.example"),
+            Request(trustedUser.Id, now.AddMinutes(-1), 200, "a.example", "b.example", "c.example"));
+        db.ExportedDomainAccesses.Add(new ExportedDomainAccess
+        {
+            Id = Guid.NewGuid(),
+            UserId = protectedUser.Id,
+            Domain = "c.example",
+            ExportedAtUtc = now
+        });
+        var settings = await db.ClientCatalogProtectionSettings.SingleAsync();
+        settings.AutoBanEnabled = true;
+        settings.AutoBanUniqueSitesPer24Hours = 3;
+        await db.SaveChangesAsync();
+        var sender = new Moq.Mock<IClientCatalogAlertEmailSender>();
+        sender.Setup(item => item.SendAutoBanAsync(
+                It.IsAny<ClientCatalogAutoBan>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var service = new ClientCatalogAutoBanService(
+            db,
+            Options.Create(new ClientCatalogOptions { AlertEmails = "admin@example.com" }),
+            sender.Object,
+            new FixedClock(now));
+
+        // Act
+        await service.ProcessAsync(CancellationToken.None);
+
+        // Assert
+        Assert.False(protectedUser.IsActive);
+        Assert.Equal(UserDisabledReasons.ClientCatalogAutoBan, protectedUser.DisabledReason);
+        Assert.True(trustedUser.IsActive);
+        var autoBan = Assert.Single(await db.ClientCatalogAutoBans.ToListAsync());
+        Assert.Equal(protectedUser.Id, autoBan.UserId);
+        Assert.Equal(3, autoBan.UniqueSites);
+        Assert.NotNull(autoBan.EmailSentAtUtc);
         Assert.False(db.Database.HasPendingModelChanges());
     }
 

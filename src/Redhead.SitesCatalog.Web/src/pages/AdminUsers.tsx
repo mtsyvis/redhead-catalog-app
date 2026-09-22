@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import type { ClientCatalogAlert } from '../types/adminUsers.types';
+import type { ClientCatalogAlert, ClientCatalogAutoBan } from '../types/adminUsers.types';
 import { ClientCatalogAlertDialog } from '../components/admin/ClientCatalogAlertDialog';
+import { ClientCatalogAutoBanDialog } from '../components/admin/ClientCatalogAutoBanDialog';
 import { Navigate, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -58,6 +59,7 @@ import { useUserRoles } from '../hooks/useUserRoles';
 type ExportLimitOverrideOption = 'role-default' | ExportLimitMode;
 type ClientUsageLimitInputName = keyof ClientExportUsageLimitOverridesRequest;
 type ClientUsageLimitInputs = Record<ClientUsageLimitInputName, string>;
+type ReactivateTarget = Pick<UserListItemType, 'id' | 'email' | 'role' | 'isGoogleOnly'>;
 
 const USER_TYPE_OPTIONS: Array<{ value: UserTypeFilter; label: string; emptyMessage: string }> = [
   { value: 'all', label: 'All users', emptyMessage: 'No users found.' },
@@ -169,6 +171,8 @@ export const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<UserListItemType[]>([]);
   const [catalogAlerts, setCatalogAlerts] = useState<ClientCatalogAlert[]>([]);
   const [selectedCatalogAlert, setSelectedCatalogAlert] = useState<ClientCatalogAlert | null>(null);
+  const [catalogAutoBans, setCatalogAutoBans] = useState<ClientCatalogAutoBan[]>([]);
+  const [selectedCatalogAutoBan, setSelectedCatalogAutoBan] = useState<ClientCatalogAutoBan | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [userType, setUserType] = useState<UserTypeFilter>('all');
   const [searchInput, setSearchInput] = useState('');
@@ -212,7 +216,7 @@ export const AdminUsers: React.FC = () => {
   const [changeRoleValue, setChangeRoleValue] = useState<string>(NON_SUPER_ADMIN_ROLES[0]);
   const [changeRoleLoading, setChangeRoleLoading] = useState(false);
   const [changeRoleError, setChangeRoleError] = useState<string | null>(null);
-  const [reactivateUser, setReactivateUser] = useState<UserListItemType | null>(null);
+  const [reactivateUser, setReactivateUser] = useState<ReactivateTarget | null>(null);
   const [reactivateRoleValue, setReactivateRoleValue] = useState<string>(NON_SUPER_ADMIN_ROLES[0]);
   const [reactivateLoading, setReactivateLoading] = useState(false);
   const [reactivateError, setReactivateError] = useState<string | null>(null);
@@ -243,12 +247,16 @@ export const AdminUsers: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await adminUsersService.list({
-        userType,
-        search,
-        page: paginationModel.page + 1,
-        pageSize: paginationModel.pageSize,
-      });
+      const [response, alerts, autoBans] = await Promise.all([
+        adminUsersService.list({
+          userType,
+          search,
+          page: paginationModel.page + 1,
+          pageSize: paginationModel.pageSize,
+        }),
+        adminUsersService.catalogAlerts(),
+        adminUsersService.catalogAutoBans(),
+      ]);
       if (usersRequestSequence.current !== requestSequence) return;
 
       if (fallbackToPreviousPage && response.items.length === 0 && response.page > 1) {
@@ -258,8 +266,9 @@ export const AdminUsers: React.FC = () => {
 
       setUsers(response.items);
       setTotalCount(response.totalCount);
-      const alerts = await adminUsersService.catalogAlerts();
-      if (usersRequestSequence.current === requestSequence) setCatalogAlerts(alerts);
+      const autoBannedUserIds = new Set(autoBans.map((autoBan) => autoBan.userId));
+      setCatalogAutoBans(autoBans);
+      setCatalogAlerts(alerts.filter((alert) => !autoBannedUserIds.has(alert.userId)));
     } catch (err) {
       if (usersRequestSequence.current !== requestSequence) return;
       setError(err instanceof Error ? err.message : 'Failed to load users');
@@ -425,7 +434,7 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
-  const handleReactivateClick = useCallback((u: UserListItemType) => {
+  const handleReactivateClick = useCallback((u: ReactivateTarget) => {
     setRowActionsAnchor(null);
     setRowActionsUser(null);
     setReactivateUser(u);
@@ -438,6 +447,17 @@ export const AdminUsers: React.FC = () => {
     );
     setReactivateError(null);
   }, [normalRoles]);
+
+  const handleAutoBanReactivate = useCallback((autoBan: ClientCatalogAutoBan) => {
+    setSelectedCatalogAutoBan(null);
+    setCatalogAutoBans((items) => items.filter((item) => item.id !== autoBan.id));
+    handleReactivateClick({
+      id: autoBan.userId,
+      email: autoBan.email ?? autoBan.userId,
+      role: autoBan.role ?? 'Client',
+      isGoogleOnly: autoBan.isGoogleOnly,
+    });
+  }, [handleReactivateClick]);
 
   const handleCloseReactivate = () => {
     if (reactivateLoading) return;
@@ -826,6 +846,7 @@ export const AdminUsers: React.FC = () => {
           const profileName = getProfileName(params.row);
           const isCurrentUserRow = params.row.id === currentUser?.id;
           const catalogAlert = catalogAlerts.find(alert => alert.userId === params.row.id);
+          const catalogAutoBan = catalogAutoBans.find(autoBan => autoBan.userId === params.row.id);
           const missingNameLabel = params.row.accountStatus === 'InvitationExpired'
             ? 'Invitation expired'
             : params.row.accountStatus === 'PendingActivation'
@@ -861,7 +882,9 @@ export const AdminUsers: React.FC = () => {
                     }}
                   />
                 )}
-                {catalogAlert && <Chip size="small" color="warning" label="Suspicious activity"
+                {catalogAutoBan && <Chip size="small" color="error" label="Auto-disabled"
+                  onClick={event => { event.stopPropagation(); setSelectedCatalogAutoBan(catalogAutoBan); }} />}
+                {!catalogAutoBan && catalogAlert && <Chip size="small" color="warning" label="Suspicious activity"
                   onClick={event => { event.stopPropagation(); setSelectedCatalogAlert(catalogAlert); }} />}
               </Box>
               <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
@@ -884,7 +907,11 @@ export const AdminUsers: React.FC = () => {
         sortable: false,
         renderCell: (params) => {
           const status = params.row.accountStatus;
-          const label = status === 'PendingActivation'
+          const isAutoDisabled = status === 'Disabled'
+            && params.row.disabledReason === 'ClientCatalogAutoBan';
+          const label = isAutoDisabled
+            ? 'Auto-disabled'
+            : status === 'PendingActivation'
             ? 'Pending activation'
             : status === 'InvitationExpired'
               ? 'Invitation expired'
@@ -893,7 +920,9 @@ export const AdminUsers: React.FC = () => {
                 : status === 'ReactivationExpired'
                   ? 'Reactivation expired'
               : status;
-          const color = status === 'Active'
+          const color = isAutoDisabled
+            ? 'error'
+            : status === 'Active'
             ? 'success'
             : status === 'PendingActivation'
               ? 'info'
@@ -1009,6 +1038,7 @@ export const AdminUsers: React.FC = () => {
     [
       actionLoadingId,
       catalogAlerts,
+      catalogAutoBans,
       canModifyUser,
       canManageUsers,
       currentUser?.id,
@@ -1064,10 +1094,26 @@ export const AdminUsers: React.FC = () => {
         </Alert>
       )}
       {selectedCatalogAlert && <ClientCatalogAlertDialog
-        key={selectedCatalogAlert.id} alert={selectedCatalogAlert} canReview={canManageUsers}
+        key={selectedCatalogAlert.id} alert={selectedCatalogAlert} canReview={canManageUsers && isSuperAdmin}
         onClose={() => setSelectedCatalogAlert(null)}
         onReviewed={() => { setSelectedCatalogAlert(null); void loadUsers(); }}
       />}
+      {selectedCatalogAutoBan && <ClientCatalogAutoBanDialog
+        key={selectedCatalogAutoBan.id}
+        autoBan={selectedCatalogAutoBan}
+        canReview={canManageUsers && isSuperAdmin}
+        onClose={() => setSelectedCatalogAutoBan(null)}
+        onReviewed={() => { setSelectedCatalogAutoBan(null); void loadUsers(); }}
+        onReactivate={handleAutoBanReactivate}
+      />}
+      {catalogAutoBans.length > 0 && <Alert severity="error" sx={{ mb: 2 }}>
+        {catalogAutoBans.length} account(s) were disabled automatically and require review.
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+          {catalogAutoBans.map(autoBan => <Chip key={autoBan.id} size="small"
+            label={autoBan.email ?? autoBan.userId}
+            onClick={() => setSelectedCatalogAutoBan(autoBan)} />)}
+        </Box>
+      </Alert>}
       {catalogAlerts.length > 0 && <Alert severity="warning" sx={{ mb: 2 }}>
         {catalogAlerts.length} account(s) require a catalog activity review.
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>

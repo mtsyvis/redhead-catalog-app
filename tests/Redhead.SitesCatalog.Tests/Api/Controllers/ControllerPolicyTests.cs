@@ -91,6 +91,27 @@ public sealed class ControllerPolicyTests
         Assert.Contains(expectedPolicy, policies);
     }
 
+    [Theory]
+    [InlineData(typeof(ClientCatalogAlertsController), nameof(ClientCatalogAlertsController.Review))]
+    [InlineData(typeof(ClientCatalogAutoBansController), nameof(ClientCatalogAutoBansController.Review))]
+    public void CatalogIncidentReview_RequiresSuperAdmin(Type controllerType, string methodName)
+    {
+        // Arrange
+        var method = controllerType.GetMethod(methodName);
+        Assert.NotNull(method);
+
+        // Act
+        var authorizations = method!
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .Cast<AuthorizeAttribute>()
+            .ToList();
+
+        // Assert
+        Assert.Contains(authorizations, attribute =>
+            attribute.Policy == AppPolicies.UsersManageAccess
+            && attribute.Roles == AppRoles.SuperAdmin);
+    }
+
     private static IReadOnlyList<string?> GetPolicies(Type controllerType, string methodName)
     {
         var controllerPolicies = controllerType

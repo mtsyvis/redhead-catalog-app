@@ -74,6 +74,40 @@ public sealed class ClientCatalogAlertEmailSenderTests
         smtp.Verify(client => client.SendAsync(It.IsAny<MimeMessage>(), It.IsAny<CancellationToken>(), null), Times.Never);
     }
 
+    [Fact]
+    public async Task SendAutoBanAsync_SendsDisabledAccountDetailsAndUserLink()
+    {
+        // Arrange
+        var smtp = new Mock<ISmtpClient>();
+        MimeMessage? message = null;
+        smtp.Setup(client => client.ConnectAsync("smtp.example.com", 587, SecureSocketOptions.StartTls, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        smtp.Setup(client => client.SendAsync(It.IsAny<MimeMessage>(), It.IsAny<CancellationToken>(), null))
+            .Callback<MimeMessage, CancellationToken, MailKit.ITransferProgress?>((value, _, _) => message = value)
+            .ReturnsAsync("accepted");
+        var sut = CreateSender(smtp.Object, true, "admin@example.com");
+        var autoBan = new ClientCatalogAutoBan
+        {
+            Id = 7,
+            UserId = "client-id",
+            DetectedAtUtc = new DateTime(2026, 9, 20, 8, 0, 0, DateTimeKind.Utc),
+            UniqueSites = 20_000,
+            Threshold = 20_000
+        };
+
+        // Act
+        var sent = await sut.SendAutoBanAsync(autoBan, "client@example.com", CancellationToken.None);
+
+        // Assert
+        Assert.True(sent);
+        Assert.NotNull(message);
+        Assert.Equal("Catalog account disabled automatically", message.Subject);
+        Assert.Contains("Unique sites in the rolling 24-hour window:", message.TextBody);
+        Assert.Contains("Automatic-ban threshold:", message.TextBody);
+        Assert.Contains("disabled automatically", message.TextBody);
+        Assert.Contains("https://catalog.example.com/admin/users/client-id", message.TextBody);
+    }
+
     private static ClientCatalogAlertEmailSender CreateSender(ISmtpClient smtp, bool enabled, string recipients)
         => new(smtp,
             TestOptions.Create(new EmailOptions

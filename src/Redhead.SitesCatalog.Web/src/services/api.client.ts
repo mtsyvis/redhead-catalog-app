@@ -14,18 +14,21 @@ const API_BASE_URL =
  */
 export class ApiClientError extends Error {
   statusCode: number;
+  code?: string;
   errors?: string[];
   fieldErrors?: Record<string, string[]>;
 
   constructor(
     message: string,
     statusCode: number,
+    code?: string,
     errors?: string[],
     fieldErrors?: Record<string, string[]>
   ) {
     super(message);
     this.name = 'ApiClientError';
     this.statusCode = statusCode;
+    this.code = code;
     this.errors = errors;
     this.fieldErrors = fieldErrors;
   }
@@ -55,10 +58,6 @@ export class ApiClient {
 
   private static async handleResponse<T>(response: Response, endpoint: string): Promise<T> {
     if (!response.ok) {
-      if (response.status === 401 && this.shouldNotifySessionExpired(endpoint)) {
-        notifySessionExpired();
-      }
-
       let errorData: ApiError | null = null;
 
       try {
@@ -79,7 +78,13 @@ export class ApiClient {
         response.statusText ||
         'An error occurred';
 
-      throw new ApiClientError(message, response.status, errors, fieldErrors);
+      if (response.status === 401 && (
+        this.shouldNotifySessionExpired(endpoint) || errorData?.code === 'AccountAutoDisabled'
+      )) {
+        notifySessionExpired(errorData?.code, message);
+      }
+
+      throw new ApiClientError(message, response.status, errorData?.code, errors, fieldErrors);
     }
 
     // Handle 204 No Content

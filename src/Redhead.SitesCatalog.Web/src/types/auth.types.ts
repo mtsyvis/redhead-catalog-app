@@ -131,6 +131,7 @@ export interface ReactivateAccountResponse {
  * API error response
  */
 export interface ApiError {
+  code?: string;
   message: string;
   title?: string;
   detail?: string;

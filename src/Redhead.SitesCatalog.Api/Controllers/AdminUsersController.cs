@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Security;
 using Redhead.SitesCatalog.Api.Validation;
@@ -237,6 +239,8 @@ public class AdminUsersController : ControllerBase
         }
 
         target.IsActive = false;
+        target.DisabledReason = UserDisabledReasons.Manual;
+        target.DisabledAtUtc = DateTime.UtcNow;
         await _userManager.UpdateAsync(target);
 
         _logger.LogInformation("User disabled: {Email}", target.Email);
@@ -299,6 +303,7 @@ public class AdminUsersController : ControllerBase
             return BadRequest(new MessageResponse(roleResult));
         }
 
+        StartClientCatalogAutoBanWindowWhenEnteringProtectedClientRole(target, currentRole, request.Role);
         var updateResult = await _userManager.UpdateAsync(target);
         if (!updateResult.Succeeded)
         {
@@ -411,6 +416,11 @@ public class AdminUsersController : ControllerBase
 
         ClearExportLimitOverrides(target);
         target.IsActive = !isReactivation;
+        if (target.IsActive)
+        {
+            ClearDisabledState(target);
+        }
+        StartClientCatalogAutoBanWindowWhenEnteringProtectedClientRole(target, currentRole, request.Role);
 
         var updateResult = await _userManager.UpdateAsync(target);
         if (!updateResult.Succeeded)
@@ -446,6 +456,8 @@ public class AdminUsersController : ControllerBase
                     ? AccountAccessEmailKind.Reactivation
                     : AccountAccessEmailKind.Activation),
             cancellationToken);
+
+        await MarkOpenCatalogIncidentsReviewedAsync(target.Id, cancellationToken);
 
         return Ok(new ReactivateUserResponse(
             isReactivation ? "ReactivationLinkCreated" : "ActivationLinkCreated",
@@ -744,6 +756,9 @@ public class AdminUsersController : ControllerBase
             user.MustChangePassword,
             user.InvitationTokenHash,
             user.InvitationExpiresAtUtc,
+            user.DisabledReason,
+            user.DisabledAtUtc,
+            user.ClientCatalogAutoBanResetAtUtc,
             user.ExportLimitOverrideMode,
             user.ExportLimitRowsOverride,
             user.DailyUniqueExportedDomainsLimitOverride,
@@ -770,6 +785,8 @@ public class AdminUsersController : ControllerBase
             user.MustChangePassword = false;
             user.InvitationTokenHash = null;
             user.InvitationExpiresAtUtc = null;
+            ClearDisabledState(user);
+            StartClientCatalogAutoBanWindowWhenEnteringProtectedClientRole(user, currentRole, requestedRole);
 
             var updateResult = await _userManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
@@ -786,6 +803,8 @@ public class AdminUsersController : ControllerBase
                 RestoreGoogleOnlyReactivationState(user, originalState);
                 return FormatIdentityErrors(stampResult);
             }
+
+            await MarkOpenCatalogIncidentsReviewedAsync(user.Id, cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
             return null;
@@ -805,6 +824,9 @@ public class AdminUsersController : ControllerBase
         user.MustChangePassword = state.MustChangePassword;
         user.InvitationTokenHash = state.InvitationTokenHash;
         user.InvitationExpiresAtUtc = state.InvitationExpiresAtUtc;
+        user.DisabledReason = state.DisabledReason;
+        user.DisabledAtUtc = state.DisabledAtUtc;
+        user.ClientCatalogAutoBanResetAtUtc = state.ClientCatalogAutoBanResetAtUtc;
         user.ExportLimitOverrideMode = state.ExportLimitOverrideMode;
         user.ExportLimitRowsOverride = state.ExportLimitRowsOverride;
         user.DailyUniqueExportedDomainsLimitOverride = state.DailyUniqueExportedDomainsLimitOverride;
@@ -858,6 +880,8 @@ public class AdminUsersController : ControllerBase
             MustCompleteProfile = item.MustCompleteProfile,
             Role = item.Role,
             IsActive = item.IsActive,
+            DisabledReason = item.DisabledReason,
+            DisabledAtUtc = item.DisabledAtUtc,
             IsGoogleOnly = item.IsGoogleOnly,
             AccountStatus = item.AccountStatus,
             InvitationExpiresAtUtc = item.InvitationExpiresAtUtc,
@@ -903,6 +927,8 @@ public class AdminUsersController : ControllerBase
             MustChangePassword = user.MustChangePassword,
             Role = user.Role,
             IsActive = user.IsActive,
+            DisabledReason = user.DisabledReason,
+            DisabledAtUtc = user.DisabledAtUtc,
             IsGoogleOnly = user.IsGoogleOnly,
             AccountStatus = user.AccountStatus,
             ActivatedAtUtc = user.ActivatedAtUtc,
@@ -926,6 +952,8 @@ public class AdminUsersController : ControllerBase
                     user.ClientExportUsage.DailyExportOperationsLimit,
                     user.ClientExportUsage.WeeklyExportOperationsUsed,
                     user.ClientExportUsage.WeeklyExportOperationsLimit),
+            ClientCatalogActivity = user.ClientCatalogActivity,
+            LatestClientCatalogAutoBan = user.LatestClientCatalogAutoBan,
             DailyUniqueExportedDomainsLimitOverride = user.DailyUniqueExportedDomainsLimitOverride,
             WeeklyUniqueExportedDomainsLimitOverride = user.WeeklyUniqueExportedDomainsLimitOverride,
             DailyExportOperationsLimitOverride = user.DailyExportOperationsLimitOverride,
@@ -962,6 +990,55 @@ public class AdminUsersController : ControllerBase
         user.WeeklyExportOperationsLimitOverride = null;
     }
 
+    private static void ClearDisabledState(ApplicationUser user)
+    {
+        if (string.Equals(user.DisabledReason, UserDisabledReasons.ClientCatalogAutoBan, StringComparison.Ordinal))
+        {
+            user.ClientCatalogAutoBanResetAtUtc = DateTime.UtcNow;
+        }
+        user.DisabledReason = null;
+        user.DisabledAtUtc = null;
+    }
+
+    private static void StartClientCatalogAutoBanWindowWhenEnteringProtectedClientRole(
+        ApplicationUser user,
+        string currentRole,
+        string requestedRole)
+    {
+        if (!string.Equals(currentRole, AppRoles.Client, StringComparison.Ordinal)
+            && string.Equals(requestedRole, AppRoles.Client, StringComparison.Ordinal)
+            && !ClientCatalogLimits.IsBurstExempt(ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride)))
+        {
+            user.ClientCatalogAutoBanResetAtUtc = DateTime.UtcNow;
+        }
+    }
+
+    private async Task MarkOpenCatalogIncidentsReviewedAsync(string userId, CancellationToken cancellationToken)
+    {
+        var reviewedAt = DateTime.UtcNow;
+        var reviewedBy = User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var autoBans = await _context.ClientCatalogAutoBans
+            .Where(item => item.UserId == userId && item.ReviewedAtUtc == null)
+            .ToListAsync(cancellationToken);
+        var alerts = await _context.ClientCatalogAlerts
+            .Where(item => item.UserId == userId && item.ReviewedAtUtc == null)
+            .ToListAsync(cancellationToken);
+        foreach (var item in autoBans)
+        {
+            item.ReviewedAtUtc = reviewedAt;
+            item.ReviewedByUserId = reviewedBy;
+        }
+        foreach (var item in alerts)
+        {
+            item.ReviewedAtUtc = reviewedAt;
+            item.ReviewedByUserId = reviewedBy;
+        }
+        if (autoBans.Count > 0 || alerts.Count > 0)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     private async Task<bool> IsGoogleOnlyAsync(ApplicationUser user)
     {
         if (await _userManager.HasPasswordAsync(user))
@@ -981,6 +1058,9 @@ public class AdminUsersController : ControllerBase
         bool MustChangePassword,
         string? InvitationTokenHash,
         DateTime? InvitationExpiresAtUtc,
+        string? DisabledReason,
+        DateTime? DisabledAtUtc,
+        DateTime? ClientCatalogAutoBanResetAtUtc,
         ExportLimitMode? ExportLimitOverrideMode,
         int? ExportLimitRowsOverride,
         int? DailyUniqueExportedDomainsLimitOverride,

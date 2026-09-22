@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -21,6 +22,27 @@ namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 
 public sealed class AuthControllerTests
 {
+    [Fact]
+    public async Task Login_WhenAccountWasAutoDisabled_ReturnsSpecificSupportMessage()
+    {
+        // Arrange
+        var user = CreateUser(mustChangePassword: false, firstName: "Client", lastName: null);
+        user.IsActive = false;
+        user.DisabledReason = UserDisabledReasons.ClientCatalogAutoBan;
+        var userManager = CreateUserManager();
+        userManager.Setup(manager => manager.FindByEmailAsync(user.Email!)).ReturnsAsync(user);
+        var sut = CreateController(userManager);
+
+        // Act
+        var result = await sut.Login(new LoginRequest(user.Email!, "Password123!"));
+
+        // Assert
+        var unauthorized = Assert.IsType<UnauthorizedObjectResult>(result.Result);
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(unauthorized.Value));
+        Assert.Equal("AccountAutoDisabled", json.RootElement.GetProperty("code").GetString());
+        Assert.Contains("suspicious catalog activity", json.RootElement.GetProperty("message").GetString());
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -450,6 +472,8 @@ public sealed class AuthControllerTests
         // Arrange
         const string token = "valid-reactivation-token";
         var user = CreateReactivatingUser(token);
+        user.DisabledReason = UserDisabledReasons.ClientCatalogAutoBan;
+        user.DisabledAtUtc = DateTime.UtcNow.AddHours(-1);
         var userManager = CreateUserManager();
         userManager.SetupGet(manager => manager.Users).Returns(new[] { user }.AsQueryable());
         userManager.Setup(manager => manager.GeneratePasswordResetTokenAsync(user))
@@ -473,6 +497,9 @@ public sealed class AuthControllerTests
         Assert.True(user.IsActive);
         Assert.False(user.MustChangePassword);
         Assert.Null(user.InvitationTokenHash);
+        Assert.Null(user.DisabledReason);
+        Assert.Null(user.DisabledAtUtc);
+        Assert.NotNull(user.ClientCatalogAutoBanResetAtUtc);
         Assert.Null(user.InvitationExpiresAtUtc);
         userManager.Verify(
             manager => manager.ResetPasswordAsync(user, "identity-reset-token", "NewPassword123!"),
@@ -489,6 +516,8 @@ public sealed class AuthControllerTests
         // Arrange
         const string token = "valid-reactivation-token";
         var user = CreateReactivatingUser(token);
+        user.DisabledReason = UserDisabledReasons.ClientCatalogAutoBan;
+        user.DisabledAtUtc = DateTime.UtcNow.AddHours(-1);
         user.MustChangePassword = true;
         var userManager = CreateUserManager();
         userManager.SetupGet(manager => manager.Users).Returns(new[] { user }.AsQueryable());
@@ -507,6 +536,9 @@ public sealed class AuthControllerTests
         Assert.True(user.MustChangePassword);
         Assert.Equal(UserInvitationToken.Hash(token), user.InvitationTokenHash);
         Assert.NotNull(user.InvitationExpiresAtUtc);
+        Assert.Equal(UserDisabledReasons.ClientCatalogAutoBan, user.DisabledReason);
+        Assert.NotNull(user.DisabledAtUtc);
+        Assert.Null(user.ClientCatalogAutoBanResetAtUtc);
     }
 
     [Fact]

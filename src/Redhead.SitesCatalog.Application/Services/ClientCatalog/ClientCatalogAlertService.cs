@@ -75,7 +75,10 @@ public sealed class ClientCatalogAlertService(ApplicationDbContext db, IOptions<
         {
             var userEmail = await db.Users.Where(user => user.Id == alert.UserId).Select(user => user.Email).SingleAsync(cancellationToken);
             var sent = await emailSender.SendAsync(alert, userEmail ?? alert.UserId, cancellationToken);
-            if (sent) alert.EmailSentAtUtc = clock.GetUtcNow().UtcDateTime;
+            if (sent)
+            {
+                alert.EmailSentAtUtc = clock.GetUtcNow().UtcDateTime;
+            }
             alert.NextEmailAttemptAtUtc = clock.GetUtcNow().UtcDateTime + EmailRetryInterval;
             await db.SaveChangesAsync(cancellationToken);
         }

@@ -32,6 +32,135 @@ public sealed class ClientCatalogAlertServiceTests : IDisposable
         _db.UserRoles.Add(new IdentityUserRole<string> { UserId = "client", RoleId = "client-role" });
         _db.SaveChanges();
         _sender.Setup(sender => sender.SendAsync(It.IsAny<ClientCatalogAlert>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _sender.Setup(sender => sender.SendAutoBanAsync(It.IsAny<ClientCatalogAutoBan>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData(100, true)]
+    [InlineData(101, false)]
+    public async Task AutoBan_Enabled_AppliesOnlyToProtectedClientSelections(int? selectionLimit, bool shouldBan)
+    {
+        // Arrange
+        _db.Users.Single().ClientSelectionLimitOverride = selectionLimit;
+        _db.ClientCatalogProtectionSettings.Add(new ClientCatalogProtectionSettings
+        {
+            AutoBanEnabled = true,
+            AutoBanUniqueSitesPer24Hours = 3
+        });
+        AddActivity(3);
+        await _db.SaveChangesAsync();
+        var sut = CreateAutoBanService();
+
+        // Act
+        await sut.ProcessAsync(CancellationToken.None);
+        await sut.ProcessAsync(CancellationToken.None);
+
+        // Assert
+        var user = await _db.Users.SingleAsync();
+        Assert.Equal(!shouldBan, user.IsActive);
+        Assert.Equal(shouldBan ? UserDisabledReasons.ClientCatalogAutoBan : null, user.DisabledReason);
+        Assert.Equal(shouldBan ? 1 : 0, await _db.ClientCatalogAutoBans.CountAsync());
+        _sender.Verify(sender => sender.SendAutoBanAsync(
+            It.IsAny<ClientCatalogAutoBan>(),
+            "client@example.com",
+            It.IsAny<CancellationToken>()),
+            shouldBan ? Times.Once() : Times.Never());
+    }
+
+    [Fact]
+    public async Task AutoBan_Disabled_DoesNotDisableClient()
+    {
+        // Arrange
+        _db.ClientCatalogProtectionSettings.Add(new ClientCatalogProtectionSettings
+        {
+            AutoBanEnabled = false,
+            AutoBanUniqueSitesPer24Hours = 3
+        });
+        AddActivity(3);
+        await _db.SaveChangesAsync();
+
+        // Act
+        await CreateAutoBanService().ProcessAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True((await _db.Users.SingleAsync()).IsActive);
+        Assert.Empty(_db.ClientCatalogAutoBans);
+        _sender.Verify(sender => sender.SendAutoBanAsync(
+            It.IsAny<ClientCatalogAutoBan>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never());
+    }
+
+    [Fact]
+    public async Task AutoBan_ResetTime_IgnoresEarlierActivity()
+    {
+        // Arrange
+        AddActivity(3);
+        var user = _db.Users.Single();
+        user.ClientCatalogAutoBanResetAtUtc = _clock.GetUtcNow().UtcDateTime;
+        _db.ClientCatalogProtectionSettings.Add(new ClientCatalogProtectionSettings
+        {
+            AutoBanEnabled = true,
+            AutoBanUniqueSitesPer24Hours = 3
+        });
+        await _db.SaveChangesAsync();
+        var sut = CreateAutoBanService();
+
+        // Act
+        await sut.ProcessAsync(CancellationToken.None);
+        var activeAfterReset = user.IsActive;
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        AddActivity(3);
+        await _db.SaveChangesAsync();
+        await sut.ProcessAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(activeAfterReset);
+        Assert.False(user.IsActive);
+        Assert.Single(_db.ClientCatalogAutoBans);
+    }
+
+    [Fact]
+    public async Task AutoBanReview_AlsoReviewsOpenSuspiciousActivityAlert()
+    {
+        // Arrange
+        var autoBan = new ClientCatalogAutoBan
+        {
+            UserId = "client",
+            DetectedAtUtc = _clock.GetUtcNow().UtcDateTime,
+            UniqueSites = 20_000,
+            Threshold = 20_000
+        };
+        var alert = new ClientCatalogAlert
+        {
+            UserId = "client",
+            DetectedAtUtc = _clock.GetUtcNow().UtcDateTime,
+            UniqueSites = 5_000,
+            Threshold = 5_000
+        };
+        _db.AddRange(autoBan, alert);
+        await _db.SaveChangesAsync();
+        var controller = new ClientCatalogAutoBansController(_db, _clock)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                        [new Claim(ClaimTypes.NameIdentifier, "admin")], "test"))
+                }
+            }
+        };
+
+        // Act
+        await controller.Review(autoBan.Id, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(_clock.GetUtcNow().UtcDateTime, autoBan.ReviewedAtUtc);
+        Assert.Equal("admin", autoBan.ReviewedByUserId);
+        Assert.Equal(_clock.GetUtcNow().UtcDateTime, alert.ReviewedAtUtc);
+        Assert.Equal("admin", alert.ReviewedByUserId);
     }
 
     [Theory]
@@ -284,6 +413,7 @@ public sealed class ClientCatalogAlertServiceTests : IDisposable
     };
 
     private ClientCatalogAlertService CreateService() => new(_db, Options.Create(_options), _sender.Object, _clock);
+    private ClientCatalogAutoBanService CreateAutoBanService() => new(_db, Options.Create(_options), _sender.Object, _clock);
     public void Dispose() => _db.Dispose();
 
     private sealed class MutableClock : TimeProvider

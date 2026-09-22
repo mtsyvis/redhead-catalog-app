@@ -14,6 +14,8 @@ export interface UserListItem {
   mustCompleteProfile: boolean;
   role: string;
   isActive: boolean;
+  disabledReason: string | null;
+  disabledAtUtc: string | null;
   isGoogleOnly: boolean;
   accountStatus: UserAccountStatus;
   invitationExpiresAtUtc: string | null;
@@ -59,6 +61,8 @@ export interface AdminUserDetails {
   mustChangePassword: boolean;
   role: string;
   isActive: boolean;
+  disabledReason: string | null;
+  disabledAtUtc: string | null;
   isGoogleOnly: boolean;
   accountStatus: UserAccountStatus;
   activatedAtUtc: string | null;
@@ -72,6 +76,8 @@ export interface AdminUserDetails {
   googleDriveConnected: boolean;
   googleDrive: GoogleDriveStatus;
   clientExportUsage?: AdminUserClientExportUsage | null;
+  clientCatalogActivity?: ClientCatalogActivityWindow[] | null;
+  latestClientCatalogAutoBan?: ClientCatalogAutoBanDetails | null;
   dailyUniqueExportedDomainsLimitOverride: number | null;
   weeklyUniqueExportedDomainsLimitOverride: number | null;
   dailyExportOperationsLimitOverride: number | null;
@@ -190,5 +196,34 @@ export interface ClientCatalogAlert {
   detectedAtUtc: string;
   uniqueSites: number;
   threshold: number;
+  emailSentAtUtc: string | null;
+}
+
+export interface ClientCatalogActivityWindow {
+  period: string;
+  requests: number;
+  rateLimitedRequests: number;
+  uniqueSites: number;
+}
+
+export interface ClientCatalogAutoBan {
+  id: number;
+  userId: string;
+  email: string | null;
+  role: string | null;
+  isGoogleOnly: boolean;
+  detectedAtUtc: string;
+  uniqueSites: number;
+  threshold: number;
+  emailSentAtUtc: string | null;
+}
+
+export interface ClientCatalogAutoBanDetails {
+  id: number;
+  detectedAtUtc: string;
+  uniqueSites: number;
+  threshold: number;
+  reviewedAtUtc: string | null;
+  reviewedByUserId: string | null;
   emailSentAtUtc: string | null;
 }

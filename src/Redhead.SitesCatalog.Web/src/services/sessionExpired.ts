@@ -6,6 +6,8 @@ export interface SessionExpiredRoute {
 
 export interface SessionExpiredEvent {
   from: SessionExpiredRoute;
+  code?: string;
+  message?: string;
 }
 
 type SessionExpiredHandler = (event: SessionExpiredEvent) => void;
@@ -22,7 +24,7 @@ export function registerSessionExpiredHandler(handler: SessionExpiredHandler): (
   };
 }
 
-export function notifySessionExpired(): void {
+export function notifySessionExpired(code?: string, message?: string): void {
   if (!sessionExpiredHandler || window.location.pathname === '/login') {
     return;
   }
@@ -33,5 +35,7 @@ export function notifySessionExpired(): void {
       search: window.location.search,
       hash: window.location.hash,
     },
+    code,
+    message,
   });
 }

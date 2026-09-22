@@ -54,7 +54,7 @@ public class AuthController : ControllerBase
         if (!user.IsActive)
         {
             _logger.LogWarning("Login failed: Account disabled {Email}", request.Email);
-            return Unauthorized(new MessageResponse("Your account has been disabled. Please contact an administrator."));
+            return Unauthorized(CreateDisabledResponse(user));
         }
 
         var result = await _signInManager.PasswordSignInAsync(
@@ -108,7 +108,7 @@ public class AuthController : ControllerBase
         {
             _logger.LogWarning("GetCurrentUser: Account disabled, signing out {Email}", user.Email);
             await _signInManager.SignOutAsync();
-            return Unauthorized(new MessageResponse("Your account has been disabled."));
+            return Unauthorized(CreateDisabledResponse(user));
         }
 
         var roles = await _userManager.GetRolesAsync(user);
@@ -232,10 +232,19 @@ public class AuthController : ControllerBase
         var tokenHash = user.InvitationTokenHash;
         var expiresAtUtc = user.InvitationExpiresAtUtc;
         var mustChangePassword = user.MustChangePassword;
+        var disabledReason = user.DisabledReason;
+        var disabledAtUtc = user.DisabledAtUtc;
+        var autoBanResetAtUtc = user.ClientCatalogAutoBanResetAtUtc;
         user.IsActive = true;
         user.MustChangePassword = false;
         user.InvitationTokenHash = null;
         user.InvitationExpiresAtUtc = null;
+        if (string.Equals(disabledReason, UserDisabledReasons.ClientCatalogAutoBan, StringComparison.Ordinal))
+        {
+            user.ClientCatalogAutoBanResetAtUtc = DateTime.UtcNow;
+        }
+        user.DisabledReason = null;
+        user.DisabledAtUtc = null;
 
         var passwordResetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
         var passwordResult = await _userManager.ResetPasswordAsync(
@@ -248,6 +257,9 @@ public class AuthController : ControllerBase
             user.MustChangePassword = mustChangePassword;
             user.InvitationTokenHash = tokenHash;
             user.InvitationExpiresAtUtc = expiresAtUtc;
+            user.DisabledReason = disabledReason;
+            user.DisabledAtUtc = disabledAtUtc;
+            user.ClientCatalogAutoBanResetAtUtc = autoBanResetAtUtc;
             return BadRequest(new { errors = passwordResult.Errors.Select(error => error.Description) });
         }
 
@@ -322,6 +334,19 @@ public class AuthController : ControllerBase
             user.EffectiveDisplayName,
             roles);
     }
+
+    private static object CreateDisabledResponse(ApplicationUser user)
+        => string.Equals(user.DisabledReason, UserDisabledReasons.ClientCatalogAutoBan, StringComparison.Ordinal)
+            ? new
+            {
+                code = DisabledAccountResponseConstants.CatalogAutoDisabledCode,
+                message = DisabledAccountResponseConstants.CatalogAutoDisabledMessage
+            }
+            : new
+            {
+                code = DisabledAccountResponseConstants.ManuallyDisabledCode,
+                message = DisabledAccountResponseConstants.ManuallyDisabledMessage
+            };
 
     private ApplicationUser? FindInvitedUser(string token)
     {

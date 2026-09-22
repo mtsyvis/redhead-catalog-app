@@ -87,7 +87,7 @@ public sealed class GoogleAuthenticationController : ControllerBase
         if (result.Status != GoogleAccountAuthenticationStatus.Success || result.User == null)
         {
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
-            return RedirectToLogin(ToErrorCode(result.Status));
+            return RedirectToLogin(ToErrorCode(result));
         }
 
         await _signInManager.SignInAsync(
@@ -132,11 +132,15 @@ public sealed class GoogleAuthenticationController : ControllerBase
         return Redirect($"{_frontendOptions.BaseUrl.TrimEnd('/')}{path}");
     }
 
-    private static string ToErrorCode(GoogleAccountAuthenticationStatus status)
-        => status switch
+    private static string ToErrorCode(GoogleAccountAuthenticationResult result)
+        => result.Status switch
         {
             GoogleAccountAuthenticationStatus.InvalidIdentity => "invalid",
             GoogleAccountAuthenticationStatus.EmailConflict => "email-conflict",
+            GoogleAccountAuthenticationStatus.Disabled when string.Equals(
+                result.User?.DisabledReason,
+                UserDisabledReasons.ClientCatalogAutoBan,
+                StringComparison.Ordinal) => "auto-disabled",
             GoogleAccountAuthenticationStatus.Disabled => "disabled",
             _ => "failed"
         };

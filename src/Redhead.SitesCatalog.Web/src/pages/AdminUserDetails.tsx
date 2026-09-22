@@ -340,7 +340,12 @@ export const AdminUserDetails: React.FC = () => {
                       <Chip label="Profile incomplete" color="warning" variant="outlined" size="small" />
                     )}
                     {user.accountStatus === 'Disabled' && (
-                      <Chip label="Disabled" color="default" variant="outlined" size="small" />
+                      <Chip
+                        label={user.disabledReason === 'ClientCatalogAutoBan' ? 'Auto-disabled' : 'Disabled'}
+                        color={user.disabledReason === 'ClientCatalogAutoBan' ? 'error' : 'default'}
+                        variant="outlined"
+                        size="small"
+                      />
                     )}
                   </Box>
                 </Box>
@@ -348,6 +353,48 @@ export const AdminUserDetails: React.FC = () => {
             </Card>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
+              {user.latestClientCatalogAutoBan && (
+                <Card sx={{ gridColumn: { md: '1 / -1' }, border: 1, borderColor: user.disabledReason === 'ClientCatalogAutoBan' ? 'error.main' : 'divider' }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                      <Box>
+                        <Typography variant="h6">Automatic catalog ban</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Triggered when rolling 24-hour unique-site activity reached the configured security threshold.
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={user.latestClientCatalogAutoBan.reviewedAtUtc ? 'Reviewed' : 'Review required'}
+                        color={user.latestClientCatalogAutoBan.reviewedAtUtc ? 'default' : 'error'}
+                        size="small"
+                      />
+                    </Box>
+                    {user.disabledReason === 'ClientCatalogAutoBan' && (
+                      <Alert severity="error" sx={{ mb: 2 }}>
+                        This account is currently disabled because suspicious catalog activity reached the automatic-ban threshold.
+                      </Alert>
+                    )}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+                      <DetailRow label="Detected" value={formatDateTime(user.latestClientCatalogAutoBan.detectedAtUtc)} />
+                      <DetailRow label="24h unique sites" value={user.latestClientCatalogAutoBan.uniqueSites.toLocaleString()} />
+                      <DetailRow label="Threshold" value={user.latestClientCatalogAutoBan.threshold.toLocaleString()} />
+                      <DetailRow
+                        label="Notification email"
+                        value={user.latestClientCatalogAutoBan.emailSentAtUtc
+                          ? `Sent ${formatDateTime(user.latestClientCatalogAutoBan.emailSentAtUtc)}`
+                          : 'Pending'}
+                      />
+                      {user.latestClientCatalogAutoBan.reviewedAtUtc && (
+                        <DetailRow label="Reviewed" value={formatDateTime(user.latestClientCatalogAutoBan.reviewedAtUtc)} />
+                      )}
+                      {user.disabledAtUtc && (
+                        <DetailRow label="Account disabled" value={formatDateTime(user.disabledAtUtc)} />
+                      )}
+                    </Box>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardContent sx={{ p: 3 }}>
                   <Typography variant="h6" sx={{ mb: 2 }}>
@@ -371,6 +418,29 @@ export const AdminUserDetails: React.FC = () => {
                   </Box>
                 </CardContent>
               </Card>
+
+              {user.role === 'Client' && user.clientCatalogActivity && (
+                <Card>
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography variant="h6" sx={{ mb: 1 }}>Catalog activity</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Catalog requests, rate limits and unique sites issued through search, Multi-search and completed exports.
+                    </Typography>
+                    <Stack spacing={1.5}>
+                      {user.clientCatalogActivity.map((window) => (
+                        <Box key={window.period}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {window.period}: {window.uniqueSites.toLocaleString()} unique sites
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {window.requests.toLocaleString()} requests · {window.rateLimitedRequests.toLocaleString()} rate-limited
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardContent sx={{ p: 3 }}>

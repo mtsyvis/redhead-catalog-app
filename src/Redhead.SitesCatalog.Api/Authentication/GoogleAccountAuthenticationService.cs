@@ -70,7 +70,8 @@ public sealed class GoogleAccountAuthenticationService : IGoogleAccountAuthentic
             if (!linkedUser.IsActive)
             {
                 return new GoogleAccountAuthenticationResult(
-                    GoogleAccountAuthenticationStatus.Disabled);
+                    GoogleAccountAuthenticationStatus.Disabled,
+                    linkedUser);
             }
 
             var roles = await _userManager.GetRolesAsync(linkedUser);
