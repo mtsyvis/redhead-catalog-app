@@ -19,7 +19,7 @@ public sealed class ClientCatalogProtectionSettingsController(ApplicationDbConte
     {
         var settings = await db.ClientCatalogProtectionSettings.AsNoTracking()
             .SingleOrDefaultAsync(row => row.Id == ClientCatalogProtectionSettings.SingletonId, cancellationToken);
-        return Ok(ToResponse(settings ?? new ClientCatalogProtectionSettings()));
+        return Ok(await ToResponseAsync(settings ?? new ClientCatalogProtectionSettings(), cancellationToken));
     }
 
     [HttpPut]
@@ -44,13 +44,28 @@ public sealed class ClientCatalogProtectionSettingsController(ApplicationDbConte
         settings.UpdatedAtUtc = clock.GetUtcNow().UtcDateTime;
         settings.UpdatedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         await db.SaveChangesAsync(cancellationToken);
-        return Ok(ToResponse(settings));
+        return Ok(await ToResponseAsync(settings, cancellationToken));
     }
 
-    private static ClientCatalogProtectionSettingsResponse ToResponse(ClientCatalogProtectionSettings settings)
-        => new(
+    private async Task<ClientCatalogProtectionSettingsResponse> ToResponseAsync(
+        ClientCatalogProtectionSettings settings,
+        CancellationToken cancellationToken)
+    {
+        var updatedBy = settings.UpdatedByUserId is null
+            ? null
+            : await db.Users.AsNoTracking()
+                .Where(user => user.Id == settings.UpdatedByUserId)
+                .Select(user => new { user.DisplayName, user.Email })
+                .SingleOrDefaultAsync(cancellationToken);
+        var updatedByDisplayName = string.IsNullOrWhiteSpace(updatedBy?.DisplayName)
+            ? updatedBy?.Email
+            : updatedBy.DisplayName.Trim();
+
+        return new ClientCatalogProtectionSettingsResponse(
             settings.AutoBanEnabled,
             settings.AutoBanUniqueSitesPer24Hours,
             settings.UpdatedAtUtc,
-            settings.UpdatedByUserId);
+            settings.UpdatedByUserId,
+            updatedByDisplayName);
+    }
 }

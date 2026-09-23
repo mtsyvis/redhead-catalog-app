@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Tests.Api.Controllers;
@@ -55,6 +56,14 @@ public sealed class ClientCatalogProtectionSettingsControllerTests : IDisposable
     public async Task Update_WithValidSettings_PersistsAuditFields()
     {
         // Arrange
+        _db.Users.Add(new ApplicationUser
+        {
+            Id = "superadmin",
+            UserName = "owner@example.com",
+            Email = "owner@example.com",
+            DisplayName = "Catalog Owner"
+        });
+        await _db.SaveChangesAsync();
         var sut = CreateController();
 
         // Act
@@ -69,7 +78,36 @@ public sealed class ClientCatalogProtectionSettingsControllerTests : IDisposable
         Assert.Equal(25_000, response.AutoBanUniqueSitesPer24Hours);
         Assert.Equal(_now, response.UpdatedAtUtc);
         Assert.Equal("superadmin", response.UpdatedByUserId);
+        Assert.Equal("Catalog Owner", response.UpdatedByDisplayName);
         Assert.Single(_db.ClientCatalogProtectionSettings);
+    }
+
+    [Fact]
+    public async Task Get_WhenUpdaterDisplayNameIsBlank_ReturnsEmailForAuditLabel()
+    {
+        // Arrange
+        _db.Users.Add(new ApplicationUser
+        {
+            Id = "superadmin",
+            UserName = "owner@example.com",
+            Email = "owner@example.com",
+            DisplayName = "  "
+        });
+        _db.ClientCatalogProtectionSettings.Add(new ClientCatalogProtectionSettings
+        {
+            UpdatedByUserId = "superadmin",
+            UpdatedAtUtc = _now
+        });
+        await _db.SaveChangesAsync();
+        var sut = CreateController();
+
+        // Act
+        var result = await sut.Get(CancellationToken.None);
+
+        // Assert
+        var response = Assert.IsType<ClientCatalogProtectionSettingsResponse>(
+            Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal("owner@example.com", response.UpdatedByDisplayName);
     }
 
     [Fact]

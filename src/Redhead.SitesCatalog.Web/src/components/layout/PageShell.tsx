@@ -202,8 +202,8 @@ export const PageShell: React.FC<PageShellProps> = ({
                         <MenuItem onClick={() => handleAdminNav('/admin/users')}>Users</MenuItem>
                       )}
                       {canReadRoleSettings && (
-                        <MenuItem onClick={() => handleAdminNav('/admin/role-settings')}>
-                          Role Settings
+                        <MenuItem onClick={() => handleAdminNav('/admin/settings')}>
+                          Settings
                         </MenuItem>
                       )}
                     </Menu>

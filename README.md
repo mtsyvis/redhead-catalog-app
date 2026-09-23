@@ -358,7 +358,9 @@ flags a non-trusted Client account in Users and queues one email per incident to
 (comma/semicolon-separated; defaults to `mtsyvis2405@gmail.com,dmitry.s@redheaddigital.agency`). Compose uses these recipients when the environment setting is unset or empty; a non-empty value overrides them. Delivery uses the existing enabled SMTP configuration.
 Admin review clears the flag and suppresses new alerts for 60 minutes without changing catalog limits or disabling the account. After that hour, the hourly threshold can trigger a new alert even if activity stayed high.
 The database-backed automatic-ban setting is initially disabled with a 20,000-unique-site rolling-24-hour threshold.
-SuperAdmin can manage it through `GET`/`PUT /api/admin/client-catalog-protection`; a future UI page can use the same API.
+SuperAdmin manages it through `Admin > Settings > Client protection` or the underlying
+`GET`/`PUT /api/admin/client-catalog-protection` API. Enabling it or lowering the threshold requires UI confirmation
+because the next scan evaluates activity already recorded during the previous 24 hours.
 When enabled, the minute worker disables active Clients that are not marked as trusted at the threshold,
 records a reviewable incident, and emails the existing alert recipients. Only SuperAdmin can review incidents.
 Review clears both the auto-ban notification

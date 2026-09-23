@@ -37,8 +37,8 @@ const AdminUsers = React.lazy(() =>
 const AdminUserDetails = React.lazy(() =>
   import('./pages/AdminUserDetails').then((module) => ({ default: module.AdminUserDetails }))
 );
-const RoleSettings = React.lazy(() =>
-  import('./pages/RoleSettings').then((module) => ({ default: module.RoleSettings }))
+const ApplicationSettings = React.lazy(() =>
+  import('./pages/ApplicationSettings').then((module) => ({ default: module.ApplicationSettings }))
 );
 const Analytics = React.lazy(() => import('./pages/Analytics').then((module) => ({ default: module.Analytics })));
 const AhrefsSync = React.lazy(() =>
@@ -159,14 +159,19 @@ const App: React.FC = () => {
               />
 
               <Route
-                path="/admin/role-settings"
+                path="/admin/settings"
                 element={
                   <ProtectedRoute>
                     <AccountSetupRequiredRoute>
-                      <RoleSettings />
+                      <ApplicationSettings />
                     </AccountSetupRequiredRoute>
                   </ProtectedRoute>
                 }
+              />
+
+              <Route
+                path="/admin/role-settings"
+                element={<Navigate to="/admin/settings?section=roles" replace />}
               />
 
               <Route

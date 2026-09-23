@@ -1,24 +1,17 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
 import {
   Box,
+  Chip,
   Paper,
   Typography,
   TextField,
   Alert,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   CircularProgress,
   Select,
   MenuItem,
   FormControl,
-  FormHelperText,
+  InputLabel,
 } from '@mui/material';
-import { PageShell } from '../components/layout/PageShell';
 import { BrandButton } from '../components/common/BrandButton';
 import { useUserRoles } from '../hooks/useUserRoles';
 import { roleSettingsService } from '../services/roleSettings.service';
@@ -98,7 +91,7 @@ function toClientUsageLimitLocalState(row?: RoleSettingItem): ClientUsageLimitLo
   };
 }
 
-export const RoleSettings: React.FC = () => {
+export const RoleSettingsPanel: React.FC = () => {
   const { canReadRoleSettings, canManageRoleSettings } = useUserRoles();
   const canEditRoleSettings = canManageRoleSettings;
   const [loading, setLoading] = useState(true);
@@ -208,8 +201,27 @@ export const RoleSettings: React.FC = () => {
       return rowsValid && clientUsageLimitsValid;
     });
 
+  const hasChanges = canEditRoleSettings && serverItems.some((serverItem) => {
+    if (!serverItem.isEditable) return false;
+
+    const local = localValues[serverItem.role];
+    if (!local || local.mode !== serverItem.exportLimitMode) return true;
+    if (
+      local.mode === 'Limited' &&
+      parsePositiveInt(local.rows) !== serverItem.exportLimitRows
+    ) {
+      return true;
+    }
+    if (serverItem.role !== CLIENT_ROLE) return false;
+
+    return CLIENT_USAGE_LIMIT_FIELDS.some(
+      (field) =>
+        parsePositiveInt(local.clientUsageLimits[field.key]) !== serverItem[field.key]
+    );
+  });
+
   const handleSave = async () => {
-    if (!canEditRoleSettings) return;
+    if (!canEditRoleSettings || !hasChanges) return;
     if (!allValid()) {
       setError('Enter positive integers for all Limited rows and Client usage limits.');
       return;
@@ -249,7 +261,26 @@ export const RoleSettings: React.FC = () => {
         };
       });
       await roleSettingsService.update(payload);
-      setSuccess('Role settings saved.');
+      const updatesByRole = new Map(payload.map((item) => [item.role, item]));
+      setServerItems((items) => items.map((item) => {
+        const update = updatesByRole.get(item.role);
+        if (!update) return item;
+
+        return {
+          ...item,
+          exportLimitMode: update.exportLimitMode,
+          exportLimitRows: update.exportLimitRows,
+          dailyUniqueExportedDomainsLimit:
+            update.dailyUniqueExportedDomainsLimit ?? item.dailyUniqueExportedDomainsLimit,
+          weeklyUniqueExportedDomainsLimit:
+            update.weeklyUniqueExportedDomainsLimit ?? item.weeklyUniqueExportedDomainsLimit,
+          dailyExportOperationsLimit:
+            update.dailyExportOperationsLimit ?? item.dailyExportOperationsLimit,
+          weeklyExportOperationsLimit:
+            update.weeklyExportOperationsLimit ?? item.weeklyExportOperationsLimit,
+        };
+      }));
+      setSuccess('Role policies saved.');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to save.');
     } finally {
@@ -257,9 +288,7 @@ export const RoleSettings: React.FC = () => {
     }
   };
 
-  if (!canReadRoleSettings) {
-    return <Navigate to="/sites" replace />;
-  }
+  if (!canReadRoleSettings) return null;
 
   const clientState = localValues[CLIENT_ROLE] ?? {
     mode: 'Limited' as ExportLimitMode,
@@ -269,10 +298,30 @@ export const RoleSettings: React.FC = () => {
   const clientUsageEditable = isEditableFor(CLIENT_ROLE);
 
   return (
-    <PageShell title="Role Settings" maxWidth="lg">
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Configure export access per role. Row limits apply to each individual export.
-      </Typography>
+    <>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 2,
+          flexWrap: 'wrap',
+          mb: 2,
+        }}
+      >
+        <Box>
+          <Typography variant="h6">Role export policies</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Configure export access per role. Row limits apply to each individual export.
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Chip label="Database" variant="outlined" size="small" />
+          <Typography variant="caption" color="text.secondary">
+            Applies immediately
+          </Typography>
+        </Box>
+      </Box>
 
       {canReadRoleSettings && !canEditRoleSettings && (
         <Alert severity="info" sx={{ mb: 2 }}>
@@ -281,7 +330,16 @@ export const RoleSettings: React.FC = () => {
       )}
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          onClose={() => setError(null)}
+          action={serverItems.length === 0 ? (
+            <BrandButton kind="outline" size="small" onClick={() => void loadSettings()}>
+              Retry
+            </BrandButton>
+          ) : undefined}
+        >
           {error}
         </Alert>
       )}
@@ -295,85 +353,155 @@ export const RoleSettings: React.FC = () => {
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress />
         </Box>
-      ) : (
+      ) : serverItems.length > 0 ? (
         <>
-          <Box sx={{ mb: 1 }}>
-            <Typography variant="subtitle2">Rows per export</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Limited caps how many matching site rows a user can export in one export file.
-              Daily and weekly Client usage limits are configured below.
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              Configurable roles
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+              Choose whether each role can export and set a per-file row cap when access is limited.
             </Typography>
           </Box>
-          <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Role</TableCell>
-                  <TableCell>Export access</TableCell>
-                  <TableCell>Rows per export</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {ROLE_ORDER.map((role) => {
-                  const editable = isEditableFor(role);
-                  const state = localValues[role] ?? {
-                    mode: 'Disabled' as ExportLimitMode,
-                    rows: '',
-                    clientUsageLimits: toClientUsageLimitLocalState(),
-                  };
-                  const rowsInvalid =
-                    state.mode === 'Limited' &&
-                    state.rows !== '' &&
-                    parsePositiveInt(state.rows) === null;
 
-                  return (
-                    <TableRow key={role}>
-                      <TableCell sx={{ width: 124 }}>{role}</TableCell>
-                      <TableCell>
-                        <FormControl size="small">
-                          <Select
-                            value={state.mode}
-                            onChange={(e) =>
-                              handleModeChange(role, e.target.value as ExportLimitMode)
-                            }
-                            disabled={!editable}
-                            sx={{ minWidth: 146 }}
-                          >
-                            <MenuItem value="Disabled">Disabled</MenuItem>
-                            <MenuItem value="Limited">Limited</MenuItem>
-                            <MenuItem value="Unlimited">Unlimited</MenuItem>
-                          </Select>
-                          {!isRowEditableFromApi(role) && (
-                            <FormHelperText>Fixed system setting</FormHelperText>
-                          )}
-                        </FormControl>
-                      </TableCell>
-                      <TableCell>
-                        {state.mode === 'Limited' ? (
-                          <TextField
-                            type="number"
-                            size="small"
-                            value={state.rows}
-                            onChange={(e) => handleRowsChange(role, e.target.value)}
-                            slotProps={{ htmlInput: { min: 1, step: 1 } }}
-                            error={rowsInvalid}
-                            helperText={rowsInvalid ? 'Positive integer required' : undefined}
-                            disabled={!editable}
-                            sx={{ width: 160 }}
-                            placeholder="Rows"
-                          />
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            -
-                          </Typography>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+              gap: 2,
+              mb: 2,
+            }}
+          >
+            {ROLE_ORDER.filter(isRowEditableFromApi).map((role) => {
+              const editable = isEditableFor(role);
+              const state = localValues[role] ?? {
+                mode: 'Disabled' as ExportLimitMode,
+                rows: '',
+                clientUsageLimits: toClientUsageLimitLocalState(),
+              };
+              const rowsInvalid =
+                state.mode === 'Limited' && parsePositiveInt(state.rows) === null;
+
+              return (
+                <Paper key={role} variant="outlined" sx={{ p: 2.25 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.75 }}>
+                    {role}
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr' },
+                      gap: 1.5,
+                    }}
+                  >
+                    <FormControl size="small" fullWidth>
+                      <InputLabel id={`${role}-export-access-label`}>Export access</InputLabel>
+                      <Select
+                        labelId={`${role}-export-access-label`}
+                        label="Export access"
+                        value={state.mode}
+                        onChange={(e) =>
+                          handleModeChange(role, e.target.value as ExportLimitMode)
+                        }
+                        disabled={!editable}
+                      >
+                        <MenuItem value="Disabled">Disabled</MenuItem>
+                        <MenuItem value="Limited">Limited</MenuItem>
+                        <MenuItem value="Unlimited">Unlimited</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    {state.mode === 'Limited' ? (
+                      <TextField
+                        label="Rows per export"
+                        type="number"
+                        size="small"
+                        value={state.rows}
+                        onChange={(e) => handleRowsChange(role, e.target.value)}
+                        slotProps={{ htmlInput: { min: 1, step: 1 } }}
+                        error={rowsInvalid}
+                        helperText={rowsInvalid ? 'Positive integer required' : 'Maximum rows per file'}
+                        disabled={!editable}
+                        fullWidth
+                      />
+                    ) : (
+                      <Box
+                        sx={{
+                          minHeight: 40,
+                          px: 1.75,
+                          py: 1,
+                          borderRadius: 1,
+                          bgcolor: 'action.hover',
+                        }}
+                      >
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          Rows per export
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {state.mode === 'Unlimited' ? 'No row cap' : 'Not available'}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Paper>
+              );
+            })}
+          </Box>
+
+          <Paper variant="outlined" sx={{ mb: 2, p: 2.25 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+              Fixed system roles
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, mb: 1.75 }}>
+              These export policies are built into the application and cannot be changed here.
+            </Typography>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  sm: 'repeat(2, minmax(0, 1fr))',
+                  lg: 'repeat(4, minmax(0, 1fr))',
+                },
+                gap: 1.25,
+              }}
+            >
+              {ROLE_ORDER.filter((role) => !isRowEditableFromApi(role)).map((role) => {
+                const state = localValues[role] ?? {
+                  mode: 'Disabled' as ExportLimitMode,
+                  rows: '',
+                  clientUsageLimits: toClientUsageLimitLocalState(),
+                };
+
+                return (
+                  <Box
+                    key={role}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 1,
+                      px: 1.5,
+                      py: 1.25,
+                      border: 1,
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {role}
+                    </Typography>
+                    <Chip
+                      label={state.mode}
+                      size="small"
+                      color={state.mode === 'Unlimited' ? 'success' : 'default'}
+                      variant="outlined"
+                    />
+                  </Box>
+                );
+              })}
+            </Box>
+          </Paper>
 
           <Paper variant="outlined" sx={{ mb: 2, p: 2 }}>
             <Box
@@ -387,10 +515,10 @@ export const RoleSettings: React.FC = () => {
               }}
             >
               <Box>
-                <Typography variant="h6">Client usage limits</Typography>
+                <Typography variant="h6">Client export quotas</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Applies to Client role only. Unique-domain limits count new domains. Export
-                  operations count successful and partial exports.
+                  Daily and weekly quotas for the Client role. Unique-domain quotas count new
+                  domains; export-operation quotas count successful and partial exports.
                 </Typography>
               </Box>
               {canEditRoleSettings && (
@@ -415,7 +543,7 @@ export const RoleSettings: React.FC = () => {
             >
               {CLIENT_USAGE_LIMIT_FIELDS.map((field) => {
                 const value = clientState.clientUsageLimits[field.key];
-                const invalid = value !== '' && parsePositiveInt(value) === null;
+                const invalid = parsePositiveInt(value) === null;
 
                 return (
                   <TextField
@@ -441,20 +569,23 @@ export const RoleSettings: React.FC = () => {
 
           {canEditRoleSettings && (
             <Box>
-              <BrandButton onClick={handleSave} disabled={saveLoading || !allValid()}>
+              <BrandButton
+                onClick={handleSave}
+                disabled={saveLoading || !hasChanges || !allValid()}
+              >
                 {saveLoading ? (
                   <>
                     <CircularProgress size={20} sx={{ mr: 1 }} color="inherit" />
                     Saving…
                   </>
                 ) : (
-                  'Save'
+                  'Save role policies'
                 )}
               </BrandButton>
             </Box>
           )}
         </>
-      )}
-    </PageShell>
+      ) : null}
+    </>
   );
 };

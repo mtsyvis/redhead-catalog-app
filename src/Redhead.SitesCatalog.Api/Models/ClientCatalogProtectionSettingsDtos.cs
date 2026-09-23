@@ -8,4 +8,5 @@ public sealed record ClientCatalogProtectionSettingsResponse(
     bool AutoBanEnabled,
     int AutoBanUniqueSitesPer24Hours,
     DateTime? UpdatedAtUtc,
-    string? UpdatedByUserId);
+    string? UpdatedByUserId,
+    string? UpdatedByDisplayName);
