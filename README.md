@@ -340,14 +340,14 @@ Ahrefs sync is inactive by default and not part of the active production workflo
 ## Client catalog protection
 
 Client catalog protection defaults to selections of 100 sites and 60 data requests per minute per
-Client account. SuperAdmin manages personal selection sizes through `Edit selection limit` in
-the users menu; smaller export limits remain in effect. `ClientCatalog__RequestsPerMinute` controls
+Client account. SuperAdmin manages personal selection sizes from 1 to 100 and the explicit Trusted Client flag
+through `Edit client catalog access` in the users menu; smaller export limits remain in effect. `ClientCatalog__RequestsPerMinute` controls
 the shared rate threshold (positive integer, default 60). `ClientCatalog__UniqueSitesPerFiveMinutes`
-sets the shared short-term distinct-site budget (positive integer, default 2,000) for Clients with selections of 100 or fewer.
-Personal selections above 100 disable this five-minute guard, while request-rate protection,
-export limits, activity statistics and hourly alert emails remain enabled. These trusted selections are also
-exempt from automatic 24-hour activity bans. Raising the selection clears its
-counter; lowering it back to 100 or fewer starts a fresh five-minute counter and automatic-ban
+sets the shared short-term distinct-site budget (positive integer, default 2,000) for Clients that are not marked as trusted.
+Trusted Clients have no selection cap and bypass the five-minute guard, while request-rate protection,
+export limits, activity statistics and hourly alert emails remain enabled. They are also
+exempt from automatic 24-hour activity bans. Enabling trust clears the counter;
+disabling it starts a fresh five-minute counter and automatic-ban
 enforcement window. Assigning a protected Client role also starts a fresh automatic-ban window.
 A selection reaching the budget succeeds; requests exceeding it receive `429` and a computed `Retry-After`.
 Capacity frees as domains leave the rolling five-minute window. Repeated or smaller selections can still
@@ -359,13 +359,14 @@ flags the account in Users and queues one email per incident to `ClientCatalog__
 Admin review clears the flag and suppresses new alerts for 60 minutes without changing catalog limits or disabling the account. After that hour, the hourly threshold can trigger a new alert even if activity stayed high.
 The database-backed automatic-ban setting is initially disabled with a 20,000-unique-site rolling-24-hour threshold.
 SuperAdmin can manage it through `GET`/`PUT /api/admin/client-catalog-protection`; a future UI page can use the same API.
-When enabled, the minute worker disables active Clients with selection limits of 100 or fewer at the threshold,
+When enabled, the minute worker disables active Clients that are not marked as trusted at the threshold,
 records a reviewable incident, and emails the existing alert recipients. Only SuperAdmin can review incidents.
 Review clears both the auto-ban notification
 and any open hourly alert; reactivation uses the existing secure account flow and starts a fresh enforcement window.
-The existing startup migration process applies `AddClientCatalogProtection` and
-`AddClientCatalogAlertsAndCooldown`, `UseTimeBasedClientCatalogAlertReview`, `RemoveClientCatalogFixedPause` and
-`AddClientCatalogAutoBan` before serving requests. See `docs/business-requirements.md` for behavior
+The existing startup migration process applies `AddClientCatalogProtection`,
+`AddClientCatalogAlertsAndCooldown`, `UseTimeBasedClientCatalogAlertReview`, `RemoveClientCatalogFixedPause`,
+`AddClientCatalogAutoBan`, and `AddTrustedClient` before serving requests. `AddTrustedClient` converts existing
+selection overrides above 100 into the explicit Trusted Client flag and limits future overrides to 1–100. See `docs/business-requirements.md` for behavior
 and `docs/deployment.md` for activity retention and operational limitations.
 
 ## Quality gates

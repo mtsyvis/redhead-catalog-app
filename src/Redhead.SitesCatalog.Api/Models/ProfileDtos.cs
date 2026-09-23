@@ -8,6 +8,7 @@ public record CurrentUserProfileResponse(
     string Role,
     string DisplayName,
     bool MustCompleteProfile,
+    bool IsTrustedClient,
     GoogleDriveStatusResponse GoogleDrive,
     CurrentUserProfileLimitsResponse Limits);
 

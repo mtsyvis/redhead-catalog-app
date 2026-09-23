@@ -37,8 +37,11 @@ export const adminUsersService = {
     return ApiClient.get<ClientSelectionLimit>(`/api/admin/users/${encodeURIComponent(id)}/selection-limit`);
   },
 
-  updateSelectionLimit(id: string, overrideRows: number | null): Promise<void> {
-    return ApiClient.put(`/api/admin/users/${encodeURIComponent(id)}/selection-limit`, { overrideRows });
+  updateSelectionLimit(id: string, overrideRows: number | null, isTrustedClient: boolean): Promise<void> {
+    return ApiClient.put(`/api/admin/users/${encodeURIComponent(id)}/selection-limit`, {
+      overrideRows,
+      isTrustedClient,
+    });
   },
 
   list(params: UserListQueryParams): Promise<UserListResponse> {

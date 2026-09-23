@@ -53,7 +53,7 @@ public sealed class ClientCatalogPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task SelectionLimit_PersistsAndResets_ActivityDeduplicatesAcrossSearchAndExportWindows()
+    public async Task TrustedClient_PersistsAndResets_ActivityDeduplicatesAcrossSearchAndExportWindows()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -85,30 +85,40 @@ public sealed class ClientCatalogPostgresTests : IAsyncLifetime
             new ClientCatalogBurstLimiter(new FixedClock(now), 1000), new FixedClock(now));
 
         // Act
-        var update = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(300));
+        var update = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(null, true));
         await using var verification = CreateContext();
-        var storedLimit = await verification.Users.Where(x => x.Id == user.Id).Select(x => x.ClientSelectionLimitOverride).SingleAsync();
+        var stored = await verification.Users.Where(x => x.Id == user.Id)
+            .Select(x => new { x.ClientSelectionLimitOverride, x.IsTrustedClient })
+            .SingleAsync();
         var response = await sut.Get(user.Id, CancellationToken.None);
-        var reset = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(null));
-        var resetLimit = await verification.Users.Where(x => x.Id == user.Id).Select(x => x.ClientSelectionLimitOverride).SingleAsync();
+        var reset = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(null, false));
+        var resetState = await verification.Users.Where(x => x.Id == user.Id)
+            .Select(x => new { x.ClientSelectionLimitOverride, x.IsTrustedClient })
+            .SingleAsync();
 
         // Assert
         Assert.IsType<NoContentResult>(update);
-        Assert.Equal(300, storedLimit);
+        Assert.True(stored.IsTrustedClient);
+        Assert.Null(stored.ClientSelectionLimitOverride);
         var data = Assert.IsType<ClientSelectionLimitController.LimitResponse>(Assert.IsType<OkObjectResult>(response.Result).Value);
-        Assert.Equal(300, data.EffectiveRows);
+        Assert.True(data.IsTrustedClient);
+        Assert.Null(data.EffectiveRows);
         Assert.Collection(data.Activity,
             hour => Assert.Equal((2, 1, 3), (hour.Requests, hour.RateLimitedRequests, hour.UniqueSites)),
             day => Assert.Equal((3, 1, 4), (day.Requests, day.RateLimitedRequests, day.UniqueSites)),
             week => Assert.Equal((4, 1, 5), (week.Requests, week.RateLimitedRequests, week.UniqueSites)));
         Assert.IsType<NoContentResult>(reset);
-        Assert.Null(resetLimit);
+        Assert.False(resetState.IsTrustedClient);
+        Assert.Null(resetState.ClientSelectionLimitOverride);
         Assert.Empty(await db.Database.GetPendingMigrationsAsync());
     }
 
     [PostgresFact]
     public Task CatalogUsage_DoesNotConflictWithIdentitySelectionUpdate()
-        => ClientCatalogSelectionConcurrencyTests.VerifySelectionUpdateAsync(options => options.UseNpgsql(_connectionString), 50);
+        => ClientCatalogSelectionConcurrencyTests.VerifySelectionUpdateAsync(
+            options => options.UseNpgsql(_connectionString),
+            false,
+            50);
 
     private ApplicationDbContext CreateContext() => new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_connectionString).Options);
 
@@ -154,7 +164,7 @@ public sealed class ClientCatalogPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task AutoBan_UsesPostgresRollingUnion_AndExemptsTrustedSelections()
+    public async Task AutoBan_UsesPostgresRollingUnion_AndExemptsTrustedClients()
     {
         // Arrange
         await using var db = CreateContext();
@@ -169,7 +179,7 @@ public sealed class ClientCatalogPostgresTests : IAsyncLifetime
         {
             UserName = "trusted-auto-ban@example.com",
             Email = "trusted-auto-ban@example.com",
-            ClientSelectionLimitOverride = 101
+            IsTrustedClient = true
         };
         db.AddRange(role, protectedUser, trustedUser);
         db.UserRoles.AddRange(

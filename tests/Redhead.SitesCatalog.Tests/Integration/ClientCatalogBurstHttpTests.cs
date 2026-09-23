@@ -23,10 +23,8 @@ namespace Redhead.SitesCatalog.Tests.Integration;
 
 public sealed class ClientCatalogBurstHttpTests
 {
-    [Theory]
-    [InlineData(101)]
-    [InlineData(5000)]
-    public async Task HttpSearch_SharesRollingBudgetAcrossSessions_AllowsRepeats_AndRecovers(int trustedSelectionLimit)
+    [Fact]
+    public async Task HttpSearch_SharesRollingBudgetAcrossSessions_AllowsRepeats_AndRecovers()
     {
         // Arrange
         var clock = new MutableClock();
@@ -93,12 +91,12 @@ public sealed class ClientCatalogBurstHttpTests
         clock.Advance(TimeSpan.FromMinutes(5));
         using var recovered = await firstSession.PostAsJsonAsync("/api/sites/search", new { search = "new" });
 
-        // A trusted personal limit bypasses only the five-minute data budget.
+        // Trusted clients bypass only the five-minute data budget.
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var user = await db.Users.SingleAsync(user => user.Id == "client");
-            user.ClientSelectionLimitOverride = trustedSelectionLimit;
+            user.IsTrustedClient = true;
             await db.SaveChangesAsync();
         }
         var trustedStatuses = new List<HttpStatusCode>();

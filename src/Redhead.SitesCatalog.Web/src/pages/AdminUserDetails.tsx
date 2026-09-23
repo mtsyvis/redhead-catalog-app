@@ -12,6 +12,7 @@ import {
   Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import StarIcon from '@mui/icons-material/Star';
 
 import { BrandButton } from '../components/common/BrandButton';
 import { InvitationResultDialog } from '../components/admin/InvitationResultDialog';
@@ -50,74 +51,48 @@ function formatMaybeExportLimit(mode: ExportLimitMode | null | undefined, rows: 
 const CLIENT_USAGE_LIMIT_ROWS: Array<{
   label: string;
   helperText: string;
-  getEffective: (user: AdminUserDetailsType) => number | null;
+  getUsed: (user: AdminUserDetailsType) => number | null | undefined;
+  getLimit: (user: AdminUserDetailsType) => number | null | undefined;
   getOverride: (user: AdminUserDetailsType) => number | null;
 }> = [
   {
-    label: 'Daily unique exported domains',
-    helperText: '24h window',
-    getEffective: (user) => user.effectiveDailyUniqueExportedDomainsLimit,
+    label: 'Daily exported domains',
+    helperText: '24-hour rolling window',
+    getUsed: (user) => user.clientExportUsage?.dailyUniqueExportedDomainsUsed,
+    getLimit: (user) => user.clientExportUsage?.dailyUniqueExportedDomainsLimit,
     getOverride: (user) => user.dailyUniqueExportedDomainsLimitOverride,
   },
   {
-    label: 'Weekly unique exported domains',
-    helperText: '7d window',
-    getEffective: (user) => user.effectiveWeeklyUniqueExportedDomainsLimit,
+    label: 'Weekly exported domains',
+    helperText: '7-day rolling window',
+    getUsed: (user) => user.clientExportUsage?.weeklyUniqueExportedDomainsUsed,
+    getLimit: (user) => user.clientExportUsage?.weeklyUniqueExportedDomainsLimit,
     getOverride: (user) => user.weeklyUniqueExportedDomainsLimitOverride,
   },
   {
-    label: 'Daily export operations',
-    helperText: '24h window',
-    getEffective: (user) => user.effectiveDailyExportOperationsLimit,
+    label: 'Daily exports',
+    helperText: '24-hour rolling window',
+    getUsed: (user) => user.clientExportUsage?.dailyExportOperationsUsed,
+    getLimit: (user) => user.clientExportUsage?.dailyExportOperationsLimit,
     getOverride: (user) => user.dailyExportOperationsLimitOverride,
   },
   {
-    label: 'Weekly export operations',
-    helperText: '7d window',
-    getEffective: (user) => user.effectiveWeeklyExportOperationsLimit,
+    label: 'Weekly exports',
+    helperText: '7-day rolling window',
+    getUsed: (user) => user.clientExportUsage?.weeklyExportOperationsUsed,
+    getLimit: (user) => user.clientExportUsage?.weeklyExportOperationsLimit,
     getOverride: (user) => user.weeklyExportOperationsLimitOverride,
   },
 ];
 
-const CURRENT_CLIENT_USAGE_ROWS: Array<{
-  label: string;
-  getUsed: (user: AdminUserDetailsType) => number | null | undefined;
-  getLimit: (user: AdminUserDetailsType) => number | null | undefined;
-}> = [
-  {
-    label: 'Daily exported domains',
-    getUsed: (user) => user.clientExportUsage?.dailyUniqueExportedDomainsUsed,
-    getLimit: (user) => user.clientExportUsage?.dailyUniqueExportedDomainsLimit,
-  },
-  {
-    label: 'Weekly exported domains',
-    getUsed: (user) => user.clientExportUsage?.weeklyUniqueExportedDomainsUsed,
-    getLimit: (user) => user.clientExportUsage?.weeklyUniqueExportedDomainsLimit,
-  },
-  {
-    label: 'Daily exports',
-    getUsed: (user) => user.clientExportUsage?.dailyExportOperationsUsed,
-    getLimit: (user) => user.clientExportUsage?.dailyExportOperationsLimit,
-  },
-  {
-    label: 'Weekly exports',
-    getUsed: (user) => user.clientExportUsage?.weeklyExportOperationsUsed,
-    getLimit: (user) => user.clientExportUsage?.weeklyExportOperationsLimit,
-  },
-];
-
-function formatClientUsageLimit(value: number | null | undefined): string {
-  return value == null ? 'Not available' : value.toLocaleString();
-}
-
 function getPerExportLimitSettingChip(user: AdminUserDetailsType): string {
   if (user.isExportLimitEditable === false) {
-    return 'Fixed setting';
+    return 'Fixed';
   }
 
   return user.exportLimitOverrideMode == null
-    ? 'Uses role default'
-    : 'Custom setting';
+    ? 'Role default'
+    : 'Custom';
 }
 
 function getPerExportLimitSettingValue(
@@ -133,8 +108,8 @@ function getPerExportLimitSettingValue(
 
 function getClientUsageLimitsChip(user: AdminUserDetailsType): string {
   return CLIENT_USAGE_LIMIT_ROWS.some((row) => row.getOverride(user) != null)
-    ? 'Custom settings'
-    : 'Uses role defaults';
+    ? 'Custom'
+    : 'Role defaults';
 }
 
 function getErrorMessage(error: unknown): string {
@@ -161,6 +136,28 @@ const DetailRow: React.FC<DetailRowProps> = ({ label, value }) => (
       <Typography variant="body2">{value || emptyValue}</Typography>
     ) : (
       value
+    )}
+  </Box>
+);
+
+interface MetricItemProps {
+  label: string;
+  value: React.ReactNode;
+  helperText?: React.ReactNode;
+}
+
+const MetricItem: React.FC<MetricItemProps> = ({ label, value, helperText }) => (
+  <Box>
+    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>
+      {label}
+    </Typography>
+    <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+      {value}
+    </Typography>
+    {helperText && (
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+        {helperText}
+      </Typography>
     )}
   </Box>
 );
@@ -253,8 +250,6 @@ export const AdminUserDetails: React.FC = () => {
     ? formatMaybeExportLimit(user.effectiveExportLimitMode, user.effectiveExportLimitRows)
     : null;
   const clientUsageLimitRows = user?.role === 'Client' ? CLIENT_USAGE_LIMIT_ROWS : [];
-  const showCurrentClientUsage = user?.role === 'Client'
-    && CURRENT_CLIENT_USAGE_ROWS.some((row) => row.getLimit(user) != null);
   const googleDrive = user?.googleDrive;
   const googleDriveConnected = user ? user.googleDriveConnected : null;
   const connectedAt = formatDateTime(googleDrive?.connectedAtUtc);
@@ -324,6 +319,14 @@ export const AdminUserDetails: React.FC = () => {
                   </Box>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <Chip label={user.role || 'Role unavailable'} color="primary" size="small" />
+                    {user.role === 'Client' && user.isTrustedClient && (
+                      <Chip
+                        icon={<StarIcon />}
+                        label="Trusted client"
+                        color="warning"
+                        size="small"
+                      />
+                    )}
                     {user.accountStatus === 'PendingActivation' && (
                       <Chip label="Pending activation" color="info" variant="outlined" size="small" />
                     )}
@@ -426,18 +429,22 @@ export const AdminUserDetails: React.FC = () => {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       Catalog requests, rate limits and unique sites issued through search, Multi-search and completed exports.
                     </Typography>
-                    <Stack spacing={1.5}>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
+                        gap: 2,
+                      }}
+                    >
                       {user.clientCatalogActivity.map((window) => (
-                        <Box key={window.period}>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {window.period}: {window.uniqueSites.toLocaleString()} unique sites
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {window.requests.toLocaleString()} requests · {window.rateLimitedRequests.toLocaleString()} rate-limited
-                          </Typography>
-                        </Box>
+                        <MetricItem
+                          key={window.period}
+                          label={window.period}
+                          value={`${window.uniqueSites.toLocaleString()} unique sites`}
+                          helperText={`${window.requests.toLocaleString()} requests · ${window.rateLimitedRequests.toLocaleString()} rate-limited`}
+                        />
                       ))}
-                    </Stack>
+                    </Box>
                   </CardContent>
                 </Card>
               )}
@@ -445,31 +452,24 @@ export const AdminUserDetails: React.FC = () => {
               <Card>
                 <CardContent sx={{ p: 3 }}>
                   <Typography variant="h6" sx={{ mb: 2 }}>
-                    Limits
+                    Export limits and usage
                   </Typography>
 
                   <Stack spacing={2}>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        gap: 2,
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <Box>
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                         <Typography variant="subtitle2">Per-export row limit</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Controls how many site rows this user can export in one file.
-                        </Typography>
+                        <Chip
+                          label={getPerExportLimitSettingChip(user)}
+                          color={user.exportLimitOverrideMode == null ? 'default' : 'warning'}
+                          variant="outlined"
+                          size="small"
+                          sx={{ height: 22, fontSize: '0.6875rem' }}
+                        />
                       </Box>
-                      <Chip
-                        label={getPerExportLimitSettingChip(user)}
-                        color={user.exportLimitOverrideMode == null ? 'default' : 'warning'}
-                        variant="outlined"
-                        size="small"
-                      />
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                        Controls how many site rows this user can export in one file.
+                      </Typography>
                     </Box>
 
                     <Box sx={{ px: 0.25 }}>
@@ -482,27 +482,20 @@ export const AdminUserDetails: React.FC = () => {
                       <>
                         <Divider />
 
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start',
-                            gap: 2,
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <Box>
-                            <Typography variant="subtitle2">Client usage limits</Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                              Daily and weekly quotas. Blank fields use the Client role default.
-                            </Typography>
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Typography variant="subtitle2">Daily and weekly usage</Typography>
+                            <Chip
+                              label={getClientUsageLimitsChip(user)}
+                              color={clientUsageLimitRows.some((row) => row.getOverride(user) != null) ? 'warning' : 'default'}
+                              variant="outlined"
+                              size="small"
+                              sx={{ height: 22, fontSize: '0.6875rem' }}
+                            />
                           </Box>
-                          <Chip
-                            label={getClientUsageLimitsChip(user)}
-                            color={clientUsageLimitRows.some((row) => row.getOverride(user) != null) ? 'warning' : 'default'}
-                            variant="outlined"
-                            size="small"
-                          />
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                            Current usage against limits in rolling 24-hour and 7-day windows.
+                          </Typography>
                         </Box>
 
                         <Box
@@ -513,17 +506,12 @@ export const AdminUserDetails: React.FC = () => {
                           }}
                         >
                           {clientUsageLimitRows.map((row) => (
-                            <Box key={row.label}>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                {row.label}
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                {formatClientUsageLimit(row.getEffective(user))}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {row.helperText} · {row.getOverride(user) == null ? 'Role default' : 'Custom setting'}
-                              </Typography>
-                            </Box>
+                            <MetricItem
+                              key={row.label}
+                              label={row.label}
+                              value={formatUsageLimitPair(row.getUsed(user), row.getLimit(user)) ?? 'Not available'}
+                              helperText={`${row.helperText} · ${row.getOverride(user) == null ? 'Role default' : 'Custom setting'}`}
+                            />
                           ))}
                         </Box>
                       </>
@@ -581,44 +569,6 @@ export const AdminUserDetails: React.FC = () => {
                   )}
                 </CardContent>
               </Card>
-
-              {showCurrentClientUsage && user && (
-                <Card>
-                  <CardContent sx={{ p: 3 }}>
-                    <Typography variant="h6" sx={{ mb: 1 }}>
-                      Current client usage
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      Calculated from the current rolling 24-hour and 7-day windows.
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: 'grid',
-                        gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                        gap: 1.5,
-                      }}
-                    >
-                      {CURRENT_CLIENT_USAGE_ROWS.map((row) => {
-                        const value = formatUsageLimitPair(row.getUsed(user), row.getLimit(user));
-                        if (!value) {
-                          return null;
-                        }
-
-                        return (
-                          <Box key={row.label}>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              {row.label}
-                            </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {value}
-                            </Typography>
-                          </Box>
-                        );
-                      })}
-                    </Box>
-                  </CardContent>
-                </Card>
-              )}
 
             </Box>
           </>

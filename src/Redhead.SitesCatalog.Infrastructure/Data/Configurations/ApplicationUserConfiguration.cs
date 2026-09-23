@@ -27,6 +27,10 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
                 @"""ExportLimitOverrideMode"" IS NOT NULL OR ""ExportLimitRowsOverride"" IS NULL");
 
             t.HasCheckConstraint(
+                "CK_AspNetUsers_ClientSelectionLimitOverride_ValidRange",
+                @"""ClientSelectionLimitOverride"" IS NULL OR (""ClientSelectionLimitOverride"" BETWEEN 1 AND 100)");
+
+            t.HasCheckConstraint(
                 "CK_AspNetUsers_DailyUniqueExportedDomainsLimitOverride_PositiveOrNull",
                 @"""DailyUniqueExportedDomainsLimitOverride"" IS NULL OR ""DailyUniqueExportedDomainsLimitOverride"" > 0");
 

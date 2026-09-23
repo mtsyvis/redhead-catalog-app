@@ -72,4 +72,5 @@ public record UserInfoResponse(
     bool IsExportDisabled,
     bool CanChangePassword,
     string? AvatarUrl,
-    int? SelectionLimit = null);
+    int? SelectionLimit = null,
+    bool IsTrustedClient = false);

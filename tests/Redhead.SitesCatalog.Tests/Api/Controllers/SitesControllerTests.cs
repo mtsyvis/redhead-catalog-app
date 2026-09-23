@@ -21,6 +21,38 @@ namespace Redhead.SitesCatalog.Tests;
 public class SitesControllerTests
 {
     [Theory]
+    [InlineData("search")]
+    [InlineData("multi-search")]
+    public async Task ClientRequest_WithoutUserId_ReturnsUnauthorized(string operation)
+    {
+        // Arrange
+        var sites = new Mock<ISitesService>();
+        var controller = CreateController(sites);
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim(ClaimTypes.Role, AppRoles.Client)],
+                    "Test"))
+            }
+        };
+
+        // Act
+        IActionResult? result = operation == "search"
+            ? (await controller.SearchSites(new SitesQueryRequest(), CancellationToken.None)).Result
+            : (await controller.MultiSearch(new MultiSearchRequest
+            {
+                QueryText = "example.com",
+                SearchRequestId = Guid.NewGuid()
+            }, CancellationToken.None)).Result;
+
+        // Assert
+        Assert.IsType<UnauthorizedResult>(result);
+        sites.VerifyNoOtherCalls();
+    }
+
+    [Theory]
     [InlineData(AppRoles.Client, true)]
     [InlineData(AppRoles.Lite, true)]
     [InlineData(AppRoles.Admin, false)]
@@ -720,8 +752,8 @@ public class SitesControllerTests
         }
 
         var clientCatalog = new Mock<IClientCatalogService>();
-        clientCatalog.Setup(service => service.GetSelectionLimitAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ClientCatalogLimits.DefaultSelectionLimit);
+        clientCatalog.Setup(service => service.GetAccessAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClientCatalogAccess(false, ClientCatalogLimits.DefaultSelectionLimit));
         return new SitesController(sitesService.Object, liteUsageService.Object, clientCatalog.Object,
             (analytics ?? new Mock<IMissingDomainsAnalyticsService>()).Object);
     }

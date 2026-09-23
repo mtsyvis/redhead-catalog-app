@@ -30,6 +30,7 @@ import {
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import StarIcon from '@mui/icons-material/Star';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridPaginationModel, GridRowParams } from '@mui/x-data-grid';
 import { PageShell } from '../components/layout/PageShell';
@@ -882,6 +883,16 @@ export const AdminUsers: React.FC = () => {
                     }}
                   />
                 )}
+                {params.row.role === 'Client' && params.row.isTrustedClient && (
+                  <Tooltip title="Trusted client">
+                    <StarIcon
+                      color="warning"
+                      fontSize="small"
+                      aria-label="Trusted client"
+                      tabIndex={0}
+                    />
+                  </Tooltip>
+                )}
                 {catalogAutoBan && <Chip size="small" color="error" label="Auto-disabled"
                   onClick={event => { event.stopPropagation(); setSelectedCatalogAutoBan(catalogAutoBan); }} />}
                 {!catalogAutoBan && catalogAlert && <Chip size="small" color="warning" label="Suspicious activity"
@@ -1262,7 +1273,7 @@ export const AdminUsers: React.FC = () => {
             setEditSelectionLimitUser(rowActionsUser);
             handleCloseRowActions();
           }}>
-            Edit selection limit
+            Edit client catalog access
           </MenuItem>
         )}
         {rowActionsCanEditNote && rowActionsUser && (
@@ -1788,8 +1799,9 @@ export const AdminUsers: React.FC = () => {
         email={editSelectionLimitUser.email}
         onClose={() => setEditSelectionLimitUser(null)}
         onSaved={() => {
-          setSuccessMessage(`Selection limit updated for ${editSelectionLimitUser.email}.`);
+          setSuccessMessage(`Client catalog access updated for ${editSelectionLimitUser.email}.`);
           setEditSelectionLimitUser(null);
+          void loadUsers();
         }}
       />}
 

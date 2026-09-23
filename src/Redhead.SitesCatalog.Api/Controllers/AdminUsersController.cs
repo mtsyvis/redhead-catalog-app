@@ -879,6 +879,7 @@ public class AdminUsersController : ControllerBase
             DisplayName = item.DisplayName,
             MustCompleteProfile = item.MustCompleteProfile,
             Role = item.Role,
+            IsTrustedClient = item.IsTrustedClient,
             IsActive = item.IsActive,
             DisabledReason = item.DisabledReason,
             DisabledAtUtc = item.DisabledAtUtc,
@@ -926,6 +927,7 @@ public class AdminUsersController : ControllerBase
             MustCompleteProfile = user.MustCompleteProfile,
             MustChangePassword = user.MustChangePassword,
             Role = user.Role,
+            IsTrustedClient = user.IsTrustedClient,
             IsActive = user.IsActive,
             DisabledReason = user.DisabledReason,
             DisabledAtUtc = user.DisabledAtUtc,
@@ -1007,7 +1009,7 @@ public class AdminUsersController : ControllerBase
     {
         if (!string.Equals(currentRole, AppRoles.Client, StringComparison.Ordinal)
             && string.Equals(requestedRole, AppRoles.Client, StringComparison.Ordinal)
-            && !ClientCatalogLimits.IsBurstExempt(ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride)))
+            && !user.IsTrustedClient)
         {
             user.ClientCatalogAutoBanResetAtUtc = DateTime.UtcNow;
         }

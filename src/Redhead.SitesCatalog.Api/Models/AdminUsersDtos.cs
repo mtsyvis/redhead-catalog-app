@@ -27,6 +27,7 @@ public record UserListItem
     public string DisplayName { get; init; } = string.Empty;
     public bool MustCompleteProfile { get; init; }
     public string Role { get; init; } = string.Empty;
+    public bool IsTrustedClient { get; init; }
     public bool IsActive { get; init; }
     public string? DisabledReason { get; init; }
     public DateTime? DisabledAtUtc { get; init; }
@@ -84,6 +85,7 @@ public record AdminUserDetailsResponse
     public bool MustCompleteProfile { get; init; }
     public bool MustChangePassword { get; init; }
     public string Role { get; init; } = string.Empty;
+    public bool IsTrustedClient { get; init; }
     public bool IsActive { get; init; }
     public string? DisabledReason { get; init; }
     public DateTime? DisabledAtUtc { get; init; }

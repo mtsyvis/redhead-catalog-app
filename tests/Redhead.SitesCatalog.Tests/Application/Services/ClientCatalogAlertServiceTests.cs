@@ -36,13 +36,12 @@ public sealed class ClientCatalogAlertServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(null, true)]
-    [InlineData(100, true)]
-    [InlineData(101, false)]
-    public async Task AutoBan_Enabled_AppliesOnlyToProtectedClientSelections(int? selectionLimit, bool shouldBan)
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task AutoBan_Enabled_AppliesOnlyToProtectedClients(bool isTrustedClient, bool shouldBan)
     {
         // Arrange
-        _db.Users.Single().ClientSelectionLimitOverride = selectionLimit;
+        _db.Users.Single().IsTrustedClient = isTrustedClient;
         _db.ClientCatalogProtectionSettings.Add(new ClientCatalogProtectionSettings
         {
             AutoBanEnabled = true,
@@ -164,13 +163,12 @@ public sealed class ClientCatalogAlertServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(100)]
-    [InlineData(101)]
-    [InlineData(5000)]
-    public async Task HourlyThreshold_DeduplicatesSearchAndExport_AndSendsOneEmail(int selectionLimit)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HourlyThreshold_DeduplicatesSearchAndExport_AndSendsOneEmail(bool isTrustedClient)
     {
         // Arrange
-        _db.Users.Single().ClientSelectionLimitOverride = selectionLimit;
+        _db.Users.Single().IsTrustedClient = isTrustedClient;
         AddActivity(4999);
         _db.ExportedDomainAccesses.Add(new ExportedDomainAccess { UserId = "client", Domain = "site1.com", ExportedAtUtc = _clock.GetUtcNow().UtcDateTime });
         await _db.SaveChangesAsync();

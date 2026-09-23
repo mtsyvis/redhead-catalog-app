@@ -22,12 +22,6 @@ public sealed class ClientCatalogBurstLimiter
 
     public void EnsureAllowed(string userId, IReadOnlyCollection<string> domains, int selectionLimit, bool consume = true)
     {
-        if (ClientCatalogLimits.IsBurstExempt(selectionLimit))
-        {
-            Reset(userId);
-            return;
-        }
-
         var requestedDomains = domains.ToHashSet(StringComparer.Ordinal);
         // An explicitly granted selection must fit in a single request.
         var limit = Math.Max(_uniqueSitesLimit, selectionLimit);

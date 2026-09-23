@@ -211,8 +211,15 @@ export function Sites() {
   });
 
   const { user } = useAuth();
-  const [serverSelectionLimit, setServerSelectionLimit] = useState<number | null>(null);
-  const selectionLimit = isClient ? (serverSelectionLimit ?? user?.selectionLimit ?? 100) : undefined;
+  const [serverClientAccess, setServerClientAccess] = useState<{
+    isTrustedClient: boolean;
+    selectionLimit: number | null;
+  } | null>(null);
+  const isTrustedClient = isClient && (serverClientAccess?.isTrustedClient ?? user?.isTrustedClient ?? false);
+  const hasClientSelectionCap = isClient && !isTrustedClient;
+  const selectionLimit = hasClientSelectionCap
+    ? (serverClientAccess?.selectionLimit ?? user?.selectionLimit ?? 100)
+    : undefined;
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const canExport = canExportSites && !user?.isExportDisabled;
   const tableViews = useSitesTableViews({ isClient: clientSafeRole, enabled: canManageTableViews });
@@ -255,8 +262,16 @@ export function Sites() {
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
-    pageSize: isClient ? 100 : 25,
+    pageSize: isClient && !user?.isTrustedClient ? 100 : 25,
   });
+
+  useEffect(() => {
+    if (!isClient) return;
+    setPaginationModel((previous) => ({
+      page: 0,
+      pageSize: hasClientSelectionCap ? 100 : previous.pageSize === 100 ? 25 : previous.pageSize,
+    }));
+  }, [hasClientSelectionCap, isClient]);
 
   const [sortModel, setSortModel] = useState<GridSortModel>([{ field: 'domain', sort: 'asc' }]);
 
@@ -378,8 +393,8 @@ export function Sites() {
     showSnackbar: setSnackbar,
   });
 
-  const requestPage = isClient ? 1 : paginationModel.page + 1;
-  const requestPageSize = isClient ? 100 : paginationModel.pageSize;
+  const requestPage = hasClientSelectionCap ? 1 : paginationModel.page + 1;
+  const requestPageSize = hasClientSelectionCap ? 100 : paginationModel.pageSize;
   const loadSites = useCallback(async () => {
     const requestId = loadSitesRequestIdRef.current + 1;
     loadSitesRequestIdRef.current = requestId;
@@ -397,7 +412,10 @@ export function Sites() {
 
       setSites(response.items);
       setTotal(response.total);
-      setServerSelectionLimit(response.selectionLimit ?? null);
+      setServerClientAccess({
+        isTrustedClient: response.isTrustedClient,
+        selectionLimit: response.selectionLimit ?? null,
+      });
       setCatalogError(null);
     } catch (error) {
       if (requestId !== loadSitesRequestIdRef.current) {
@@ -911,7 +929,7 @@ export function Sites() {
           <Button color="inherit" size="small" disabled={loading || multiSearchLoading}
             onClick={() => multiSearchMode ? handleFiltersApply(filters, true) : void loadSites()}>Retry</Button>
         }>{catalogError} Previous results are kept until a new search succeeds.</Alert>}
-        {isClient && !multiSearchMode && !catalogError && <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        {hasClientSelectionCap && !multiSearchMode && !catalogError && <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           Showing {Math.min(total, selectionLimit ?? 100).toLocaleString()} of {total.toLocaleString()} sites.
           {total > (selectionLimit ?? 100) && ' Refine filters or change sorting to find the sites you need.'}
         </Typography>}
@@ -966,9 +984,15 @@ export function Sites() {
                 canExport={canExport}
                 exporting={exporting}
                 loading={loading || multiSearchLoading || tableViews.loading || filtersDebouncePending || !!catalogError}
-                selectionCount={isClient ? (isMultiSearchView ? gridRowCount - gridNotFoundRowCount : Math.min(total, selectionLimit ?? 100)) : undefined}
+                selectionCount={isClient
+                  ? isMultiSearchView
+                    ? gridRowCount - gridNotFoundRowCount
+                    : hasClientSelectionCap
+                      ? Math.min(total, selectionLimit ?? 100)
+                      : undefined
+                  : undefined}
                 exportUsageLimits={exportUsageLimits}
-                resultCount={isClient && !isMultiSearchView ? Math.min(total, selectionLimit ?? 100) : gridRowCount}
+                resultCount={hasClientSelectionCap && !isMultiSearchView ? Math.min(total, selectionLimit ?? 100) : gridRowCount}
                 resultSearchedCount={gridSearchedRowCount}
                 resultNotFoundCount={gridNotFoundRowCount}
                 resultHiddenNotFoundCount={hiddenNotFoundRowCount}
@@ -996,12 +1020,12 @@ export function Sites() {
                     if (isNotFoundRow(params.row)) return 'SitesGrid-notFoundRow';
                     return params.row.isQuarantined ? 'SitesGrid-unavailableRow' : '';
                   }}
-                  rowCount={isClient || isMultiSearchView ? undefined : gridRowCount}
+                  rowCount={hasClientSelectionCap || isMultiSearchView ? undefined : gridRowCount}
                   loading={gridLoading}
-                  pageSizeOptions={isClient ? [100] : [10, 25, 50, 100]}
-                  hideFooterPagination={isClient && gridRows.length <= 100}
+                  pageSizeOptions={hasClientSelectionCap ? [100] : [10, 25, 50, 100]}
+                  hideFooterPagination={hasClientSelectionCap && gridRows.length <= 100}
                   paginationModel={paginationModel}
-                  paginationMode={isClient || isMultiSearchView ? 'client' : 'server'}
+                  paginationMode={hasClientSelectionCap || isMultiSearchView ? 'client' : 'server'}
                   onPaginationModelChange={setPaginationModel}
                   sortingMode="server"
                   sortModel={sortModel}

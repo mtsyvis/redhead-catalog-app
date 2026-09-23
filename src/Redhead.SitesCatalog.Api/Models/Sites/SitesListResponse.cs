@@ -8,4 +8,5 @@ public class SitesListResponse
     public List<SiteResponse> Items { get; set; } = [];
     public int Total { get; set; }
     public int? SelectionLimit { get; set; }
+    public bool IsTrustedClient { get; set; }
 }

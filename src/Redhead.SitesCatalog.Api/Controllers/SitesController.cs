@@ -51,22 +51,34 @@ public class SitesController : ControllerBase
         }
 
         var query = SitesMapper.ToQuery(request);
-        if (User?.IsInRole(AppRoles.Client) == true)
+        var isClient = User?.IsInRole(AppRoles.Client) == true;
+        var clientUserId = isClient ? User?.FindFirstValue(ClaimTypes.NameIdentifier) : null;
+        if (isClient && string.IsNullOrWhiteSpace(clientUserId))
         {
-            query.SelectionLimit = await _clientCatalogService.GetSelectionLimitAsync(
-                User.FindFirstValue(ClaimTypes.NameIdentifier)!, cancellationToken);
-            query.Page = 1;
-            query.PageSize = query.SelectionLimit.Value;
+            return Unauthorized();
+        }
+
+        ClientCatalogAccess? clientAccess = null;
+        if (isClient)
+        {
+            clientAccess = await _clientCatalogService.GetAccessAsync(clientUserId!, cancellationToken);
+            query.SelectionLimit = clientAccess.SelectionLimit;
+            if (query.SelectionLimit is { } effectiveLimit)
+            {
+                query.Page = 1;
+                query.PageSize = effectiveLimit;
+            }
         }
 
         var result = await _sitesService.GetSitesAsync(query, cancellationToken);
-        if (query.SelectionLimit is { } selectionLimit)
+        if (query.SelectionLimit is { } selectionLimit && clientUserId is not null)
         {
-            await _clientCatalogService.EnsureBurstLimitAsync(User.FindFirstValue(ClaimTypes.NameIdentifier)!,
+            await _clientCatalogService.EnsureBurstLimitAsync(clientUserId,
                 result.Items.Select(site => site.Domain).ToArray(), selectionLimit, cancellationToken: cancellationToken);
         }
         var response = SitesMapper.ToResponse(result, includeInternalFields: CanViewInternalSiteFields());
         response.SelectionLimit = query.SelectionLimit;
+        response.IsTrustedClient = clientAccess?.IsTrustedClient == true;
         if (HttpContext is { } httpContext)
         {
             httpContext.Items["ClientCatalogDomains"] = result.Items.Select(x => x.Domain).ToArray();
@@ -107,13 +119,22 @@ public class SitesController : ControllerBase
         }
 
         var parseResult = MultiSearchParser.Parse(request.QueryText);
-        int? selectionLimit = null;
-        if (User?.IsInRole(AppRoles.Client) == true)
+        var isClient = User?.IsInRole(AppRoles.Client) == true;
+        var clientUserId = isClient ? User?.FindFirstValue(ClaimTypes.NameIdentifier) : null;
+        if (isClient && string.IsNullOrWhiteSpace(clientUserId))
         {
-            var limit = await _clientCatalogService.GetSelectionLimitAsync(
-                User.FindFirstValue(ClaimTypes.NameIdentifier)!, cancellationToken);
-            ClientCatalogService.ValidateMultiSearch(parseResult.UniqueDomains.Count, limit);
-            selectionLimit = limit;
+            return Unauthorized();
+        }
+
+        int? selectionLimit = null;
+        if (isClient)
+        {
+            var access = await _clientCatalogService.GetAccessAsync(clientUserId!, cancellationToken);
+            if (access.SelectionLimit is { } protectedLimit)
+            {
+                ClientCatalogService.ValidateMultiSearch(parseResult.UniqueDomains.Count, protectedLimit);
+            }
+            selectionLimit = access.SelectionLimit;
         }
         if (IsLiteUser())
         {
@@ -138,9 +159,9 @@ public class SitesController : ControllerBase
             parseResult.Duplicates,
             cancellationToken);
 
-        if (selectionLimit is { } clientLimit)
+        if (selectionLimit is { } clientLimit && clientUserId is not null)
         {
-            await _clientCatalogService.EnsureBurstLimitAsync(User.FindFirstValue(ClaimTypes.NameIdentifier)!,
+            await _clientCatalogService.EnsureBurstLimitAsync(clientUserId,
                 result.Found.Select(site => site.Domain).ToArray(), clientLimit, cancellationToken: cancellationToken);
         }
 

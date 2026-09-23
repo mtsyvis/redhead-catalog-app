@@ -16,22 +16,22 @@ public sealed class ClientSelectionLimitControllerTests
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    [InlineData(5001)]
+    [InlineData(101)]
     public async Task Update_InvalidLimit_RejectsWithoutChangingUser(int limit)
     {
         // Arrange
         using var db = CreateContext();
-        var user = new ApplicationUser { ClientSelectionLimitOverride = 300 };
+        var user = new ApplicationUser { ClientSelectionLimitOverride = 50 };
         var users = CreateUsers(user, AppRoles.Client);
         var sut = new ClientSelectionLimitController(users.Object, Mock.Of<IClientCatalogActivityService>(),
             new ClientCatalogBurstLimiter(TimeProvider.System, 1000), TimeProvider.System);
 
         // Act
-        var result = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(limit));
+        var result = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(limit, false));
 
         // Assert
         Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Equal(300, user.ClientSelectionLimitOverride);
+        Assert.Equal(50, user.ClientSelectionLimitOverride);
     }
 
     [Theory]
@@ -50,7 +50,7 @@ public sealed class ClientSelectionLimitControllerTests
 
         // Act
         var get = await sut.Get(user.Id, CancellationToken.None);
-        var update = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(300));
+        var update = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(50, false));
 
         // Assert
         Assert.IsType<BadRequestObjectResult>(get.Result);
@@ -59,14 +59,13 @@ public sealed class ClientSelectionLimitControllerTests
     }
 
     [Theory]
-    [InlineData(100, 101, true, false)]
-    [InlineData(100, 5000, true, false)]
-    [InlineData(101, 100, true, true)]
-    [InlineData(5000, null, true, true)]
-    [InlineData(100, 50, false, false)]
-    [InlineData(50, null, false, false)]
+    [InlineData(false, true, 100, null, true, false)]
+    [InlineData(true, false, null, 100, true, true)]
+    [InlineData(false, false, 100, 50, false, false)]
     public async Task Update_TrustBoundary_ResetsApplicableProtectionWindows(
-        int previousLimit,
+        bool previousTrusted,
+        bool nextTrusted,
+        int? previousLimit,
         int? nextLimit,
         bool resetsBurst,
         bool resetsAutoBanWindow)
@@ -74,7 +73,11 @@ public sealed class ClientSelectionLimitControllerTests
         // Arrange
         var clock = new FixedClock();
         var limiter = new ClientCatalogBurstLimiter(clock, 1000);
-        var user = new ApplicationUser { ClientSelectionLimitOverride = previousLimit };
+        var user = new ApplicationUser
+        {
+            ClientSelectionLimitOverride = previousLimit,
+            IsTrustedClient = previousTrusted
+        };
         limiter.EnsureAllowed(user.Id,
             Enumerable.Range(0, 1000).Select(index => $"site{index}.com").ToArray(), 100);
         var users = CreateUsers(user, AppRoles.Client);
@@ -82,12 +85,13 @@ public sealed class ClientSelectionLimitControllerTests
         var sut = new ClientSelectionLimitController(users.Object, Mock.Of<IClientCatalogActivityService>(), limiter, clock);
 
         // Act
-        var response = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(nextLimit));
+        var response = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(nextLimit, nextTrusted));
         var counterResult = Record.Exception(() => limiter.EnsureAllowed(user.Id, ["new.com"], 100));
 
         // Assert
         Assert.IsType<NoContentResult>(response);
-        Assert.Equal(nextLimit, user.ClientSelectionLimitOverride);
+        Assert.Equal(nextTrusted ? null : nextLimit, user.ClientSelectionLimitOverride);
+        Assert.Equal(nextTrusted, user.IsTrustedClient);
         if (resetsBurst) Assert.Null(counterResult);
         else Assert.IsType<ClientCatalogBurstLimitExceededException>(counterResult);
         if (resetsAutoBanWindow) Assert.Equal(FixedClock.Now.UtcDateTime, user.ClientCatalogAutoBanResetAtUtc);

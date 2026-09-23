@@ -110,7 +110,7 @@ public class ProfileController : ControllerBase
         EffectiveExportPolicy limits,
         ExportUsageSummary usage)
     {
-        int? selectionLimit = role == AppRoles.Client
+        int? selectionLimit = role == AppRoles.Client && !user.IsTrustedClient
             ? ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride)
             : null;
         limits = EffectiveExportPolicyResolver.ApplySelectionLimit(limits, selectionLimit);
@@ -120,6 +120,7 @@ public class ProfileController : ControllerBase
             role,
             user.EffectiveDisplayName,
             !user.HasCompleteProfile,
+            role == AppRoles.Client && user.IsTrustedClient,
             googleDrive,
             ToLimitsResponse(limits, usage));
     }

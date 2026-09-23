@@ -34,6 +34,7 @@ export interface Site {
  */
 export interface SitesListResponse {
   selectionLimit?: number | null;
+  isTrustedClient: boolean;
   items: Site[];
   total: number;
 }

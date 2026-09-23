@@ -106,7 +106,7 @@ public sealed class ProfileControllerTests
     {
         // Arrange
         var user = CreateUser("Grace", "Hopper");
-        user.ClientSelectionLimitOverride = 300;
+        user.IsTrustedClient = true;
         var userManager = CreateUserManagerForCurrentUser(user);
         userManager.Setup(manager => manager.GetRolesAsync(user))
             .ReturnsAsync(new List<string> { AppRoles.Client });
@@ -133,20 +133,22 @@ public sealed class ProfileControllerTests
     }
 
     [Theory]
-    [InlineData(AppRoles.Client, null, ExportLimitMode.Limited, 5000, ExportLimitMode.Limited, 100)]
-    [InlineData(AppRoles.Client, 300, ExportLimitMode.Limited, 5000, ExportLimitMode.Limited, 300)]
-    [InlineData(AppRoles.Client, 300, ExportLimitMode.Limited, 50, ExportLimitMode.Limited, 50)]
-    [InlineData(AppRoles.Client, null, ExportLimitMode.Unlimited, null, ExportLimitMode.Limited, 100)]
-    [InlineData(AppRoles.Client, 300, ExportLimitMode.Unlimited, null, ExportLimitMode.Limited, 300)]
-    [InlineData(AppRoles.Client, 300, ExportLimitMode.Disabled, null, ExportLimitMode.Disabled, null)]
-    [InlineData(AppRoles.SuperAdmin, 300, ExportLimitMode.Unlimited, null, ExportLimitMode.Unlimited, null)]
-    [InlineData(AppRoles.Admin, 300, ExportLimitMode.Limited, 5000, ExportLimitMode.Limited, 5000)]
+    [InlineData(AppRoles.Client, false, null, ExportLimitMode.Limited, 5000, ExportLimitMode.Limited, 100)]
+    [InlineData(AppRoles.Client, false, 50, ExportLimitMode.Limited, 5000, ExportLimitMode.Limited, 50)]
+    [InlineData(AppRoles.Client, true, null, ExportLimitMode.Limited, 5000, ExportLimitMode.Limited, 5000)]
+    [InlineData(AppRoles.Client, true, null, ExportLimitMode.Limited, 50, ExportLimitMode.Limited, 50)]
+    [InlineData(AppRoles.Client, false, null, ExportLimitMode.Unlimited, null, ExportLimitMode.Limited, 100)]
+    [InlineData(AppRoles.Client, true, null, ExportLimitMode.Unlimited, null, ExportLimitMode.Unlimited, null)]
+    [InlineData(AppRoles.Client, true, null, ExportLimitMode.Disabled, null, ExportLimitMode.Disabled, null)]
+    [InlineData(AppRoles.SuperAdmin, true, null, ExportLimitMode.Unlimited, null, ExportLimitMode.Unlimited, null)]
+    [InlineData(AppRoles.Admin, true, null, ExportLimitMode.Limited, 5000, ExportLimitMode.Limited, 5000)]
     public async Task GetProfile_ShowsExportLimitAfterApplyingClientSelectionSize(
-        string role, int? selectionLimit, ExportLimitMode configuredMode, int? configuredRows,
+        string role, bool isTrustedClient, int? selectionLimit, ExportLimitMode configuredMode, int? configuredRows,
         ExportLimitMode expectedMode, int? expectedRows)
     {
         // Arrange
         var user = CreateUser("Ada", "Lovelace");
+        user.IsTrustedClient = isTrustedClient;
         user.ClientSelectionLimitOverride = selectionLimit;
         var userManager = CreateUserManagerForCurrentUser(user);
         userManager.Setup(manager => manager.GetRolesAsync(user)).ReturnsAsync(new List<string> { role });
@@ -163,6 +165,7 @@ public sealed class ProfileControllerTests
         Assert.Equal(expectedMode, payload.Limits.ExportLimitMode);
         Assert.Equal(expectedRows, payload.Limits.ExportLimitRows);
         Assert.Equal(expectedMode == ExportLimitMode.Unlimited, payload.Limits.IsUnlimited);
+        Assert.Equal(role == AppRoles.Client && isTrustedClient, payload.IsTrustedClient);
     }
 
     [Fact]

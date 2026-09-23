@@ -312,6 +312,28 @@ public sealed class AuthControllerTests
     }
 
     [Fact]
+    public async Task GetCurrentUser_TrustedClientHasNoSelectionLimit()
+    {
+        // Arrange
+        var user = CreateUser(mustChangePassword: false, firstName: "Ada", lastName: "Lovelace");
+        user.IsTrustedClient = true;
+        var userManager = CreateUserManagerForCurrentUser(user);
+        userManager.Setup(manager => manager.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { AppRoles.Client });
+        userManager.Setup(manager => manager.HasPasswordAsync(user))
+            .ReturnsAsync(true);
+        var sut = CreateController(userManager);
+
+        // Act
+        var result = await sut.GetCurrentUser();
+
+        // Assert
+        var payload = Assert.IsType<UserInfoResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.True(payload.IsTrustedClient);
+        Assert.Null(payload.SelectionLimit);
+    }
+
+    [Fact]
     public async Task GetCurrentUser_WhenGoogleAvatarClaimExists_ReturnsAvatarUrl()
     {
         // Arrange

@@ -123,6 +123,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
             MustCompleteProfile = listItem.MustCompleteProfile,
             MustChangePassword = user.MustChangePassword,
             Role = listItem.Role,
+            IsTrustedClient = listItem.IsTrustedClient,
             IsActive = listItem.IsActive,
             DisabledReason = listItem.DisabledReason,
             DisabledAtUtc = listItem.DisabledAtUtc,
@@ -168,6 +169,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
                 DisplayName = user.DisplayName,
                 SuperAdminNote = user.SuperAdminNote,
                 Role = role.Name ?? string.Empty,
+                IsTrustedClient = role.Name == AppRoles.Client && user.IsTrustedClient,
                 IsActive = user.IsActive,
                 DisabledReason = user.DisabledReason,
                 DisabledAtUtc = user.DisabledAtUtc,
@@ -241,6 +243,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
             DisplayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName.Trim(),
             MustCompleteProfile = string.IsNullOrWhiteSpace(user.DisplayName),
             Role = role,
+            IsTrustedClient = string.Equals(role, AppRoles.Client, StringComparison.Ordinal) && user.IsTrustedClient,
             IsActive = user.IsActive,
             DisabledReason = user.DisabledReason,
             DisabledAtUtc = user.DisabledAtUtc,
@@ -307,6 +310,7 @@ public sealed class AdminUsersListService : IAdminUsersListService
         public string? DisplayName { get; init; }
         public string? SuperAdminNote { get; init; }
         public string Role { get; init; } = string.Empty;
+        public bool IsTrustedClient { get; init; }
         public bool IsActive { get; init; }
         public string? DisabledReason { get; init; }
         public DateTime? DisabledAtUtc { get; init; }

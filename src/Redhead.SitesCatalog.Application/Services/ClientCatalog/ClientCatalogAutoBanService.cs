@@ -43,7 +43,12 @@ public sealed class ClientCatalogAutoBanService(
         }
 
         var userIds = counts.Keys.ToArray();
-        var users = await db.Users.Where(user => userIds.Contains(user.Id) && user.IsActive)
+        var clientRoleIds = db.Roles.Where(role => role.Name == AppRoles.Client).Select(role => role.Id);
+        var users = await db.Users.Where(user =>
+                userIds.Contains(user.Id) &&
+                user.IsActive &&
+                !user.IsTrustedClient &&
+                db.UserRoles.Any(role => role.UserId == user.Id && clientRoleIds.Contains(role.RoleId)))
             .ToDictionaryAsync(user => user.Id, cancellationToken);
         var usersWithOpenBan = (await db.ClientCatalogAutoBans.AsNoTracking()
             .Where(autoBan => userIds.Contains(autoBan.UserId) && autoBan.ReviewedAtUtc == null)
@@ -120,8 +125,7 @@ public sealed class ClientCatalogAutoBanService(
                     GREATEST({start}, COALESCE(users."ClientCatalogAutoBanResetAtUtc", {start})) AS "WindowStart"
                 FROM "AspNetUsers" AS users
                 WHERE users."IsActive"
-                    AND COALESCE(users."ClientSelectionLimitOverride", {ClientCatalogLimits.DefaultSelectionLimit})
-                        <= {ClientCatalogLimits.BurstProtectionMaxSelectionLimit}
+                    AND NOT users."IsTrustedClient"
                     AND EXISTS (
                         SELECT 1
                         FROM "AspNetUserRoles" AS user_roles
@@ -154,8 +158,7 @@ public sealed class ClientCatalogAutoBanService(
         var clientRoleIds = db.Roles.Where(role => role.Name == AppRoles.Client).Select(role => role.Id);
         var users = await db.Users.AsNoTracking()
             .Where(user => user.IsActive &&
-                (user.ClientSelectionLimitOverride == null ||
-                    user.ClientSelectionLimitOverride <= ClientCatalogLimits.BurstProtectionMaxSelectionLimit) &&
+                !user.IsTrustedClient &&
                 db.UserRoles.Any(role => role.UserId == user.Id && clientRoleIds.Contains(role.RoleId)))
             .Select(user => new { user.Id, user.ClientCatalogAutoBanResetAtUtc })
             .ToListAsync(cancellationToken);

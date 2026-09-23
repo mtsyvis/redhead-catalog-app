@@ -57,13 +57,15 @@ public sealed class AdminUsersControllerTests
         // Arrange
         await using var db = CreateDbContext();
         await SeedRoleSettingsAsync(db);
-        await AddUserAsync(
+        var trustedClient = await AddUserAsync(
             db,
             "client-1",
             "client@example.com",
             AppRoles.Client,
             firstName: "Ada",
             lastName: "Lovelace");
+        trustedClient.IsTrustedClient = true;
+        await db.SaveChangesAsync();
         await AddUserAsync(db, "internal-1", "internal@example.com", AppRoles.Internal);
 
         var sut = CreateController(db);
@@ -76,6 +78,7 @@ public sealed class AdminUsersControllerTests
         var client = payload.Items.Single(item => item.Id == "client-1");
         Assert.Equal("Ada Lovelace", client.DisplayName);
         Assert.False(client.MustCompleteProfile);
+        Assert.True(client.IsTrustedClient);
 
         var existingUserWithoutNames = payload.Items.Single(item => item.Id == "internal-1");
         Assert.Equal("internal@example.com", existingUserWithoutNames.DisplayName);
@@ -1045,8 +1048,12 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(1, userManager.SecurityStampUpdateCount);
     }
 
-    [Fact]
-    public async Task UpdateUserRole_WhenEnteringProtectedClientRole_StartsFreshAutoBanWindow()
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task UpdateUserRole_WhenEnteringClientRole_StartsAutoBanWindowOnlyWhenProtected(
+        bool isTrustedClient,
+        bool shouldStartWindow)
     {
         // Arrange
         var before = DateTime.UtcNow;
@@ -1055,7 +1062,8 @@ public sealed class AdminUsersControllerTests
             Id = "internal-1",
             Email = "internal@example.com",
             IsActive = true,
-            ClientSelectionLimitOverride = 100
+            ClientSelectionLimitOverride = 100,
+            IsTrustedClient = isTrustedClient
         };
         var userManager = new StubUserManager
         {
@@ -1074,8 +1082,15 @@ public sealed class AdminUsersControllerTests
 
         // Assert
         Assert.IsType<NoContentResult>(result);
-        Assert.NotNull(targetUser.ClientCatalogAutoBanResetAtUtc);
-        Assert.InRange(targetUser.ClientCatalogAutoBanResetAtUtc.Value, before, DateTime.UtcNow);
+        if (shouldStartWindow)
+        {
+            Assert.NotNull(targetUser.ClientCatalogAutoBanResetAtUtc);
+            Assert.InRange(targetUser.ClientCatalogAutoBanResetAtUtc.Value, before, DateTime.UtcNow);
+        }
+        else
+        {
+            Assert.Null(targetUser.ClientCatalogAutoBanResetAtUtc);
+        }
     }
 
     [Fact]

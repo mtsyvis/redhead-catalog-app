@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Box, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField, Typography } from '@mui/material';
+import { Alert, Box, Checkbox, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, TextField, Typography } from '@mui/material';
 import { adminUsersService } from '../../services/adminUsers.service';
 import type { ClientSelectionLimit } from '../../types/adminUsers.types';
 import { BrandButton } from '../common/BrandButton';
@@ -13,6 +13,7 @@ export function ClientSelectionLimitDialog({ userId, email, onClose, onSaved }: 
   const [data, setData] = useState<ClientSelectionLimit | null>(null);
   const [mode, setMode] = useState('default');
   const [rows, setRows] = useState('');
+  const [isTrustedClient, setIsTrustedClient] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -22,6 +23,7 @@ export function ClientSelectionLimitDialog({ userId, email, onClose, onSaved }: 
       setData(value);
       setMode(value.overrideRows == null ? 'default' : 'custom');
       setRows(String(value.overrideRows ?? value.defaultRows));
+      setIsTrustedClient(value.isTrustedClient);
     }).catch((err: unknown) => {
       if (active) setError(err instanceof Error ? err.message : 'Could not load selection limit.');
     });
@@ -31,14 +33,18 @@ export function ClientSelectionLimitDialog({ userId, email, onClose, onSaved }: 
   const save = async () => {
     if (!data) return;
     const value = Number(rows);
-    if (mode === 'custom' && (!/^\d+$/.test(rows) || !Number.isSafeInteger(value) || value < 1 || value > data.maxRows)) {
+    if (!isTrustedClient && mode === 'custom' && (!/^\d+$/.test(rows) || !Number.isSafeInteger(value) || value < 1 || value > data.maxRows)) {
       setError(`Enter a whole number between 1 and ${data.maxRows.toLocaleString()}.`);
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      await adminUsersService.updateSelectionLimit(userId, mode === 'default' ? null : value);
+      await adminUsersService.updateSelectionLimit(
+        userId,
+        isTrustedClient || mode === 'default' ? null : value,
+        isTrustedClient,
+      );
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save selection limit.');
@@ -49,27 +55,38 @@ export function ClientSelectionLimitDialog({ userId, email, onClose, onSaved }: 
 
   return (
     <Dialog open onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Edit selection limit</DialogTitle>
+      <DialogTitle>Edit client catalog access</DialogTitle>
       <DialogContent>
         <Typography variant="body2" sx={{ mb: 2 }}>{email} · Client</Typography>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         {!data && !error && <CircularProgress size={24} />}
         {data && <Box sx={{ display: 'grid', gap: 2, pt: 1 }}>
-          <TextField select label="Selection limit" value={mode} onChange={(event) => setMode(event.target.value)} disabled={saving}>
-            <MenuItem value="default">Use default ({data.defaultRows} sites)</MenuItem>
-            <MenuItem value="custom">Personal limit</MenuItem>
-          </TextField>
-          {mode === 'custom' && <TextField label="Sites per selection" value={rows} onChange={(event) => setRows(event.target.value)} disabled={saving} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />}
+          <FormControlLabel
+            control={<Checkbox
+              checked={isTrustedClient}
+              onChange={(event) => setIsTrustedClient(event.target.checked)}
+              disabled={saving}
+            />}
+            label="Trusted client"
+          />
           <Typography variant="body2" color="text.secondary">
-            Limits catalog results and unique domains per Multi-search. Exports stay within this selection;
-            smaller export limits and daily/weekly quotas still apply. Selections above 100 sites have pages within the selection only.
+            Trusted clients have no selection limit and are exempt from the five-minute data limit and automatic bans.
+            Request-rate limits, export limits, activity monitoring and admin notifications still apply.
           </Typography>
-          <Alert severity="info">
-            A selection limit above 100 disables the five-minute data limit.
-            {' '}It also exempts the account from automatic 24-hour activity bans.
-            {' '}Activity monitoring and admin notifications remain enabled, as do request-rate and export limits.
-            {' '}Returning to 100 or fewer sites starts fresh five-minute and automatic-ban protection windows.
-          </Alert>
+          {!isTrustedClient && <>
+            <TextField select label="Selection limit" value={mode} onChange={(event) => setMode(event.target.value)} disabled={saving}>
+              <MenuItem value="default">Use default ({data.defaultRows} sites)</MenuItem>
+              <MenuItem value="custom">Personal limit</MenuItem>
+            </TextField>
+            {mode === 'custom' && <TextField label="Sites per selection" value={rows} onChange={(event) => setRows(event.target.value)} disabled={saving} slotProps={{ htmlInput: { inputMode: 'numeric', min: 1, max: data.maxRows } }} />}
+            <Typography variant="body2" color="text.secondary">
+              Limits catalog results and unique domains per Multi-search. Exports stay within this selection;
+              smaller export limits and daily/weekly quotas still apply. Personal limits cannot exceed {data.maxRows} sites.
+            </Typography>
+          </>}
+          {data.isTrustedClient && !isTrustedClient && <Alert severity="info">
+            Turning off Trusted client starts fresh five-minute and automatic-ban protection windows.
+          </Alert>}
           <Typography variant="subtitle2">Catalog activity</Typography>
           {data.activity.map((window) => <Box key={window.period}>
             <Typography variant="body2">{window.period}: {window.uniqueSites.toLocaleString()} unique sites</Typography>

@@ -6,6 +6,7 @@ namespace Redhead.SitesCatalog.Domain.Entities;
 public class ApplicationUser : IdentityUser
 {
     public int? ClientSelectionLimitOverride { get; set; }
+    public bool IsTrustedClient { get; set; }
     public bool IsActive { get; set; } = true;
     public string? DisabledReason { get; set; }
     public DateTime? DisabledAtUtc { get; set; }

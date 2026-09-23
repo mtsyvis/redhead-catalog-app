@@ -15,16 +15,21 @@ namespace Redhead.SitesCatalog.Tests.Integration;
 public sealed class ClientCatalogSelectionConcurrencyTests
 {
     [Theory]
-    [InlineData(50)]
-    [InlineData(101)]
-    public Task CatalogUsage_DoesNotConflictWithSelectionUpdate_AndResetsOnlyForTrustedLimit(int nextLimit)
+    [InlineData(false, 50)]
+    [InlineData(true, null)]
+    public Task CatalogUsage_DoesNotConflictWithSelectionUpdate_AndResetsOnlyForTrustedClient(
+        bool nextTrusted,
+        int? nextLimit)
     {
         var database = Guid.NewGuid().ToString();
-        return VerifySelectionUpdateAsync(options => options.UseInMemoryDatabase(database), nextLimit);
+        return VerifySelectionUpdateAsync(options => options.UseInMemoryDatabase(database), nextTrusted, nextLimit);
     }
 
     // Shared with the opt-in PostgreSQL test to exercise selection updates with real Identity.
-    internal static async Task VerifySelectionUpdateAsync(Action<DbContextOptionsBuilder> configureDatabase, int nextLimit)
+    internal static async Task VerifySelectionUpdateAsync(
+        Action<DbContextOptionsBuilder> configureDatabase,
+        bool nextTrusted,
+        int? nextLimit)
     {
         // Arrange
         var services = new ServiceCollection();
@@ -59,16 +64,19 @@ public sealed class ClientCatalogSelectionConcurrencyTests
             TimeProvider.System);
 
         // Act
-        var response = await controller.Update("client", new ClientSelectionLimitController.UpdateRequest(nextLimit));
+        var response = await controller.Update(
+            "client",
+            new ClientSelectionLimitController.UpdateRequest(nextLimit, nextTrusted));
 
         // Assert
         Assert.IsType<NoContentResult>(response);
         await using var verificationScope = provider.CreateAsyncScope();
         var verificationDb = verificationScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var updated = await verificationDb.Users.AsNoTracking().SingleAsync();
-        Assert.Equal(nextLimit, updated.ClientSelectionLimitOverride);
+        Assert.Equal(nextTrusted ? null : nextLimit, updated.ClientSelectionLimitOverride);
+        Assert.Equal(nextTrusted, updated.IsTrustedClient);
         var nextRequest = Record.Exception(() => limiter.EnsureAllowed("client", ["next.com"], 100));
-        if (nextLimit > 100) Assert.Null(nextRequest);
+        if (nextTrusted) Assert.Null(nextRequest);
         else Assert.IsType<ClientCatalogBurstLimitExceededException>(nextRequest);
     }
 }

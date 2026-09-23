@@ -16,6 +16,7 @@ export interface UserInfo {
   canChangePassword: boolean;
   avatarUrl: string | null;
   selectionLimit?: number | null;
+  isTrustedClient: boolean;
 }
 
 /**
@@ -61,7 +62,7 @@ export interface CompleteAccountSetupRequest {
 
 export type CompleteAccountSetupResponse = Omit<
   UserInfo,
-  'id' | 'isActive' | 'isExportDisabled' | 'canChangePassword' | 'avatarUrl'
+  'id' | 'isActive' | 'isExportDisabled' | 'canChangePassword' | 'avatarUrl' | 'isTrustedClient'
 >;
 
 /**
@@ -72,6 +73,7 @@ export interface CurrentUserProfile {
   role: string;
   displayName: string;
   mustCompleteProfile: boolean;
+  isTrustedClient: boolean;
   googleDrive: GoogleDriveStatus;
   limits: CurrentUserProfileLimits | null;
 }

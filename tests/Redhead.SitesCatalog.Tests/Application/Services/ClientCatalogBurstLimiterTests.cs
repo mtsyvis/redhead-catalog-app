@@ -200,29 +200,20 @@ public sealed class ClientCatalogBurstLimiterTests
         Assert.All(results.Where(result => result != null), result => Assert.IsType<ClientCatalogBurstLimitExceededException>(result));
     }
 
-    [Theory]
-    [InlineData(101)]
-    [InlineData(300)]
-    [InlineData(1000)]
-    [InlineData(5000)]
-    public void TrustedSelection_BypassesBudget_AndDoesNotCarryUsageBackToProtectedSelection(int selectionLimit)
+    [Fact]
+    public void Reset_ClearsUsageBeforeAProtectionWindowStarts()
     {
         // Arrange
         var sut = CreateLimiter(new MutableClock());
         sut.EnsureAllowed("client", Domains(2000), 100);
 
         // Act
-        var first = Record.Exception(() => sut.EnsureAllowed("client", Domains(5000, "trusted-first"), selectionLimit));
-        var preview = Record.Exception(() => sut.EnsureAllowed("client", Domains(5000, "trusted-preview"), selectionLimit, consume: false));
-        var second = Record.Exception(() => sut.EnsureAllowed("client", Domains(5000, "trusted-second"), selectionLimit));
+        sut.Reset("client");
         var protectedSelection = Record.Exception(() => sut.EnsureAllowed("client", Domains(100), 100));
         var protectedBudget = Record.Exception(() => sut.EnsureAllowed("client", Domains(1900, "new"), 100));
         var next = Record.Exception(() => sut.EnsureAllowed("client", ["another.com"], 100));
 
         // Assert
-        Assert.Null(first);
-        Assert.Null(preview);
-        Assert.Null(second);
         Assert.Null(protectedSelection);
         Assert.Null(protectedBudget);
         Assert.IsType<ClientCatalogBurstLimitExceededException>(next);

@@ -13,6 +13,7 @@ export interface UserListItem {
   displayName: string;
   mustCompleteProfile: boolean;
   role: string;
+  isTrustedClient: boolean;
   isActive: boolean;
   disabledReason: string | null;
   disabledAtUtc: string | null;
@@ -60,6 +61,7 @@ export interface AdminUserDetails {
   mustCompleteProfile: boolean;
   mustChangePassword: boolean;
   role: string;
+  isTrustedClient: boolean;
   isActive: boolean;
   disabledReason: string | null;
   disabledAtUtc: string | null;
@@ -184,9 +186,10 @@ export { NON_SUPER_ADMIN_ROLES };
 export type { NonSuperAdminRole };
 export interface ClientSelectionLimit {
   overrideRows: number | null;
-  effectiveRows: number;
+  effectiveRows: number | null;
   defaultRows: number;
   maxRows: number;
+  isTrustedClient: boolean;
   activity: { period: string; requests: number; rateLimitedRequests: number; uniqueSites: number }[];
 }
 export interface ClientCatalogAlert {

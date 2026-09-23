@@ -364,7 +364,7 @@ public class ExportService : IExportService
         }
 
         int? selectionLimit = userRole == AppRoles.Client
-            ? await _clientCatalogService.GetSelectionLimitAsync(userId, cancellationToken)
+            ? (await _clientCatalogService.GetAccessAsync(userId, cancellationToken)).SelectionLimit
             : null;
         var policy = await GetEnabledPolicyAsync(userId, userRole, selectionLimit, cancellationToken);
         IQueryable<Site> baseQuery = _context.Sites.AsNoTracking().Include(site => site.CanonicalLocation);

@@ -15,8 +15,11 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> users, IClientCatalogActivityService activity,
     ClientCatalogBurstLimiter burstLimiter, TimeProvider clock) : ControllerBase
 {
-    public sealed record UpdateRequest([Range(1, ClientCatalogLimits.MaxSelectionLimit)] int? OverrideRows);
-    public sealed record LimitResponse(int? OverrideRows, int EffectiveRows, int DefaultRows, int MaxRows,
+    public sealed record UpdateRequest(
+        [Range(1, ClientCatalogLimits.MaxSelectionLimit)] int? OverrideRows,
+        bool? IsTrustedClient = null);
+    public sealed record LimitResponse(int? OverrideRows, int? EffectiveRows, int DefaultRows, int MaxRows,
+        bool IsTrustedClient,
         IReadOnlyList<ClientCatalogActivityWindow> Activity);
 
     [HttpGet]
@@ -34,8 +37,13 @@ public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> 
         }
 
         var windows = await activity.GetActivityAsync(id, cancellationToken);
-        return Ok(new LimitResponse(user.ClientSelectionLimitOverride, ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride),
-            ClientCatalogLimits.DefaultSelectionLimit, ClientCatalogLimits.MaxSelectionLimit, windows));
+        return Ok(new LimitResponse(
+            user.IsTrustedClient ? null : user.ClientSelectionLimitOverride,
+            user.IsTrustedClient ? null : ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride),
+            ClientCatalogLimits.DefaultSelectionLimit,
+            ClientCatalogLimits.MaxSelectionLimit,
+            user.IsTrustedClient,
+            windows));
     }
 
     [HttpPut]
@@ -57,19 +65,16 @@ public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> 
             return BadRequest(new { message = $"Enter a whole number between 1 and {ClientCatalogLimits.MaxSelectionLimit}." });
         }
 
-        var previousLimit = ClientCatalogLimits.Resolve(user.ClientSelectionLimitOverride);
-        var nextLimit = ClientCatalogLimits.Resolve(request.OverrideRows);
-        var wasExempt = ClientCatalogLimits.IsBurstExempt(previousLimit);
-        var isExempt = ClientCatalogLimits.IsBurstExempt(nextLimit);
-        var resetBurst = wasExempt || isExempt;
-
-        user.ClientSelectionLimitOverride = request.OverrideRows;
-        if (wasExempt && !isExempt)
+        var nextTrusted = request.IsTrustedClient ?? user.IsTrustedClient;
+        var trustChanged = user.IsTrustedClient != nextTrusted;
+        if (user.IsTrustedClient && !nextTrusted)
         {
             user.ClientCatalogAutoBanResetAtUtc = clock.GetUtcNow().UtcDateTime;
         }
+        user.IsTrustedClient = nextTrusted;
+        user.ClientSelectionLimitOverride = nextTrusted ? null : request.OverrideRows;
         var result = await users.UpdateAsync(user);
-        if (result.Succeeded && resetBurst)
+        if (result.Succeeded && trustChanged)
         {
             burstLimiter.Reset(user.Id);
         }

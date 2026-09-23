@@ -51,7 +51,6 @@ public sealed class ClientCatalogProtectionTests : IDisposable
     [InlineData(2, 100, 100)]
     [InlineData(int.MaxValue, int.MaxValue, 100)]
     [InlineData(-1, -1, 100)]
-    [InlineData(8, 1000, 300)]
     public async Task Search_ClientAlwaysGetsFirstSelection_WithFullTotal(int page, int pageSize, int limit)
     {
         // Arrange
@@ -89,7 +88,7 @@ public sealed class ClientCatalogProtectionTests : IDisposable
 
     [Theory]
     [InlineData(100, null, null, 1)]
-    [InlineData(300, 50, null, 10)]
+    [InlineData(100, 50, null, 10)]
     [InlineData(100, 50, 2, 1)]
     [InlineData(100, 50, null, 348)]
     public async Task ClientStopList_ExcludesBeforeSelection_AndPreservesExportLimits(
@@ -176,8 +175,8 @@ public sealed class ClientCatalogProtectionTests : IDisposable
 
     [Theory]
     [InlineData(null, null, 100)]
-    [InlineData(300, 50, 50)]
-    [InlineData(300, 1000, 300)]
+    [InlineData(100, 50, 50)]
+    [InlineData(100, 1000, 100)]
     public async Task Export_PreservesSmallerLimit_AndNeverAdvancesSelection(int? selection, int? exportRows, int expected)
     {
         // Arrange
@@ -404,15 +403,13 @@ public sealed class ClientCatalogProtectionTests : IDisposable
         Assert.Equal(350, export.ExportedRows);
     }
 
-    [Theory]
-    [InlineData(101)]
-    [InlineData(5000)]
-    public async Task TrustedClient_SearchMultiSearchPreviewAndExportsBypassBurstBudget_ExportCapStillApplies(int selectionLimit)
+    [Fact]
+    public async Task TrustedClient_UsesServerPagingAndBypassesBurstBudget_WhileExportCapStillApplies()
     {
         // Arrange
         _burstLimiter.EnsureAllowed(UserId, Enumerable.Range(1, 2000).Select(i => $"previous{i}.com").ToArray(), 100);
         var user = _db.Users.Single();
-        user.ClientSelectionLimitOverride = selectionLimit;
+        user.IsTrustedClient = true;
         var policy = _db.RoleSettings.Single(row => row.RoleName == AppRoles.Client);
         policy.ExportLimitMode = ExportLimitMode.Limited;
         policy.ExportLimitRows = 50;
@@ -421,7 +418,7 @@ public sealed class ClientCatalogProtectionTests : IDisposable
         var export = CreateExport();
 
         // Act
-        var search = await controller.SearchSites(new SitesQueryRequest(), CancellationToken.None);
+        var search = await controller.SearchSites(new SitesQueryRequest { Page = 2, PageSize = 25 }, CancellationToken.None);
         var multi = await controller.MultiSearch(new MultiSearchRequest { QueryText = "site001.com" }, CancellationToken.None);
         var preview = await export.PreviewAsync(new SitesQuery(), null, UserId, AppRoles.Client);
         var excel = await export.ExportSitesAsExcelAsync(new SitesQuery(), UserId, "client@example.com", AppRoles.Client, ["domain"]);
@@ -430,7 +427,10 @@ public sealed class ClientCatalogProtectionTests : IDisposable
 
         // Assert
         var result = Assert.IsType<SitesListResponse>(Assert.IsType<OkObjectResult>(search.Result).Value);
-        Assert.Equal(Math.Min(350, selectionLimit), result.Items.Count);
+        Assert.True(result.IsTrustedClient);
+        Assert.Null(result.SelectionLimit);
+        Assert.Equal(25, result.Items.Count);
+        Assert.Equal("site026.com", result.Items.First().Domain);
         Assert.IsType<OkObjectResult>(multi.Result);
         Assert.Equal(50, preview.ExportableRows);
         Assert.Equal(50, excel.ExportedRows);
@@ -453,13 +453,13 @@ public sealed class ClientCatalogProtectionTests : IDisposable
     [InlineData("preview", true)]
     [InlineData("export", false)]
     [InlineData("export", true)]
-    public async Task SelectionLimit_IsReadOncePerOperation(string operation, bool multiSearch)
+    public async Task ClientCatalogAccess_IsReadOncePerOperation(string operation, bool multiSearch)
     {
         // Arrange
         var reads = 0;
         var limits = new Mock<IClientCatalogService>();
-        limits.Setup(x => x.GetSelectionLimitAsync(UserId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => ++reads == 1 ? 100 : 1);
+        limits.Setup(x => x.GetAccessAsync(UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new ClientCatalogAccess(false, ++reads == 1 ? 100 : 1));
         var sut = CreateExport(limits.Object);
         var input = string.Join('\n', Enumerable.Range(1, 100).Select(i => $"site{i:000}.com"));
         var query = new SitesQuery();
@@ -482,7 +482,7 @@ public sealed class ClientCatalogProtectionTests : IDisposable
     public async Task MultiSearchPreview_MatchesExport_WithFiltersLimitsAndNotFound(string direction)
     {
         // Arrange
-        _db.Users.Single().ClientSelectionLimitOverride = 150;
+        _db.Users.Single().IsTrustedClient = true;
         var settings = _db.RoleSettings.Single(x => x.RoleName == AppRoles.Client);
         settings.ExportLimitMode = ExportLimitMode.Limited;
         settings.ExportLimitRows = 50;
