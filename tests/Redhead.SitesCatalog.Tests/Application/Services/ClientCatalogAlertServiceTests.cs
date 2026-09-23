@@ -163,9 +163,9 @@ public sealed class ClientCatalogAlertServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task HourlyThreshold_DeduplicatesSearchAndExport_AndSendsOneEmail(bool isTrustedClient)
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task HourlyThreshold_AppliesOnlyToProtectedClients(bool isTrustedClient, bool shouldAlert)
     {
         // Arrange
         _db.Users.Single().IsTrustedClient = isTrustedClient;
@@ -184,10 +184,75 @@ public sealed class ClientCatalogAlertServiceTests : IDisposable
 
         // Assert
         Assert.Equal(0, beforeThreshold);
-        var alert = await _db.ClientCatalogAlerts.SingleAsync();
-        Assert.Equal(5000, alert.UniqueSites);
-        Assert.NotNull(alert.EmailSentAtUtc);
+        Assert.Equal(shouldAlert ? 1 : 0, await _db.ClientCatalogAlerts.CountAsync());
+        if (shouldAlert)
+        {
+            var alert = await _db.ClientCatalogAlerts.SingleAsync();
+            Assert.Equal(5000, alert.UniqueSites);
+            Assert.NotNull(alert.EmailSentAtUtc);
+        }
+        _sender.Verify(sender => sender.SendAsync(It.IsAny<ClientCatalogAlert>(), "client@example.com", It.IsAny<CancellationToken>()),
+            shouldAlert ? Times.Once() : Times.Never());
+    }
+
+    [Fact]
+    public async Task TrustedClient_ClosesPendingAlertWithoutEmailOrReviewCooldown()
+    {
+        // Arrange
+        var user = _db.Users.Single();
+        user.IsTrustedClient = true;
+        var pending = new ClientCatalogAlert
+        {
+            UserId = user.Id,
+            DetectedAtUtc = _clock.GetUtcNow().UtcDateTime,
+            UniqueSites = 5000,
+            Threshold = 5000,
+            NextEmailAttemptAtUtc = _clock.GetUtcNow().UtcDateTime
+        };
+        _db.ClientCatalogAlerts.Add(pending);
+        await _db.SaveChangesAsync();
+        var sut = CreateService();
+
+        // Act
+        await sut.ProcessAsync(CancellationToken.None);
+        user.IsTrustedClient = false;
+        AddActivity(5000);
+        await _db.SaveChangesAsync();
+        await sut.ProcessAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal(_clock.GetUtcNow().UtcDateTime, pending.ReviewedAtUtc);
+        Assert.Null(pending.ReviewedByUserId);
+        Assert.Null(pending.EmailSentAtUtc);
+        Assert.Equal(2, await _db.ClientCatalogAlerts.CountAsync());
+        var next = await _db.ClientCatalogAlerts.SingleAsync(alert => alert.ReviewedAtUtc == null);
+        Assert.NotNull(next.EmailSentAtUtc);
         _sender.Verify(sender => sender.SendAsync(It.IsAny<ClientCatalogAlert>(), "client@example.com", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task TrustedFlag_DoesNotSuppressPendingAlertOutsideClientRole()
+    {
+        // Arrange
+        _db.Users.Single().IsTrustedClient = true;
+        _db.Roles.Single().Name = AppRoles.Internal;
+        var pending = new ClientCatalogAlert
+        {
+            UserId = "client",
+            DetectedAtUtc = _clock.GetUtcNow().UtcDateTime,
+            UniqueSites = 5000,
+            Threshold = 5000
+        };
+        _db.ClientCatalogAlerts.Add(pending);
+        await _db.SaveChangesAsync();
+
+        // Act
+        await CreateService().ProcessAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Null(pending.ReviewedAtUtc);
+        Assert.NotNull(pending.EmailSentAtUtc);
+        _sender.Verify(sender => sender.SendAsync(pending, "client@example.com", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

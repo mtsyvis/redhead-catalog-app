@@ -27,18 +27,33 @@ public sealed class ClientCatalogAlertService(ApplicationDbContext db, IOptions<
     {
         var now = clock.GetUtcNow().UtcDateTime;
         var threshold = options.Value.AlertUniqueSitesPerHour;
-        var counts = await GetHourlyCountsAsync(now, cancellationToken);
         var clientRoleIds = db.Roles.Where(role => role.Name == AppRoles.Client).Select(role => role.Id);
-        var clientIds = await db.Users.AsNoTracking().Where(user => user.IsActive && db.UserRoles.Any(role =>
-            role.UserId == user.Id && clientRoleIds.Contains(role.RoleId))).Select(user => user.Id).ToListAsync(cancellationToken);
+        var clients = await db.Users.AsNoTracking().Where(user => db.UserRoles.Any(role =>
+                role.UserId == user.Id && clientRoleIds.Contains(role.RoleId)))
+            .Select(user => new { user.Id, user.IsActive, user.IsTrustedClient })
+            .ToListAsync(cancellationToken);
+        var protectedClientIds = clients.Where(user => user.IsActive && !user.IsTrustedClient)
+            .Select(user => user.Id).ToArray();
+        var trustedClientIds = clients.Where(user => user.IsTrustedClient)
+            .Select(user => user.Id).ToHashSet(StringComparer.Ordinal);
         var activeAlerts = await db.ClientCatalogAlerts.Where(alert => alert.ReviewedAtUtc == null)
             .ToDictionaryAsync(alert => alert.UserId, cancellationToken);
-        // Use persisted review times so the notification cooldown survives restarts.
+        foreach (var (userId, alert) in activeAlerts)
+        {
+            if (trustedClientIds.Contains(userId))
+            {
+                alert.CloseForTrustedClient(now);
+            }
+        }
+        // Only manual reviews start the cooldown. Trusted-client closures have no reviewer.
         var reviewCutoff = now - ReviewCooldown;
         var recentlyReviewedUsers = (await db.ClientCatalogAlerts.AsNoTracking()
-            .Where(alert => alert.ReviewedAtUtc > reviewCutoff)
+            .Where(alert => alert.ReviewedAtUtc > reviewCutoff && alert.ReviewedByUserId != null)
             .Select(alert => alert.UserId).Distinct().ToListAsync(cancellationToken)).ToHashSet(StringComparer.Ordinal);
-        foreach (var userId in clientIds)
+        var counts = protectedClientIds.Length == 0
+            ? new Dictionary<string, int>(StringComparer.Ordinal)
+            : await GetHourlyCountsAsync(now, cancellationToken);
+        foreach (var userId in protectedClientIds)
         {
             var uniqueSites = counts.GetValueOrDefault(userId);
             if (uniqueSites < threshold)
@@ -68,13 +83,28 @@ public sealed class ClientCatalogAlertService(ApplicationDbContext db, IOptions<
         }
 
         var now = clock.GetUtcNow().UtcDateTime;
+        var clientRoleIds = db.Roles.Where(role => role.Name == AppRoles.Client).Select(role => role.Id);
         var pending = await db.ClientCatalogAlerts.Where(alert => alert.ReviewedAtUtc == null &&
-                alert.EmailSentAtUtc == null && (alert.NextEmailAttemptAtUtc == null || alert.NextEmailAttemptAtUtc <= now))
+                alert.EmailSentAtUtc == null && (alert.NextEmailAttemptAtUtc == null || alert.NextEmailAttemptAtUtc <= now) &&
+                !db.Users.Any(user => user.Id == alert.UserId && user.IsTrustedClient && db.UserRoles.Any(role =>
+                    role.UserId == user.Id && clientRoleIds.Contains(role.RoleId))))
             .OrderBy(alert => alert.DetectedAtUtc).Take(EmailBatchSize).ToListAsync(cancellationToken);
         foreach (var alert in pending)
         {
-            var userEmail = await db.Users.Where(user => user.Id == alert.UserId).Select(user => user.Email).SingleAsync(cancellationToken);
-            var sent = await emailSender.SendAsync(alert, userEmail ?? alert.UserId, cancellationToken);
+            var user = await db.Users.Where(user => user.Id == alert.UserId)
+                .Select(user => new
+                {
+                    user.Email,
+                    IsTrustedClient = user.IsTrustedClient && db.UserRoles.Any(role =>
+                        role.UserId == user.Id && clientRoleIds.Contains(role.RoleId))
+                }).SingleAsync(cancellationToken);
+            if (user.IsTrustedClient)
+            {
+                alert.CloseForTrustedClient(clock.GetUtcNow().UtcDateTime);
+                await db.SaveChangesAsync(cancellationToken);
+                continue;
+            }
+            var sent = await emailSender.SendAsync(alert, user.Email ?? alert.UserId, cancellationToken);
             if (sent)
             {
                 alert.EmailSentAtUtc = clock.GetUtcNow().UtcDateTime;

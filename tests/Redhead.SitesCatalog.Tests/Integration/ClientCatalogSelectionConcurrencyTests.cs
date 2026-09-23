@@ -48,6 +48,7 @@ public sealed class ClientCatalogSelectionConcurrencyTests
         }
         await using var adminScope = provider.CreateAsyncScope();
         var adminUsers = adminScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var adminDb = adminScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         // Admin reads the profile before the catalog request consumes the budget.
         Assert.NotNull(await adminUsers.FindByIdAsync("client"));
         var limiter = new ClientCatalogBurstLimiter(TimeProvider.System, 1000);
@@ -60,6 +61,7 @@ public sealed class ClientCatalogSelectionConcurrencyTests
         var controller = new ClientSelectionLimitController(
             adminUsers,
             Mock.Of<IClientCatalogActivityService>(),
+            adminDb,
             limiter,
             TimeProvider.System);
 

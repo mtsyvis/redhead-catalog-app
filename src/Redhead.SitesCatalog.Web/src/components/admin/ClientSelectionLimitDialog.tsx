@@ -70,7 +70,7 @@ export function ClientSelectionLimitDialog({ userId, email, onClose, onSaved }: 
             label="Trusted client"
           />
           <Typography variant="body2" color="text.secondary">
-            Trusted clients have no selection limit and are exempt from the five-minute data limit and automatic bans.
+            Trusted clients have no selection limit and are exempt from the five-minute data limit, hourly activity alerts and automatic bans.
             Request-rate limits, export limits, activity monitoring and admin notifications still apply.
           </Typography>
           {!isTrustedClient && <>

@@ -24,7 +24,7 @@ public sealed class ClientSelectionLimitControllerTests
         var user = new ApplicationUser { ClientSelectionLimitOverride = 50 };
         var users = CreateUsers(user, AppRoles.Client);
         var sut = new ClientSelectionLimitController(users.Object, Mock.Of<IClientCatalogActivityService>(),
-            new ClientCatalogBurstLimiter(TimeProvider.System, 1000), TimeProvider.System);
+            db, new ClientCatalogBurstLimiter(TimeProvider.System, 1000), TimeProvider.System);
 
         // Act
         var result = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(limit, false));
@@ -46,7 +46,7 @@ public sealed class ClientSelectionLimitControllerTests
         var user = new ApplicationUser();
         var users = CreateUsers(user, role);
         var sut = new ClientSelectionLimitController(users.Object, Mock.Of<IClientCatalogActivityService>(),
-            new ClientCatalogBurstLimiter(TimeProvider.System, 1000), TimeProvider.System);
+            db, new ClientCatalogBurstLimiter(TimeProvider.System, 1000), TimeProvider.System);
 
         // Act
         var get = await sut.Get(user.Id, CancellationToken.None);
@@ -71,6 +71,7 @@ public sealed class ClientSelectionLimitControllerTests
         bool resetsAutoBanWindow)
     {
         // Arrange
+        using var db = CreateContext();
         var clock = new FixedClock();
         var limiter = new ClientCatalogBurstLimiter(clock, 1000);
         var user = new ApplicationUser
@@ -82,7 +83,7 @@ public sealed class ClientSelectionLimitControllerTests
             Enumerable.Range(0, 1000).Select(index => $"site{index}.com").ToArray(), 100);
         var users = CreateUsers(user, AppRoles.Client);
         users.Setup(manager => manager.UpdateAsync(user)).ReturnsAsync(IdentityResult.Success);
-        var sut = new ClientSelectionLimitController(users.Object, Mock.Of<IClientCatalogActivityService>(), limiter, clock);
+        var sut = new ClientSelectionLimitController(users.Object, Mock.Of<IClientCatalogActivityService>(), db, limiter, clock);
 
         // Act
         var response = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(nextLimit, nextTrusted));
@@ -96,6 +97,38 @@ public sealed class ClientSelectionLimitControllerTests
         else Assert.IsType<ClientCatalogBurstLimitExceededException>(counterResult);
         if (resetsAutoBanWindow) Assert.Equal(FixedClock.Now.UtcDateTime, user.ClientCatalogAutoBanResetAtUtc);
         else Assert.Null(user.ClientCatalogAutoBanResetAtUtc);
+    }
+
+    [Fact]
+    public async Task Update_EnableTrust_ClosesOpenHourlyAlert()
+    {
+        // Arrange
+        using var db = CreateContext();
+        var clock = new FixedClock();
+        var user = new ApplicationUser { Id = "client", ClientSelectionLimitOverride = 100 };
+        var alert = new ClientCatalogAlert
+        {
+            UserId = user.Id,
+            DetectedAtUtc = FixedClock.Now.UtcDateTime,
+            UniqueSites = 5000,
+            Threshold = 5000,
+            NextEmailAttemptAtUtc = FixedClock.Now.UtcDateTime
+        };
+        db.ClientCatalogAlerts.Add(alert);
+        await db.SaveChangesAsync();
+        var users = CreateUsers(user, AppRoles.Client);
+        users.Setup(manager => manager.UpdateAsync(user)).ReturnsAsync(IdentityResult.Success);
+        var sut = new ClientSelectionLimitController(users.Object, Mock.Of<IClientCatalogActivityService>(), db,
+            new ClientCatalogBurstLimiter(clock, 1000), clock);
+
+        // Act
+        var response = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(null, true));
+
+        // Assert
+        Assert.IsType<NoContentResult>(response);
+        Assert.Equal(FixedClock.Now.UtcDateTime, alert.ReviewedAtUtc);
+        Assert.Null(alert.ReviewedByUserId);
+        Assert.Null(alert.NextEmailAttemptAtUtc);
     }
 
     private static ApplicationDbContext CreateContext() => new(new DbContextOptionsBuilder<ApplicationDbContext>()

@@ -19,6 +19,20 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
 
             migrationBuilder.Sql(
                 """
+                UPDATE "ClientCatalogAlerts" AS alerts
+                SET "ReviewedAtUtc" = CURRENT_TIMESTAMP,
+                    "ReviewedByUserId" = NULL,
+                    "NextEmailAttemptAtUtc" = NULL
+                FROM "AspNetUsers" AS users
+                WHERE alerts."UserId" = users."Id"
+                    AND alerts."ReviewedAtUtc" IS NULL
+                    AND users."ClientSelectionLimitOverride" > 100
+                    AND EXISTS (
+                        SELECT 1
+                        FROM "AspNetUserRoles" AS user_roles
+                        INNER JOIN "AspNetRoles" AS roles ON roles."Id" = user_roles."RoleId"
+                        WHERE user_roles."UserId" = users."Id" AND roles."Name" = 'Client');
+
                 UPDATE "AspNetUsers"
                 SET "IsTrustedClient" = TRUE,
                     "ClientSelectionLimitOverride" = NULL

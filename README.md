@@ -344,9 +344,9 @@ Client account. SuperAdmin manages personal selection sizes from 1 to 100 and th
 through `Edit client catalog access` in the users menu; smaller export limits remain in effect. `ClientCatalog__RequestsPerMinute` controls
 the shared rate threshold (positive integer, default 60). `ClientCatalog__UniqueSitesPerFiveMinutes`
 sets the shared short-term distinct-site budget (positive integer, default 2,000) for Clients that are not marked as trusted.
-Trusted Clients have no selection cap and bypass the five-minute guard, while request-rate protection,
-export limits, activity statistics and hourly alert emails remain enabled. They are also
-exempt from automatic 24-hour activity bans. Enabling trust clears the counter;
+Trusted Clients have no selection cap and bypass the five-minute guard, hourly alert emails and
+automatic 24-hour activity bans, while request-rate protection, export limits and activity statistics remain enabled.
+Enabling trust clears the counter and closes any open hourly incident without sending a pending email;
 disabling it starts a fresh five-minute counter and automatic-ban
 enforcement window. Assigning a protected Client role also starts a fresh automatic-ban window.
 A selection reaching the budget succeeds; requests exceeding it receive `429` and a computed `Retry-After`.
@@ -354,7 +354,7 @@ Capacity frees as domains leave the rolling five-minute window. Repeated or smal
 succeed. The UI preserves results and offers Retry or narrower filters, without a fixed pause or status polling.
 Request/domain counters live in one app instance and reset on restart.
 At `ClientCatalog__AlertUniqueSitesPerHour` unique domains in an hour (default 5,000), a background check
-flags the account in Users and queues one email per incident to `ClientCatalog__AlertEmails`
+flags a non-trusted Client account in Users and queues one email per incident to `ClientCatalog__AlertEmails`
 (comma/semicolon-separated; defaults to `mtsyvis2405@gmail.com,dmitry.s@redheaddigital.agency`). Compose uses these recipients when the environment setting is unset or empty; a non-empty value overrides them. Delivery uses the existing enabled SMTP configuration.
 Admin review clears the flag and suppresses new alerts for 60 minutes without changing catalog limits or disabling the account. After that hour, the hourly threshold can trigger a new alert even if activity stayed high.
 The database-backed automatic-ban setting is initially disabled with a 20,000-unique-site rolling-24-hour threshold.

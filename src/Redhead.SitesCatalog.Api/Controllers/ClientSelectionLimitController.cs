@@ -2,10 +2,12 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Infrastructure.Data;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -13,7 +15,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 [Route("api/admin/users/{id}/selection-limit")]
 [Authorize(Policy = AppPolicies.UsersManageAccess)]
 public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> users, IClientCatalogActivityService activity,
-    ClientCatalogBurstLimiter burstLimiter, TimeProvider clock) : ControllerBase
+    ApplicationDbContext db, ClientCatalogBurstLimiter burstLimiter, TimeProvider clock) : ControllerBase
 {
     public sealed record UpdateRequest(
         [Range(1, ClientCatalogLimits.MaxSelectionLimit)] int? OverrideRows,
@@ -47,7 +49,7 @@ public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> 
     }
 
     [HttpPut]
-    public async Task<IActionResult> Update(string id, UpdateRequest request)
+    public async Task<IActionResult> Update(string id, UpdateRequest request, CancellationToken cancellationToken = default)
     {
         var user = await users.FindByIdAsync(id);
         if (user is null)
@@ -74,10 +76,29 @@ public sealed class ClientSelectionLimitController(UserManager<ApplicationUser> 
         user.IsTrustedClient = nextTrusted;
         user.ClientSelectionLimitOverride = nextTrusted ? null : request.OverrideRows;
         var result = await users.UpdateAsync(user);
-        if (result.Succeeded && trustChanged)
+        if (!result.Succeeded)
+        {
+            return Conflict(new { message = "The user changed. Reload and try again." });
+        }
+        if (trustChanged)
         {
             burstLimiter.Reset(user.Id);
         }
-        return result.Succeeded ? NoContent() : Conflict(new { message = "The user changed. Reload and try again." });
+        if (trustChanged && nextTrusted)
+        {
+            var now = clock.GetUtcNow().UtcDateTime;
+            var openAlerts = await db.ClientCatalogAlerts
+                .Where(alert => alert.UserId == user.Id && alert.ReviewedAtUtc == null)
+                .ToListAsync(cancellationToken);
+            foreach (var alert in openAlerts)
+            {
+                alert.CloseForTrustedClient(now);
+            }
+            if (openAlerts.Count > 0)
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+        }
+        return NoContent();
     }
 }

@@ -82,7 +82,7 @@ public sealed class ClientCatalogPostgresTests : IAsyncLifetime
         db.ExportLogs.Add(export);
         await db.SaveChangesAsync();
         var sut = new ClientSelectionLimitController(users, new ClientCatalogActivityService(db, new FixedClock(now)),
-            new ClientCatalogBurstLimiter(new FixedClock(now), 1000), new FixedClock(now));
+            db, new ClientCatalogBurstLimiter(new FixedClock(now), 1000), new FixedClock(now));
 
         // Act
         var update = await sut.Update(user.Id, new ClientSelectionLimitController.UpdateRequest(null, true));

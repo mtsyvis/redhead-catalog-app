@@ -11,4 +11,13 @@ public sealed class ClientCatalogAlert
     public string? ReviewedByUserId { get; set; }
     public DateTime? EmailSentAtUtc { get; set; }
     public DateTime? NextEmailAttemptAtUtc { get; set; }
+
+    public void CloseForTrustedClient(DateTime closedAtUtc)
+    {
+        ReviewedAtUtc = closedAtUtc;
+        // A null reviewer distinguishes this system closure from a manual review,
+        // so removing trust does not inherit the manual-review cooldown.
+        ReviewedByUserId = null;
+        NextEmailAttemptAtUtc = null;
+    }
 }
