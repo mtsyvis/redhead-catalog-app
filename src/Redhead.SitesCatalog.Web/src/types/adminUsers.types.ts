@@ -37,7 +37,7 @@ export interface UserListItem {
   superAdminNote?: string | null;
 }
 
-export type UserTypeFilter = 'all' | 'internal' | 'clients' | 'lite';
+export type UserTypeFilter = 'all' | 'internal' | 'clients' | 'trusted-clients' | 'lite';
 
 export interface UserListQueryParams {
   userType: UserTypeFilter;

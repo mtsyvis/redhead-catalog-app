@@ -38,9 +38,14 @@ public sealed class AdminUsersListService : IAdminUsersListService
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             var search = query.Search.Trim().ToLowerInvariant();
-            usersQuery = usersQuery.Where(user =>
-                user.Email.ToLower().Contains(search) ||
-                (user.DisplayName != null && user.DisplayName.ToLower().Contains(search)));
+            usersQuery = query.IncludeSuperAdminNoteInSearch
+                ? usersQuery.Where(user =>
+                    user.Email.ToLower().Contains(search) ||
+                    (user.DisplayName != null && user.DisplayName.ToLower().Contains(search)) ||
+                    (user.SuperAdminNote != null && user.SuperAdminNote.ToLower().Contains(search)))
+                : usersQuery.Where(user =>
+                    user.Email.ToLower().Contains(search) ||
+                    (user.DisplayName != null && user.DisplayName.ToLower().Contains(search)));
         }
         else
         {
@@ -197,6 +202,8 @@ public sealed class AdminUsersListService : IAdminUsersListService
         {
             AdminUsersListUserTypes.Clients => query.Where(user =>
                 user.Role == AppRoles.Client),
+            AdminUsersListUserTypes.TrustedClients => query.Where(user =>
+                user.Role == AppRoles.Client && user.IsTrustedClient),
             AdminUsersListUserTypes.Lite => query.Where(user => user.Role == AppRoles.Lite),
             AdminUsersListUserTypes.Internal => query.Where(user =>
                 user.Role != AppRoles.Client && user.Role != AppRoles.Lite),

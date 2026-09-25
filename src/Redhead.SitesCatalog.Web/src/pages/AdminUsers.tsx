@@ -66,6 +66,7 @@ const USER_TYPE_OPTIONS: Array<{ value: UserTypeFilter; label: string; emptyMess
   { value: 'all', label: 'All users', emptyMessage: 'No users found.' },
   { value: 'internal', label: 'Internal users', emptyMessage: 'No internal users found.' },
   { value: 'clients', label: 'Clients', emptyMessage: 'No clients found.' },
+  { value: 'trusted-clients', label: 'Trusted clients', emptyMessage: 'No trusted clients found.' },
   { value: 'lite', label: 'Lite', emptyMessage: 'No Lite users found.' },
 ];
 
@@ -806,6 +807,9 @@ export const AdminUsers: React.FC = () => {
   };
 
   const selectedUserTypeOption = USER_TYPE_OPTIONS.find((option) => option.value === userType) ?? USER_TYPE_OPTIONS[0];
+  const searchFieldDescription = isSuperAdmin
+    ? 'email, display name, or Super Admin note'
+    : 'email or display name';
 
   const NoRowsOverlay = () => (
     <Box
@@ -821,7 +825,7 @@ export const AdminUsers: React.FC = () => {
       }}
     >
       <Typography variant="body2" color="text.secondary">
-        {searchActive ? 'No users match this email or display name.' : selectedUserTypeOption.emptyMessage}
+        {searchActive ? `No users match this ${searchFieldDescription}.` : selectedUserTypeOption.emptyMessage}
       </Typography>
       {searchActive ? (
         <BrandButton kind="outline" size="small" onClick={handleClearSearch}>
@@ -1141,7 +1145,7 @@ export const AdminUsers: React.FC = () => {
       <TextField
         fullWidth
         inputRef={searchInputRef}
-        placeholder="Search all users by email or display name"
+        placeholder={`Search all users by ${searchFieldDescription}`}
         value={searchInput}
         onChange={(event) => setSearchInput(event.target.value)}
         onKeyDown={(event) => {
@@ -1151,7 +1155,7 @@ export const AdminUsers: React.FC = () => {
           }
         }}
         slotProps={{
-          htmlInput: { 'aria-label': 'Search all users by email or display name' },
+          htmlInput: { 'aria-label': `Search all users by ${searchFieldDescription}` },
           input: {
             startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>,
             endAdornment: searchInput ? (

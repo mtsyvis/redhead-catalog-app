@@ -9,6 +9,7 @@ public static class AdminUsersListUserTypes
     public const string All = "all";
     public const string Internal = "internal";
     public const string Clients = "clients";
+    public const string TrustedClients = "trusted-clients";
     public const string Lite = "lite";
 }
 
@@ -16,6 +17,7 @@ public sealed class AdminUsersListQuery
 {
     public string UserType { get; set; } = AdminUsersListUserTypes.All;
     public string? Search { get; set; }
+    public bool IncludeSuperAdminNoteInSearch { get; set; }
     public int Page { get; set; }
     public int PageSize { get; set; }
 }

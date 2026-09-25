@@ -138,7 +138,9 @@ public class AdminUsersController : ControllerBase
         }
 
         var includeSuperAdminNote = await IsCurrentUserSuperAdminAsync();
-        var result = await _usersListService.ListUsersAsync(ToQuery(request), cancellationToken);
+        var result = await _usersListService.ListUsersAsync(
+            ToQuery(request, includeSuperAdminNote),
+            cancellationToken);
         return Ok(ToResponse(result, includeSuperAdminNote));
     }
 
@@ -680,12 +682,13 @@ public class AdminUsersController : ControllerBase
         return NoContent();
     }
 
-    private static AdminUsersListQuery ToQuery(UserListRequest request)
+    private static AdminUsersListQuery ToQuery(UserListRequest request, bool includeSuperAdminNoteInSearch)
     {
         return new AdminUsersListQuery
         {
             UserType = AdminUsersListRequestValidation.NormalizeUserType(request.UserType),
             Search = request.Search,
+            IncludeSuperAdminNoteInSearch = includeSuperAdminNoteInSearch,
             Page = request.Page,
             PageSize = request.PageSize
         };

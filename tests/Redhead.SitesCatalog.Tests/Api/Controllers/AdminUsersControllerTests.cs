@@ -145,6 +145,71 @@ public sealed class AdminUsersControllerTests
     }
 
     [Fact]
+    public async Task ListUsers_WithSuperAdminNoteSearch_WhenCurrentUserIsSuperAdmin_ReturnsMatchingUser()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(
+            db,
+            "client-1",
+            "client@example.com",
+            AppRoles.Client,
+            superAdminNote: "Redhead account owner");
+        await AddUserAsync(db, "client-2", "other@example.com", AppRoles.Client);
+        var sut = CreateController(
+            db,
+            new StubUserManager
+            {
+                CurrentUser = new ApplicationUser { Id = "superadmin-1", Email = "superadmin@example.com" },
+                CurrentRoles = new List<string> { AppRoles.SuperAdmin }
+            });
+
+        // Act
+        var result = await sut.ListUsers(
+            new UserListRequest { Search = " ACCOUNT OWNER " },
+            CancellationToken.None);
+
+        // Assert
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<SuperAdminUserListResponse>(ok.Value);
+        var user = Assert.Single(payload.Items);
+        Assert.Equal("client-1", user.Id);
+        Assert.Equal("Redhead account owner", user.SuperAdminNote);
+    }
+
+    [Fact]
+    public async Task ListUsers_WithSuperAdminNoteSearch_WhenCurrentUserIsAdmin_DoesNotReturnMatchingUser()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        await AddUserAsync(
+            db,
+            "client-1",
+            "client@example.com",
+            AppRoles.Client,
+            superAdminNote: "Private account owner");
+        var sut = CreateController(
+            db,
+            new StubUserManager
+            {
+                CurrentUser = new ApplicationUser { Id = "admin-1", Email = "admin@example.com" },
+                CurrentRoles = new List<string> { AppRoles.Admin }
+            });
+
+        // Act
+        var result = await sut.ListUsers(
+            new UserListRequest { Search = "private account" },
+            CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        Assert.Equal(0, payload.TotalCount);
+        Assert.Empty(payload.Items);
+    }
+
+    [Fact]
     public async Task GetUser_WhenCurrentUserIsAdmin_ReturnsReadonlyDetailsWithoutSuperAdminNote()
     {
         // Arrange
@@ -537,9 +602,41 @@ public sealed class AdminUsersControllerTests
         Assert.Equal(expectedRole, Assert.Single(payload.Items).Role);
     }
 
+    [Fact]
+    public async Task ListUsers_WithTrustedClientsFilter_ReturnsOnlyTrustedClients()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        await SeedRoleSettingsAsync(db);
+        var trustedClient = await AddUserAsync(
+            db,
+            "trusted-client",
+            "trusted@example.com",
+            AppRoles.Client);
+        trustedClient.IsTrustedClient = true;
+        await AddUserAsync(db, "protected-client", "protected@example.com", AppRoles.Client);
+        var internalUser = await AddUserAsync(db, "internal", "internal@example.com", AppRoles.Internal);
+        internalUser.IsTrustedClient = true;
+        await db.SaveChangesAsync();
+        var sut = CreateController(db);
+
+        // Act
+        var result = await sut.ListUsers(
+            new UserListRequest { UserType = " TRUSTED-CLIENTS " },
+            CancellationToken.None);
+
+        // Assert
+        var payload = GetOkPayload(result);
+        var user = Assert.Single(payload.Items);
+        Assert.Equal(1, payload.TotalCount);
+        Assert.Equal("trusted-client", user.Id);
+        Assert.True(user.IsTrustedClient);
+    }
+
     [Theory]
     [InlineData("all", " MATCH ", 2)]
     [InlineData("clients", "MATCH", 2)]
+    [InlineData("trusted-clients", "MATCH", 2)]
     [InlineData("lite", "match", 2)]
     [InlineData("internal", "match", 2)]
     [InlineData("all", "PERSON@", 1)]

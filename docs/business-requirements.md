@@ -49,8 +49,8 @@ General rules:
 * Disabled users may be reactivated only by `SuperAdmin`.
 * Authorization must be enforced server-side. UI hiding is only a convenience layer.
 * Authorization uses a centralized static role-permission matrix. Endpoint access is granted by positive permissions, not by scattered role-deny checks.
-* The admin users list is paginated and has separate `All users`, `Internal users`, `Clients`, and `Lite` filters. `Clients` includes only the `Client` role; `Lite` includes only the `Lite` role.
-* One global search field matches a case-insensitive substring in either email or `DisplayName`, ignoring leading/trailing search whitespace. Non-empty search includes all roles regardless of the selected group, including when a group is supplied to the API. Filtering happens server-side before counting and pagination.
+* The admin users list is paginated and has separate `All users`, `Internal users`, `Clients`, `Trusted clients`, and `Lite` filters. `Clients` includes only the `Client` role; `Trusted clients` includes only `Client` users with the explicit trusted flag; `Lite` includes only the `Lite` role.
+* One global search field matches a case-insensitive substring in email or `DisplayName`, ignoring leading/trailing search whitespace. For `SuperAdmin`, it also matches `SuperAdminNote`; other roles cannot search or retrieve that private field. Non-empty search includes all roles regardless of the selected group, including when a group is supplied to the API. Filtering happens server-side before counting and pagination.
 * User search applies automatically after a short debounce, or immediately on Enter. During search, group controls are replaced with `Search results` and an `All roles` indicator. Clearing search restores the previously selected group. Changing the search or user group resets pagination to the first page.
 * Internal users in the admin users list means any user whose role is neither `Client` nor `Lite`.
 

@@ -11,7 +11,7 @@ public static class AdminUsersListRequestValidation
     {
         if (string.IsNullOrWhiteSpace(request.UserType))
         {
-            return "Invalid userType. Allowed values: all, internal, clients, lite.";
+            return "Invalid userType. Allowed values: all, internal, clients, trusted-clients, lite.";
         }
 
         var userType = NormalizeUserType(request.UserType);
@@ -19,9 +19,10 @@ public static class AdminUsersListRequestValidation
             AdminUsersListUserTypes.All or
             AdminUsersListUserTypes.Internal or
             AdminUsersListUserTypes.Clients or
+            AdminUsersListUserTypes.TrustedClients or
             AdminUsersListUserTypes.Lite))
         {
-            return "Invalid userType. Allowed values: all, internal, clients, lite.";
+            return "Invalid userType. Allowed values: all, internal, clients, trusted-clients, lite.";
         }
 
         if (request.Page < 1)
