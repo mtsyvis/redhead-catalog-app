@@ -71,6 +71,9 @@ public class SitesQuery
     // Quarantine filter
     public string Quarantine { get; set; } = string.Empty;
 
+    // Export-only option applied in addition to the visible quarantine filter.
+    public bool ExcludeQuarantinedFromExport { get; set; }
+
     // LastPublishedDate range filter (parsed from yyyy-MM month inputs)
     public DateTime? LastPublishedFrom { get; set; }
     public DateTime? LastPublishedToExclusive { get; set; }

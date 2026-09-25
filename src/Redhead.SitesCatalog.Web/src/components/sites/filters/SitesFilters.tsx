@@ -78,7 +78,6 @@ interface SitesFiltersProps {
   onMultiSearchModeChange?: (enabled: boolean) => void;
   liteMode?: boolean;
   clientSelectionLimit?: number;
-  canFilterQuarantine?: boolean;
   filterOptionsRefreshKey?: number;
   savedFilterSets?: SavedFilterSet[];
   activeSavedFilterSetId?: string | null;

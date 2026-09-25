@@ -30,6 +30,7 @@ interface UseSitesExportOptions {
   isClient: boolean;
   enabled?: boolean;
   multiSearchResult: MultiSearchResponse | null;
+  quarantineFilter: NonNullable<SitesQueryParams['quarantine']>;
   searchText: string;
   visibleColumnKeys: string[];
   showSnackbar: (snackbar: SitesSnackbarState) => void;
@@ -76,6 +77,7 @@ export function useSitesExport({
   isClient,
   enabled = true,
   multiSearchResult,
+  quarantineFilter,
   searchText,
   visibleColumnKeys,
   showSnackbar,
@@ -83,6 +85,7 @@ export function useSitesExport({
   const location = useLocation();
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
+  const [includeQuarantinedByChoice, setIncludeQuarantinedByChoice] = useState(false);
   const [pendingExport, setPendingExport] = useState<{ preview: ExportPreview; run: () => Promise<void> } | null>(null);
   const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [googleDriveDialog, setGoogleDriveDialog] = useState<GoogleDriveDialogState>({
@@ -91,6 +94,10 @@ export function useSitesExport({
   });
   const [connectingGoogleDrive, setConnectingGoogleDrive] = useState(false);
   const [exportUsageLimits, setExportUsageLimits] = useState<CurrentUserProfileLimits | null>(null);
+  const includeQuarantined =
+    quarantineFilter === 'only' ||
+    (quarantineFilter === 'all' && includeQuarantinedByChoice);
+  const excludeQuarantined = !includeQuarantined;
 
   const loadGoogleDriveStatus = useCallback(async () => {
     if (!enabled) {
@@ -173,11 +180,12 @@ export function useSitesExport({
         searchText: searchText.trim(),
         filters: params,
         visibleColumnKeys,
+        excludeQuarantined,
       };
     }
 
-    return { filters: params, visibleColumnKeys };
-  }, [buildSitesQueryParams, multiSearchResult, searchText, visibleColumnKeys]);
+    return { filters: params, visibleColumnKeys, excludeQuarantined };
+  }, [buildSitesQueryParams, excludeQuarantined, multiSearchResult, searchText, visibleColumnKeys]);
 
   const runWithExportState = useCallback(async (run: () => Promise<void>) => {
     setExporting(true);
@@ -218,9 +226,14 @@ export function useSitesExport({
           searchText: searchText.trim(),
           filters: params,
           visibleColumnKeys,
+          excludeQuarantined,
         });
       } else {
-        metadata = await sitesService.exportSites({ filters: params, visibleColumnKeys });
+        metadata = await sitesService.exportSites({
+          filters: params,
+          visibleColumnKeys,
+          excludeQuarantined,
+        });
       }
 
       const updatedUsageLimits = await loadExportUsageLimits();
@@ -258,6 +271,7 @@ export function useSitesExport({
     multiSearchResult,
     searchText,
     visibleColumnKeys,
+    excludeQuarantined,
     loadExportUsageLimits,
     showSnackbar,
   ]);
@@ -406,6 +420,8 @@ export function useSitesExport({
 
   return {
     exporting,
+    includeQuarantined,
+    setIncludeQuarantined: setIncludeQuarantinedByChoice,
     googleDriveStatus,
     exportUsageLimits,
     googleDriveDialog,

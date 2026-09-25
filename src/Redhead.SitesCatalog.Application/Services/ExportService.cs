@@ -385,6 +385,10 @@ public class ExportService : IExportService
         }
 
         var filtered = _queryBuilder.BuildQuery(baseQuery, query);
+        if (query.ExcludeQuarantinedFromExport)
+        {
+            filtered = filtered.Where(site => !site.IsQuarantined);
+        }
         var requestedRows = await filtered.CountAsync(cancellationToken);
         if (selectionLimit is { } selection)
         {

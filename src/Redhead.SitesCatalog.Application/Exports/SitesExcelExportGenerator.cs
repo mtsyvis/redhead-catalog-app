@@ -62,7 +62,14 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
         IReadOnlyList<SitesExportColumnDefinition> siteColumns,
         string? selectedTermKey,
         SitesExcelPriceCellMode priceCellMode)
-        => siteColumns.Select(column => column.CreateCell(site, selectedTermKey, priceCellMode)).ToList();
+    {
+        var cells = siteColumns
+            .Select(column => column.CreateCell(site, selectedTermKey, priceCellMode));
+
+        return site.IsQuarantined
+            ? cells.Select(cell => cell.WithUnavailableRowStyle()).ToList()
+            : cells.ToList();
+    }
 
     private static IReadOnlyList<IReadOnlyList<XlsxCell>> CreateExportInfoRows(
         string generatedBy,

@@ -14,4 +14,6 @@ public sealed class GoogleDriveExportRequest
     public string? SearchText { get; set; }
 
     public List<string> VisibleColumnKeys { get; set; } = new();
+
+    public bool ExcludeQuarantined { get; set; } = true;
 }

@@ -914,17 +914,20 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportSitesAsExcelAsync_WithQuarantineExclude_ExcludesQuarantinedSites()
+    public async Task ExportSitesAsExcelAsync_WithExportExclusion_ExcludesQuarantinedSites()
     {
+        // Arrange
         var query = new SitesQuery
         {
             Page = 1,
             PageSize = 10,
             SortBy = SortFields.Domain,
             SortDir = SortingDefaults.Ascending,
-            Quarantine = QuarantineFilterValues.Exclude
+            Quarantine = QuarantineFilterValues.All,
+            ExcludeQuarantinedFromExport = true
         };
 
+        // Act
         var result = await _service.ExportSitesAsExcelAsync(
             query,
             TestUserId,
@@ -932,9 +935,34 @@ public class ExportServiceTests : IDisposable
             AppRoles.Admin,
             CancellationToken.None);
 
+        // Assert
         var sites = await ReadSitesSheetFromStream(result.FileStream);
-        Assert.Equal(2, sites.Count); // example.com and test.com
+        Assert.Equal(2, sites.Count);
         Assert.All(sites, site => Assert.False(site.IsQuarantined));
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_WithUnavailableSitesIncluded_HighlightsTheirRows()
+    {
+        // Arrange
+        var query = DefaultQuery();
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query,
+            TestUserId,
+            TestUserEmail,
+            AppRoles.Admin,
+            ["domain", "dr", "priceUsd"],
+            CancellationToken.None);
+
+        // Assert
+        var rows = await ReadSitesSheetRowsFromStream(result.FileStream);
+        Assert.Equal(["example.com", "gambling.com", "test.com"], rows.Select(row => row["Domain"]));
+        Assert.Equal("FFFBEEEE", XlsxTestWorkbook.ReadCellFillRgb(result.FileStream, "Sites", "A3"));
+        Assert.Equal("FFFBEEEE", XlsxTestWorkbook.ReadCellFillRgb(result.FileStream, "Sites", "B3"));
+        Assert.Equal("FFFBEEEE", XlsxTestWorkbook.ReadCellFillRgb(result.FileStream, "Sites", "C3"));
+        Assert.Null(XlsxTestWorkbook.ReadCellFillRgb(result.FileStream, "Sites", "A2"));
     }
 
     [Fact]

@@ -29,9 +29,11 @@ public class ExportController : ControllerBase
     public async Task<ActionResult<ExportPreview>> Preview([FromBody] ExportPreviewRequest request, CancellationToken cancellationToken)
     {
         var user = GetRequiredUserContext();
-        var query = request.SearchText is null
-            ? SitesMapper.ToQuery(request.Filters ?? new SitesQueryRequest())
-            : ToMultiSearchQuery(request.Filters);
+        var query = WithExportOptions(
+            request.SearchText is null
+                ? SitesMapper.ToQuery(request.Filters ?? new SitesQueryRequest())
+                : ToMultiSearchQuery(request.Filters),
+            request.ExcludeQuarantined);
         return Ok(await _exportService.PreviewAsync(query, request.SearchText, user.UserId, user.UserRole, cancellationToken));
     }
 
@@ -207,10 +209,10 @@ public class ExportController : ControllerBase
     }
 
     private static SitesQuery ToMultiSearchQuery(ExportMultiSearchRequest request)
-        => ToMultiSearchQuery(request.Filters);
+        => WithExportOptions(ToMultiSearchQuery(request.Filters), request.ExcludeQuarantined);
 
     private static SitesQuery ToMultiSearchQuery(GoogleDriveExportRequest request)
-        => ToMultiSearchQuery(request.Filters);
+        => WithExportOptions(ToMultiSearchQuery(request.Filters), request.ExcludeQuarantined);
 
     private static SitesQuery ToMultiSearchQuery(SitesQueryRequest? filters)
     {
@@ -225,10 +227,20 @@ public class ExportController : ControllerBase
     }
 
     private static SitesQuery ToSitesQuery(ExportSitesRequest request)
-        => SitesMapper.ToQuery(request.Filters ?? new SitesQueryRequest());
+        => WithExportOptions(
+            SitesMapper.ToQuery(request.Filters ?? new SitesQueryRequest()),
+            request.ExcludeQuarantined);
 
     private static SitesQuery ToSitesQuery(GoogleDriveExportRequest request)
-        => SitesMapper.ToQuery(request.Filters ?? new SitesQueryRequest());
+        => WithExportOptions(
+            SitesMapper.ToQuery(request.Filters ?? new SitesQueryRequest()),
+            request.ExcludeQuarantined);
+
+    private static SitesQuery WithExportOptions(SitesQuery query, bool excludeQuarantined)
+    {
+        query.ExcludeQuarantinedFromExport = excludeQuarantined;
+        return query;
+    }
 
     private UserExportContext GetRequiredUserContext()
     {

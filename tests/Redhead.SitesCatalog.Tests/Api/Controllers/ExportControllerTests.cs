@@ -9,6 +9,7 @@ using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Application.Exceptions;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Models.Exports;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Domain.Constants;
 
@@ -16,6 +17,59 @@ namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 
 public sealed class ExportControllerTests
 {
+    [Theory]
+    [InlineData(AppRoles.SuperAdmin)]
+    [InlineData(AppRoles.Admin)]
+    [InlineData(AppRoles.Internal)]
+    [InlineData(AppRoles.Client)]
+    public async Task Preview_WithDefaultRequest_ExcludesQuarantinedSites_ForEveryExportRole(string role)
+    {
+        // Arrange
+        var exportService = new Mock<IExportService>();
+        exportService
+            .Setup(service => service.PreviewAsync(
+                It.Is<SitesQuery>(query => query.ExcludeQuarantinedFromExport),
+                null,
+                "user-1",
+                role,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExportPreview(0, 0, 0, false, null));
+        var controller = CreateController(exportService: exportService.Object);
+        SetAuthenticatedUser(controller, role);
+
+        // Act
+        var result = await controller.Preview(new ExportPreviewRequest(), CancellationToken.None);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result.Result);
+        exportService.VerifyAll();
+    }
+
+    [Fact]
+    public async Task Preview_WithExclusionDisabled_IncludesQuarantinedSites()
+    {
+        // Arrange
+        var exportService = new Mock<IExportService>();
+        exportService
+            .Setup(service => service.PreviewAsync(
+                It.Is<SitesQuery>(query => !query.ExcludeQuarantinedFromExport),
+                null,
+                "user-1",
+                AppRoles.Admin,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExportPreview(1, 1, 0, false, null));
+        var controller = CreateController(exportService: exportService.Object);
+        SetAuthenticatedUser(controller);
+        var request = new ExportPreviewRequest { ExcludeQuarantined = false };
+
+        // Act
+        var result = await controller.Preview(request, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<OkObjectResult>(result.Result);
+        exportService.VerifyAll();
+    }
+
     [Fact]
     public async Task ExportSitesToGoogleDrive_WithoutAuthenticatedUser_ReturnsUnauthorized()
     {
@@ -57,7 +111,7 @@ public sealed class ExportControllerTests
         googleDriveExportService
             .Setup(service => service.ExportMultiSearchAsync(
                 "first.com second.com",
-                It.IsAny<SitesQuery>(),
+                It.Is<SitesQuery>(query => query.ExcludeQuarantinedFromExport),
                 "user-1",
                 "user@example.com",
                 AppRoles.Admin,
@@ -107,7 +161,7 @@ public sealed class ExportControllerTests
             exportService ?? Mock.Of<IExportService>(),
             googleDriveExportService ?? Mock.Of<IGoogleDriveExportService>());
 
-    private static void SetAuthenticatedUser(ControllerBase controller)
+    private static void SetAuthenticatedUser(ControllerBase controller, string role = AppRoles.Admin)
     {
         controller.ControllerContext = new ControllerContext
         {
@@ -117,7 +171,7 @@ public sealed class ExportControllerTests
                 [
                     new Claim(ClaimTypes.NameIdentifier, "user-1"),
                     new Claim(ClaimTypes.Email, "user@example.com"),
-                    new Claim(ClaimTypes.Role, AppRoles.Admin)
+                    new Claim(ClaimTypes.Role, role)
                 ], "Test"))
             }
         };

@@ -138,7 +138,7 @@ internal static class XlsxWorkbookWriter
         writer.WriteEndElement();
 
         writer.WriteStartElement("fills");
-        writer.WriteAttributeString("count", "3");
+        writer.WriteAttributeString("count", "4");
         writer.WriteStartElement("fill");
         writer.WriteStartElement("patternFill");
         writer.WriteAttributeString("patternType", "none");
@@ -154,6 +154,17 @@ internal static class XlsxWorkbookWriter
         writer.WriteAttributeString("patternType", "solid");
         writer.WriteStartElement("fgColor");
         writer.WriteAttributeString("rgb", "FFD9EAF7");
+        writer.WriteEndElement();
+        writer.WriteStartElement("bgColor");
+        writer.WriteAttributeString("indexed", "64");
+        writer.WriteEndElement();
+        writer.WriteEndElement();
+        writer.WriteEndElement();
+        writer.WriteStartElement("fill");
+        writer.WriteStartElement("patternFill");
+        writer.WriteAttributeString("patternType", "solid");
+        writer.WriteStartElement("fgColor");
+        writer.WriteAttributeString("rgb", "FFFBEEEE");
         writer.WriteEndElement();
         writer.WriteStartElement("bgColor");
         writer.WriteAttributeString("indexed", "64");
@@ -179,7 +190,7 @@ internal static class XlsxWorkbookWriter
         writer.WriteEndElement();
 
         writer.WriteStartElement("cellXfs");
-        writer.WriteAttributeString("count", "7");
+        writer.WriteAttributeString("count", "12");
         WriteCellFormat(writer, "0", "0", "0", "0", applyNumberFormat: false, applyFont: false, applyFill: false);
         WriteCellFormat(writer, "0", "1", "2", "0", applyNumberFormat: false, applyFont: true, applyFill: true);
         WriteCellFormat(writer, "3", "0", "0", "0", applyNumberFormat: true, applyFont: false, applyFill: false);
@@ -187,6 +198,11 @@ internal static class XlsxWorkbookWriter
         WriteCellFormat(writer, "164", "0", "0", "0", applyNumberFormat: true, applyFont: false, applyFill: false);
         WriteCellFormat(writer, "165", "0", "0", "0", applyNumberFormat: true, applyFont: false, applyFill: false);
         WriteCellFormat(writer, "0", "1", "0", "0", applyNumberFormat: false, applyFont: true, applyFill: false);
+        WriteCellFormat(writer, "0", "0", "3", "0", applyNumberFormat: false, applyFont: false, applyFill: true);
+        WriteCellFormat(writer, "3", "0", "3", "0", applyNumberFormat: true, applyFont: false, applyFill: true);
+        WriteCellFormat(writer, "4", "0", "3", "0", applyNumberFormat: true, applyFont: false, applyFill: true);
+        WriteCellFormat(writer, "164", "0", "3", "0", applyNumberFormat: true, applyFont: false, applyFill: true);
+        WriteCellFormat(writer, "165", "0", "3", "0", applyNumberFormat: true, applyFont: false, applyFill: true);
         writer.WriteEndElement();
 
         writer.WriteStartElement("cellStyles");
@@ -442,6 +458,19 @@ internal sealed record XlsxCell(
         ? new XlsxCell(XlsxCellType.Date, XlsxCellStyle.Date, DateValue: value.Value)
         : Blank();
     public static XlsxCell DateTime(DateTime value) => new(XlsxCellType.Date, XlsxCellStyle.DateTime, DateValue: value);
+
+    public XlsxCell WithUnavailableRowStyle()
+        => this with
+        {
+            Style = Style switch
+            {
+                XlsxCellStyle.Integer => XlsxCellStyle.UnavailableInteger,
+                XlsxCellStyle.Decimal => XlsxCellStyle.UnavailableDecimal,
+                XlsxCellStyle.Date => XlsxCellStyle.UnavailableDate,
+                XlsxCellStyle.DateTime => XlsxCellStyle.UnavailableDateTime,
+                _ => XlsxCellStyle.Unavailable
+            }
+        };
 }
 
 internal enum XlsxCellType
@@ -461,5 +490,10 @@ internal enum XlsxCellStyle
     Decimal = 3,
     Date = 4,
     DateTime = 5,
-    InfoLabel = 6
+    InfoLabel = 6,
+    Unavailable = 7,
+    UnavailableInteger = 8,
+    UnavailableDecimal = 9,
+    UnavailableDate = 10,
+    UnavailableDateTime = 11
 }

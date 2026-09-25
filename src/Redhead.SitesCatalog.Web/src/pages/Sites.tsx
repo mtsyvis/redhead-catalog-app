@@ -372,6 +372,8 @@ export function Sites() {
 
   const {
     exporting,
+    includeQuarantined,
+    setIncludeQuarantined,
     googleDriveStatus,
     exportUsageLimits,
     googleDriveDialog,
@@ -388,6 +390,7 @@ export function Sites() {
     isClient,
     enabled: canExport,
     multiSearchResult,
+    quarantineFilter: appliedQueryFilters.quarantine,
     searchText: multiSearchAppliedText,
     visibleColumnKeys: tableViews.visibleColumnIds,
     showSnackbar: setSnackbar,
@@ -983,6 +986,8 @@ export function Sites() {
                 hiddenFilteredColumns={hiddenFilteredColumns}
                 canExport={canExport}
                 exporting={exporting}
+                includeQuarantined={includeQuarantined}
+                quarantineFilter={appliedQueryFilters.quarantine}
                 loading={loading || multiSearchLoading || tableViews.loading || filtersDebouncePending || !!catalogError}
                 selectionCount={isClient
                   ? isMultiSearchView
@@ -999,6 +1004,7 @@ export function Sites() {
                 resultLoading={gridLoading}
                 onShowFilteredColumns={handleShowFilteredColumns}
                 onClearHiddenFilters={handleClearHiddenFilters}
+                onIncludeQuarantinedChange={setIncludeQuarantined}
                 onDownloadExcel={handleDownloadExport}
                 onSaveToGoogleDrive={handleSaveToGoogleDrive}
                 onSuccess={(message) => setSnackbar({ open: true, message, severity: 'success' })}

@@ -279,12 +279,14 @@ export interface ExportPreview {
 export interface ExportPreviewPayload {
   filters?: SitesQueryParams;
   searchText?: string;
+  excludeQuarantined: boolean;
 }
 
 export interface ExportMultiSearchPayload {
   searchText: string;
   filters: SitesQueryParams;
   visibleColumnKeys: string[];
+  excludeQuarantined: boolean;
 }
 
 /**
@@ -293,6 +295,7 @@ export interface ExportMultiSearchPayload {
 export interface ExportSitesPayload {
   filters: SitesQueryParams;
   visibleColumnKeys: string[];
+  excludeQuarantined: boolean;
 }
 
 /**
@@ -302,6 +305,7 @@ export interface GoogleDriveExportPayload {
   filters: SitesQueryParams;
   searchText?: string;
   visibleColumnKeys: string[];
+  excludeQuarantined: boolean;
 }
 
 /**

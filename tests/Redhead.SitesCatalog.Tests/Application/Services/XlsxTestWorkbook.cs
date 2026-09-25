@@ -72,6 +72,38 @@ internal static class XlsxTestWorkbook
             .ToList();
     }
 
+    public static string? ReadCellFillRgb(Stream stream, string sheetName, string cellReference)
+    {
+        using var archive = OpenArchive(stream);
+        var sheetPath = ResolveSheetPath(archive, sheetName);
+        var worksheet = ReadXml(archive, sheetPath);
+        var cell = worksheet
+            .Root!
+            .Element(SpreadsheetNs + "sheetData")!
+            .Descendants(SpreadsheetNs + "c")
+            .Single(candidate => candidate.Attribute("r")?.Value == cellReference);
+        var styleIndex = int.Parse(cell.Attribute("s")?.Value ?? "0");
+
+        var styles = ReadXml(archive, "xl/styles.xml");
+        var cellFormat = styles
+            .Root!
+            .Element(SpreadsheetNs + "cellXfs")!
+            .Elements(SpreadsheetNs + "xf")
+            .ElementAt(styleIndex);
+        var fillIndex = int.Parse(cellFormat.Attribute("fillId")?.Value ?? "0");
+        var fill = styles
+            .Root!
+            .Element(SpreadsheetNs + "fills")!
+            .Elements(SpreadsheetNs + "fill")
+            .ElementAt(fillIndex);
+
+        return fill
+            .Element(SpreadsheetNs + "patternFill")?
+            .Element(SpreadsheetNs + "fgColor")?
+            .Attribute("rgb")?
+            .Value;
+    }
+
     private static ZipArchive OpenArchive(Stream stream)
     {
         stream.Position = 0;

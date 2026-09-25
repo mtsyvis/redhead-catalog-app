@@ -42,6 +42,8 @@ export function SitesTableViewToolbar({
   canExport,
   exporting,
   loading,
+  includeQuarantined,
+  quarantineFilter,
   exportUsageLimits,
   selectionCount,
   resultCount,
@@ -51,6 +53,7 @@ export function SitesTableViewToolbar({
   resultLoading,
   onShowFilteredColumns,
   onClearHiddenFilters,
+  onIncludeQuarantinedChange,
   onDownloadExcel,
   onSaveToGoogleDrive,
   onSuccess,
@@ -530,8 +533,11 @@ export function SitesTableViewToolbar({
           <SitesExportMenu
             exporting={exporting}
             loading={loading}
+            includeQuarantined={includeQuarantined}
+            quarantineFilter={quarantineFilter}
             exportUsageLimits={exportUsageLimits}
             selectionCount={selectionCount}
+            onIncludeQuarantinedChange={onIncludeQuarantinedChange}
             onDownloadExcel={onDownloadExcel}
             onSaveToGoogleDrive={onSaveToGoogleDrive}
           />

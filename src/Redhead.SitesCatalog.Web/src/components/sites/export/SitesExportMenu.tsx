@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import type { MouseEvent } from 'react';
-import { Box, Button, Divider, ListItemIcon, Menu, MenuItem, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  Divider,
+  FormControlLabel,
+  ListItemIcon,
+  Menu,
+  MenuItem,
+  Switch,
+  Typography,
+} from '@mui/material';
 import AddToDriveIcon from '@mui/icons-material/AddToDrive';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -10,8 +20,11 @@ import { formatUsageLimitPair, hasClientExportUsage } from '../../../utils/expor
 interface SitesExportMenuProps {
   exporting: boolean;
   loading: boolean;
+  includeQuarantined: boolean;
+  quarantineFilter: 'all' | 'only' | 'exclude';
   exportUsageLimits: CurrentUserProfileLimits | null;
   selectionCount?: number;
+  onIncludeQuarantinedChange: (include: boolean) => void;
   onDownloadExcel: () => void;
   onSaveToGoogleDrive: () => void;
 }
@@ -19,12 +32,23 @@ interface SitesExportMenuProps {
 export function SitesExportMenu({
   exporting,
   loading,
+  includeQuarantined,
+  quarantineFilter,
   exportUsageLimits,
   selectionCount,
+  onIncludeQuarantinedChange,
   onDownloadExcel,
   onSaveToGoogleDrive,
 }: Readonly<SitesExportMenuProps>) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const availabilityOptionLocked = quarantineFilter !== 'all';
+  const availabilityHelperText = quarantineFilter === 'exclude'
+    ? 'Unavailable sites are already excluded by the current filter.'
+    : quarantineFilter === 'only'
+      ? 'The current filter exports unavailable sites only.'
+      : includeQuarantined
+        ? 'Unavailable sites will be included and highlighted red in Excel.'
+        : 'Unavailable sites are excluded by default.';
   const usageRows = exportUsageLimits && hasClientExportUsage(exportUsageLimits)
     ? [
         {
@@ -110,7 +134,7 @@ export function SitesExportMenu({
         slotProps={{
           paper: {
             sx: {
-              width: 320,
+              width: 360,
               maxWidth: 'calc(100vw - 32px)',
               mt: 0.5,
             },
@@ -123,8 +147,8 @@ export function SitesExportMenu({
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.5, color: 'text.secondary' }}>
             {selectionCount == null
-              ? 'Exports all matching rows with only the columns visible in this table. Search, filters, sorting, and column order are used.'
-              : 'Exports the current selection with visible columns and current sorting. Your export limits still apply; availability is checked before downloading or saving.'}
+              ? 'Exports matching rows using current filters, sorting, and visible columns.'
+              : 'Exports the current selection using current sorting and visible columns. Export limits still apply.'}
           </Typography>
           {usageRows.length > 0 && (
             <Box
@@ -145,15 +169,60 @@ export function SitesExportMenu({
               ))}
             </Box>
           )}
+          <Divider sx={{ my: 1.25 }} />
+          <Box>
+            <FormControlLabel
+              control={(
+                <Switch
+                  checked={includeQuarantined}
+                  onChange={(event) => onIncludeQuarantinedChange(event.target.checked)}
+                  color="error"
+                  size="small"
+                  disabled={availabilityOptionLocked}
+                />
+              )}
+              label={(
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Include unavailable sites
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color={includeQuarantined && !availabilityOptionLocked ? 'error.main' : 'text.secondary'}
+                    sx={{ display: 'block', mt: 0.25, lineHeight: 1.35 }}
+                  >
+                    {availabilityHelperText}
+                  </Typography>
+                </Box>
+              )}
+              labelPlacement="start"
+              sx={{
+                m: 0,
+                width: '100%',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 2,
+                '& .MuiFormControlLabel-label': { flex: 1 },
+              }}
+            />
+          </Box>
         </Box>
         <Divider />
-        <MenuItem onClick={handleDownloadExcel} disabled={exporting}>
+        <MenuItem
+          onClick={handleDownloadExcel}
+          disabled={exporting}
+          sx={{ py: 1, typography: 'body2' }}
+        >
           <ListItemIcon>
             <DownloadIcon fontSize="small" />
           </ListItemIcon>
           Download Excel
         </MenuItem>
-        <MenuItem onClick={handleSaveToGoogleDrive} disabled={exporting}>
+        <MenuItem
+          onClick={handleSaveToGoogleDrive}
+          disabled={exporting}
+          sx={{ py: 1, typography: 'body2' }}
+        >
           <ListItemIcon>
             <AddToDriveIcon fontSize="small" />
           </ListItemIcon>

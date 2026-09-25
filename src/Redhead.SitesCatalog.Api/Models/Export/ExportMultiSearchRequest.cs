@@ -21,4 +21,9 @@ public sealed class ExportMultiSearchRequest
     /// Current UI-visible Sites table column keys in display order.
     /// </summary>
     public List<string> VisibleColumnKeys { get; set; } = new();
+
+    /// <summary>
+    /// Excludes unavailable (quarantined) sites in addition to the active table filters.
+    /// </summary>
+    public bool ExcludeQuarantined { get; set; } = true;
 }

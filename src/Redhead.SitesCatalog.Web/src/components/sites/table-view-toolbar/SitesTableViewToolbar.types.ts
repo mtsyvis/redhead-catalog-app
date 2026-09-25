@@ -20,6 +20,8 @@ export interface SitesTableViewToolbarProps {
   canExport: boolean;
   exporting: boolean;
   loading: boolean;
+  includeQuarantined: boolean;
+  quarantineFilter: 'all' | 'only' | 'exclude';
   exportUsageLimits: CurrentUserProfileLimits | null;
   selectionCount?: number;
   resultCount: number;
@@ -29,6 +31,7 @@ export interface SitesTableViewToolbarProps {
   resultLoading: boolean;
   onShowFilteredColumns: () => void;
   onClearHiddenFilters: () => void;
+  onIncludeQuarantinedChange: (include: boolean) => void;
   onDownloadExcel: () => void;
   onSaveToGoogleDrive: () => void;
   onSuccess: (message: string) => void;
