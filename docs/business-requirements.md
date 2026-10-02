@@ -450,7 +450,7 @@ Storage rules:
 * Webmasters are not automatically merged by email.
 * `ContactRawText` is preserved and may contain messy legacy text, multiple emails, comments, reply markers, URLs, and other raw content.
 * `PrimaryEmail` is parsed from `ContactRawText` best-effort only. Import must never fail when a primary email cannot be detected.
-* If an email appears on the same line as a reply/direction marker, reply markers such as `отвечают`, `ответ`, `answer`, `reply`, `отв`, or `otv` take priority over generic direction/location markers such as `писать сюда`, `write here`, `сюда`, `здесь`, or `тут`, regardless of line order. Within the highest matching priority group, the first marked email is stored as `PrimaryEmail`.
+* If an email appears on the same line as a primary/reply/direction marker, primary/reply markers such as `primary email`, `primary`, `отвечают`, `ответ`, `answer`, `reply`, `отв`, or `otv` take priority over generic direction/location markers such as `писать сюда`, `write here`, `сюда`, `здесь`, or `тут`, regardless of line order. Within the highest matching priority group, the first marked email is stored as `PrimaryEmail`.
 * If no marker exists and exactly one email exists in `ContactRawText`, that email is stored as `PrimaryEmail`.
 * If no marker exists and multiple emails exist in `ContactRawText`, `PrimaryEmail` remains empty and the raw contact text remains the source of truth.
 * Raw `LinkbuilderMailboxRawText` is always preserved and is read-only after import.

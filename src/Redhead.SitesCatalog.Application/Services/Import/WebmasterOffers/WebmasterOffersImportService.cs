@@ -46,6 +46,8 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         "ответ утт",
         "отв тут",
         "otv tut",
+        "primary email",
+        "primary",
         "ответ",
         "answer",
         "reply",
