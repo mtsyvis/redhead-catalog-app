@@ -1,4 +1,4 @@
-import { apiClient } from './api.client';
+import { API_BASE_URL, apiClient } from './api.client';
 import type { EntityChangeHistoryItem } from '../types/changeHistory.types';
 import { notifySessionExpired } from './sessionExpired';
 import type {
@@ -115,7 +115,7 @@ class SitesService {
    * Export sites as Excel with current filters. Returns metadata from response headers.
    */
   async exportSites(payload: ExportSitesPayload): Promise<ExportMetadata> {
-    const response = await fetch('/api/export/sites.xlsx', {
+    const response = await fetch(`${API_BASE_URL}/api/export/sites.xlsx`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -151,8 +151,7 @@ class SitesService {
    * Returns metadata from response headers.
    */
   async exportSitesMultiSearch(payload: ExportMultiSearchPayload): Promise<ExportMetadata> {
-    const baseUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
-    const response = await fetch(`${baseUrl}/api/export/sites-multi-search.xlsx`, {
+    const response = await fetch(`${API_BASE_URL}/api/export/sites-multi-search.xlsx`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

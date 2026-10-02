@@ -6,7 +6,7 @@ import { notifySessionExpired } from './sessionExpired';
  * In dev we use '' so requests are same-origin and Vite proxy forwards /api to the backend.
  * In production use env or default (same-origin when SPA is served from API).
  */
-const API_BASE_URL =
+export const API_BASE_URL =
   import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '');
 
 /**
