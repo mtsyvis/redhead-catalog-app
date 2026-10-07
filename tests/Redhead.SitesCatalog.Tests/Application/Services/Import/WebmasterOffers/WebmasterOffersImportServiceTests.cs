@@ -269,6 +269,8 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
     [InlineData("info@huislijn.nl\nr.barends@huislijn.nl - answer here", "r.barends@huislijn.nl")]
     [InlineData("info@huislijn.nl\nr.barends@huislijn.nl = отв тут", "r.barends@huislijn.nl")]
     [InlineData("info@huislijn.nl\nr.barends@huislijn.nl - write here", "r.barends@huislijn.nl")]
+    [InlineData("info@huislijn.nl\nr.barends@huislijn.nl - primary", "r.barends@huislijn.nl")]
+    [InlineData("info@huislijn.nl\nr.barends@huislijn.nl - primary email", "r.barends@huislijn.nl")]
     [InlineData("first@example.com - answer\nsecond@example.com - answer", "first@example.com")]
     [InlineData(
         "redactie@dagblad010.nl (и сюда)\njim@dagblad010.nl (написала сюда)\nrene.dons@digitaaldagblad.nl (отвечают тут)",

@@ -9,6 +9,8 @@ import type { SitesSnackbarState } from '../components/sites/feedback/SitesSnack
 import type {
   GoogleDriveExportPayload,
   ExportPreview,
+  ExportMultiSearchPayload,
+  ExportSitesPayload,
   MultiSearchResponse,
   SitesQueryParams,
 } from '../types/sites.types';
@@ -35,6 +37,8 @@ interface UseSitesExportOptions {
   visibleColumnKeys: string[];
   showSnackbar: (snackbar: SitesSnackbarState) => void;
 }
+
+type SitesExportPayload = ExportSitesPayload | ExportMultiSearchPayload;
 
 function getApiErrorCode(error: unknown): string | undefined {
   return error instanceof ApiClientError ? error.message : undefined;
@@ -86,7 +90,10 @@ export function useSitesExport({
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
   const [includeQuarantinedByChoice, setIncludeQuarantinedByChoice] = useState(false);
-  const [pendingExport, setPendingExport] = useState<{ preview: ExportPreview; run: () => Promise<void> } | null>(null);
+  const [pendingExport, setPendingExport] = useState<{
+    preview: ExportPreview;
+    run: () => Promise<void>;
+  } | null>(null);
   const [googleDriveStatus, setGoogleDriveStatus] = useState<GoogleDriveStatus | null>(null);
   const [googleDriveDialog, setGoogleDriveDialog] = useState<GoogleDriveDialogState>({
     open: false,
@@ -172,7 +179,7 @@ export function useSitesExport({
     });
   }, [location.pathname, location.search, navigate, loadGoogleDriveStatus, showSnackbar]);
 
-  const buildGoogleDriveExportPayload = useCallback((): GoogleDriveExportPayload => {
+  const buildExportPayload = useCallback((): SitesExportPayload => {
     const params = buildSitesQueryParams(1, 1000000);
 
     if (multiSearchResult !== null) {
@@ -196,44 +203,37 @@ export function useSitesExport({
     }
   }, []);
 
-  const requestExport = useCallback((run: () => Promise<void>) => runWithExportState(async () => {
-    if (!isClient) {
-      await run();
-      return;
-    }
-    try {
-      const preview = await sitesService.previewExport(buildGoogleDriveExportPayload());
-      if (preview.isBlocked) {
-        showSnackbar({ open: true, severity: 'warning',
-          message: getExportUsageLimitMessage(preview.reason) ?? 'Your export limit has been reached. Please try again later.' });
-      } else if (preview.exportableRows < preview.selectionRows) {
-        setPendingExport({ preview, run });
-      } else {
-        await run();
+  const requestExport = useCallback(
+    (run: (payload: SitesExportPayload) => Promise<void>) => runWithExportState(async () => {
+      if (!isClient) {
+        await run(buildExportPayload());
+        return;
       }
-    } catch (error) {
-      showSnackbar({ open: true, severity: 'error', message: error instanceof Error ? error.message : 'Could not check export availability.' });
-    }
-  }), [isClient, buildGoogleDriveExportPayload, showSnackbar, runWithExportState]);
+      try {
+        const payload = buildExportPayload();
+        const preview = await sitesService.previewExport(payload);
+        if (preview.isBlocked) {
+          showSnackbar({ open: true, severity: 'warning',
+            message: getExportUsageLimitMessage(preview.reason) ?? 'Your export limit has been reached. Please try again later.' });
+        } else if (preview.exportableRows < preview.selectionRows) {
+          setPendingExport({ preview, run: () => run(payload) });
+        } else {
+          await run(payload);
+        }
+      } catch (error) {
+        showSnackbar({ open: true, severity: 'error', message: error instanceof Error ? error.message : 'Could not check export availability.' });
+      }
+    }),
+    [isClient, buildExportPayload, showSnackbar, runWithExportState]
+  );
 
-  const handleDownloadExport = useCallback(async () => {
+  const handleDownloadExport = useCallback(async (payload: SitesExportPayload) => {
     try {
-      const params = buildSitesQueryParams(1, 1000000);
-
       let metadata;
-      if (multiSearchResult !== null) {
-        metadata = await sitesService.exportSitesMultiSearch({
-          searchText: searchText.trim(),
-          filters: params,
-          visibleColumnKeys,
-          excludeQuarantined,
-        });
+      if ('searchText' in payload) {
+        metadata = await sitesService.exportSitesMultiSearch(payload);
       } else {
-        metadata = await sitesService.exportSites({
-          filters: params,
-          visibleColumnKeys,
-          excludeQuarantined,
-        });
+        metadata = await sitesService.exportSites(payload);
       }
 
       const updatedUsageLimits = await loadExportUsageLimits();
@@ -267,16 +267,11 @@ export function useSitesExport({
       showSnackbar({ open: true, message, severity: 'error' });
     }
   }, [
-    buildSitesQueryParams,
-    multiSearchResult,
-    searchText,
-    visibleColumnKeys,
-    excludeQuarantined,
     loadExportUsageLimits,
     showSnackbar,
   ]);
 
-  const handleSaveToGoogleDrive = useCallback(async () => {
+  const handleSaveToGoogleDrive = useCallback(async (payload: GoogleDriveExportPayload) => {
     if (googleDriveStatus?.needsReconnect) {
       setGoogleDriveDialog({ open: true, reconnect: true });
       return;
@@ -288,7 +283,7 @@ export function useSitesExport({
     }
 
     try {
-      const result = await sitesService.exportSitesToGoogleDrive(buildGoogleDriveExportPayload());
+      const result = await sitesService.exportSitesToGoogleDrive(payload);
       openGoogleDriveFile(result.webViewLink);
       const updatedUsageLimits = await loadExportUsageLimits();
       const wasUsageLimitPartial =
@@ -389,7 +384,6 @@ export function useSitesExport({
     }
   }, [
     googleDriveStatus,
-    buildGoogleDriveExportPayload,
     loadGoogleDriveStatus,
     loadExportUsageLimits,
     showSnackbar,
