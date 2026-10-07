@@ -7,12 +7,34 @@ namespace Redhead.SitesCatalog.Tests.Application.Validation;
 public sealed class WebmasterOfferWriteValidatorTests
 {
     [Fact]
+    public void ValidateAndNormalize_ZeroVersions_DefersConcurrencyCheckToDatabase()
+    {
+        // Arrange
+        var request = new UpdateWebmasterOfferRequest
+        {
+            ContactRawText = "contact@example.com",
+            Status = SiteWebmasterOfferStatus.Active
+        };
+
+        // Act
+        var result = WebmasterOfferWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.True(result.IsValid);
+        Assert.Equal(0U, result.NormalizedRequest!.ExpectedVersion);
+        Assert.Equal(0U, result.NormalizedRequest.ExpectedWebmasterVersion);
+    }
+
+    [Fact]
     public void ValidateAndNormalize_ValidRequest_TrimsTextAndRemovesEmptyUnknownPrice()
     {
         // Arrange
         var request = new UpdateWebmasterOfferRequest
         {
-            ExpectedUpdatedAtUtc = DateTime.UtcNow,
+            ExpectedVersion = 1,
+            ExpectedWebmasterVersion = 1,
+            ContactRawText = " contact@example.com ",
+            PrimaryEmail = " CONTACT@EXAMPLE.COM ",
             Status = SiteWebmasterOfferStatus.Active,
             CommentText = " comment ",
             Prices =
@@ -37,6 +59,8 @@ public sealed class WebmasterOfferWriteValidatorTests
 
         // Assert
         Assert.True(result.IsValid);
+        Assert.Equal("contact@example.com", result.NormalizedRequest!.ContactRawText);
+        Assert.Equal("contact@example.com", result.NormalizedRequest.PrimaryEmail);
         Assert.Equal("comment", result.NormalizedRequest!.CommentText);
         var price = Assert.Single(result.NormalizedRequest.Prices);
         Assert.Equal(100.25m, price.WebmasterPriceUsd);
@@ -49,7 +73,9 @@ public sealed class WebmasterOfferWriteValidatorTests
         // Arrange
         var request = new UpdateWebmasterOfferRequest
         {
-            ExpectedUpdatedAtUtc = DateTime.UtcNow,
+            ExpectedVersion = 1,
+            ExpectedWebmasterVersion = 1,
+            ContactRawText = "contact@example.com",
             Status = SiteWebmasterOfferStatus.Active,
             Prices =
             [
@@ -75,7 +101,9 @@ public sealed class WebmasterOfferWriteValidatorTests
         // Arrange
         var request = new UpdateWebmasterOfferRequest
         {
-            ExpectedUpdatedAtUtc = DateTime.UtcNow,
+            ExpectedVersion = 1,
+            ExpectedWebmasterVersion = 1,
+            ContactRawText = "contact@example.com",
             Status = SiteWebmasterOfferStatus.Active,
             Prices = []
         };
@@ -96,7 +124,9 @@ public sealed class WebmasterOfferWriteValidatorTests
         // Arrange
         var request = new UpdateWebmasterOfferRequest
         {
-            ExpectedUpdatedAtUtc = DateTime.UtcNow,
+            ExpectedVersion = 1,
+            ExpectedWebmasterVersion = 1,
+            ContactRawText = "contact@example.com",
             Status = SiteWebmasterOfferStatus.Active,
             Prices =
             [
@@ -115,5 +145,31 @@ public sealed class WebmasterOfferWriteValidatorTests
         // Assert
         Assert.False(result.IsValid);
         Assert.Contains("prices.1.webmasterPriceUsd", result.FieldErrors.Keys);
+    }
+
+    [Theory]
+    [InlineData("", null, "contactRawText")]
+    [InlineData("contact@example.com", "not-an-email", "primaryEmail")]
+    public void ValidateAndNormalize_InvalidContactFields_ReturnsFieldError(
+        string contactRawText,
+        string? primaryEmail,
+        string expectedField)
+    {
+        // Arrange
+        var request = new UpdateWebmasterOfferRequest
+        {
+            ExpectedVersion = 1,
+            ExpectedWebmasterVersion = 1,
+            ContactRawText = contactRawText,
+            PrimaryEmail = primaryEmail,
+            Status = SiteWebmasterOfferStatus.Active
+        };
+
+        // Act
+        var result = WebmasterOfferWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Contains(expectedField, result.FieldErrors.Keys);
     }
 }

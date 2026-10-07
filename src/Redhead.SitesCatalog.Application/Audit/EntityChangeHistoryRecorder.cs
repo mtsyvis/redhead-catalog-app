@@ -66,6 +66,7 @@ public static class EntityChangeHistoryRecorder
             ["Status"] = offer.Status.ToString(),
             ["Effective term"] = FormatTerm(offer.TermType, offer.TermValue, offer.TermUnit),
             ["Contact"] = offer.ContactRawText,
+            ["Primary email"] = offer.Webmaster.PrimaryEmail,
             ["Outreach sender"] = offer.OutreachSenderRawText,
             ["Linkbuilder mailbox raw text"] = offer.LinkbuilderMailboxRawText,
             ["Link policy"] = offer.LinkPolicyText,

@@ -108,10 +108,15 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                 IsActive = mailbox.IsActive
             })
             .ToListAsync(cancellationToken);
+        var webmasterOfferCount = await _context.SiteWebmasterOffers
+            .AsNoTracking()
+            .CountAsync(item => item.WebmasterId == offer.WebmasterId, cancellationToken);
 
         return new WebmasterOfferEditDto
         {
             Offer = MapOffer(offer),
+            WebmasterVersion = offer.Webmaster.Version,
+            WebmasterOfferCount = webmasterOfferCount,
             AvailableMailboxes = availableMailboxes
         };
     }
@@ -133,11 +138,6 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             return new WebmasterOfferUpdateResult { Status = WebmasterOfferUpdateStatus.NotFound };
         }
 
-        if (offer.UpdatedAtUtc != request.ExpectedUpdatedAtUtc)
-        {
-            return new WebmasterOfferUpdateResult { Status = WebmasterOfferUpdateStatus.Conflict };
-        }
-
         var allowedMailboxIds = offer.LinkbuilderMailboxes
             .Select(link => link.LinkbuilderMailboxId)
             .ToHashSet();
@@ -156,15 +156,22 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
         }
 
         var historyBefore = EntityChangeHistoryRecorder.CaptureWebmasterOffer(offer);
-        var utcNow = DateTime.UtcNow;
-        var now = new DateTime(utcNow.Ticks - (utcNow.Ticks % 10), DateTimeKind.Utc);
-        // Every effective save must advance the version, even within the same PostgreSQL microsecond.
-        if (now <= offer.UpdatedAtUtc)
+        var sourceWebmasterId = offer.WebmasterId;
+        var now = DateTime.UtcNow;
+        var targetResolution = await ResolveTargetWebmasterAsync(offer, request, now, cancellationToken);
+        var targetWebmaster = targetResolution.Webmaster;
+        var targetWebmasterChanged = !targetResolution.IsNew
+            && !string.Equals(targetWebmaster.PrimaryEmail, request.PrimaryEmail, StringComparison.Ordinal);
+
+        if (targetWebmaster.Id != sourceWebmasterId)
         {
-            now = offer.UpdatedAtUtc.AddTicks(10);
+            offer.WebmasterId = targetWebmaster.Id;
+            offer.Webmaster = targetWebmaster;
         }
 
         offer.Status = request.Status;
+        offer.ContactRawText = request.ContactRawText;
+        targetWebmaster.PrimaryEmail = request.PrimaryEmail;
         offer.OutreachSenderRawText = request.OutreachSenderRawText;
         offer.LinkPolicyText = request.LinkPolicyText;
         offer.DfLinksRawText = request.DfLinksRawText;
@@ -200,6 +207,20 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
 
         offer.UpdatedAtUtc = now;
         offer.UpdatedBy = AuditUserFormatter.Format(userEmail);
+        if (targetWebmasterChanged)
+        {
+            targetWebmaster.UpdatedAtUtc = now;
+        }
+
+        _context.Entry(offer)
+            .Property(item => item.Version)
+            .OriginalValue = request.ExpectedVersion;
+        if (targetWebmasterChanged && targetWebmaster.Id == sourceWebmasterId)
+        {
+            _context.Entry(targetWebmaster)
+                .Property(item => item.Version)
+                .OriginalValue = request.ExpectedWebmasterVersion;
+        }
 
         try
         {
@@ -216,9 +237,10 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                 SqlState: PostgresErrorCodes.UniqueViolation,
                 ConstraintName: "IX_WebmasterOfferPrices_SiteWebmasterOfferId_PriceType"
                     or "PK_SiteWebmasterOfferLinkbuilderMailboxes"
+                    or "IX_Webmasters_NormalizedContactRawText"
             })
         {
-            // A concurrent child insert can hit its unique key before EF checks the offer version.
+            // A concurrent child or webmaster insert can hit its unique key before EF checks versions.
             _context.ChangeTracker.Clear();
             return new WebmasterOfferUpdateResult { Status = WebmasterOfferUpdateStatus.Conflict };
         }
@@ -332,6 +354,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             CreatedAtUtc = offer.CreatedAtUtc,
             UpdatedAtUtc = offer.UpdatedAtUtc,
             UpdatedBy = offer.UpdatedBy,
+            Version = offer.Version,
             LinkbuilderMailboxes = offer.LinkbuilderMailboxes
                 .OrderBy(link => link.LinkbuilderMailbox.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(link => link.LinkbuilderMailbox.Email, StringComparer.OrdinalIgnoreCase)
@@ -360,6 +383,67 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                 .ToList()
         };
     }
+
+    private Webmaster CreateWebmaster(
+        string contactRawText,
+        string normalizedContactRawText,
+        string? primaryEmail,
+        DateTime now)
+    {
+        var webmaster = new Webmaster
+        {
+            Id = Guid.NewGuid(),
+            ContactRawText = contactRawText,
+            NormalizedContactRawText = normalizedContactRawText,
+            PrimaryEmail = primaryEmail,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        };
+        _context.Webmasters.Add(webmaster);
+        return webmaster;
+    }
+
+    private async Task<WebmasterResolution> ResolveTargetWebmasterAsync(
+        SiteWebmasterOffer offer,
+        UpdateWebmasterOfferRequest request,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var normalizedContact = WebmasterContactNormalizer.Normalize(request.ContactRawText);
+        if (string.Equals(
+                normalizedContact,
+                offer.Webmaster.NormalizedContactRawText,
+                StringComparison.Ordinal))
+        {
+            return new WebmasterResolution(offer.Webmaster, IsNew: false);
+        }
+
+        var existingWebmaster = await _context.Webmasters
+            .FirstOrDefaultAsync(
+                webmaster => webmaster.NormalizedContactRawText == normalizedContact,
+                cancellationToken);
+        if (existingWebmaster is not null)
+        {
+            if (!PrimaryEmailsEquivalent(existingWebmaster.PrimaryEmail, request.PrimaryEmail))
+            {
+                var existingPrimaryEmail = existingWebmaster.PrimaryEmail ?? "empty";
+                throw new RequestValidationException(
+                    $"Contact matches an existing webmaster whose Primary email is {existingPrimaryEmail}. " +
+                    "Use that Primary email and save again; the existing webmaster will not be overwritten automatically.");
+            }
+
+            return new WebmasterResolution(existingWebmaster, IsNew: false);
+        }
+
+        return new WebmasterResolution(
+            CreateWebmaster(request.ContactRawText, normalizedContact, request.PrimaryEmail, now),
+            IsNew: true);
+    }
+
+    private static bool PrimaryEmailsEquivalent(string? left, string? right)
+        => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+
+    private sealed record WebmasterResolution(Webmaster Webmaster, bool IsNew);
 
     private static string FormatTermLabel(TermType? termType, int? termValue, TermUnit? termUnit)
         => termType switch

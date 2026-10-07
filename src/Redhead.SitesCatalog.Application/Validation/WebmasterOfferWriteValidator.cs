@@ -1,3 +1,4 @@
+using System.Net.Mail;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -10,10 +11,20 @@ public static class WebmasterOfferWriteValidator
     {
         var errors = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-        if (request.ExpectedUpdatedAtUtc == default)
+        if (string.IsNullOrWhiteSpace(request.ContactRawText))
         {
-            AddError(errors, "expectedUpdatedAtUtc", "The offer version is required. Reload the offer and try again.");
+            AddError(errors, "contactRawText", "Contact is required.");
         }
+        else
+        {
+            ValidateLength(
+                request.ContactRawText,
+                WebmasterOfferFieldLimits.ContactRawTextMaxLength,
+                "contactRawText",
+                errors);
+        }
+
+        ValidatePrimaryEmail(request.PrimaryEmail, errors);
 
         if (!Enum.IsDefined(request.Status))
         {
@@ -80,7 +91,10 @@ public static class WebmasterOfferWriteValidator
         {
             NormalizedRequest = new UpdateWebmasterOfferRequest
             {
-                ExpectedUpdatedAtUtc = request.ExpectedUpdatedAtUtc,
+                ExpectedVersion = request.ExpectedVersion,
+                ExpectedWebmasterVersion = request.ExpectedWebmasterVersion,
+                ContactRawText = request.ContactRawText.Trim(),
+                PrimaryEmail = TrimToNull(request.PrimaryEmail)?.ToLowerInvariant(),
                 Status = request.Status,
                 OutreachSenderRawText = TrimToNull(request.OutreachSenderRawText),
                 LinkPolicyText = TrimToNull(request.LinkPolicyText),
@@ -163,6 +177,33 @@ public static class WebmasterOfferWriteValidator
             WebmasterOfferFieldLimits.PriceDetailsMaxLength,
             $"{prefix}.webmasterPriceDetails",
             errors);
+    }
+
+    private static void ValidatePrimaryEmail(
+        string? value,
+        IDictionary<string, List<string>> errors)
+    {
+        var email = TrimToNull(value);
+        if (email is null)
+        {
+            return;
+        }
+
+        if (email.Length > WebmasterOfferFieldLimits.PrimaryEmailMaxLength)
+        {
+            AddError(
+                errors,
+                "primaryEmail",
+                $"Primary email must be {WebmasterOfferFieldLimits.PrimaryEmailMaxLength:N0} characters or fewer.");
+            return;
+        }
+
+        if (!MailAddress.TryCreate(email, out var parsed)
+            || !string.Equals(parsed.Address, email, StringComparison.OrdinalIgnoreCase)
+            || !parsed.Host.Contains('.', StringComparison.Ordinal))
+        {
+            AddError(errors, "primaryEmail", "Primary email must be a valid email address.");
+        }
     }
 
     private static void ValidateLength(

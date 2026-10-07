@@ -14,19 +14,20 @@ public sealed class WebmasterOffersConcurrencyTests
     [InlineData(null)]
     [InlineData("IX_WebmasterOfferPrices_SiteWebmasterOfferId_PriceType")]
     [InlineData("PK_SiteWebmasterOfferLinkbuilderMailboxes")]
+    [InlineData("IX_Webmasters_NormalizedContactRawText")]
     public async Task UpdateAsync_SaveConflict_ReturnsConflictAndDiscardsPendingChanges(string? constraint)
     {
         // Arrange
         await using var context = CreateContext();
         var offer = await SeedOfferAsync(context);
-        var originalVersion = offer.UpdatedAtUtc;
+        var originalVersion = offer.Version;
         context.SaveException = constraint is null
             ? new DbUpdateConcurrencyException("Concurrent save")
             : CreateUniqueViolation(constraint);
         var sut = new WebmasterOffersService(context);
 
         // Act
-        var result = await sut.UpdateAsync(offer.Id, CreateRequest(offer.UpdatedAtUtc), "editor@example.com");
+        var result = await sut.UpdateAsync(offer.Id, CreateRequest(offer), "editor@example.com");
 
         // Assert
         Assert.Equal(WebmasterOfferUpdateStatus.Conflict, result.Status);
@@ -37,7 +38,7 @@ public sealed class WebmasterOffersConcurrencyTests
         Assert.Empty(await context.EntityChangeHistories.ToListAsync());
         var saved = await context.SiteWebmasterOffers.SingleAsync();
         Assert.Null(saved.CommentText);
-        Assert.Equal(originalVersion, saved.UpdatedAtUtc);
+        Assert.Equal(originalVersion, saved.Version);
     }
 
     [Fact]
@@ -51,31 +52,35 @@ public sealed class WebmasterOffersConcurrencyTests
 
         // Act
         var exception = await Assert.ThrowsAsync<DbUpdateException>(() =>
-            sut.UpdateAsync(offer.Id, CreateRequest(offer.UpdatedAtUtc), "editor@example.com"));
+            sut.UpdateAsync(offer.Id, CreateRequest(offer), "editor@example.com"));
 
         // Assert
         Assert.Same(context.SaveException, exception);
     }
 
     [Fact]
-    public async Task UpdateAsync_ClockBehindStoredVersion_StillAdvancesVersion()
+    public async Task UpdateAsync_ClockBehindStoredTimestamp_DoesNotUseTimestampForConcurrency()
     {
         // Arrange
         await using var context = CreateContext();
         var offer = await SeedOfferAsync(context);
-        var futureVersion = new DateTime(2100, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        offer.UpdatedAtUtc = futureVersion;
+        var futureTimestamp = new DateTime(2100, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        offer.UpdatedAtUtc = futureTimestamp;
+        offer.Version = 7;
         await context.SaveChangesAsync();
         var sut = new WebmasterOffersService(context);
 
         // Act
-        var result = await sut.UpdateAsync(offer.Id, CreateRequest(futureVersion), "editor@example.com");
+        var result = await sut.UpdateAsync(offer.Id, CreateRequest(offer), "editor@example.com");
 
         // Assert
         Assert.Equal(WebmasterOfferUpdateStatus.Success, result.Status);
-        Assert.Equal(futureVersion.AddTicks(10), result.Offer!.UpdatedAtUtc);
+        Assert.Equal(7U, result.Offer!.Version);
+        Assert.True(result.Offer.UpdatedAtUtc < futureTimestamp);
         context.ChangeTracker.Clear();
-        Assert.Equal(futureVersion.AddTicks(10), (await context.SiteWebmasterOffers.SingleAsync()).UpdatedAtUtc);
+        var saved = await context.SiteWebmasterOffers.SingleAsync();
+        Assert.Equal(7U, saved.Version);
+        Assert.True(saved.UpdatedAtUtc < futureTimestamp);
     }
 
     [Fact]
@@ -87,10 +92,16 @@ public sealed class WebmasterOffersConcurrencyTests
 
         // Act
         var offerType = context.Model.FindEntityType(typeof(SiteWebmasterOffer))!;
+        var webmasterType = context.Model.FindEntityType(typeof(Webmaster))!;
         var priceType = context.Model.FindEntityType(typeof(WebmasterOfferPrice))!;
 
         // Assert
-        Assert.True(offerType.FindProperty(nameof(SiteWebmasterOffer.UpdatedAtUtc))!.IsConcurrencyToken);
+        Assert.False(offerType.FindProperty(nameof(SiteWebmasterOffer.UpdatedAtUtc))!.IsConcurrencyToken);
+        Assert.False(webmasterType.FindProperty(nameof(Webmaster.UpdatedAtUtc))!.IsConcurrencyToken);
+        Assert.True(offerType.FindProperty(nameof(SiteWebmasterOffer.Version))!.IsConcurrencyToken);
+        Assert.True(webmasterType.FindProperty(nameof(Webmaster.Version))!.IsConcurrencyToken);
+        Assert.Equal("xmin", offerType.FindProperty(nameof(SiteWebmasterOffer.Version))!.GetColumnName());
+        Assert.Equal("xmin", webmasterType.FindProperty(nameof(Webmaster.Version))!.GetColumnName());
         var index = Assert.Single(priceType.GetIndexes(), item => item.Properties.Select(property => property.Name)
             .SequenceEqual([nameof(WebmasterOfferPrice.SiteWebmasterOfferId), nameof(WebmasterOfferPrice.PriceType)]));
         Assert.True(index.IsUnique);
@@ -109,7 +120,7 @@ public sealed class WebmasterOffersConcurrencyTests
             Webmaster = new Webmaster
             {
                 Id = Guid.NewGuid(), ContactRawText = "contact@example.com",
-                NormalizedContactRawText = "contact@example.com"
+                NormalizedContactRawText = "contact@example.com", CreatedAtUtc = now, UpdatedAtUtc = now
             }
         };
         context.SiteWebmasterOffers.Add(offer);
@@ -117,9 +128,13 @@ public sealed class WebmasterOffersConcurrencyTests
         return offer;
     }
 
-    private static UpdateWebmasterOfferRequest CreateRequest(DateTime version) => new()
+    private static UpdateWebmasterOfferRequest CreateRequest(SiteWebmasterOffer offer) => new()
     {
-        ExpectedUpdatedAtUtc = version, Status = SiteWebmasterOfferStatus.Active, CommentText = "Changed"
+        ExpectedVersion = offer.Version,
+        ExpectedWebmasterVersion = offer.Webmaster.Version,
+        ContactRawText = offer.ContactRawText,
+        Status = SiteWebmasterOfferStatus.Active,
+        CommentText = "Changed"
     };
 
     private static DbUpdateException CreateUniqueViolation(string constraint) => new("Unique violation",

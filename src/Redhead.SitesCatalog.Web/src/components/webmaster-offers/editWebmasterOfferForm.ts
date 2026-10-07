@@ -46,6 +46,8 @@ export interface PriceFormRow {
 }
 
 export interface OfferFormState {
+  contactRawText: string;
+  primaryEmail: string;
   status: number;
   termKind: TermKind;
   termYears: string;
@@ -96,6 +98,8 @@ export function createWebmasterOfferForm(edit: WebmasterOfferEdit): OfferFormSta
   );
 
   return {
+    contactRawText: offer.contactRawText,
+    primaryEmail: offer.primaryEmail ?? '',
     status: normalizeStatus(offer),
     termKind,
     termYears: termKind === 'finite' && offer.termValue ? String(offer.termValue) : '',
@@ -113,6 +117,10 @@ export function createWebmasterOfferForm(edit: WebmasterOfferEdit): OfferFormSta
 function trimToNull(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+export function normalizeWebmasterContact(value: string) {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 export function buildWebmasterOfferPayload(
@@ -143,7 +151,10 @@ export function buildWebmasterOfferPayload(
   });
 
   return {
-    expectedUpdatedAtUtc: edit.offer.updatedAtUtc,
+    expectedVersion: edit.offer.version,
+    expectedWebmasterVersion: edit.webmasterVersion,
+    contactRawText: form.contactRawText.trim(),
+    primaryEmail: trimToNull(form.primaryEmail)?.toLowerCase() ?? null,
     status: form.status,
     outreachSenderRawText: trimToNull(form.outreachSenderRawText),
     linkPolicyText: trimToNull(form.linkPolicyText),
@@ -165,6 +176,20 @@ export function buildWebmasterOfferPayload(
 
 export function validateWebmasterOfferForm(form: OfferFormState) {
   const errors: Record<string, string[]> = {};
+  const contact = form.contactRawText.trim();
+  if (!contact) {
+    errors.contactRawText = ['Contact is required.'];
+  } else if (contact.length > 20_000) {
+    errors.contactRawText = ['Contact must be 20,000 characters or fewer.'];
+  }
+
+  const primaryEmail = form.primaryEmail.trim();
+  if (primaryEmail.length > 320) {
+    errors.primaryEmail = ['Primary email must be 320 characters or fewer.'];
+  } else if (primaryEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(primaryEmail)) {
+    errors.primaryEmail = ['Primary email must be a valid email address.'];
+  }
+
   if (form.termKind === 'finite') {
     const years = Number(form.termYears);
     if (!Number.isInteger(years) || years <= 0) {

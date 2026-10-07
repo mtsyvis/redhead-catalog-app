@@ -2,7 +2,7 @@
 
 Status: Iteration 1 implemented. Later iterations remain planning-only until added to code, tests, and `docs/business-requirements.md`.
 
-Last updated: 2026-08-31.
+Last updated: 2026-10-02.
 
 ## Purpose
 
@@ -77,10 +77,12 @@ Both `Webmaster` and `SiteWebmasterOffer` currently store `ContactRawText`. Do n
 
 Until a canonical profile model exists, treat them as follows:
 
-* `SiteWebmasterOffer.ContactRawText` is the immutable source-row snapshot for the specific offer and the safest evidence field for substring search and audit/review.
+* `SiteWebmasterOffer.ContactRawText` is the editable current Final Database value for the specific offer and the safest evidence field for substring search and review. Its imported and previously saved values remain recoverable through import identity and manual change history rather than by keeping this field immutable.
 * `Webmaster.NormalizedContactRawText` is the current import identity key.
 * `Webmaster.ContactRawText` is the first representative raw value used to create that identity; it is not sufficient as the only long-term business source of truth.
 * `Webmaster.PrimaryEmail` is a best-effort display/search aid, not a verified identity key.
+
+Manual offer editing now treats `SiteWebmasterOffer.ContactRawText` as the editable current Final Database value while preserving the technical `Webmaster` as the normalized import identity. If a Contact edit changes its normalized value, the selected offer is relinked to an existing or newly created technical Webmaster; current Webmaster rows are not merged or deleted. `PrimaryEmail` remains on the technical Webmaster and therefore applies to every offer linked to it. `ImportFingerprint` remains immutable.
 
 Iteration 1 should search `SiteWebmasterOffer.ContactRawText`, then aggregate matching offers by `WebmasterId`.
 

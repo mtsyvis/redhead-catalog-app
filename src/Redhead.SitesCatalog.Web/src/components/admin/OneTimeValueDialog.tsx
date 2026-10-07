@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 
 import { BrandButton } from '../common/BrandButton';
+import { writeTextToClipboard } from '../../utils/clipboard';
 
 interface OneTimeValueDialogProps {
   title: string;
@@ -40,7 +41,7 @@ export const OneTimeValueDialog: React.FC<OneTimeValueDialogProps> = ({
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(value);
+      await writeTextToClipboard(value);
       setCopyState('copied');
     } catch {
       setCopyState('failed');

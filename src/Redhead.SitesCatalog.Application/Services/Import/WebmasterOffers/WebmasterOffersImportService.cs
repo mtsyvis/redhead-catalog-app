@@ -10,6 +10,7 @@ using Redhead.SitesCatalog.Application.Services.Import.Artifacts;
 using Redhead.SitesCatalog.Application.Services.Import.Common;
 using Redhead.SitesCatalog.Application.Services.Import.Csv;
 using Redhead.SitesCatalog.Application.Services.Import.ValueParsers;
+using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
@@ -26,8 +27,6 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
     private static readonly Regex EmailRegex = new(
         @"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
     private static readonly string[] ReplyPrimaryEmailMarkerTexts =
     [
@@ -490,7 +489,7 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
             RowNumber = rowNumber,
             DomainRaw = Get(csv, ImportConstants.WebmasterOffersImportColumns.Domain),
             ContactRawText = contactRawText ?? string.Empty,
-            NormalizedContactRawText = NormalizeContact(contactRawText),
+            NormalizedContactRawText = WebmasterContactNormalizer.Normalize(contactRawText),
             OutreachSenderRawText = Get(csv, ImportConstants.WebmasterOffersImportColumns.OutreachSenderRawText),
             LinkbuilderMailboxRawText = Get(csv, ImportConstants.WebmasterOffersImportColumns.LinkbuilderMailboxRawText),
             TermRawText = Get(csv, ImportConstants.WebmasterOffersImportColumns.Term),
@@ -754,17 +753,6 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         }
 
         return WebmasterImportTerm.Unknown;
-    }
-
-    private static string NormalizeContact(string? contactRawText)
-    {
-        var trimmed = contactRawText?.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return string.Empty;
-        }
-
-        return WhitespaceRegex.Replace(trimmed, " ").ToLowerInvariant();
     }
 
     private static string? ExtractPrimaryEmail(string? contactRawText)

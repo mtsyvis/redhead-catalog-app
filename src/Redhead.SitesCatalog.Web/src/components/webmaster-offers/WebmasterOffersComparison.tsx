@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
+  Alert,
   Box,
   Chip,
   IconButton,
   Paper,
+  Snackbar,
   Stack,
   Typography,
 } from '@mui/material';
@@ -13,10 +16,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { alpha } from '@mui/material/styles';
 import type { WebmasterOffer, WebmasterOfferStatus } from '../../types/webmasterOffers.types';
-import {
-  WebmasterOfferDetails,
-  WebmasterOfferTextBlock,
-} from './WebmasterOfferDetails';
+import { CopyToClipboardIconButton } from '../common/CopyToClipboardIconButton';
+import { WebmasterOfferDetails } from './WebmasterOfferDetails';
 import {
   PRICE_GRID_TEMPLATE,
   PRICE_MATRIX_MIN_WIDTH,
@@ -77,6 +78,45 @@ function TermChip({ label }: { readonly label: string }) {
   );
 }
 
+function PrimaryEmailValue({
+  value,
+  onCopySuccess,
+  onCopyError,
+}: {
+  readonly value: string | null | undefined;
+  readonly onCopySuccess: () => void;
+  readonly onCopyError: () => void;
+}) {
+  const email = value?.trim();
+
+  return (
+    <Box
+      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, width: '100%' }}
+      onClick={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      <Typography
+        variant="body2"
+        color={email ? 'text.primary' : 'text.secondary'}
+        sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', userSelect: 'text' }}
+      >
+        {email || '—'}
+      </Typography>
+      {email && (
+        <CopyToClipboardIconButton
+          key={email}
+          value={email}
+          copyLabel="Copy Primary Email"
+          copiedLabel="Copied"
+          onCopySuccess={onCopySuccess}
+          onCopyError={onCopyError}
+        />
+      )}
+    </Box>
+  );
+}
+
 function ComparisonHeaderCell({ children }: { readonly children: string }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', px: 1.5, py: 1, minWidth: 0 }}>
@@ -114,13 +154,25 @@ interface OfferRowProps {
   readonly onChange: (expanded: boolean) => void;
   readonly canEdit: boolean;
   readonly onEdit: () => void;
+  readonly onPrimaryEmailCopySuccess: () => void;
+  readonly onPrimaryEmailCopyError: () => void;
 }
 
-function DesktopOfferRow({ offer, index, expanded, onChange, canEdit, onEdit }: OfferRowProps) {
+function DesktopOfferRow({
+  offer,
+  index,
+  expanded,
+  onChange,
+  canEdit,
+  onEdit,
+  onPrimaryEmailCopySuccess,
+  onPrimaryEmailCopyError,
+}: OfferRowProps) {
   return (
     <Accordion
       expanded={expanded}
       onChange={(_event, isExpanded) => onChange(isExpanded)}
+      slots={{ heading: 'div' }}
       disableGutters
       square
       elevation={0}
@@ -131,6 +183,9 @@ function DesktopOfferRow({ offer, index, expanded, onChange, canEdit, onEdit }: 
       }}
     >
       <AccordionSummary
+        component="div"
+        role="group"
+        tabIndex={-1}
         aria-controls={`webmaster-offer-${offer.id}-details`}
         id={`webmaster-offer-${offer.id}-summary`}
         sx={{
@@ -176,10 +231,16 @@ function DesktopOfferRow({ offer, index, expanded, onChange, canEdit, onEdit }: 
                 <EditOutlinedIcon fontSize="small" />
               </IconButton>
             )}
-            <ExpandMoreIcon
-              fontSize="small"
-              sx={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }}
-            />
+            <IconButton
+              aria-label={`${expanded ? 'Collapse' : 'Expand'} offer ${index + 1}`}
+              aria-expanded={expanded}
+              size="small"
+            >
+              <ExpandMoreIcon
+                fontSize="small"
+                sx={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }}
+              />
+            </IconButton>
           </Stack>
         </Box>
         <Box
@@ -197,13 +258,11 @@ function DesktopOfferRow({ offer, index, expanded, onChange, canEdit, onEdit }: 
           <TermChip label={offer.termLabel || 'No term'} />
         </Box>
         <Box sx={{ px: 1.5, py: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
-          <Typography
-            variant="body2"
-            color={offer.primaryEmail?.trim() ? 'text.primary' : 'text.secondary'}
-            sx={{ overflowWrap: 'anywhere' }}
-          >
-            {offer.primaryEmail || '—'}
-          </Typography>
+          <PrimaryEmailValue
+            value={offer.primaryEmail}
+            onCopySuccess={onPrimaryEmailCopySuccess}
+            onCopyError={onPrimaryEmailCopyError}
+          />
         </Box>
         <WebmasterOfferPriceCells offer={offer} />
       </AccordionSummary>
@@ -231,16 +290,29 @@ function DesktopOfferRow({ offer, index, expanded, onChange, canEdit, onEdit }: 
   );
 }
 
-function MobileOfferRow({ offer, index, expanded, onChange, canEdit, onEdit }: OfferRowProps) {
+function MobileOfferRow({
+  offer,
+  index,
+  expanded,
+  onChange,
+  canEdit,
+  onEdit,
+  onPrimaryEmailCopySuccess,
+  onPrimaryEmailCopyError,
+}: OfferRowProps) {
   return (
     <Accordion
       expanded={expanded}
       onChange={(_event, isExpanded) => onChange(isExpanded)}
+      slots={{ heading: 'div' }}
       variant="outlined"
       disableGutters
       sx={{ '&::before': { display: 'none' }, '& + &': { mt: 1 } }}
     >
       <AccordionSummary
+        component="div"
+        role="group"
+        tabIndex={-1}
         aria-controls={`mobile-webmaster-offer-${offer.id}-details`}
         id={`mobile-webmaster-offer-${offer.id}-summary`}
         sx={{
@@ -272,14 +344,27 @@ function MobileOfferRow({ offer, index, expanded, onChange, canEdit, onEdit }: O
                 <EditOutlinedIcon fontSize="small" />
               </IconButton>
             )}
-            <ExpandMoreIcon
-              fontSize="small"
-              sx={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none' }}
-            />
+            <IconButton
+              aria-label={`${expanded ? 'Collapse' : 'Expand'} offer ${index + 1}`}
+              aria-expanded={expanded}
+              size="small"
+            >
+              <ExpandMoreIcon
+                fontSize="small"
+                sx={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'none' }}
+              />
+            </IconButton>
           </Stack>
         </Box>
         <Box sx={{ mb: 1.5 }}>
-          <WebmasterOfferTextBlock label="Primary Email" value={offer.primaryEmail || '—'} />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+            Primary Email
+          </Typography>
+          <PrimaryEmailValue
+            value={offer.primaryEmail}
+            onCopySuccess={onPrimaryEmailCopySuccess}
+            onCopyError={onPrimaryEmailCopyError}
+          />
         </Box>
         <Box
           sx={{ overflowX: 'auto', mx: -1.5, px: 1.5, pb: 0.5 }}
@@ -329,6 +414,10 @@ export function WebmasterOffersComparison({
   canEdit,
   onEditOffer,
 }: WebmasterOffersComparisonProps) {
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const handlePrimaryEmailCopySuccess = () => setCopyError(null);
+  const handlePrimaryEmailCopyError = () => setCopyError('Could not copy Primary Email');
+
   return (
     <>
       <Paper variant="outlined" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}>
@@ -342,6 +431,8 @@ export function WebmasterOffersComparison({
             onChange={(expanded) => onExpandedOfferChange(offer.id, expanded)}
             canEdit={canEdit}
             onEdit={() => onEditOffer(offer.id)}
+            onPrimaryEmailCopySuccess={handlePrimaryEmailCopySuccess}
+            onPrimaryEmailCopyError={handlePrimaryEmailCopyError}
           />
         ))}
       </Paper>
@@ -356,9 +447,22 @@ export function WebmasterOffersComparison({
             onChange={(expanded) => onExpandedOfferChange(offer.id, expanded)}
             canEdit={canEdit}
             onEdit={() => onEditOffer(offer.id)}
+            onPrimaryEmailCopySuccess={handlePrimaryEmailCopySuccess}
+            onPrimaryEmailCopyError={handlePrimaryEmailCopyError}
           />
         ))}
       </Box>
+
+      <Snackbar
+        open={copyError !== null}
+        autoHideDuration={4000}
+        onClose={() => setCopyError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" onClose={() => setCopyError(null)}>
+          {copyError}
+        </Alert>
+      </Snackbar>
     </>
   );
 }

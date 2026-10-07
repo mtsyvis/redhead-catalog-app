@@ -13,6 +13,7 @@ import {
   STATUS_ACTIVE,
   STATUS_INACTIVE,
   mailboxLabel,
+  normalizeWebmasterContact,
   type OfferFieldUpdater,
   type OfferFormState,
   type TermKind,
@@ -33,6 +34,9 @@ export function WebmasterOfferDetailsTab({
   selectedMailboxes,
   updateField,
 }: Props) {
+  const contactWillRelink = normalizeWebmasterContact(form.contactRawText)
+    !== normalizeWebmasterContact(edit.offer.contactRawText);
+
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -61,12 +65,29 @@ export function WebmasterOfferDetailsTab({
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Typography variant="subtitle2">Contacts &amp; outreach</Typography>
         <TextField
-          label="Contact raw text · read only"
+          label="Primary email"
           size="small"
-          value={edit.offer.contactRawText || '—'}
+          value={form.primaryEmail}
+          onChange={(event) => updateField('primaryEmail', event.target.value)}
+          error={Boolean(fieldErrors.primaryEmail?.length)}
+          helperText={fieldErrors.primaryEmail?.[0]
+            ?? (contactWillRelink
+              ? 'Contact is changing, so this offer may be relinked. Primary email will apply to the resolved webmaster; an existing value will not be overwritten automatically.'
+              : edit.webmasterOfferCount > 1
+                ? `Changing this value updates all ${edit.webmasterOfferCount} offers currently linked to this webmaster.`
+                : 'Changing this value updates the webmaster linked to this offer.')}
+        />
+        <TextField
+          label="Contact"
+          size="small"
+          value={form.contactRawText}
+          onChange={(event) => updateField('contactRawText', event.target.value)}
           multiline
           minRows={4}
-          disabled
+          maxRows={8}
+          error={Boolean(fieldErrors.contactRawText?.length)}
+          helperText={fieldErrors.contactRawText?.[0]
+            ?? 'Changing Contact may relink only this offer to another imported webmaster identity.'}
         />
         <TextField label="Outreach sender" size="small" value={form.outreachSenderRawText} onChange={(event) => updateField('outreachSenderRawText', event.target.value)} multiline minRows={1} maxRows={3} error={Boolean(fieldErrors.outreachSenderRawText?.length)} helperText={fieldErrors.outreachSenderRawText?.[0]} />
         <Box

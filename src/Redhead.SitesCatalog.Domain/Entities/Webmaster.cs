@@ -10,6 +10,7 @@ public class Webmaster
     public string? Notes { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
+    public uint Version { get; set; }
 
     public ICollection<SiteWebmasterOffer> Offers { get; set; } = [];
 }

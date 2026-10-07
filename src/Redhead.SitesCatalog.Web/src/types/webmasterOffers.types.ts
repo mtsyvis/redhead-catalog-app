@@ -52,12 +52,15 @@ export interface WebmasterOffer {
   createdAtUtc: string;
   updatedAtUtc: string;
   updatedBy: string | null;
+  version: number;
   linkbuilderMailboxes: WebmasterOfferMailbox[];
   prices: WebmasterOfferPrice[];
 }
 
 export interface WebmasterOfferEdit {
   offer: WebmasterOffer;
+  webmasterVersion: number;
+  webmasterOfferCount: number;
   availableMailboxes: WebmasterOfferMailboxOption[];
 }
 
@@ -76,7 +79,10 @@ export interface UpdateWebmasterOfferPricePayload {
 }
 
 export interface UpdateWebmasterOfferPayload {
-  expectedUpdatedAtUtc: string;
+  expectedVersion: number;
+  expectedWebmasterVersion: number;
+  contactRawText: string;
+  primaryEmail: string | null;
   status: number;
   outreachSenderRawText: string | null;
   linkPolicyText: string | null;

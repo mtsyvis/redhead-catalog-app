@@ -35,6 +35,9 @@ public sealed class WebmasterConfiguration : IEntityTypeConfiguration<Webmaster>
         builder.Property(webmaster => webmaster.UpdatedAtUtc)
             .IsRequired();
 
+        builder.Property(webmaster => webmaster.Version)
+            .IsRowVersion();
+
         builder.HasIndex(webmaster => webmaster.NormalizedContactRawText)
             .IsUnique();
 

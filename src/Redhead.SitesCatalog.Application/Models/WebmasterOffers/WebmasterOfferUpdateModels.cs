@@ -5,6 +5,8 @@ namespace Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 public sealed class WebmasterOfferEditDto
 {
     public WebmasterOfferDto Offer { get; init; } = new();
+    public uint WebmasterVersion { get; init; }
+    public int WebmasterOfferCount { get; init; }
     public IReadOnlyList<WebmasterOfferMailboxOptionDto> AvailableMailboxes { get; init; } = [];
 }
 
@@ -18,7 +20,10 @@ public sealed class WebmasterOfferMailboxOptionDto
 
 public sealed class UpdateWebmasterOfferRequest
 {
-    public DateTime ExpectedUpdatedAtUtc { get; set; }
+    public uint ExpectedVersion { get; set; }
+    public uint ExpectedWebmasterVersion { get; set; }
+    public string ContactRawText { get; set; } = string.Empty;
+    public string? PrimaryEmail { get; set; }
     public SiteWebmasterOfferStatus Status { get; set; }
     public string? OutreachSenderRawText { get; set; }
     public string? LinkPolicyText { get; set; }

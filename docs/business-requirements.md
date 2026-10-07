@@ -448,11 +448,16 @@ Storage rules:
 * Webmaster offer import must not auto-create sites.
 * Webmasters are found or created by normalized `ContactRawText`.
 * Webmasters are not automatically merged by email.
-* `ContactRawText` is preserved and may contain messy legacy text, multiple emails, comments, reply markers, URLs, and other raw content.
+* `ContactRawText` may contain messy legacy text, multiple emails, comments, reply markers, URLs, and other raw content. Import stores the source value on both the offer and its technical webmaster identity; a later manual offer edit may change the offer value, with the imported value retained in manual change history and `ImportFingerprint` left unchanged.
 * `PrimaryEmail` is parsed from `ContactRawText` best-effort only. Import must never fail when a primary email cannot be detected.
 * If an email appears on the same line as a reply/direction marker, reply markers such as `отвечают`, `ответ`, `answer`, `reply`, `отв`, or `otv` take priority over generic direction/location markers such as `писать сюда`, `write here`, `сюда`, `здесь`, or `тут`, regardless of line order. Within the highest matching priority group, the first marked email is stored as `PrimaryEmail`.
 * If no marker exists and exactly one email exists in `ContactRawText`, that email is stored as `PrimaryEmail`.
 * If no marker exists and multiple emails exist in `ContactRawText`, `PrimaryEmail` remains empty and the raw contact text remains the source of truth.
+* Manual offer editing requires a non-empty Contact. Contact is trimmed, retains its internal line structure, and supports up to 20,000 characters.
+* When a manual Contact change produces a different normalized Contact, only that offer is relinked to the existing technical `Webmaster` with the same normalized Contact or to a newly created technical `Webmaster`. Existing webmaster rows are not merged or deleted.
+* If relinking finds an existing technical Webmaster whose `PrimaryEmail` differs from the submitted value, the save is rejected instead of silently overwriting the existing Webmaster.
+* Manual `PrimaryEmail` is optional, validated as one email address, trimmed, and stored lowercase. It belongs to the linked technical Webmaster, so changing it updates the displayed Primary email for every offer currently linked to that Webmaster.
+* A manually saved `PrimaryEmail` is not recalculated or overwritten by later imports that reuse the same technical Webmaster.
 * Raw `LinkbuilderMailboxRawText` is always preserved and is read-only after import.
 * Parsed linkbuilder mailboxes are linked best-effort against seeded active mailbox emails and aliases.
 * Unmapped mailbox aliases produce import warnings but do not invalidate the row.
@@ -460,7 +465,7 @@ Storage rules:
 * `TermRawText` is preserved. Empty, invalid, or unsupported terms are stored as No term for phase 1.
 * Phase 1 supports No term, `permanent`, and positive finite year terms for parsed webmaster offer terms.
 * Webmaster offer status defaults to `Active`; `Inactive` is reserved for future cleanup.
-* Manual offer edits set `UpdatedAtUtc` and `UpdatedBy` but do not change `WebmasterId`, the linked webmaster record, `ContactRawText`, `SiteDomain`, `ImportFingerprint`, `CreatedAtUtc`, or `TermRawText`.
+* Manual offer edits set `UpdatedAtUtc` and `UpdatedBy`. They may change `ContactRawText`, `PrimaryEmail`, and `WebmasterId` only through the Contact-relinking rules above, but do not change `SiteDomain`, `ImportFingerprint`, `CreatedAtUtc`, `TermRawText`, or imported `LinkbuilderMailboxRawText`.
 * Submitting a webmaster offer without any effective field changes does not update `UpdatedAtUtc` or `UpdatedBy` and does not create a change-history entry.
 * `ImportFingerprint` remains the immutable source identity after a manual edit so re-importing the original source row remains idempotent.
 
@@ -568,7 +573,7 @@ Rules:
 
 * Each entry stores entity type, entity identifier, action, source, change timestamp, acting user email, and the changed field values before and after the edit.
 * Site manual-edit history includes editable site fields, quarantine fields, term-aware prices, and service availability.
-* Webmaster-offer manual-edit history includes status, effective term, editable raw offer fields, structured linkbuilder mailboxes, and raw webmaster prices.
+* Webmaster-offer manual-edit history includes status, effective term, Contact, Primary email, editable raw offer fields, structured linkbuilder mailboxes, and raw webmaster prices.
 * History endpoints return the newest 100 entries and are available only to users with the corresponding edit permission.
 * The history added in this phase covers manual edits only. Imports, Ahrefs sync, and other background updates do not create general entity-change-history entries.
 * Traffic/DR metric history remains a separate business history with its own snapshot rules.
@@ -1161,15 +1166,15 @@ Rules:
 * The Webmasters page is available to the same roles and provides the separate Contact-based read-only search and offer-review workflow described above.
 * Webmaster Offers UI supports domain search and comparison of offers, contacts, outreach sender text, linkbuilder mailbox raw text, parsed mailboxes, raw prices by service, term, link policy, DF links raw text, sponsored tag raw text, comments, client raw text, and status.
 * `SuperAdmin`, `Admin`, and `Editor` can open an edit dialog for an offer. `Linkbuilder` remains read-only.
-* The edit dialog can update status, effective structured term, offer-level raw text fields except `ContactRawText` and `LinkbuilderMailboxRawText`, structured linkbuilder mailboxes, and all ten raw price types. Webmaster fields, primary email, contact raw text, imported linkbuilder mailbox text, site domain, imported raw term, and import fingerprint are read-only.
+* The edit dialog can update status, effective structured term, Contact, Primary email, offer-level raw text fields except imported `LinkbuilderMailboxRawText`, structured linkbuilder mailboxes, and all ten raw price types. While Contact still resolves to the currently linked Webmaster, it shows how many offers share that Webmaster before a Primary email edit. When Contact would relink the offer, the UI explains that the target scope is resolved during save and that an existing Webmaster's Primary email is not overwritten automatically. Site domain, imported raw term, imported linkbuilder mailbox text, and import fingerprint remain read-only.
 * Manual price editing enforces the same availability/amount consistency as import: numeric prices are positive with at most two decimal places; `YES`, `NO`, and `Unknown` have no numeric amount; Main supports only numeric price or Unknown.
 * A service shown as `Unknown` may have no stored price row. Manually entering a numeric price, `YES`/`NO` where supported, or price details creates that row; editing an existing row updates it. Both cases save the offer and its manual change history together.
-* Saving uses `UpdatedAtUtc` for optimistic concurrency, checking the version both when loading and when writing the offer to the database. Every effective save advances the version at PostgreSQL microsecond precision. If another user saves first, the losing request returns `409 Conflict` and none of its offer, price, mailbox, or history changes are persisted.
+* Saving maps the PostgreSQL-managed `xmin` system columns of the offer and linked Webmaster to API `Version` values for optimistic concurrency; `UpdatedAtUtc` remains audit time and is not used as a version token. The API-provided expected versions are assigned as EF original values and checked atomically by the database update predicate rather than by pre-write validation. PostgreSQL changes `xmin` automatically whenever that row is updated. A Webmaster row is updated only when its own data changes, so independent edits to different offers sharing one Webmaster do not conflict. Concurrent changes to the same offer or the same Webmaster return `409 Conflict`, and none of the losing request's offer, webmaster, price, mailbox, or history changes are persisted.
 * The database permits at most one raw price row per offer and price type. Concurrent additions of the same price type or mailbox return a conflict instead of creating duplicate rows or returning an unexpected error.
 * Successful saves refresh the domain search result because price changes can change offer ordering.
 * Manual Site and webmaster-offer edit forms expose the corresponding manual change history.
 * Offers are displayed as compact independently expandable comparison rows sorted by effective numeric price ascending. Effective price is the numeric Main price when present, otherwise the lowest numeric price among the other raw price types. Offers without any numeric price are placed last. Equal effective prices are ordered newest first, then by offer ID. Multiple offers can be expanded at the same time; all offers are collapsed by default after search.
-* Leading offer metadata columns show offer number, status and term, and primary email. Offer dates and sponsored tag raw text are not shown in the comparison row.
+* Leading offer metadata columns show offer number, status and term, and primary email. A non-empty primary email remains selectable and has a dedicated copy action with success or failure feedback. Offer dates and sponsored tag raw text are not shown in the comparison row.
 * All ten raw price types are shown in a horizontally scrollable comparison matrix. The table, including offer metadata, scrolls horizontally as one surface. Each price cell shows the numeric USD amount, `YES`, `NO`, or `—` as its primary value. The full raw price-details text is shown in secondary typography and wraps without truncation. If there is no numeric/status value but price details exist, the empty-value dash is omitted and only the secondary price-details text is shown.
 * Table typography, header treatment, status treatment, density, hover feedback, and empty-value presentation follow the Sites table patterns; all empty table values use the same `—` presentation.
 * Expanded offer details remain anchored while the comparison table scrolls. They show contact raw text, outreach sender text, sponsored tag raw text, link policy, DF links raw text, comments, client raw text, linkbuilder mailbox raw text, parsed mailboxes, and raw term. Price details are not repeated in a separate table.

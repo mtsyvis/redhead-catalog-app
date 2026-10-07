@@ -68,7 +68,7 @@ public sealed class WebmasterOffersController : ControllerBase
             WebmasterOfferUpdateStatus.NotFound => NotFound(),
             WebmasterOfferUpdateStatus.Conflict => Conflict(new
             {
-                message = "This offer was changed by another user. Reload it and try again."
+                message = "This offer or its linked webmaster was changed by another user. Reload it and try again."
             }),
             _ => StatusCode(StatusCodes.Status500InternalServerError)
         };

@@ -76,8 +76,10 @@ public sealed class SiteWebmasterOfferConfiguration : IEntityTypeConfiguration<S
             .IsRequired();
 
         builder.Property(offer => offer.UpdatedAtUtc)
-            .IsRequired()
-            .IsConcurrencyToken();
+            .IsRequired();
+
+        builder.Property(offer => offer.Version)
+            .IsRowVersion();
 
         builder.Property(offer => offer.UpdatedBy)
             .HasMaxLength(320);

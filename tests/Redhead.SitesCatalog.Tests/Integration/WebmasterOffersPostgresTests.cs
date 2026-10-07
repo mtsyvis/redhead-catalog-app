@@ -87,7 +87,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
             .Include(item => item.LinkbuilderMailboxes).SingleAsync();
         Assert.Equal("Winner", saved.CommentText);
         Assert.Equal("winner@example.com", saved.UpdatedBy);
-        Assert.Equal(winnerResult.Offer!.UpdatedAtUtc, saved.UpdatedAtUtc);
+        Assert.Equal(winnerResult.Offer!.Version, saved.Version);
         Assert.Equal(winnerRequest.Prices.Count, saved.Prices.Count);
         foreach (var expected in winnerRequest.Prices)
         {
@@ -101,6 +101,104 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         Assert.Equal("winner@example.com", history.ChangedBy);
         Assert.Contains("Winner", history.ChangesJson, StringComparison.Ordinal);
         Assert.DoesNotContain("Loser", history.ChangesJson, StringComparison.Ordinal);
+    }
+
+    [PostgresFact]
+    public async Task Update_DifferentOffersSharingWebmaster_RejectsStaleWebmasterVersion()
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        var selectedOffer = await SeedOfferAsync(setup, "details");
+        var siblingOffer = new SiteWebmasterOffer
+        {
+            Id = Guid.NewGuid(),
+            SiteDomain = selectedOffer.SiteDomain,
+            WebmasterId = selectedOffer.WebmasterId,
+            Webmaster = selectedOffer.Webmaster,
+            ImportFingerprint = new string('b', 64),
+            ContactRawText = selectedOffer.ContactRawText,
+            Status = selectedOffer.Status,
+            CreatedAtUtc = selectedOffer.CreatedAtUtc,
+            UpdatedAtUtc = selectedOffer.UpdatedAtUtc
+        };
+        setup.SiteWebmasterOffers.Add(siblingOffer);
+        await setup.SaveChangesAsync();
+        var mailboxId = await setup.LinkbuilderMailboxes.Select(item => item.Id).SingleAsync();
+        var winnerRequest = CreateRequest(siblingOffer, "details", mailboxId, "Winner", 100m);
+        winnerRequest.PrimaryEmail = "winner@example.com";
+        var loserRequest = CreateRequest(selectedOffer, "details", mailboxId, "Loser", 100m);
+        loserRequest.PrimaryEmail = "loser@example.com";
+        WebmasterOfferUpdateResult? winnerResult = null;
+        var interceptor = new BeforeSaveInterceptor(async () =>
+        {
+            await using var winnerContext = CreateContext();
+            winnerResult = await new WebmasterOffersService(winnerContext)
+                .UpdateAsync(siblingOffer.Id, winnerRequest, "winner@example.com");
+        });
+        await using var loserContext = CreateContext(interceptor);
+
+        // Act
+        var loserResult = await new WebmasterOffersService(loserContext)
+            .UpdateAsync(selectedOffer.Id, loserRequest, "loser@example.com");
+
+        // Assert
+        Assert.Equal(WebmasterOfferUpdateStatus.Success, winnerResult!.Status);
+        Assert.Equal(WebmasterOfferUpdateStatus.Conflict, loserResult.Status);
+        Assert.Empty(loserContext.ChangeTracker.Entries());
+        await using var verification = CreateContext();
+        var savedWebmaster = await verification.Webmasters.SingleAsync();
+        Assert.Equal("winner@example.com", savedWebmaster.PrimaryEmail);
+        Assert.Null((await verification.SiteWebmasterOffers.SingleAsync(item => item.Id == selectedOffer.Id)).CommentText);
+        Assert.Equal("Winner", (await verification.SiteWebmasterOffers.SingleAsync(item => item.Id == siblingOffer.Id)).CommentText);
+        var history = Assert.Single(await verification.EntityChangeHistories.ToListAsync());
+        Assert.Equal("winner@example.com", history.ChangedBy);
+    }
+
+    [PostgresFact]
+    public async Task Update_DifferentOffersSharingWebmaster_AllowsIndependentOfferChanges()
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        var firstOffer = await SeedOfferAsync(setup, "details");
+        var secondOffer = new SiteWebmasterOffer
+        {
+            Id = Guid.NewGuid(),
+            SiteDomain = firstOffer.SiteDomain,
+            WebmasterId = firstOffer.WebmasterId,
+            Webmaster = firstOffer.Webmaster,
+            ImportFingerprint = new string('b', 64),
+            ContactRawText = firstOffer.ContactRawText,
+            Status = firstOffer.Status,
+            CreatedAtUtc = firstOffer.CreatedAtUtc,
+            UpdatedAtUtc = firstOffer.UpdatedAtUtc
+        };
+        setup.SiteWebmasterOffers.Add(secondOffer);
+        await setup.SaveChangesAsync();
+        var webmasterVersion = firstOffer.Webmaster.Version;
+        var mailboxId = await setup.LinkbuilderMailboxes.Select(item => item.Id).SingleAsync();
+        var concurrentRequest = CreateRequest(secondOffer, "details", mailboxId, "Second", 100m);
+        var selectedRequest = CreateRequest(firstOffer, "details", mailboxId, "First", 100m);
+        WebmasterOfferUpdateResult? concurrentResult = null;
+        var interceptor = new BeforeSaveInterceptor(async () =>
+        {
+            await using var concurrentContext = CreateContext();
+            concurrentResult = await new WebmasterOffersService(concurrentContext)
+                .UpdateAsync(secondOffer.Id, concurrentRequest, "second@example.com");
+        });
+        await using var selectedContext = CreateContext(interceptor);
+
+        // Act
+        var selectedResult = await new WebmasterOffersService(selectedContext)
+            .UpdateAsync(firstOffer.Id, selectedRequest, "first@example.com");
+
+        // Assert
+        Assert.Equal(WebmasterOfferUpdateStatus.Success, concurrentResult!.Status);
+        Assert.Equal(WebmasterOfferUpdateStatus.Success, selectedResult.Status);
+        await using var verification = CreateContext();
+        Assert.Equal("First", (await verification.SiteWebmasterOffers.SingleAsync(item => item.Id == firstOffer.Id)).CommentText);
+        Assert.Equal("Second", (await verification.SiteWebmasterOffers.SingleAsync(item => item.Id == secondOffer.Id)).CommentText);
+        Assert.Equal(webmasterVersion, (await verification.Webmasters.SingleAsync()).Version);
+        Assert.Equal(2, await verification.EntityChangeHistories.CountAsync());
     }
 
     [PostgresFact]
@@ -205,7 +303,12 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
     {
         var request = new UpdateWebmasterOfferRequest
         {
-            ExpectedUpdatedAtUtc = offer.UpdatedAtUtc, Status = offer.Status, CommentText = comment,
+            ExpectedVersion = offer.Version,
+            ExpectedWebmasterVersion = offer.Webmaster.Version,
+            ContactRawText = offer.ContactRawText,
+            PrimaryEmail = offer.Webmaster.PrimaryEmail,
+            Status = offer.Status,
+            CommentText = comment,
             Prices = [new UpdateWebmasterOfferPriceRequest
             {
                 PriceType = WebmasterOfferPriceType.Main, AvailabilityStatus = ServiceAvailabilityStatus.Available,

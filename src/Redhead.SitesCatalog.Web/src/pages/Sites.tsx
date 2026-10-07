@@ -60,6 +60,7 @@ import type {
 import { sitesService } from '../services/sites.service';
 import { normalizeServiceAvailabilityFilter } from '../utils/serviceAvailability';
 import { PRICE_TYPE, getPriceFilterColumnId } from '../utils/pricing';
+import { writeTextToClipboard } from '../utils/clipboard';
 
 const INITIAL_FILTERS: FiltersType = {
   search: '',
@@ -649,11 +650,7 @@ export function Sites() {
         if (multiSearchResult === null) return;
 
         const text = buildPriceColumnClipboardText(multiSearchResult.results, field);
-        if (!navigator.clipboard?.writeText) {
-          throw new Error('Clipboard API is not available in this browser.');
-        }
-
-        await navigator.clipboard.writeText(text);
+        await writeTextToClipboard(text);
         setSnackbar({
           open: true,
           message: `Copied ${label} values in Multi-search input order (${multiSearchResult.results.length} rows)`,
