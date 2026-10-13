@@ -38,6 +38,19 @@ function changesLabel(count: number) {
   return `${count} ${count === 1 ? 'field' : 'fields'} changed`;
 }
 
+function formatCleanupReason(value: string | null) {
+  switch (value) {
+    case 'Single distinct repeated email':
+      return 'The same email address appears more than once in Contact.';
+    case 'Explicit main/reply marker':
+      return 'The email was selected from an explicit main contact or reply note in Contact.';
+    case 'Correct marked email':
+      return 'The email was corrected because a note in Contact points to a different address.';
+    default:
+      return value?.trim() || 'No reason provided.';
+  }
+}
+
 interface HistoryValueProps {
   readonly value: string | null;
   readonly kind: 'before' | 'after';
@@ -107,7 +120,13 @@ export function ChangeHistoryContent({ items, loading, error }: Props) {
       {items?.length === 0 && <Alert severity="info">No manual changes recorded yet.</Alert>}
       {items && items.length > 0 && (
         <Stack spacing={2} sx={{ width: '100%' }}>
-          {items.map((item) => (
+          {items.map((item) => {
+            const isCleanupReason = (field: string) =>
+              item.source.toLowerCase() === 'data migration' && field.toLowerCase() === 'cleanup rule';
+            const fieldChanges = item.changes.filter((change) => !isCleanupReason(change.field));
+            const cleanupReasons = item.changes.filter((change) => isCleanupReason(change.field));
+
+            return (
             <Box
               key={item.id}
               sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}
@@ -135,7 +154,7 @@ export function ChangeHistoryContent({ items, loading, error }: Props) {
                     <Chip label={item.action} size="small" variant="outlined" />
                   )}
                   <Chip label={formatSource(item.source)} size="small" variant="outlined" />
-                  <Chip label={changesLabel(item.changes.length)} size="small" color="primary" />
+                  <Chip label={changesLabel(fieldChanges.length)} size="small" color="primary" />
                 </Stack>
               </Box>
 
@@ -160,7 +179,7 @@ export function ChangeHistoryContent({ items, loading, error }: Props) {
               </Box>
 
               <Stack divider={<Box sx={{ borderTop: 1, borderColor: 'divider' }} />}>
-                {item.changes.map((change) => (
+                {fieldChanges.map((change) => (
                   <Box
                     key={change.field}
                     sx={{
@@ -190,8 +209,20 @@ export function ChangeHistoryContent({ items, loading, error }: Props) {
                   </Box>
                 ))}
               </Stack>
+              {cleanupReasons.map((reason) => (
+                <Box
+                  key={reason.field}
+                  sx={{ px: 2, py: 1.5, borderTop: 1, borderColor: 'divider', bgcolor: 'action.hover' }}
+                >
+                  <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
+                    <Box component="span" sx={{ fontWeight: 600 }}>Reason for correction: </Box>
+                    {formatCleanupReason(reason.newValue)}
+                  </Typography>
+                </Box>
+              ))}
             </Box>
-          ))}
+            );
+          })}
         </Stack>
       )}
     </>

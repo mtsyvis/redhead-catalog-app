@@ -119,6 +119,11 @@ $RECYCLE.BIN/
 *.db-wal
 *.sqlite
 *.sqlite3
+*.dump
+
+# One-off local webmaster audit (not required by the application)
+/docs/webmaster-migration-audit.md
+/scripts/WebmasterMigrationAudit/
 
 # Logs
 logs/

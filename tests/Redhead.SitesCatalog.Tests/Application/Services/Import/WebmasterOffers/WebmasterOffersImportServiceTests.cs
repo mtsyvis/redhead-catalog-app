@@ -312,6 +312,33 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
         Assert.Equal("info@huislijn.nl", webmaster.PrimaryEmail);
     }
 
+    [Theory]
+    [InlineData("first@example.org second@example.org=ответ здесь", "second@example.org")]
+    [InlineData("first@example.org; second@example.org (ответ)", "second@example.org")]
+    [InlineData("first@example.org second@example.org (ОТВЕЧАЮТ)", "second@example.org")]
+    [InlineData("first@example.org\r\nsecond@example.org - ответили", "second@example.org")]
+    [InlineData("first@example.org\nsecond@example.org -главный контакт", "second@example.org")]
+    [InlineData("first@example.org\nосновной контакт: second@example.org", "second@example.org")]
+    [InlineData("first@example.org (reply) second@example.org", "first@example.org")]
+    [InlineData("FIRST@example.org\nfirst@example.org", "first@example.org")]
+    [InlineData("first@example.org (писать сюда), second@example.org", "first@example.org")]
+    [InlineData("first@example.org - answer\nsecond@example.org - answer", "first@example.org")]
+    [InlineData("first@example.org second@example.org", null)]
+    [InlineData("https://example.org/contact/", null)]
+    public async Task ImportAsync_UnambiguousRepairRules_ExtractPrimaryEmailWithoutChangingContact(string contact, string? expected)
+    {
+        // Arrange
+        using var stream = CsvWithRows(Row(domain: "existing.com", contact: contact, mainAmount: "100"));
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal(expected, Assert.Single(_context.Webmasters).PrimaryEmail);
+        Assert.Equal(contact, Assert.Single(_context.SiteWebmasterOffers).ContactRawText);
+    }
+
     [Fact]
     public async Task ImportAsync_ContactWithoutMarkerAndMultipleEmails_LeavesPrimaryEmailEmpty()
     {

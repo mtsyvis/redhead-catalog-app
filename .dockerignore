@@ -11,5 +11,10 @@
 **/*.csv
 **/terminals
 **/agent-transcripts
+artifacts/
+tmp/
+temp/
+**/*.dump
+scripts/WebmasterMigrationAudit/
 docs/promps.md
 README.md

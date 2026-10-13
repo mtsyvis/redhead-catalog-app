@@ -298,6 +298,58 @@ docker compose up -d --build
 
 Do not run destructive Docker commands such as `docker compose down -v` unless you intentionally want to delete persistent volumes.
 
+## Primary email cleanup migration
+
+`20261012153852_NormalizeWebmasterPrimaryEmails` is a transactional data migration. Normal API
+startup calls EF `MigrateAsync`, so deploying and starting the rebuilt app applies it once.
+The migration SQL is embedded in the backend assembly; no external script or production-data
+manifest needs to be copied to the VPS. It creates no new business tables.
+Local audit artifacts, temporary verification checkouts and dumps are excluded from the Docker
+build context; the embedded migration SQL under `src/` remains included.
+
+Before rollout, take a fresh backup using the normal backup procedure. The migration
+recomputes candidates against the current database, skips
+recorded manual Contact/Primary email edits, and requires the saved value to agree with the old
+extractor before repairing it. Candidate counts can differ after the team's portal edits.
+
+The migration temporarily serializes writes to Webmasters, Webmaster Offers and change history;
+reads remain available. Its PrimaryEmail updates and audit inserts commit together. Startup fails
+if the migration fails; it does not serve a partially repaired dataset. Keep the normal deployment
+flow that replaces/restarts the app after its Docker build.
+
+After startup, verify API health and inspect the migration record and audit counts:
+
+```sql
+SELECT "MigrationId" FROM "__EFMigrationsHistory"
+WHERE "MigrationId" = '20261012153852_NormalizeWebmasterPrimaryEmails';
+
+SELECT "EntityType", COUNT(*)
+FROM "EntityChangeHistories"
+WHERE "Source" = 'Data migration'
+  AND "ChangedBy" = 'Migration:20261012153852_NormalizeWebmasterPrimaryEmails'
+GROUP BY "EntityType";
+```
+
+For the 2026-10-12 dump, expected counts are 766 `Webmaster` entries and 830
+`SiteWebmasterOffer` entries. Offer history displays old/new Primary email, the
+`Data migration` source and migration actor, and a separate reason for correction.
+Current production counts may differ.
+Raw Contact, offer fingerprints, offers, prices and Sites remain unchanged.
+
+EF `Down` restores old PrimaryEmail values only when every affected Webmaster still has the
+migration's value/timestamp and has no subsequent manual Contact/Primary email change. It retains
+forward audit entries and adds rollback history. If later edits are detected, rollback stops
+atomically rather than overwriting them; use a reviewed corrective change or the established
+backup restore procedure. Reverting the app image alone does not reverse this data repair.
+
+Opt-in PostgreSQL tests use disposable databases and cover repairs, manual history protection,
+unchanged offer data, idempotence, failure rollback and guarded Down/reapplication:
+
+```powershell
+$env:REDHEAD_TEST_POSTGRES = 'Host=localhost;Port=5433;Database=postgres;Username=postgres;Password=postgres'
+dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~WebmasterPrimaryEmailMigrationTests
+```
+
 ## Before deploying webmaster offer concurrency and unique prices
 
 Migration `20260905070440_EnforceWebmasterOfferConcurrencyAndUniquePrices` enforces one price row

@@ -759,6 +759,12 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
 
     private static string? ExtractPrimaryEmail(string? contactRawText)
     {
+        var unambiguous = WebmasterPrimaryEmailRepairParser.TryExtract(contactRawText);
+        if (unambiguous is not null)
+        {
+            return unambiguous;
+        }
+
         if (string.IsNullOrWhiteSpace(contactRawText))
         {
             return null;

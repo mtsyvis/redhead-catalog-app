@@ -4,8 +4,10 @@ public static class EntityChangeHistoryConstants
 {
     public const string SiteEntityType = "Site";
     public const string WebmasterOfferEntityType = "SiteWebmasterOffer";
+    public const string WebmasterEntityType = "Webmaster";
     public const string UpdatedAction = "Updated";
     public const string ManualSource = "Manual";
+    public const string DataMigrationSource = "Data migration";
 
     public const int EntityTypeMaxLength = 64;
     public const int EntityIdMaxLength = 320;

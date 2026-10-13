@@ -450,14 +450,16 @@ Storage rules:
 * Webmasters are not automatically merged by email.
 * `ContactRawText` may contain messy legacy text, multiple emails, comments, reply markers, URLs, and other raw content. Import stores the source value on both the offer and its technical webmaster identity; a later manual offer edit may change the offer value, with the imported value retained in manual change history and `ImportFingerprint` left unchanged.
 * `PrimaryEmail` is parsed from `ContactRawText` best-effort only. Import must never fail when a primary email cannot be detected.
-* If an email appears on the same line as a primary/reply/direction marker, primary/reply markers such as `primary email`, `primary`, `отвечают`, `ответ`, `answer`, `reply`, `отв`, or `otv` take priority over generic direction/location markers such as `писать сюда`, `write here`, `сюда`, `здесь`, or `тут`, regardless of line order. Within the highest matching priority group, the first marked email is stored as `PrimaryEmail`.
-* If no marker exists and exactly one email exists in `ContactRawText`, that email is stored as `PrimaryEmail`.
-* If no marker exists and multiple emails exist in `ContactRawText`, `PrimaryEmail` remains empty and the raw contact text remains the source of truth.
+* For unambiguous new imports, one distinct email is selected even when repeated. A sole explicit reply/main-contact marker is bound to an adjacent address on the same source line rather than always selecting that line's first email. Standalone `отвечают`, `отвечает`, `ответили`, `ответила`, `ответил`, `главный контакт`, `основной контакт`, `основная почта`, and `основной email` are supported. A closed parenthetical marker directly after an address binds to that address. Markers inside email addresses are ignored by this conservative extraction step. Restriction/stale-contact notes, competing markers, and a marker between two addresses without clear binding do not produce a new automatic choice; the existing best-effort extraction remains the fallback for ambiguous legacy text.
+* Explicit primary/reply evidence takes priority over generic direction/location evidence, regardless of line order. If conservative extraction cannot resolve the value, the existing legacy fallback selects the first email on the first line in the highest supported marker category. Newly recognized standalone forms are resolved automatically only through the unambiguous rule above.
+* If no marker exists and exactly one distinct email exists in `ContactRawText`, that email is stored as `PrimaryEmail`, including when repeated.
+* If no marker exists and multiple distinct emails exist in `ContactRawText`, `PrimaryEmail` remains empty and the raw contact text remains the source of truth.
 * Manual offer editing requires a non-empty Contact. Contact is trimmed, retains its internal line structure, and supports up to 20,000 characters.
 * When a manual Contact change produces a different normalized Contact, only that offer is relinked to the existing technical `Webmaster` with the same normalized Contact or to a newly created technical `Webmaster`. Existing webmaster rows are not merged or deleted.
 * If relinking finds an existing technical Webmaster whose `PrimaryEmail` differs from the submitted value, the save is rejected instead of silently overwriting the existing Webmaster.
 * Manual `PrimaryEmail` is optional, validated as one email address, trimmed, and stored lowercase. It belongs to the linked technical Webmaster, so changing it updates the displayed Primary email for every offer currently linked to that Webmaster.
 * A manually saved `PrimaryEmail` is not recalculated or overwritten by later imports that reuse the same technical Webmaster.
+* The one-time `20261012153852_NormalizeWebmasterPrimaryEmails` data migration repairs unambiguous legacy values using these conservative rules. It only considers missing values consistent with the old extractor, or conflicting marked-email evidence whose saved value still matches the old extractor. Available manual Contact/Primary email history protects an identity from automatic repair. Raw Contact, normalized Contact, offer links, fingerprints, prices, and offer audit metadata are preserved. Each effective repair updates the Webmaster audit timestamp and creates `Data migration` change history for the Webmaster and every linked offer, including old/new Primary email, migration actor and cleanup rule. Unresolved identities are retained.
 * Raw `LinkbuilderMailboxRawText` is always preserved and is read-only after import.
 * Parsed linkbuilder mailboxes are linked best-effort against seeded active mailbox emails and aliases.
 * Unmapped mailbox aliases produce import warnings but do not invalidate the row.
@@ -568,6 +570,14 @@ Rules:
 ### Manual change history
 
 Manual edits to Sites and webmaster offers create change-history entries in the same database save as the edited entity.
+
+Audited primary-email cleanup also writes to this history. It uses `Source = Data migration`,
+`EntityType = Webmaster` for the authoritative identity record and `EntityType = SiteWebmasterOffer`
+for each offer affected by the shared PrimaryEmail change. These offer entries are visible through
+the existing protected manual change-history view; history permissions remain unchanged.
+For `Data migration` entries, `Cleanup rule` is explanatory metadata: the UI shows it as a
+plain-language `Reason for correction` note below the before/after table and excludes it from
+the changed-field count. Only actual changed fields appear in the table.
 
 Rules:
 
