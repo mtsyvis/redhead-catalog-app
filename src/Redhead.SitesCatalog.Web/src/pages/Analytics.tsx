@@ -5,6 +5,7 @@ import { alpha } from "@mui/material/styles";
 import { PageShell } from "../components/layout/PageShell";
 import { ExportAnalytics } from "../components/analytics/ExportAnalytics";
 import { MissingDomainsAnalytics } from "../components/analytics/MissingDomainsAnalytics";
+import { CatalogCoverageAnalytics } from "../components/analytics/CatalogCoverageAnalytics";
 import { useUserRoles } from "../hooks/useUserRoles";
 
 const ANALYTICS_SECTIONS = [
@@ -14,6 +15,12 @@ const ANALYTICS_SECTIONS = [
     label: "Multi-search",
     permission: "MissingDomainsAnalyticsRead",
     component: MissingDomainsAnalytics,
+  },
+  {
+    id: "catalog-coverage",
+    label: "Catalog coverage",
+    permission: "AnalyticsRead",
+    component: CatalogCoverageAnalytics,
   },
 ] as const;
 

@@ -41,6 +41,8 @@ public sealed class ControllerPolicyTests
     [InlineData(typeof(AnalyticsController), nameof(AnalyticsController.GetExportLogDetails), AppPolicies.AnalyticsReadAccess)]
     [InlineData(typeof(AnalyticsController), nameof(AnalyticsController.GetClientOptions), AppPolicies.AnalyticsReadAccess)]
     [InlineData(typeof(MissingDomainsAnalyticsController), nameof(MissingDomainsAnalyticsController.Get), AppPolicies.MissingDomainsAnalyticsReadAccess)]
+    [InlineData(typeof(CatalogCoverageAnalyticsController), nameof(CatalogCoverageAnalyticsController.Get), AppPolicies.AnalyticsReadAccess)]
+    [InlineData(typeof(CatalogCoverageAnalyticsController), nameof(CatalogCoverageAnalyticsController.ExportDomainsWithoutOffers), AppPolicies.AnalyticsReadAccess)]
     public void Endpoint_UsesExpectedPolicy(Type controllerType, string methodName, string expectedPolicy)
     {
         // Arrange
