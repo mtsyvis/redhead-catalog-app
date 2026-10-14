@@ -28,53 +28,6 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
         @"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    private static readonly string[] ReplyPrimaryEmailMarkerTexts =
-    [
-        "ответили здесь",
-        "отвечают здесь",
-        "ответили тут",
-        "отвечают тут",
-        "ответил тут",
-        "ответ здесь",
-        "ответ тут",
-        "ответы тут",
-        "отвечает тут",
-        "ответ туту",
-        "ответт тут",
-        "ответ тту",
-        "ответ утт",
-        "отв тут",
-        "otv tut",
-        "primary email",
-        "primary",
-        "ответ",
-        "answer",
-        "reply",
-        "отв",
-        "otv"
-    ];
-
-    private static readonly string[] DirectionPrimaryEmailMarkerTexts =
-    [
-        "писать сюда",
-        "написать сюда",
-        "написала сюда",
-        "направили сюда",
-        "write here",
-        "сюда",
-        "здесь",
-        "тут",
-        "here"
-    ];
-
-    private static readonly Regex ReplyPrimaryEmailMarkerRegex = new(
-        BuildPrimaryEmailMarkerPattern(ReplyPrimaryEmailMarkerTexts),
-        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
-    private static readonly Regex DirectionPrimaryEmailMarkerRegex = new(
-        BuildPrimaryEmailMarkerPattern(DirectionPrimaryEmailMarkerTexts),
-        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
     private static readonly IReadOnlyList<PriceColumnPair> PriceColumns =
     [
         new(WebmasterOfferPriceType.Main, ImportConstants.WebmasterOffersImportColumns.MainWebmasterPriceUsd, ImportConstants.WebmasterOffersImportColumns.MainWebmasterPriceDetails),
@@ -357,7 +310,7 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
             Id = webmasterId,
             ContactRawText = row.ContactRawText,
             NormalizedContactRawText = row.NormalizedContactRawText,
-            PrimaryEmail = ExtractPrimaryEmail(row.ContactRawText),
+            PrimaryEmail = WebmasterPrimaryEmailRepairParser.Resolve(row.ContactRawText, webmasterId),
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
@@ -756,59 +709,6 @@ public sealed class WebmasterOffersImportService : IWebmasterOffersImportService
 
         return WebmasterImportTerm.Unknown;
     }
-
-    private static string? ExtractPrimaryEmail(string? contactRawText)
-    {
-        var unambiguous = WebmasterPrimaryEmailRepairParser.TryExtract(contactRawText);
-        if (unambiguous is not null)
-        {
-            return unambiguous;
-        }
-
-        if (string.IsNullOrWhiteSpace(contactRawText))
-        {
-            return null;
-        }
-
-        var replyEmail = ExtractFirstEmailOnMarkedLine(contactRawText, ReplyPrimaryEmailMarkerRegex);
-        if (replyEmail is not null)
-        {
-            return replyEmail;
-        }
-
-        var directionEmail = ExtractFirstEmailOnMarkedLine(contactRawText, DirectionPrimaryEmailMarkerRegex);
-        if (directionEmail is not null)
-        {
-            return directionEmail;
-        }
-
-        var matches = EmailRegex.Matches(contactRawText);
-        return matches.Count == 1 ? matches[0].Value.ToLowerInvariant() : null;
-    }
-
-    private static string? ExtractFirstEmailOnMarkedLine(string contactRawText, Regex markerRegex)
-    {
-        foreach (var line in contactRawText.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            if (!markerRegex.IsMatch(line))
-            {
-                continue;
-            }
-
-            var matches = EmailRegex.Matches(line);
-            if (matches.Count > 0)
-            {
-                return matches[0].Value.ToLowerInvariant();
-            }
-        }
-
-        return null;
-    }
-
-    private static string BuildPrimaryEmailMarkerPattern(IEnumerable<string> markerTexts)
-        => $@"(?<![\p{{L}}\p{{N}}])(?:{string.Join("|", markerTexts
-            .OrderByDescending(marker => marker.Length)
-            .Select(Regex.Escape))})(?![\p{{L}}\p{{N}}])";
 
     private static string? TrimToNull(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

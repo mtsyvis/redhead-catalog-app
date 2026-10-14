@@ -99,7 +99,7 @@ function PrimaryEmailValue({
       <Typography
         variant="body2"
         color={email ? 'text.primary' : 'text.secondary'}
-        sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', userSelect: 'text' }}
+        sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap', userSelect: 'text' }}
       >
         {email || '—'}
       </Typography>

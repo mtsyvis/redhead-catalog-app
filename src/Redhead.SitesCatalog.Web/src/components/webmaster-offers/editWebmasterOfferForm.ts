@@ -154,7 +154,7 @@ export function buildWebmasterOfferPayload(
     expectedVersion: edit.offer.version,
     expectedWebmasterVersion: edit.webmasterVersion,
     contactRawText: form.contactRawText.trim(),
-    primaryEmail: trimToNull(form.primaryEmail)?.toLowerCase() ?? null,
+    primaryEmail: trimToNull(form.primaryEmail),
     status: form.status,
     outreachSenderRawText: trimToNull(form.outreachSenderRawText),
     linkPolicyText: trimToNull(form.linkPolicyText),
@@ -184,10 +184,10 @@ export function validateWebmasterOfferForm(form: OfferFormState) {
   }
 
   const primaryEmail = form.primaryEmail.trim();
-  if (primaryEmail.length > 320) {
-    errors.primaryEmail = ['Primary email must be 320 characters or fewer.'];
-  } else if (primaryEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(primaryEmail)) {
-    errors.primaryEmail = ['Primary email must be a valid email address.'];
+  if (!primaryEmail) {
+    errors.primaryEmail = ['Primary email is required.'];
+  } else if (primaryEmail.length > 20_000) {
+    errors.primaryEmail = ['Primary email must be 20,000 characters or fewer.'];
   }
 
   if (form.termKind === 'finite') {

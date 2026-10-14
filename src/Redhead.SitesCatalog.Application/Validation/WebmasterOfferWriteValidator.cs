@@ -1,4 +1,4 @@
-using System.Net.Mail;
+using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -94,7 +94,7 @@ public static class WebmasterOfferWriteValidator
                 ExpectedVersion = request.ExpectedVersion,
                 ExpectedWebmasterVersion = request.ExpectedWebmasterVersion,
                 ContactRawText = request.ContactRawText.Trim(),
-                PrimaryEmail = TrimToNull(request.PrimaryEmail)?.ToLowerInvariant(),
+                PrimaryEmail = WebmasterPrimaryEmailRepairParser.Normalize(request.PrimaryEmail),
                 Status = request.Status,
                 OutreachSenderRawText = TrimToNull(request.OutreachSenderRawText),
                 LinkPolicyText = TrimToNull(request.LinkPolicyText),
@@ -186,6 +186,7 @@ public static class WebmasterOfferWriteValidator
         var email = TrimToNull(value);
         if (email is null)
         {
+            AddError(errors, "primaryEmail", "Primary email is required.");
             return;
         }
 
@@ -198,12 +199,6 @@ public static class WebmasterOfferWriteValidator
             return;
         }
 
-        if (!MailAddress.TryCreate(email, out var parsed)
-            || !string.Equals(parsed.Address, email, StringComparison.OrdinalIgnoreCase)
-            || !parsed.Host.Contains('.', StringComparison.Ordinal))
-        {
-            AddError(errors, "primaryEmail", "Primary email must be a valid email address.");
-        }
     }
 
     private static void ValidateLength(

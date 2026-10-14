@@ -66,8 +66,12 @@ export function WebmasterOfferDetailsTab({
         <Typography variant="subtitle2">Contacts &amp; outreach</Typography>
         <TextField
           label="Primary email"
+          required
           size="small"
           value={form.primaryEmail}
+          multiline
+          minRows={1}
+          maxRows={4}
           onChange={(event) => updateField('primaryEmail', event.target.value)}
           error={Boolean(fieldErrors.primaryEmail?.length)}
           helperText={fieldErrors.primaryEmail?.[0]
@@ -75,7 +79,7 @@ export function WebmasterOfferDetailsTab({
               ? 'Contact is changing, so this offer may be relinked. Primary email will apply to the resolved webmaster; an existing value will not be overwritten automatically.'
               : edit.webmasterOfferCount > 1
                 ? `Changing this value updates all ${edit.webmasterOfferCount} offers currently linked to this webmaster.`
-                : 'Changing this value updates the webmaster linked to this offer.')}
+                : 'Enter an email or contact instructions; this value applies to the linked webmaster.')}
         />
         <TextField
           label="Contact"

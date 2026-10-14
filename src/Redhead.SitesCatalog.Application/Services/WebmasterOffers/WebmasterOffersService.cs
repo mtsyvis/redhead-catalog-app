@@ -155,6 +155,8 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             throw new RequestValidationException("One or more selected linkbuilder mailboxes are unavailable.");
         }
 
+        request.PrimaryEmail = WebmasterPrimaryEmailRepairParser.Normalize(request.PrimaryEmail)
+            ?? throw new RequestValidationException("Primary email is required.");
         var historyBefore = EntityChangeHistoryRecorder.CaptureWebmasterOffer(offer);
         var sourceWebmasterId = offer.WebmasterId;
         var now = DateTime.UtcNow;

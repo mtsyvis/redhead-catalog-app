@@ -1930,8 +1930,7 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("PrimaryEmail")
-                        .HasMaxLength(320)
-                        .HasColumnType("character varying(320)");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -1948,6 +1947,8 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .IsUnique();
 
                     b.HasIndex("PrimaryEmail");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("PrimaryEmail"), "hash");
 
                     b.ToTable("Webmasters", (string)null);
                 });

@@ -449,17 +449,15 @@ Storage rules:
 * Webmasters are found or created by normalized `ContactRawText`.
 * Webmasters are not automatically merged by email.
 * `ContactRawText` may contain messy legacy text, multiple emails, comments, reply markers, URLs, and other raw content. Import stores the source value on both the offer and its technical webmaster identity; a later manual offer edit may change the offer value, with the imported value retained in manual change history and `ImportFingerprint` left unchanged.
-* `PrimaryEmail` is parsed from `ContactRawText` best-effort only. Import must never fail when a primary email cannot be detected.
-* For unambiguous new imports, one distinct email is selected even when repeated. A sole explicit reply/main-contact marker is bound to an adjacent address on the same source line rather than always selecting that line's first email. Standalone `отвечают`, `отвечает`, `ответили`, `ответила`, `ответил`, `главный контакт`, `основной контакт`, `основная почта`, and `основной email` are supported. A closed parenthetical marker directly after an address binds to that address. Markers inside email addresses are ignored by this conservative extraction step. Restriction/stale-contact notes, competing markers, and a marker between two addresses without clear binding do not produce a new automatic choice; the existing best-effort extraction remains the fallback for ambiguous legacy text.
-* Explicit primary/reply evidence takes priority over generic direction/location evidence, regardless of line order. If conservative extraction cannot resolve the value, the existing legacy fallback selects the first email on the first line in the highest supported marker category. Newly recognized standalone forms are resolved automatically only through the unambiguous rule above.
-* If no marker exists and exactly one distinct email exists in `ContactRawText`, that email is stored as `PrimaryEmail`, including when repeated.
-* If no marker exists and multiple distinct emails exist in `ContactRawText`, `PrimaryEmail` remains empty and the raw contact text remains the source of truth.
+* `PrimaryEmail` stores the primary contact: an email or contact instructions. Every offer must have a non-empty primary contact.
+* An unambiguous primary/reply/contact marker selects the associated email. Reply/contact markers take priority over generic direction markers; text inside an email address is not a marker.
+* Pricing/current-contact markers such as `более актуальная цена`, `актуальная цена`, `второй дешевле` and `новый` also select the marked email. Competing or unclear markers and restriction/stale-contact notes prevent marked-address selection; the fallback is the first recognizable valid email in source order.
+* If no email is recognizable, use trimmed Contact text, preserving its case and line structure. Empty Contact receives a placeholder unique to its webmaster. Preserve the complete raw Contact.
 * Manual offer editing requires a non-empty Contact. Contact is trimmed, retains its internal line structure, and supports up to 20,000 characters.
 * When a manual Contact change produces a different normalized Contact, only that offer is relinked to the existing technical `Webmaster` with the same normalized Contact or to a newly created technical `Webmaster`. Existing webmaster rows are not merged or deleted.
 * If relinking finds an existing technical Webmaster whose `PrimaryEmail` differs from the submitted value, the save is rejected instead of silently overwriting the existing Webmaster.
-* Manual `PrimaryEmail` is optional, validated as one email address, trimmed, and stored lowercase. It belongs to the linked technical Webmaster, so changing it updates the displayed Primary email for every offer currently linked to that Webmaster.
+* Manual `PrimaryEmail` is required and accepts an email or contact instructions up to 20,000 characters. Values are trimmed; email addresses are lowercased and other text preserves its case. Empty or whitespace-only values are rejected without deriving a replacement from Contact. It belongs to the linked technical Webmaster, so changing it updates every linked offer.
 * A manually saved `PrimaryEmail` is not recalculated or overwritten by later imports that reuse the same technical Webmaster.
-* The one-time `20261012153852_NormalizeWebmasterPrimaryEmails` data migration repairs unambiguous legacy values using these conservative rules. It only considers missing values consistent with the old extractor, or conflicting marked-email evidence whose saved value still matches the old extractor. Available manual Contact/Primary email history protects an identity from automatic repair. Raw Contact, normalized Contact, offer links, fingerprints, prices, and offer audit metadata are preserved. Each effective repair updates the Webmaster audit timestamp and creates `Data migration` change history for the Webmaster and every linked offer, including old/new Primary email, migration actor and cleanup rule. Unresolved identities are retained.
 * Raw `LinkbuilderMailboxRawText` is always preserved and is read-only after import.
 * Parsed linkbuilder mailboxes are linked best-effort against seeded active mailbox emails and aliases.
 * Unmapped mailbox aliases produce import warnings but do not invalidate the row.
@@ -571,21 +569,17 @@ Rules:
 
 Manual edits to Sites and webmaster offers create change-history entries in the same database save as the edited entity.
 
-Audited primary-email cleanup also writes to this history. It uses `Source = Data migration`,
-`EntityType = Webmaster` for the authoritative identity record and `EntityType = SiteWebmasterOffer`
-for each offer affected by the shared PrimaryEmail change. These offer entries are visible through
-the existing protected manual change-history view; history permissions remain unchanged.
-For `Data migration` entries, `Cleanup rule` is explanatory metadata: the UI shows it as a
-plain-language `Reason for correction` note below the before/after table and excludes it from
-the changed-field count. Only actual changed fields appear in the table.
+Audited automatic corrections appear in the same history view with their source, actor, old/new
+values, and reason. The reason is a separate note below the table; only actual changed fields
+appear in the table and changed-field count. History access uses the corresponding edit permission.
 
 Rules:
 
-* Each entry stores entity type, entity identifier, action, source, change timestamp, acting user email, and the changed field values before and after the edit.
+* Each entry shows the action, source, change time, actor, and field values before and after the change.
 * Site manual-edit history includes editable site fields, quarantine fields, term-aware prices, and service availability.
 * Webmaster-offer manual-edit history includes status, effective term, Contact, Primary email, editable raw offer fields, structured linkbuilder mailboxes, and raw webmaster prices.
 * History endpoints return the newest 100 entries and are available only to users with the corresponding edit permission.
-* The history added in this phase covers manual edits only. Imports, Ahrefs sync, and other background updates do not create general entity-change-history entries.
+* Manual edits and audited automatic corrections create entries. Regular imports, Ahrefs sync, and other background updates do not create general entity-change-history entries.
 * Traffic/DR metric history remains a separate business history with its own snapshot rules.
 
 ### Traffic/DR metric history
@@ -593,8 +587,6 @@ Rules:
 Metric history stores at most one complete `Traffic`/`DR` snapshot per domain and snapshot date.
 
 Sites update import is the active workflow for saving metric history. When an import file contains both `Traffic` and `DR`, the backend saves a `SiteMetricSnapshots` row with source `SitesUpdateImport`. The import form has one optional Snapshot Date for the whole file; if it is empty, the import-start UTC date is used. Re-importing the same domain and snapshot date overwrites the existing snapshot. Partial metric imports with only `Traffic` or only `DR` update the current site value but do not create history.
-
-The catalog values known to have been refreshed for all sites on June 4, 2026 are imported once into history with source `AhrefsBaselineImport`. This is historical data only and does not create an Ahrefs sync run.
 
 ### Inactive Ahrefs monthly metrics sync
 

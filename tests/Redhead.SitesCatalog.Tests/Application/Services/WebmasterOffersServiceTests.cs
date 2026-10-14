@@ -437,6 +437,56 @@ public sealed class WebmasterOffersServiceTests : IDisposable
         Assert.Equal(2, result.WebmasterOfferCount);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" \t\r\n ")]
+    public async Task UpdateAsync_EmptyPrimaryEmail_RejectsWithoutChangingDataOrHistory(string? primary)
+    {
+        // Arrange
+        var now = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        var webmaster = new Webmaster
+        {
+            Id = Guid.NewGuid(), ContactRawText = "first@example.com second@example.com (reply)",
+            NormalizedContactRawText = "first@example.com second@example.com (reply)",
+            PrimaryEmail = "chosen@example.com", CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        _context.Sites.Add(new Site
+        {
+            Domain = "required-primary.com", Location = "US", CreatedAtUtc = now, UpdatedAtUtc = now
+        });
+        var offer = new SiteWebmasterOffer
+        {
+            Id = Guid.NewGuid(), SiteDomain = "required-primary.com", Webmaster = webmaster,
+            ImportFingerprint = new string('r', 64), ContactRawText = webmaster.ContactRawText,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        _context.SiteWebmasterOffers.Add(offer);
+        await _context.SaveChangesAsync();
+        var request = new UpdateWebmasterOfferRequest
+        {
+            ContactRawText = "changed@example.com", PrimaryEmail = primary,
+            Status = SiteWebmasterOfferStatus.Inactive, CommentText = "must not be saved"
+        };
+
+        // Act
+        var exception = await Assert.ThrowsAsync<RequestValidationException>(
+            () => _sut.UpdateAsync(offer.Id, request, "editor@example.com"));
+
+        // Assert
+        Assert.Equal("Primary email is required.", exception.Message);
+        _context.ChangeTracker.Clear();
+        var savedWebmaster = await _context.Webmasters.SingleAsync();
+        var savedOffer = await _context.SiteWebmasterOffers.SingleAsync();
+        Assert.Equal("chosen@example.com", savedWebmaster.PrimaryEmail);
+        Assert.Equal(now, savedWebmaster.UpdatedAtUtc);
+        Assert.Equal(webmaster.ContactRawText, savedOffer.ContactRawText);
+        Assert.Equal(offer.Status, savedOffer.Status);
+        Assert.Null(savedOffer.CommentText);
+        Assert.Equal(now, savedOffer.UpdatedAtUtc);
+        Assert.Empty(await _context.EntityChangeHistories.ToListAsync());
+    }
+
     [Fact]
     public async Task UpdateAsync_PrimaryEmailChange_UpdatesSharedWebmasterAndHistory()
     {
@@ -795,6 +845,7 @@ public sealed class WebmasterOffersServiceTests : IDisposable
             ContactRawText = "contact@example.com",
             NormalizedContactRawText = "contact@example.com",
             CreatedAtUtc = originalTime,
+            PrimaryEmail = "contact@example.com",
             UpdatedAtUtc = originalTime
         };
         var offer = CreateOffer(Guid.NewGuid(), "a", webmaster.Id, originalTime);
@@ -829,6 +880,7 @@ public sealed class WebmasterOffersServiceTests : IDisposable
             ExpectedVersion = 0,
             ExpectedWebmasterVersion = 0,
             ContactRawText = "contact@example.com",
+            PrimaryEmail = "contact@example.com",
             Status = SiteWebmasterOfferStatus.Active,
             TermType = offer.TermType,
             TermValue = offer.TermValue,
@@ -999,6 +1051,7 @@ public sealed class WebmasterOffersServiceTests : IDisposable
             ExpectedVersion = 1,
             ExpectedWebmasterVersion = 0,
             ContactRawText = "contact@example.com",
+            PrimaryEmail = "contact@example.com",
             Status = SiteWebmasterOfferStatus.Inactive
         };
 

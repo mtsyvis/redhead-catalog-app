@@ -46,6 +46,12 @@ function formatCleanupReason(value: string | null) {
       return 'The email was selected from an explicit main contact or reply note in Contact.';
     case 'Correct marked email':
       return 'The email was corrected because a note in Contact points to a different address.';
+    case 'First email in Contact':
+      return 'The first email address in Contact was selected.';
+    case 'Contact text without email':
+      return 'Contact contains no recognizable email, so its text was used.';
+    case 'Unique placeholder for empty Contact':
+      return 'Contact is empty, so a unique placeholder was assigned to this webmaster.';
     default:
       return value?.trim() || 'No reason provided.';
   }

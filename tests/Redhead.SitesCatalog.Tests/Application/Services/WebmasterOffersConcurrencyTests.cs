@@ -120,6 +120,7 @@ public sealed class WebmasterOffersConcurrencyTests
             Webmaster = new Webmaster
             {
                 Id = Guid.NewGuid(), ContactRawText = "contact@example.com",
+                PrimaryEmail = "contact@example.com",
                 NormalizedContactRawText = "contact@example.com", CreatedAtUtc = now, UpdatedAtUtc = now
             }
         };
@@ -133,6 +134,7 @@ public sealed class WebmasterOffersConcurrencyTests
         ExpectedVersion = offer.Version,
         ExpectedWebmasterVersion = offer.Webmaster.Version,
         ContactRawText = offer.ContactRawText,
+        PrimaryEmail = offer.Webmaster.PrimaryEmail,
         Status = SiteWebmasterOfferStatus.Active,
         CommentText = "Changed"
     };

@@ -165,8 +165,8 @@ Email__SendTimeoutSeconds=10
 ```
 
 Ahrefs sync is inactive by default and no longer part of the active production workflow. The
-baseline migration stores the current catalog Traffic/DR values as history dated June 4, 2026 but
-does not create a sync run. Current Traffic/DR history is saved through Sites update import.
+current Traffic/DR history is saved through Sites update import. Historical backfill details are
+in [Data migration history](data-migrations.md#historical-metric-baseline).
 
 `EmergencySitesExport__ScheduleCron` uses standard five-field cron in UTC: `minute hour day-of-month month day-of-week`.
 `ExportedDomainAccessCleanup__RetentionDays` must be at least `7` because client weekly unique-domain limits use a rolling 7-day window.
@@ -298,81 +298,12 @@ docker compose up -d --build
 
 Do not run destructive Docker commands such as `docker compose down -v` unless you intentionally want to delete persistent volumes.
 
-## Primary email cleanup migration
+## Data migrations
 
-`20261012153852_NormalizeWebmasterPrimaryEmails` is a transactional data migration. Normal API
-startup calls EF `MigrateAsync`, so deploying and starting the rebuilt app applies it once.
-The migration SQL is embedded in the backend assembly; no external script or production-data
-manifest needs to be copied to the VPS. It creates no new business tables.
-Local audit artifacts, temporary verification checkouts and dumps are excluded from the Docker
-build context; the embedded migration SQL under `src/` remains included.
-
-Before rollout, take a fresh backup using the normal backup procedure. The migration
-recomputes candidates against the current database, skips
-recorded manual Contact/Primary email edits, and requires the saved value to agree with the old
-extractor before repairing it. Candidate counts can differ after the team's portal edits.
-
-The migration temporarily serializes writes to Webmasters, Webmaster Offers and change history;
-reads remain available. Its PrimaryEmail updates and audit inserts commit together. Startup fails
-if the migration fails; it does not serve a partially repaired dataset. Keep the normal deployment
-flow that replaces/restarts the app after its Docker build.
-
-After startup, verify API health and inspect the migration record and audit counts:
-
-```sql
-SELECT "MigrationId" FROM "__EFMigrationsHistory"
-WHERE "MigrationId" = '20261012153852_NormalizeWebmasterPrimaryEmails';
-
-SELECT "EntityType", COUNT(*)
-FROM "EntityChangeHistories"
-WHERE "Source" = 'Data migration'
-  AND "ChangedBy" = 'Migration:20261012153852_NormalizeWebmasterPrimaryEmails'
-GROUP BY "EntityType";
-```
-
-For the 2026-10-12 dump, expected counts are 766 `Webmaster` entries and 830
-`SiteWebmasterOffer` entries. Offer history displays old/new Primary email, the
-`Data migration` source and migration actor, and a separate reason for correction.
-Current production counts may differ.
-Raw Contact, offer fingerprints, offers, prices and Sites remain unchanged.
-
-EF `Down` restores old PrimaryEmail values only when every affected Webmaster still has the
-migration's value/timestamp and has no subsequent manual Contact/Primary email change. It retains
-forward audit entries and adds rollback history. If later edits are detected, rollback stops
-atomically rather than overwriting them; use a reviewed corrective change or the established
-backup restore procedure. Reverting the app image alone does not reverse this data repair.
-
-Opt-in PostgreSQL tests use disposable databases and cover repairs, manual history protection,
-unchanged offer data, idempotence, failure rollback and guarded Down/reapplication:
-
-```powershell
-$env:REDHEAD_TEST_POSTGRES = 'Host=localhost;Port=5433;Database=postgres;Username=postgres;Password=postgres'
-dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~WebmasterPrimaryEmailMigrationTests
-```
-
-## Before deploying webmaster offer concurrency and unique prices
-
-Migration `20260905070440_EnforceWebmasterOfferConcurrencyAndUniquePrices` enforces one price row
-per webmaster offer and price type. Before deploying this update, take a backup and run this
-read-only check in the PostgreSQL shell described under Database access:
-
-```sql
-SELECT "SiteWebmasterOfferId", "PriceType", COUNT(*) AS "RowCount"
-FROM "WebmasterOfferPrices"
-GROUP BY "SiteWebmasterOfferId", "PriceType"
-HAVING COUNT(*) > 1;
-```
-
-If any rows are returned, postpone deployment and review the conflicting price records with
-the responsible manager. Do not automatically choose the newest or cheapest price: the rows
-may contain different amounts, statuses, or details. Back up the full conflicting records
-before any approved reconciliation, then rerun the check and migration.
-
-The migration deliberately stops with an explanatory error if duplicates exist. It does not
-delete or merge prices; its transaction preserves the existing data and index on failure.
-On a clean database it replaces the existing non-unique index with a unique index. Deploy the
-schema and application update together; the new application also checks the offer version
-at database write time and returns HTTP 409 for competing saves.
+API startup applies pending EF migrations once. Before deploying a release with a data migration,
+take a fresh backup and review its preflight checks, verification evidence, and rollback constraints
+in [Data migration history](data-migrations.md). After startup, verify API health and the relevant
+migration record. Historical counts and migration-specific SQL live in that document.
 
 ## Logs and status
 

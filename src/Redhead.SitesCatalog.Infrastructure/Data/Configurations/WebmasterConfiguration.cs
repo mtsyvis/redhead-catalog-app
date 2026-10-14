@@ -24,7 +24,7 @@ public sealed class WebmasterConfiguration : IEntityTypeConfiguration<Webmaster>
             .HasColumnType("text");
 
         builder.Property(webmaster => webmaster.PrimaryEmail)
-            .HasMaxLength(320);
+            .HasColumnType("text");
 
         builder.Property(webmaster => webmaster.Notes)
             .HasColumnType("text");
@@ -41,6 +41,6 @@ public sealed class WebmasterConfiguration : IEntityTypeConfiguration<Webmaster>
         builder.HasIndex(webmaster => webmaster.NormalizedContactRawText)
             .IsUnique();
 
-        builder.HasIndex(webmaster => webmaster.PrimaryEmail);
+        builder.HasIndex(webmaster => webmaster.PrimaryEmail).HasMethod("hash");
     }
 }

@@ -323,9 +323,26 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
     [InlineData("FIRST@example.org\nfirst@example.org", "first@example.org")]
     [InlineData("first@example.org (писать сюда), second@example.org", "first@example.org")]
     [InlineData("first@example.org - answer\nsecond@example.org - answer", "first@example.org")]
-    [InlineData("first@example.org second@example.org", null)]
-    [InlineData("https://example.org/contact/", null)]
-    public async Task ImportAsync_UnambiguousRepairRules_ExtractPrimaryEmailWithoutChangingContact(string contact, string? expected)
+    [InlineData("first@example.org second@example.org", "first@example.org")]
+    [InlineData("https://example.org/contact/", "https://example.org/contact/")]
+    [InlineData("first@example.org\nsecond@example.org answ", "second@example.org")]
+    [InlineData("first@example.org\nsecond@example.org - otvet", "second@example.org")]
+    [InlineData("first@example.org\nsecond@example.org - пишет отсюда", "second@example.org")]
+    [InlineData("first@example.org (переписка)\nsecond@example.org", "first@example.org")]
+    [InlineData("first@example.org\nsecond@example.org\n(ответ)", "second@example.org")]
+    [InlineData("first@example.org\nsecond@example.org\r\n - ответы тут", "second@example.org")]
+    [InlineData("first@example.org\nsecond@example.org\n\n(ответ)", "first@example.org")]
+    [InlineData("first@example.org second@example.org\n(ответ)", "first@example.org")]
+    [InlineData("first@example.org\nsecond@example.org - answear", "second@example.org")]
+    [InlineData("first@example.org\nsecond@example.org - новая почта", "second@example.org")]
+    [InlineData("first@example.org\nsecond@example.org - более актуальная цена", "second@example.org")]
+    [InlineData("first@example.org\nsecond@example.org - второй дешевле", "second@example.org")]
+    [InlineData("first@example.org\nsecond@example.org - новый", "second@example.org")]
+    [InlineData("first@example.org\nsecond@example.org - answ\nНЕ ПИШЕМ ЭТОМУ ВЕБУ", "first@example.org")]
+    [InlineData("first@example.org - answ\nsecond@example.org - ans", "first@example.org")]
+    [InlineData("first@example.org\nsecond@example.org - пишет отсюда - больше с ним не работаем", "first@example.org")]
+    [InlineData("WHL - по вопросом публикации к Лене", "WHL - по вопросом публикации к Лене")]
+    public async Task ImportAsync_PrimaryContactRules_PopulatePrimaryEmailWithoutChangingContact(string contact, string expected)
     {
         // Arrange
         using var stream = CsvWithRows(Row(domain: "existing.com", contact: contact, mainAmount: "100"));
@@ -340,7 +357,7 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportAsync_ContactWithoutMarkerAndMultipleEmails_LeavesPrimaryEmailEmpty()
+    public async Task ImportAsync_ContactWithoutMarkerAndMultipleEmails_UsesFirstEmail()
     {
         // Arrange
         using var stream = CsvWithRows(Row(
@@ -354,7 +371,7 @@ public sealed class WebmasterOffersImportServiceTests : IDisposable
         // Assert
         Assert.Equal(1, result.ImportedCount);
         var webmaster = Assert.Single(_context.Webmasters);
-        Assert.Null(webmaster.PrimaryEmail);
+        Assert.Equal("info@huislijn.nl", webmaster.PrimaryEmail);
     }
 
     [Fact]

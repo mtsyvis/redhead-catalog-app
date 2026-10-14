@@ -13,6 +13,7 @@ public sealed class WebmasterOfferWriteValidatorTests
         var request = new UpdateWebmasterOfferRequest
         {
             ContactRawText = "contact@example.com",
+            PrimaryEmail = "contact@example.com",
             Status = SiteWebmasterOfferStatus.Active
         };
 
@@ -76,6 +77,7 @@ public sealed class WebmasterOfferWriteValidatorTests
             ExpectedVersion = 1,
             ExpectedWebmasterVersion = 1,
             ContactRawText = "contact@example.com",
+            PrimaryEmail = "contact@example.com",
             Status = SiteWebmasterOfferStatus.Active,
             Prices =
             [
@@ -104,6 +106,7 @@ public sealed class WebmasterOfferWriteValidatorTests
             ExpectedVersion = 1,
             ExpectedWebmasterVersion = 1,
             ContactRawText = "contact@example.com",
+            PrimaryEmail = "contact@example.com",
             Status = SiteWebmasterOfferStatus.Active,
             Prices = []
         };
@@ -127,6 +130,7 @@ public sealed class WebmasterOfferWriteValidatorTests
             ExpectedVersion = 1,
             ExpectedWebmasterVersion = 1,
             ContactRawText = "contact@example.com",
+            PrimaryEmail = "contact@example.com",
             Status = SiteWebmasterOfferStatus.Active,
             Prices =
             [
@@ -149,7 +153,6 @@ public sealed class WebmasterOfferWriteValidatorTests
 
     [Theory]
     [InlineData("", null, "contactRawText")]
-    [InlineData("contact@example.com", "not-an-email", "primaryEmail")]
     public void ValidateAndNormalize_InvalidContactFields_ReturnsFieldError(
         string contactRawText,
         string? primaryEmail,
@@ -171,5 +174,59 @@ public sealed class WebmasterOfferWriteValidatorTests
         // Assert
         Assert.False(result.IsValid);
         Assert.Contains(expectedField, result.FieldErrors.Keys);
+    }
+
+    [Theory]
+    [InlineData("  WHL - по вопросом публикации к Лене  ", "WHL - по вопросом публикации к Лене")]
+    [InlineData("  CONTACT@EXAMPLE.COM  ", "contact@example.com")]
+    public void ValidateAndNormalize_ExplicitPrimaryContact_IsAccepted(string primary, string expected)
+    {
+        // Arrange
+        var request = new UpdateWebmasterOfferRequest { ContactRawText = "first@example.com second@example.com", PrimaryEmail = primary, Status = SiteWebmasterOfferStatus.Active };
+
+        // Act
+        var result = WebmasterOfferWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.True(result.IsValid);
+        Assert.Equal(expected, result.NormalizedRequest!.PrimaryEmail);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" \t\r\n ")]
+    public void ValidateAndNormalize_EmptyPrimaryEmail_ReturnsRequiredErrorWithoutFallback(string? primary)
+    {
+        // Arrange
+        var request = new UpdateWebmasterOfferRequest
+        {
+            ContactRawText = "first@example.com second@example.com (reply)",
+            PrimaryEmail = primary,
+            Status = SiteWebmasterOfferStatus.Active
+        };
+
+        // Act
+        var result = WebmasterOfferWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Null(result.NormalizedRequest);
+        Assert.Equal("Primary email is required.", Assert.Single(result.FieldErrors["primaryEmail"]));
+        Assert.Equal(primary, request.PrimaryEmail);
+    }
+
+    [Fact]
+    public void ValidateAndNormalize_LongPrimaryContact_IsBounded()
+    {
+        // Arrange
+        var request = new UpdateWebmasterOfferRequest { ContactRawText = "contact@example.com", PrimaryEmail = new string('x', 20_001), Status = SiteWebmasterOfferStatus.Active };
+
+        // Act
+        var result = WebmasterOfferWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Contains("primaryEmail", result.FieldErrors.Keys);
     }
 }

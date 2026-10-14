@@ -20,6 +20,7 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
     private const string PreviousMigration = "20261007112728_UsePostgresXminForWebmasterOfferConcurrency";
     private const string RepairMigration = "20261012153852_NormalizeWebmasterPrimaryEmails";
     private const string Actor = "Migration:" + RepairMigration;
+    private const string MissingPrimaryMigration = "20261014102750_PopulateWebmasterPrimaryContacts";
     private readonly string _databaseName = "redhead_email_repair_test_" + Guid.NewGuid().ToString("N");
     private string _connectionString = string.Empty;
 
@@ -75,7 +76,7 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
         var expectedChanged = offers.Where((offer, index) => cases[index].OldEmail != cases[index].ExpectedEmail).ToArray();
 
         // Act
-        await setup.Database.MigrateAsync();
+        await setup.GetService<IMigrator>().MigrateAsync(RepairMigration);
 
         // Assert
         await using var verification = CreateContext();
@@ -114,7 +115,7 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
         // Arrange
         await using var context = CreateContext();
         await SeedOfferAsync(context, new RepairCase("repeat@example.org\nrepeat@example.org", null, "repeat@example.org"));
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
         var historyCount = await context.EntityChangeHistories.CountAsync();
         var version = await context.Webmasters.Select(webmaster => webmaster.Version).SingleAsync();
 
@@ -146,7 +147,7 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
             """);
 
         // Act
-        var exception = await Assert.ThrowsAsync<PostgresException>(() => context.Database.MigrateAsync());
+        var exception = await Assert.ThrowsAsync<PostgresException>(() => context.GetService<IMigrator>().MigrateAsync(RepairMigration));
 
         // Assert
         Assert.Equal("P0001", exception.SqlState);
@@ -161,14 +162,14 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
         // Arrange
         await using var context = CreateContext();
         await SeedOfferAsync(context, new RepairCase("repeat@example.org\nrepeat@example.org", null, "repeat@example.org"));
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
 
         // Act
         await context.GetService<IMigrator>().MigrateAsync(PreviousMigration);
         var rolledBackEmail = await context.Webmasters.Select(webmaster => webmaster.PrimaryEmail).SingleAsync();
         var rollbackHistoryCount = await context.EntityChangeHistories.CountAsync();
         var rollbackEntries = await context.EntityChangeHistories.CountAsync(history => history.ChangedBy == "Rollback:" + RepairMigration);
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
 
         // Assert
         Assert.Null(rolledBackEmail);
@@ -184,7 +185,7 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
         // Arrange
         await using var context = CreateContext();
         var offer = await SeedOfferAsync(context, new RepairCase("repeat@example.org\nrepeat@example.org", null, "repeat@example.org"));
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
         await using (var editor = CreateContext())
         {
             var webmaster = await editor.Webmasters.SingleAsync();
@@ -207,6 +208,152 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
 
     private ApplicationDbContext CreateContext()
         => new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_connectionString).Options);
+
+    [PostgresFact]
+    public async Task Followup_AllMissingContacts_AreFilledAndAuditIsIdempotent()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
+        var cases = new[]
+        {
+            new RepairCase("first@example.org\nsecond@example.org - answ", null, "second@example.org", Sibling: true),
+            new RepairCase("first@example.org\nsecond@example.org - пишет отсюда", null, "second@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org\n(ответ)", null, "second@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org - новая почта", null, "second@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org - otvet", null, "second@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org - answear", null, "second@example.org"),
+            new RepairCase("first7@example.org\nsecond7@example.org - answ", "first7@example.org", "first7@example.org"),
+            new RepairCase("first8@example.org\nsecond8@example.org - answ", null, "second8@example.org", ManualField: "Primary email"),
+            new RepairCase("first9@example.org\nsecond9@example.org - answ", null, "second9@example.org", ManualField: "Contact"),
+            new RepairCase("first10@example.org\nsecond10@example.org - answ", null, "second10@example.org", ManualField: "malformed"),
+            new RepairCase("first@example.org - answ\nsecond@example.org - ans", null, "first@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org - более актуальная цена", null, "second@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org - второй дешевле", null, "second@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org - новый", null, "second@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org - пишет отсюда - больше с ним не работаем", null, "first@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org - answ\nНЕ ПИШЕМ ЭТОМУ ВЕБУ", null, "first@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org\n\n(ответ)", null, "first@example.org"),
+            new RepairCase("first@example.org second@example.org\n(ответ)", null, "first@example.org"),
+            new RepairCase("cleared@example.org", null, "cleared@example.org"),
+            new RepairCase("first@example.org\nsecond@example.org - ответ", null, "second@example.org"),
+            new RepairCase("WHL - по вопросом публикации к Лене", null, "WHL - по вопросом публикации к Лене"),
+            new RepairCase("", null, "Placeholder"),
+            new RepairCase("Contact instructions: " + new string('x', 5_000), null, "Long contact")
+        }.Select((item, index) => item with
+        {
+            Contact = item.Contact.Replace("@example.org", $"@case{index}.example.org", StringComparison.Ordinal),
+            OldEmail = item.OldEmail?.Replace("@example.org", $"@case{index}.example.org", StringComparison.Ordinal),
+            ExpectedEmail = item.ExpectedEmail?.Replace("@example.org", $"@case{index}.example.org", StringComparison.Ordinal)
+        }).ToArray();
+        cases[^1] = cases[^1] with { ExpectedEmail = cases[^1].Contact };
+        var offers = new List<SiteWebmasterOffer>();
+        foreach (var item in cases) offers.Add(await SeedOfferAsync(context, item));
+        var preserved = await OfferSnapshotAsync(context);
+
+        // Act
+        await context.Database.MigrateAsync();
+        await using (var transaction = await context.Database.BeginTransactionAsync())
+        {
+            await using var command = context.Database.GetDbConnection().CreateCommand();
+            command.Transaction = transaction.GetDbTransaction();
+            command.CommandText = ReadUpSql("PopulateWebmasterPrimaryContacts");
+            await command.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
+        }
+
+        // Assert
+        await using var verification = CreateContext();
+        Assert.Equal(preserved, await OfferSnapshotAsync(verification));
+        for (var index = 0; index < offers.Count; index++)
+            Assert.Equal(cases[index].ExpectedEmail == "Placeholder" ? $"Contact not specified ({offers[index].WebmasterId:D})" : cases[index].ExpectedEmail,
+                (await verification.Webmasters.SingleAsync(w => w.Id == offers[index].WebmasterId)).PrimaryEmail);
+        var entries = await verification.EntityChangeHistories.Where(h => h.ChangedBy == "Migration:" + MissingPrimaryMigration).ToListAsync();
+        Assert.Equal(22, entries.Count(h => h.EntityType == "Webmaster"));
+        Assert.Equal(23, entries.Count(h => h.EntityType == "SiteWebmasterOffer"));
+        Assert.All(entries, entry => Assert.Equal("Data migration", entry.Source));
+    }
+
+    [PostgresFact]
+    public async Task Followup_DatabaseFailure_RollsBackSchemaDataAndAuditTogether()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
+        await SeedOfferAsync(context, new RepairCase("Publication instructions", null, "Publication instructions"));
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE FUNCTION reject_population_update() RETURNS trigger LANGUAGE plpgsql AS $body$
+            BEGIN RAISE EXCEPTION 'Injected population failure'; END; $body$;
+            CREATE TRIGGER reject_population BEFORE UPDATE ON "Webmasters" FOR EACH ROW EXECUTE FUNCTION reject_population_update();
+            """);
+
+        // Act
+        var exception = await Assert.ThrowsAsync<PostgresException>(() => context.Database.MigrateAsync());
+
+        // Assert
+        Assert.Equal("P0001", exception.SqlState);
+        Assert.Null(await context.Webmasters.Select(w => w.PrimaryEmail).SingleAsync());
+        Assert.Empty(await context.EntityChangeHistories.ToListAsync());
+        Assert.DoesNotContain(MissingPrimaryMigration, await context.Database.GetAppliedMigrationsAsync());
+        var columnType = await context.Database.SqlQueryRaw<string>("""
+            SELECT data_type AS "Value" FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'Webmasters' AND column_name = 'PrimaryEmail'
+            """).SingleAsync();
+        var indexMethod = await context.Database.SqlQueryRaw<string>("""
+            SELECT am.amname::text AS "Value" FROM pg_class c JOIN pg_am am ON am.oid = c.relam
+            WHERE c.oid = 'public."IX_Webmasters_PrimaryEmail"'::regclass
+            """).SingleAsync();
+        Assert.Equal("character varying", columnType);
+        Assert.Equal("btree", indexMethod);
+    }
+
+    [PostgresFact]
+    public async Task Followup_Down_RestoresMissingValuePreservesAuditAndCanReapply()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
+        await SeedOfferAsync(context, new RepairCase("first@example.org\nsecond@example.org - answ", null, "second@example.org"));
+        await context.Database.MigrateAsync();
+
+        // Act
+        await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
+        var restored = await context.Webmasters.Select(w => w.PrimaryEmail).SingleAsync();
+        var rollbackEntries = await context.EntityChangeHistories.CountAsync(h => h.ChangedBy == "Rollback:" + MissingPrimaryMigration);
+        await context.Database.MigrateAsync();
+
+        // Assert
+        Assert.Null(restored);
+        Assert.Equal(2, rollbackEntries);
+        Assert.Equal("second@example.org", await context.Webmasters.Select(w => w.PrimaryEmail).SingleAsync());
+        Assert.Equal(6, await context.EntityChangeHistories.CountAsync());
+    }
+
+    [PostgresFact]
+    public async Task Followup_Down_RejectsLaterManualEdit()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
+        var offer = await SeedOfferAsync(context, new RepairCase("first@example.org\nsecond@example.org - answ", null, "second@example.org"));
+        await context.Database.MigrateAsync();
+        await using (var editor = CreateContext())
+        {
+            var webmaster = await editor.Webmasters.SingleAsync();
+            webmaster.PrimaryEmail = "manual@example.org";
+            webmaster.UpdatedAtUtc = DateTime.UtcNow;
+            editor.EntityChangeHistories.Add(ManualHistory(offer.Id, "Primary email"));
+            await editor.SaveChangesAsync();
+        }
+
+        // Act
+        var exception = await Assert.ThrowsAsync<PostgresException>(() => context.GetService<IMigrator>().MigrateAsync(RepairMigration));
+
+        // Assert
+        Assert.Contains("subsequent edits", exception.MessageText, StringComparison.Ordinal);
+        Assert.Equal("manual@example.org", await context.Webmasters.Select(w => w.PrimaryEmail).SingleAsync());
+        Assert.Contains(MissingPrimaryMigration, await context.Database.GetAppliedMigrationsAsync());
+    }
 
     private static async Task<SiteWebmasterOffer> SeedOfferAsync(ApplicationDbContext context, RepairCase item)
     {
@@ -258,9 +405,9 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
             Prices = offer.Prices.OrderBy(price => price.Id).Select(price => new { price.Id, price.PriceType, price.WebmasterPriceUsd, price.WebmasterPriceDetails })
         }).ToListAsync());
 
-    private static string ReadUpSql()
+    private static string ReadUpSql(string name = "NormalizeWebmasterPrimaryEmails")
     {
-        using var stream = typeof(ApplicationDbContext).Assembly.GetManifestResourceStream("Redhead.SitesCatalog.Infrastructure.Data.Migrations.Sql.NormalizeWebmasterPrimaryEmails.Up.sql")!;
+        using var stream = typeof(ApplicationDbContext).Assembly.GetManifestResourceStream($"Redhead.SitesCatalog.Infrastructure.Data.Migrations.Sql.{name}.Up.sql")!;
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
     }

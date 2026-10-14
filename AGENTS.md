@@ -53,6 +53,9 @@ Use this priority order:
 4. `docs/deployment.md` for VPS, Docker, Caddy, PostgreSQL, backups, and production operations.
 5. Existing code and tests.
 
+Read `docs/data-migrations.md` only when the task concerns data migrations, historical
+backfills, or their deployment/rollback. It records technical history, not current product rules.
+
 Do not treat legacy specs, old planning notes, old commit summaries, or archived documents as current source of truth unless the task explicitly references them.
 
 If requirements conflict, do not guess. Ask for clarification or clearly state the assumption before implementing.
@@ -117,9 +120,16 @@ When a task changes product behavior, permissions, imports, exports, UI rules, d
 Use this mapping:
 
 * Product behavior and business rules -> `docs/business-requirements.md`
+* Data-migration history, verification results, preflight checks, and rollback details -> `docs/data-migrations.md`
 * Setup, commands, repository structure, general project overview -> `README.md`
 * Production, Docker, VPS, Caddy, PostgreSQL, backups -> `docs/deployment.md`
 * AI-agent workflow and repository instructions -> `AGENTS.md`
+
+Keep business requirements concise and declarative. Put migration IDs, one-off audit counts,
+implementation details, and historical rollout notes in the technical history, without duplicating
+them in business requirements or deployment instructions.
+For a data migration, update its technical record; update business requirements only when
+current product behavior changes.
 
 Do not update documentation for purely internal refactoring unless behavior, commands, or operational expectations changed.
 
