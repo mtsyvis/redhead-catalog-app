@@ -1,5 +1,6 @@
-import { Box, Chip, Stack, Typography } from '@mui/material';
+import { Box, Stack, Typography } from '@mui/material';
 import type { WebmasterOffer } from '../../types/webmasterOffers.types';
+import { OfferMailboxes } from './OfferMailboxes';
 
 export function WebmasterOfferTextBlock({
   label,
@@ -29,12 +30,6 @@ export function WebmasterOfferTextBlock({
 }
 
 export function WebmasterOfferDetails({ offer }: { readonly offer: WebmasterOffer }) {
-  const mailboxLabels = offer.linkbuilderMailboxes.map((mailbox) =>
-    mailbox.displayName && mailbox.displayName !== mailbox.email
-      ? `${mailbox.displayName} <${mailbox.email}>`
-      : mailbox.email
-  );
-
   return (
     <Box
       sx={{
@@ -50,7 +45,7 @@ export function WebmasterOfferDetails({ offer }: { readonly offer: WebmasterOffe
       <Stack spacing={1.5}>
         <WebmasterOfferTextBlock label="Contact" value={offer.contactRawText} />
         <WebmasterOfferTextBlock label="Outreach Sender" value={offer.outreachSenderRawText} />
-        {(mailboxLabels.length > 0 || Boolean(offer.linkbuilderMailboxRawText?.trim())) && (
+        {(offer.linkbuilderMailboxes.length > 0 || Boolean(offer.linkbuilderMailboxRawText?.trim())) && (
           <Box>
             <Typography
               variant="caption"
@@ -59,14 +54,10 @@ export function WebmasterOfferDetails({ offer }: { readonly offer: WebmasterOffe
             >
               Linkbuilder
             </Typography>
-            {mailboxLabels.length > 0 && (
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {mailboxLabels.map((label) => (
-                  <Chip key={label} size="small" label={label} variant="outlined" />
-                ))}
-              </Stack>
+            {offer.linkbuilderMailboxes.length > 0 && (
+              <OfferMailboxes mailboxes={offer.linkbuilderMailboxes} />
             )}
-            {mailboxLabels.length === 0 && (
+            {offer.linkbuilderMailboxes.length === 0 && (
               <Typography
                 variant="body2"
                 sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.45 }}

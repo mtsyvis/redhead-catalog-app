@@ -1047,33 +1047,12 @@ export function Sites() {
                   sx={{
                 borderTopLeftRadius: 0,
                 borderTopRightRadius: 0,
-                backgroundColor: 'background.paper',
-                '& .MuiDataGrid-cell': {
-                  display: 'flex',
-                  alignItems: 'center',
-                  py: 1,
-                },
-                '& .MuiDataGrid-cell:focus': {
-                  outline: 'none',
-                },
-                '& .MuiDataGrid-cell:focus-within': {
-                  outline: 'none',
+                // The saved Status width can be as narrow as 100px; keep the badge fully visible.
+                '& .MuiDataGrid-cell[data-field="isQuarantined"], & .MuiDataGrid-columnHeader[data-field="isQuarantined"]': {
+                  px: 0.5,
                 },
                 '& .MuiDataGrid-container--top': {
                   zIndex: 40,
-                  backgroundColor: 'grey.100',
-                },
-                '& .MuiDataGrid-columnHeaders': {
-                  backgroundColor: 'grey.100',
-                },
-                '& .MuiDataGrid-columnHeader': {
-                  backgroundColor: 'grey.100',
-                },
-                '& .MuiDataGrid-columnHeader:focus': {
-                  outline: 'none',
-                },
-                '& .MuiDataGrid-columnHeader:focus-within': {
-                  outline: 'none',
                 },
                 '& .SitesGrid-domainCell, & .SitesGrid-domainHeader': {
                   position: 'sticky',

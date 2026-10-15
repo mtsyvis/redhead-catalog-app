@@ -23,7 +23,6 @@ import {
   ExportStatusChip,
   AnalyticsMetrics,
 } from './AnalyticsShared';
-import { analyticsGridSx } from './analyticsGridStyles';
 import {
   formatClientName,
   formatDateTime,
@@ -257,7 +256,6 @@ function ClientExportSummaryTable({ rows }: { rows: ExportActivityClientSummaryI
       disableColumnMenu
       autoHeight
       getRowHeight={() => 'auto'}
-      sx={analyticsGridSx}
     />
   );
 }
@@ -391,12 +389,8 @@ function RecentExportsTable({
 }
 
 const clickableAnalyticsGridSx = {
-  ...analyticsGridSx,
   '& .MuiDataGrid-row': {
     cursor: 'pointer',
-  },
-  '& .MuiDataGrid-row:hover': {
-    backgroundColor: 'action.hover',
   },
 };
 

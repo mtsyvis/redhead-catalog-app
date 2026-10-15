@@ -7,7 +7,8 @@ import {
   Typography,
 } from '@mui/material';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
-import { alpha } from '@mui/material/styles';
+import { getTableSurfaceStyles } from '../../theme/tableStyles';
+import { OfferStatusChip } from '../webmaster-offers/OfferStatusChip';
 import { WebmasterOfferDetails } from '../webmaster-offers/WebmasterOfferDetails';
 import {
   PRICE_GRID_TEMPLATE,
@@ -15,41 +16,20 @@ import {
   WebmasterOfferPriceCells,
   WebmasterOfferPriceHeader,
 } from '../webmaster-offers/WebmasterOfferPriceMatrix';
-import type { WebmasterOffer, WebmasterOfferStatus } from '../../types/webmasterOffers.types';
+import type { WebmasterOffer } from '../../types/webmasterOffers.types';
 import type { WebmasterWorkspace } from '../../types/webmasters.types';
 
 interface WebmasterWorkspaceViewProps {
   readonly workspace: WebmasterWorkspace;
 }
 
-function offerStatusLabel(status: WebmasterOfferStatus) {
-  return status === 1 || status === 'Active' ? 'Active' : 'Inactive';
-}
-
 function offerCountLabel(count: number) {
   return `${count} ${count === 1 ? 'offer' : 'offers'}`;
 }
 
-function OfferStatusChip({ status }: { readonly status: WebmasterOfferStatus }) {
-  const active = status === 1 || status === 'Active';
-  return (
-    <Chip
-      size="small"
-      label={offerStatusLabel(status)}
-      variant="outlined"
-      sx={(theme) => ({
-        bgcolor: alpha(active ? theme.palette.success.main : theme.palette.error.main, 0.12),
-        borderColor: alpha(active ? theme.palette.success.main : theme.palette.error.main, 0.3),
-        color: active ? theme.palette.success.dark : theme.palette.error.dark,
-        fontWeight: 600,
-      })}
-    />
-  );
-}
-
 function OfferCard({ offer }: { readonly offer: WebmasterOffer }) {
   return (
-    <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+    <Paper variant="outlined" sx={(theme) => ({ ...getTableSurfaceStyles(theme), overflow: 'hidden' })}>
       <Stack
         direction="row"
         alignItems="center"

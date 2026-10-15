@@ -15,7 +15,6 @@ import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { BrandButton } from "../common/BrandButton";
 import { AnalyticsLoadingSkeleton } from "./AnalyticsLoadingSkeleton";
 import { AnalyticsInfo, AnalyticsMetrics } from "./AnalyticsShared";
-import { analyticsGridSx } from "./analyticsGridStyles";
 import { ApiClient } from "../../services/api.client";
 import { dataGridLocaleText, formatInteger } from "../../utils/numberFormat";
 import type {
@@ -383,8 +382,7 @@ export function MissingDomainsAnalytics({ active }: { active: boolean }) {
               disableRowSelectionOnClick
               autoHeight
               getRowHeight={() => "auto"}
-              columnHeaderHeight={44}
-              sx={{ ...analyticsGridSx, border: 0, borderRadius: 0 }}
+              sx={{ border: 0, borderRadius: 0 }}
             />
           </Paper>
         </>

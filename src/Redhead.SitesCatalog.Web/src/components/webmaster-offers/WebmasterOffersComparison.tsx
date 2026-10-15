@@ -14,9 +14,15 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import { alpha } from '@mui/material/styles';
-import type { WebmasterOffer, WebmasterOfferStatus } from '../../types/webmasterOffers.types';
+import type { WebmasterOffer } from '../../types/webmasterOffers.types';
+import {
+  getPinnedTableCellStyles,
+  getTableCellStyles,
+  getTableHeaderStyles,
+  getTableSurfaceStyles,
+} from '../../theme/tableStyles';
 import { CopyToClipboardIconButton } from '../common/CopyToClipboardIconButton';
+import { OfferStatusChip } from './OfferStatusChip';
 import { WebmasterOfferDetails } from './WebmasterOfferDetails';
 import {
   PRICE_GRID_TEMPLATE,
@@ -25,47 +31,12 @@ import {
   WebmasterOfferPriceHeader,
 } from './WebmasterOfferPriceMatrix';
 
-const OFFER_WIDTH = 140;
-const STATUS_TERM_WIDTH = 168;
+const OFFER_WIDTH = 120;
+const STATUS_TERM_WIDTH = 190;
 const PRIMARY_EMAIL_WIDTH = 220;
 const METADATA_WIDTH = OFFER_WIDTH + STATUS_TERM_WIDTH + PRIMARY_EMAIL_WIDTH;
 const COMPARISON_GRID_TEMPLATE = `${OFFER_WIDTH}px ${STATUS_TERM_WIDTH}px ${PRIMARY_EMAIL_WIDTH}px ${PRICE_GRID_TEMPLATE}`;
 const COMPARISON_MIN_WIDTH = METADATA_WIDTH + PRICE_MATRIX_MIN_WIDTH;
-
-const STATUS_LABELS: Record<number | string, string> = {
-  1: 'Active',
-  2: 'Inactive',
-  Active: 'Active',
-  Inactive: 'Inactive',
-};
-
-function statusLabel(status: WebmasterOfferStatus) {
-  return STATUS_LABELS[status] ?? String(status);
-}
-
-function OfferStatusChip({ status }: { readonly status: WebmasterOfferStatus }) {
-  const inactive = status === 2 || status === 'Inactive';
-
-  return (
-    <Chip
-      size="small"
-      label={statusLabel(status)}
-      variant="outlined"
-      sx={(theme) => ({
-        height: 24,
-        borderColor: inactive
-          ? alpha(theme.palette.error.main, 0.32)
-          : alpha(theme.palette.success.main, 0.28),
-        bgcolor: inactive
-          ? alpha(theme.palette.error.main, 0.18)
-          : alpha(theme.palette.success.main, 0.14),
-        color: inactive ? theme.palette.error.dark : theme.palette.success.dark,
-        fontSize: 12,
-        fontWeight: 600,
-      })}
-    />
-  );
-}
 
 function TermChip({ label }: { readonly label: string }) {
   return (
@@ -117,17 +88,29 @@ function PrimaryEmailValue({
   );
 }
 
-function ComparisonHeaderCell({ children }: { readonly children: string }) {
+function ComparisonHeaderCell({ children, pinned = false }: {
+  readonly children: string;
+  readonly pinned?: boolean;
+}) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', px: 1.5, py: 1, minWidth: 0 }}>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+    <Box
+      sx={(theme) => ({
+        ...getTableHeaderStyles(theme),
+        ...(pinned ? getPinnedTableCellStyles(theme, true) : {}),
+        minHeight: theme.custom.table.headerHeight,
+        display: 'flex',
+        alignItems: 'center',
+        minWidth: 0,
+      })}
+    >
+      <Typography variant="body2" sx={{ fontWeight: 'inherit', lineHeight: 'inherit' }}>
         {children}
       </Typography>
     </Box>
   );
 }
 
-function DesktopComparisonHeader() {
+function DesktopComparisonHeader({ canEdit }: { readonly canEdit: boolean }) {
   return (
     <Box
       sx={{
@@ -139,7 +122,7 @@ function DesktopComparisonHeader() {
         bgcolor: 'grey.100',
       }}
     >
-      <ComparisonHeaderCell>Offer</ComparisonHeaderCell>
+      <ComparisonHeaderCell pinned={canEdit}>#</ComparisonHeaderCell>
       <ComparisonHeaderCell>Status &amp; Term</ComparisonHeaderCell>
       <ComparisonHeaderCell>Primary Email</ComparisonHeaderCell>
       <WebmasterOfferPriceHeader />
@@ -200,22 +183,26 @@ function DesktopOfferRow({
             m: 0,
           },
           '& .MuiAccordionSummary-content.Mui-expanded': { m: 0 },
-          '&:hover': { bgcolor: 'action.hover' },
+          '&:hover': { bgcolor: 'grey.50' },
         }}
       >
         <Box
-          sx={{
-            px: 1.5,
-            py: 1,
+          sx={(theme) => ({
+            ...getTableCellStyles(theme),
+            ...(canEdit ? getPinnedTableCellStyles(theme) : {}),
+            minHeight: theme.custom.table.minRowHeight,
             minWidth: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 0.5,
-          }}
+            ...(canEdit && {
+              '.MuiAccordionSummary-root:hover &': { backgroundColor: theme.palette.grey[50] },
+            }),
+          })}
         >
           <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-            Offer {index + 1}
+            #{index + 1}
           </Typography>
           <Stack direction="row" spacing={0.25} alignItems="center">
             {canEdit && (
@@ -244,20 +231,26 @@ function DesktopOfferRow({
           </Stack>
         </Box>
         <Box
-          sx={{
-            px: 1.25,
-            py: 1,
+          sx={(theme) => ({
+            ...getTableCellStyles(theme),
             minWidth: 0,
             display: 'flex',
             alignItems: 'center',
             gap: 0.75,
             flexWrap: 'wrap',
-          }}
+          })}
         >
           <OfferStatusChip status={offer.status} />
           <TermChip label={offer.termLabel || 'No term'} />
         </Box>
-        <Box sx={{ px: 1.5, py: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
+        <Box
+          sx={(theme) => ({
+            ...getTableCellStyles(theme),
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+          })}
+        >
           <PrimaryEmailValue
             value={offer.primaryEmail}
             onCopySuccess={onPrimaryEmailCopySuccess}
@@ -325,7 +318,7 @@ function MobileOfferRow({
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1 }}>
           <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              Offer {index + 1}
+              #{index + 1}
             </Typography>
             <OfferStatusChip status={offer.status} />
             <TermChip label={offer.termLabel || 'No term'} />
@@ -420,8 +413,18 @@ export function WebmasterOffersComparison({
 
   return (
     <>
-      <Paper variant="outlined" sx={{ display: { xs: 'none', md: 'block' }, overflowX: 'auto' }}>
-        <DesktopComparisonHeader />
+      <Paper
+        variant="outlined"
+        role="region"
+        aria-label="Scrollable webmaster offer comparison"
+        tabIndex={0}
+        sx={(theme) => ({
+          ...getTableSurfaceStyles(theme),
+          display: { xs: 'none', md: 'block' },
+          overflowX: 'auto',
+        })}
+      >
+        <DesktopComparisonHeader canEdit={canEdit} />
         {offers.map((offer, index) => (
           <DesktopOfferRow
             key={offer.id}

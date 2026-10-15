@@ -1,4 +1,7 @@
 import { createTheme } from '@mui/material/styles';
+import type {} from '@mui/x-data-grid/themeAugmentation';
+import { tableTokens } from './tableTokens';
+import { getDataGridStyles, getTableCellStyles, getTableHeaderStyles } from './tableStyles';
 
 const brand = {
   ink: '#262626',
@@ -16,6 +19,7 @@ declare module '@mui/material/styles' {
       ink: string;
       radius: number;
       cardRadius: number;
+      table: typeof tableTokens;
     };
   }
   interface ThemeOptions {
@@ -49,6 +53,32 @@ export const theme = createTheme({
     borderRadius: appBorderRadius,
   },
   components: {
+    MuiTableCell: {
+      styleOverrides: {
+        root: ({ theme }) => getTableCellStyles(theme),
+        head: ({ theme }) => ({
+          ...getTableHeaderStyles(theme),
+          height: theme.custom.table.headerHeight,
+        }),
+        body: ({ theme }) => ({ height: theme.custom.table.minRowHeight }),
+        sizeSmall: ({ theme }) => getTableCellStyles(theme),
+      },
+    },
+    MuiTableRow: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          '&.MuiTableRow-hover:not(.Mui-selected):hover': { backgroundColor: theme.palette.grey[50] },
+          '&:focus-visible': {
+            outline: `2px solid ${theme.palette.primary.main}`,
+            outlineOffset: -2,
+          },
+        }),
+      },
+    },
+    MuiDataGrid: {
+      defaultProps: { columnHeaderHeight: tableTokens.headerHeight },
+      styleOverrides: { root: ({ theme }) => getDataGridStyles(theme) },
+    },
     MuiCssBaseline: {
       styleOverrides: {
         body: {
@@ -110,5 +140,6 @@ export const theme = createTheme({
     ink: brand.ink,
     radius: appBorderRadius,
     cardRadius: appBorderRadius,
+    table: tableTokens,
   },
 });

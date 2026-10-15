@@ -1,5 +1,5 @@
 import {
-  Chip,
+  Box,
   Paper,
   Table,
   TableBody,
@@ -10,17 +10,31 @@ import {
 } from '@mui/material';
 import dayjs from 'dayjs';
 import type { WebmasterOfferSummary } from '../../types/webmasterOffers.types';
+import { getTableSurfaceStyles } from '../../theme/tableStyles';
+import { OfferStatusChip } from './OfferStatusChip';
+import { OfferMailboxes } from './OfferMailboxes';
 
 const textColumns = [
-  ['linkPolicyText', 'Link policy'],
-  ['dfLinksRawText', 'DF links'],
-  ['sponsoredTagRawText', 'Sponsored tag'],
-  ['outreachSenderRawText', 'Outreach sender'],
-  ['linkbuilderMailboxRawText', 'Linkbuilder mailbox (raw)'],
+  ['linkPolicyText', 'Link policy', 180],
+  ['dfLinksRawText', 'DF links', 140],
+  ['sponsoredTagRawText', 'Sponsored tag', 180],
+  ['outreachSenderRawText', 'Outreach sender', 320],
+  ['linkbuilderMailboxRawText', 'Linkbuilder mailbox (raw)', 240],
 ] as const;
 
 function formatDate(value: string) {
-  return dayjs(value).isValid() ? dayjs(value).format('DD MMM YYYY, HH:mm') : '—';
+  return dayjs(value).isValid() ? dayjs(value).format('DD MMM YYYY, HH:mm') : null;
+}
+
+function textValue(value: string | null | undefined) {
+  const text = value?.trim();
+  return text && text !== '—' ? (
+    text
+  ) : (
+    <Box component="span" sx={{ color: 'text.secondary' }}>
+      —
+    </Box>
+  );
 }
 
 export function WebmasterOffersSummaryTable({
@@ -29,70 +43,80 @@ export function WebmasterOffersSummaryTable({
   readonly offers: WebmasterOfferSummary[];
 }) {
   return (
-    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}>
+    <TableContainer
+      component={Paper}
+      variant="outlined"
+      role="region"
+      aria-label="Scrollable webmaster offer conditions"
+      tabIndex={0}
+      sx={getTableSurfaceStyles}
+    >
       <Table
         size="small"
         aria-label="Webmaster offer conditions"
         sx={{
-          minWidth: 2500,
+          minWidth: 3200,
           tableLayout: 'fixed',
-          '& th': { bgcolor: 'action.hover', color: 'text.secondary', fontWeight: 500 },
-          '& td': { verticalAlign: 'top', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
+          borderCollapse: 'separate',
+          borderSpacing: 0,
+          '& td': { verticalAlign: 'top', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' },
+          '& .OfferTable-nowrap': { whiteSpace: 'nowrap' },
         }}
       >
         <TableHead>
           <TableRow>
-            <TableCell sx={{ width: 100 }}>Offer</TableCell>
+            <TableCell sx={{ width: 64 }} aria-label="Offer number">#</TableCell>
             <TableCell sx={{ width: 110 }}>Status</TableCell>
-            <TableCell sx={{ width: 120 }}>Term</TableCell>
-            {textColumns.map(([field, label]) => (
-              <TableCell key={field} sx={{ width: 180 }}>{label}</TableCell>
+            <TableCell sx={{ width: 140 }}>Term</TableCell>
+            {textColumns.map(([field, label, width]) => (
+              <TableCell key={field} sx={{ width }}>
+                {label}
+              </TableCell>
             ))}
-            <TableCell sx={{ width: 260 }}>Linkbuilder mailboxes</TableCell>
-            <TableCell sx={{ width: 280 }}>Comments</TableCell>
-            <TableCell sx={{ width: 180 }}>Client</TableCell>
-            <TableCell sx={{ width: 180 }}>Imported term</TableCell>
-            <TableCell sx={{ width: 170 }}>Created</TableCell>
-            <TableCell sx={{ width: 170 }}>Updated</TableCell>
-            <TableCell sx={{ width: 200 }}>Updated by</TableCell>
+            <TableCell sx={{ width: 340 }}>Linkbuilder mailboxes</TableCell>
+            <TableCell sx={{ width: 420 }}>Comments</TableCell>
+            <TableCell sx={{ width: 200 }}>Client</TableCell>
+            <TableCell sx={{ width: 220 }}>Imported term</TableCell>
+            <TableCell sx={{ width: 190 }}>Created</TableCell>
+            <TableCell sx={{ width: 190 }}>Updated</TableCell>
+            <TableCell sx={{ width: 260 }}>Updated by</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {offers.map((offer, index) => {
-            const inactive = offer.status === 'Inactive' || offer.status === 2;
-            return (
-              <TableRow key={offer.id} hover>
-                <TableCell sx={{ fontWeight: 500 }}>Offer {index + 1}</TableCell>
-                <TableCell>
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    color={inactive ? 'error' : 'success'}
-                    label={inactive ? 'Inactive' : 'Active'}
-                  />
-                </TableCell>
-                <TableCell>{offer.termLabel || '—'}</TableCell>
-                {textColumns.map(([field]) => (
-                  <TableCell key={field}>{offer[field]?.trim() || '—'}</TableCell>
-                ))}
-                <TableCell>
-                  {offer.linkbuilderMailboxes.map((mailbox) => {
-                    const label = mailbox.displayName && mailbox.displayName !== mailbox.email
-                      ? `${mailbox.displayName} <${mailbox.email}>`
-                      : mailbox.email;
-                    const source = mailbox.source === 'Manual' || mailbox.source === 2 ? 'Manual' : 'Import';
-                    return `${label} (${source})`;
-                  }).join('\n') || '—'}
-                </TableCell>
-                <TableCell>{offer.commentText?.trim() || '—'}</TableCell>
-                <TableCell>{offer.clientRawText?.trim() || '—'}</TableCell>
-                <TableCell>{offer.termRawText?.trim() || '—'}</TableCell>
-                <TableCell>{formatDate(offer.createdAtUtc)}</TableCell>
-                <TableCell>{formatDate(offer.updatedAtUtc)}</TableCell>
-                <TableCell>{offer.updatedBy || '—'}</TableCell>
-              </TableRow>
-            );
-          })}
+          {offers.map((offer, index) => (
+            <TableRow key={offer.id} hover>
+              <TableCell
+                className="OfferTable-nowrap"
+                sx={{ fontWeight: 600 }}
+              >
+                #{index + 1}
+              </TableCell>
+              <TableCell>
+                <OfferStatusChip status={offer.status} />
+              </TableCell>
+              <TableCell className="OfferTable-nowrap">{textValue(offer.termLabel)}</TableCell>
+              {textColumns.map(([field]) => (
+                <TableCell key={field}>{textValue(offer[field])}</TableCell>
+              ))}
+              <TableCell>
+                {offer.linkbuilderMailboxes.length > 0 ? (
+                  <OfferMailboxes mailboxes={offer.linkbuilderMailboxes} />
+                ) : (
+                  textValue(null)
+                )}
+              </TableCell>
+              <TableCell>{textValue(offer.commentText)}</TableCell>
+              <TableCell>{textValue(offer.clientRawText)}</TableCell>
+              <TableCell>{textValue(offer.termRawText)}</TableCell>
+              <TableCell className="OfferTable-nowrap">
+                {textValue(formatDate(offer.createdAtUtc))}
+              </TableCell>
+              <TableCell className="OfferTable-nowrap">
+                {textValue(formatDate(offer.updatedAtUtc))}
+              </TableCell>
+              <TableCell>{textValue(offer.updatedBy)}</TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
     </TableContainer>

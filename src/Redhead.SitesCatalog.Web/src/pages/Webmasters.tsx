@@ -245,7 +245,7 @@ export function Webmasters() {
           <TableContainer>
             <Table size="small" aria-label="Webmaster search results">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableRow>
                   <TableCell>Primary email</TableCell>
                   <TableCell>Contact evidence</TableCell>
                   <TableCell align="right">Offers</TableCell>

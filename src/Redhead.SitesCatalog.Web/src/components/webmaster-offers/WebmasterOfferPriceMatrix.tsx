@@ -1,4 +1,5 @@
 import { Box, Typography } from '@mui/material';
+import { getTableCellStyles, getTableHeaderStyles } from '../../theme/tableStyles';
 import type {
   WebmasterOffer,
   WebmasterOfferPrice,
@@ -93,14 +94,14 @@ function PriceCell({ price }: { readonly price: WebmasterOfferPrice | undefined 
 
   return (
     <Box
-      sx={{
+      sx={(theme) => ({
+        ...getTableCellStyles(theme),
+        minHeight: theme.custom.table.minRowHeight,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        px: 1.25,
-        py: 1,
         minWidth: 0,
-      }}
+      })}
     >
       {!hideEmptyPrimary && (
         <Typography
@@ -135,11 +136,17 @@ export function WebmasterOfferPriceHeader() {
       {PRICE_TYPE_COLUMNS.map((column) => (
         <Box
           key={column.stringValue}
-          sx={{ display: 'flex', alignItems: 'center', px: 1.25, py: 1, minWidth: 0 }}
+          sx={(theme) => ({
+            ...getTableHeaderStyles(theme),
+            minHeight: theme.custom.table.headerHeight,
+            display: 'flex',
+            alignItems: 'center',
+            minWidth: 0,
+          })}
         >
           <Typography
             variant="body2"
-            sx={{ fontWeight: 600, lineHeight: 1.25, whiteSpace: 'nowrap' }}
+            sx={{ fontWeight: 'inherit', lineHeight: 'inherit', whiteSpace: 'nowrap' }}
           >
             {column.label}
           </Typography>

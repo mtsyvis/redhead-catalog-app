@@ -1198,7 +1198,7 @@ export const AdminUsers: React.FC = () => {
         </ToggleButtonGroup>}
       </Box>
 
-      <Paper>
+      <Paper elevation={0}>
         <DataGrid
           rows={users}
           columns={columns}
@@ -1218,11 +1218,6 @@ export const AdminUsers: React.FC = () => {
           getRowHeight={() => 'auto'}
           slots={{ noRowsOverlay: NoRowsOverlay }}
           sx={{
-            '& .MuiDataGrid-cell': {
-              display: 'flex',
-              alignItems: 'center',
-              py: 0.75,
-            },
             '& .MuiDataGrid-row': {
               cursor: 'pointer',
             },
@@ -1230,26 +1225,8 @@ export const AdminUsers: React.FC = () => {
               backgroundColor: 'rgba(25, 118, 210, 0.04)',
               boxShadow: 'inset 3px 0 0 rgba(25, 118, 210, 0.85)',
             },
-            '& .MuiDataGrid-row:hover': {
-              backgroundColor: 'action.hover',
-            },
             '& .MuiDataGrid-row.current-user-row:hover': {
               backgroundColor: 'rgba(25, 118, 210, 0.08)',
-            },
-            '& .MuiDataGrid-cell:focus': {
-              outline: 'none',
-            },
-            '& .MuiDataGrid-cell:focus-within': {
-              outline: 'none',
-            },
-            '& .MuiDataGrid-columnHeader': {
-              backgroundColor: 'action.hover',
-            },
-            '& .MuiDataGrid-columnHeader:focus': {
-              outline: 'none',
-            },
-            '& .MuiDataGrid-columnHeader:focus-within': {
-              outline: 'none',
             },
           }}
         />

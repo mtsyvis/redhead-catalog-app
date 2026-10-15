@@ -270,9 +270,6 @@ export const AhrefsSync: React.FC = () => {
                 border: 0,
                 minWidth: 1080,
                 '& .MuiDataGrid-row': { cursor: 'pointer' },
-                '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within': {
-                  outline: 'none',
-                },
               }}
             />
           </Box>

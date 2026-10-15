@@ -239,9 +239,6 @@ export const AhrefsSyncRunDetails: React.FC = () => {
                 sx={{
                   border: 0,
                   minWidth: 1220,
-                  '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within': {
-                    outline: 'none',
-                  },
                 }}
               />
             </Box>
