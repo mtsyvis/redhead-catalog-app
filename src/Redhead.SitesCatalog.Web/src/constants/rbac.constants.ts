@@ -19,6 +19,7 @@ export const APP_PERMISSIONS = [
   'MissingDomainsAnalyticsRead',
   'AhrefsSyncManage',
   'WebmasterOffersRead',
+  'WebmasterOffersSummaryRead',
   'WebmasterOffersImport',
   'WebmasterOffersManage',
 ] as const;
@@ -39,6 +40,7 @@ export const ROLE_PERMISSION_MATRIX: Record<AppRole, readonly AppPermission[]> =
     'MissingDomainsAnalyticsRead',
     'AhrefsSyncManage',
     'WebmasterOffersRead',
+    'WebmasterOffersSummaryRead',
     'WebmasterOffersImport',
     'WebmasterOffersManage',
   ],
@@ -48,10 +50,11 @@ export const ROLE_PERMISSION_MATRIX: Record<AppRole, readonly AppPermission[]> =
     'SitesEdit',
     'TableViewsManage',
     'WebmasterOffersRead',
+    'WebmasterOffersSummaryRead',
     'WebmasterOffersManage',
   ],
-  Linkbuilder: ['SitesBrowse', 'SitesMultiSearch', 'TableViewsManage', 'WebmasterOffersRead'],
-  Internal: ['SitesBrowse', 'SitesMultiSearch', 'SitesExport', 'TableViewsManage'],
+  Linkbuilder: ['SitesBrowse', 'SitesMultiSearch', 'TableViewsManage', 'WebmasterOffersRead', 'WebmasterOffersSummaryRead'],
+  Internal: ['SitesBrowse', 'SitesMultiSearch', 'SitesExport', 'TableViewsManage', 'WebmasterOffersSummaryRead'],
   Client: ['SitesBrowse', 'SitesMultiSearch', 'SitesExport', 'TableViewsManage'],
   Lite: ['SitesMultiSearch', 'TableViewsManage'],
 };
@@ -87,7 +90,7 @@ export const ROLE_METADATA: Record<
   Internal: {
     label: 'Internal',
     description: 'Internal read-oriented team member.',
-    capabilities: 'Browse, multi-search, export, and manage table views.',
+    capabilities: 'Browse, multi-search, export, manage table views, and read webmaster offers without webmaster contacts or prices.',
   },
   Client: {
     label: 'Client',

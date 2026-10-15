@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -44,6 +45,41 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         if (string.IsNullOrEmpty(_connectionString)) return;
         await using var context = CreateContext();
         await context.Database.EnsureDeletedAsync();
+    }
+
+    [PostgresFact]
+    public async Task GetSummaryByDomain_ProjectsOnlyAllowedColumnsOnPostgres()
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        var offer = await SeedOfferAsync(setup, "remove-mailbox");
+        offer.TermType = TermType.Finite;
+        offer.TermValue = 2;
+        offer.TermUnit = TermUnit.Year;
+        await setup.SaveChangesAsync();
+        var recorder = new ReadCommandRecorder();
+        await using var context = CreateContext(recorder);
+        var service = new WebmasterOffersService(context);
+
+        // Act
+        var result = await service.GetSummaryByDomainAsync("https://www.concurrent.example/path");
+
+        // Assert
+        Assert.True(result.SiteFound);
+        var summary = Assert.Single(result.Offers);
+        Assert.Equal(offer.Id, summary.Id);
+        Assert.Equal("2 years", summary.TermLabel);
+        Assert.Equal("mailbox@example.com", Assert.Single(summary.LinkbuilderMailboxes).Email);
+        Assert.NotEmpty(recorder.Commands);
+        foreach (var sql in recorder.Commands)
+        {
+            Assert.DoesNotContain("\"ContactRawText\"", sql);
+            Assert.DoesNotContain("\"PrimaryEmail\"", sql);
+            Assert.DoesNotContain("\"Webmasters\"", sql);
+            Assert.DoesNotContain("\"WebmasterOfferPrices\"", sql);
+            Assert.DoesNotContain("\"WebmasterPriceUsd\"", sql);
+            Assert.DoesNotContain("\"WebmasterPriceDetails\"", sql);
+        }
     }
 
     [PostgresTheory]
@@ -251,7 +287,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         Assert.Equal(false, await indexCommand.ExecuteScalarAsync());
     }
 
-    private ApplicationDbContext CreateContext(SaveChangesInterceptor? interceptor = null)
+    private ApplicationDbContext CreateContext(IInterceptor? interceptor = null)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_connectionString);
         if (interceptor is not null) options.AddInterceptors(interceptor);
@@ -322,6 +358,19 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
             WebmasterPriceUsd = amount
         });
         return request;
+    }
+
+    private sealed class ReadCommandRecorder : DbCommandInterceptor
+    {
+        public List<string> Commands { get; } = [];
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData,
+            InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Commands.Add(command.CommandText);
+            return ValueTask.FromResult(result);
+        }
     }
 
     private sealed class BeforeSaveInterceptor(Func<Task> beforeSave) : SaveChangesInterceptor

@@ -5,6 +5,37 @@ namespace Redhead.SitesCatalog.Tests.Domain;
 public sealed class RolePermissionMatrixTests
 {
     [Fact]
+    public void GetRolesForPermission_WebmasterOffersSummaryRead_IncludesInternalButNotClients()
+    {
+        // Arrange
+        var permission = AppPermissions.WebmasterOffersSummaryRead;
+
+        // Act
+        var roles = RolePermissionMatrix.GetRolesForPermission(permission);
+
+        // Assert
+        Assert.Equal([AppRoles.SuperAdmin, AppRoles.Admin, AppRoles.Editor, AppRoles.Linkbuilder, AppRoles.Internal], roles);
+        Assert.Equal(AppPolicies.WebmasterOffersSummaryReadAccess, AppPolicies.PermissionPolicies[permission]);
+    }
+
+    [Theory]
+    [InlineData(AppPermissions.WebmasterOffersRead)]
+    [InlineData(AppPermissions.WebmasterOffersManage)]
+    [InlineData(AppPermissions.WebmasterOffersImport)]
+    [InlineData(AppPermissions.ImportsRun)]
+    public void Internal_DoesNotGainSensitiveOrWritePermissions(string permission)
+    {
+        // Arrange
+        var role = AppRoles.Internal;
+
+        // Act
+        var allowed = RolePermissionMatrix.HasPermission(role, permission);
+
+        // Assert
+        Assert.False(allowed);
+    }
+
+    [Fact]
     public void GetRolesForPermission_SitesExport_ReturnsOnlyConfiguredExportRoles()
     {
         // Arrange
@@ -94,7 +125,8 @@ public sealed class RolePermissionMatrixTests
                 AppPermissions.SitesBrowse,
                 AppPermissions.SitesMultiSearch,
                 AppPermissions.TableViewsManage,
-                AppPermissions.WebmasterOffersRead
+                AppPermissions.WebmasterOffersRead,
+                AppPermissions.WebmasterOffersSummaryRead
             ],
             permissions.OrderBy(permission => permission));
         Assert.DoesNotContain(AppPermissions.WebmasterOffersImport, permissions);
@@ -188,7 +220,8 @@ public sealed class RolePermissionMatrixTests
                 AppPermissions.SitesMultiSearch,
                 AppPermissions.TableViewsManage,
                 AppPermissions.WebmasterOffersManage,
-                AppPermissions.WebmasterOffersRead
+                AppPermissions.WebmasterOffersRead,
+                AppPermissions.WebmasterOffersSummaryRead
             ],
             permissions.OrderBy(permission => permission));
         Assert.DoesNotContain(AppPermissions.WebmasterOffersImport, permissions);

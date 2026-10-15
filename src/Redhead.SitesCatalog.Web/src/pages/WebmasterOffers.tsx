@@ -15,13 +15,19 @@ import { BrandButton } from '../components/common/BrandButton';
 import { PageShell } from '../components/layout/PageShell';
 import { WebmasterOffersComparison } from '../components/webmaster-offers/WebmasterOffersComparison';
 import { EditWebmasterOfferDialog } from '../components/webmaster-offers/EditWebmasterOfferDialog';
+import { WebmasterOffersSummaryTable } from '../components/webmaster-offers/WebmasterOffersSummaryTable';
+import { useAuth } from '../contexts/AuthContext';
 import { useUserRoles } from '../hooks/useUserRoles';
 import { webmasterOffersService } from '../services/webmasterOffers.service';
-import type { WebmasterOffersSearchResult } from '../types/webmasterOffers.types';
+import type {
+  WebmasterOffersSearchResult,
+  WebmasterOffersSummarySearchResult,
+} from '../types/webmasterOffers.types';
 import {
   cacheWebmasterOffersSearch,
   clearCachedWebmasterOffersSearch,
   readCachedWebmasterOffersSearch,
+  type WebmasterOffersCacheScope,
 } from '../utils/webmasterOffersSearchCache';
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -31,10 +37,25 @@ function pluralizeOffers(count: number) {
 }
 
 export function WebmasterOffers() {
+  const { user } = useAuth();
+  const { canReadWebmasterOffers, canReadWebmasterOffersSummary } = useUserRoles();
+  if (!canReadWebmasterOffersSummary || !user) return <Navigate to="/sites" replace />;
+
+  const access = canReadWebmasterOffers ? 'full' : 'summary';
+  return <WebmasterOffersPage key={`${user.id}:${access}`} userId={user.id} access={access} />;
+}
+
+function isFullSearchResult(
+  result: WebmasterOffersSummarySearchResult
+): result is WebmasterOffersSearchResult {
+  return result.offers.every((offer) => 'prices' in offer && 'contactRawText' in offer);
+}
+
+function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
   const { canReadWebmasterOffers, canManageWebmasterOffers } = useUserRoles();
-  const [cachedSearch] = useState(readCachedWebmasterOffersSearch);
+  const [cachedSearch] = useState(() => readCachedWebmasterOffersSearch({ userId, access }));
   const [domain, setDomain] = useState(cachedSearch?.query ?? '');
-  const [result, setResult] = useState<WebmasterOffersSearchResult | null>(
+  const [result, setResult] = useState<WebmasterOffersSummarySearchResult | null>(
     cachedSearch?.result ?? null
   );
   const [expandedOfferIds, setExpandedOfferIds] = useState<Set<string>>(() => new Set());
@@ -43,64 +64,64 @@ export function WebmasterOffers() {
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const searchRequestSequence = useRef(0);
   const lastSearchKey = useRef(cachedSearch?.query.trim().toLowerCase() ?? '');
+  const mounted = useRef(false);
 
-  const runSearch = useCallback(async (query: string, force = false) => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      searchRequestSequence.current += 1;
+    };
+  }, []);
+
+  const runSearch = useCallback(async (
+    query: string,
+    mode: 'automatic' | 'manual' | 'after-save' = 'automatic'
+  ) => {
+    if (!mounted.current) return;
     const trimmed = query.trim();
     if (!trimmed) return;
 
     const searchKey = trimmed.toLowerCase();
-    if (!force && lastSearchKey.current === searchKey) return;
+    if (mode === 'automatic' && lastSearchKey.current === searchKey) return;
     lastSearchKey.current = searchKey;
     const requestSequence = ++searchRequestSequence.current;
 
     setLoading(true);
     setError(null);
     try {
-      const searchResult = await webmasterOffersService.getByDomain(trimmed);
+      const searchResult = canReadWebmasterOffers
+        ? await webmasterOffersService.getByDomain(trimmed)
+        : await webmasterOffersService.getSummaryByDomain(trimmed);
       if (searchRequestSequence.current !== requestSequence) return;
       setResult(searchResult);
-      setExpandedOfferIds(new Set());
-      cacheWebmasterOffersSearch(trimmed, searchResult);
+      if (mode !== 'after-save') setExpandedOfferIds(new Set());
+      cacheWebmasterOffersSearch(trimmed, searchResult, { userId, access });
     } catch (err) {
       if (searchRequestSequence.current !== requestSequence) return;
       lastSearchKey.current = '';
-      setError(err instanceof Error ? err.message : 'Failed to load webmaster offers');
+      setError(err instanceof Error ? err.message : mode === 'after-save'
+        ? 'Offer was saved, but the results could not be refreshed'
+        : 'Failed to load webmaster offers');
     } finally {
       if (searchRequestSequence.current === requestSequence) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [canReadWebmasterOffers, userId, access]);
 
   useEffect(() => {
-    if (!canReadWebmasterOffers) return;
-
     const timer = window.setTimeout(() => {
       void runSearch(domain);
     }, SEARCH_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [canReadWebmasterOffers, domain, runSearch]);
-
-  if (!canReadWebmasterOffers) {
-    return <Navigate to="/sites" replace />;
-  }
+  }, [domain, runSearch]);
 
   const handleDomainChange = (value: string) => {
     searchRequestSequence.current += 1;
     lastSearchKey.current = '';
     setDomain(value);
-    setResult(null);
-    setExpandedOfferIds(new Set());
-    setLoading(false);
-    setError(null);
-    clearCachedWebmasterOffersSearch();
-  };
-
-  const handleClearSearch = () => {
-    searchRequestSequence.current += 1;
-    lastSearchKey.current = '';
-    setDomain('');
     setResult(null);
     setExpandedOfferIds(new Set());
     setLoading(false);
@@ -121,20 +142,10 @@ export function WebmasterOffers() {
   };
 
   const handleOfferSaved = async () => {
+    if (!mounted.current) return;
     setEditingOfferId(null);
     if (!result?.siteFound) return;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const refreshed = await webmasterOffersService.getByDomain(result.domain);
-      setResult(refreshed);
-      cacheWebmasterOffersSearch(result.domain, refreshed);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Offer was saved, but the results could not be refreshed');
-    } finally {
-      setLoading(false);
-    }
+    await runSearch(result.domain, 'after-save');
   };
 
   return (
@@ -148,7 +159,7 @@ export function WebmasterOffers() {
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();
-              void runSearch(domain, true);
+              void runSearch(domain, 'manual');
             }
           }}
           inputProps={{
@@ -165,7 +176,7 @@ export function WebmasterOffers() {
                     edge="end"
                     size="small"
                     onMouseDown={(event) => event.preventDefault()}
-                    onClick={handleClearSearch}
+                    onClick={() => handleDomainChange('')}
                     sx={{ color: 'text.secondary' }}
                   >
                     <ClearIcon fontSize="small" />
@@ -182,7 +193,7 @@ export function WebmasterOffers() {
           severity="error"
           sx={{ mb: 3 }}
           action={
-            <BrandButton size="small" onClick={() => void runSearch(domain, true)}>
+            <BrandButton size="small" onClick={() => void runSearch(domain, 'manual')}>
               Retry
             </BrandButton>
           }
@@ -199,11 +210,12 @@ export function WebmasterOffers() {
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
             {pluralizeOffers(result.offers.length)}
+            {!canReadWebmasterOffers && ' · Newest first'}
           </Typography>
 
           {result.offers.length === 0 ? (
             <Alert severity="info">No webmaster offers found.</Alert>
-          ) : (
+          ) : canReadWebmasterOffers && isFullSearchResult(result) ? (
             <WebmasterOffersComparison
               offers={result.offers}
               expandedOfferIds={expandedOfferIds}
@@ -211,17 +223,21 @@ export function WebmasterOffers() {
               canEdit={canManageWebmasterOffers}
               onEditOffer={setEditingOfferId}
             />
+          ) : (
+            <WebmasterOffersSummaryTable offers={result.offers} />
           )}
         </Stack>
       )}
 
-      <EditWebmasterOfferDialog
-        open={Boolean(editingOfferId)}
-        offerId={editingOfferId}
-        domain={result?.domain ?? domain.trim()}
-        onClose={() => setEditingOfferId(null)}
-        onSaved={handleOfferSaved}
-      />
+      {canManageWebmasterOffers && (
+        <EditWebmasterOfferDialog
+          open={Boolean(editingOfferId)}
+          offerId={editingOfferId}
+          domain={result?.domain ?? domain.trim()}
+          onClose={() => setEditingOfferId(null)}
+          onSaved={handleOfferSaved}
+        />
+      )}
     </PageShell>
   );
 }

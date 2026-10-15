@@ -16,6 +16,7 @@ public static class AppPermissions
     public const string MissingDomainsAnalyticsRead = "MissingDomainsAnalyticsRead";
     public const string AhrefsSyncManage = "AhrefsSyncManage";
     public const string WebmasterOffersRead = "WebmasterOffersRead";
+    public const string WebmasterOffersSummaryRead = "WebmasterOffersSummaryRead";
     public const string WebmasterOffersImport = "WebmasterOffersImport";
     public const string WebmasterOffersManage = "WebmasterOffersManage";
 
@@ -35,6 +36,7 @@ public static class AppPermissions
         MissingDomainsAnalyticsRead,
         AhrefsSyncManage,
         WebmasterOffersRead,
+        WebmasterOffersSummaryRead,
         WebmasterOffersImport,
         WebmasterOffersManage
     ];

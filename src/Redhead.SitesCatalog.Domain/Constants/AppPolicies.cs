@@ -16,6 +16,7 @@ public static class AppPolicies
     public const string MissingDomainsAnalyticsReadAccess = "MissingDomainsAnalyticsReadAccess";
     public const string AhrefsSyncManageAccess = "AhrefsSyncManageAccess";
     public const string WebmasterOffersReadAccess = "WebmasterOffersReadAccess";
+    public const string WebmasterOffersSummaryReadAccess = "WebmasterOffersSummaryReadAccess";
     public const string WebmasterOffersImportAccess = "WebmasterOffersImportAccess";
     public const string WebmasterOffersManageAccess = "WebmasterOffersManageAccess";
 
@@ -36,6 +37,7 @@ public static class AppPolicies
             [AppPermissions.MissingDomainsAnalyticsRead] = MissingDomainsAnalyticsReadAccess,
             [AppPermissions.AhrefsSyncManage] = AhrefsSyncManageAccess,
             [AppPermissions.WebmasterOffersRead] = WebmasterOffersReadAccess,
+            [AppPermissions.WebmasterOffersSummaryRead] = WebmasterOffersSummaryReadAccess,
             [AppPermissions.WebmasterOffersImport] = WebmasterOffersImportAccess,
             [AppPermissions.WebmasterOffersManage] = WebmasterOffersManageAccess
         };

@@ -5,9 +5,15 @@ import type {
   WebmasterOffer,
   WebmasterOfferEdit,
   WebmasterOffersSearchResult,
+  WebmasterOffersSummarySearchResult,
 } from '../types/webmasterOffers.types';
 
 export const webmasterOffersService = {
+  getSummaryByDomain(domain: string): Promise<WebmasterOffersSummarySearchResult> {
+    return apiClient.get<WebmasterOffersSummarySearchResult>(
+      `/api/webmaster-offers?domain=${encodeURIComponent(domain)}`
+    );
+  },
   getByDomain(domain: string): Promise<WebmasterOffersSearchResult> {
     return apiClient.get<WebmasterOffersSearchResult>(
       `/api/webmaster-offers?domain=${encodeURIComponent(domain)}`

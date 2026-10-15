@@ -32,6 +32,14 @@ export interface WebmasterOffersSearchResult {
   offers: WebmasterOffer[];
 }
 
+export interface WebmasterOffersSummarySearchResult {
+  domain: string;
+  siteFound: boolean;
+  offers: WebmasterOfferSummary[];
+}
+
+export type WebmasterOfferSummary = Omit<WebmasterOffer, 'primaryEmail' | 'contactRawText' | 'prices'>;
+
 export interface WebmasterOffer {
   id: string;
   primaryEmail: string | null;

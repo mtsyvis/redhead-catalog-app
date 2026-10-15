@@ -60,7 +60,7 @@ Current static permission model:
 * `Admin`: sites browse, Multi-search, site editing, exports, imports, user read, role settings read, analytics read, table views, Ahrefs sync management, webmaster offers read, import, and manual editing.
 * `Editor`: sites browse, Multi-search, site editing, table views, and webmaster offers read and manual editing.
 * `Linkbuilder`: sites browse, Multi-search, table views, and webmaster offers read.
-* `Internal`: sites browse, Multi-search, exports, and table views.
+* `Internal`: sites browse, Multi-search, exports, table views, and webmaster offers read without webmaster contacts or prices.
 * `Client`: sites browse, Multi-search, exports, and client-safe table views.
 * `Lite`: Multi-search and client-safe table views only.
 
@@ -131,6 +131,8 @@ Current rules:
 
 * Can browse and filter the sites catalog.
 * Can export if export is enabled for the role or user.
+* Can search Webmaster Offers by domain and read offer conditions, outreach sender, linkbuilder mailbox raw text and parsed mailboxes, notes, client text, terms, status, and audit dates.
+* Cannot retrieve webmaster Primary email, Contact raw text, webmaster prices or price details; cannot access the contact-based Webmasters workflow or webmaster-offer editing, history, import, or export.
 * Cannot manage users, role settings, imports, or catalog editing unless a future requirement explicitly changes this.
 
 ### Client
@@ -435,7 +437,8 @@ Access rules:
 * `SuperAdmin` and `Admin` can run Webmaster Offers Import.
 * `SuperAdmin`, `Admin`, and `Editor` can manually edit webmaster offers and view their manual change history.
 * `Linkbuilder` can read webmaster offers but cannot import, edit, export, or download raw webmaster data.
-* `Internal`, `Client`, and `Lite` have no webmaster-offer permissions.
+* `Internal` has separate restricted read access. Its domain-search API response includes only permitted offer fields and omits webmaster Primary email, Contact raw text, webmaster identity, import fingerprint, and all raw price rows, amounts, availability values, and price details. Other offer fields, including free-text notes, client/term text, outreach sender, and linkbuilder mailboxes, remain available without content redaction.
+* `Client` and `Lite` have no webmaster-offer permissions.
 * Client-safe site responses, table views, and exports must never expose webmaster offers or raw webmaster data.
 
 Storage rules:
@@ -1163,11 +1166,13 @@ Rules:
 * `SuperAdmin` export settings are shown as unlimited and not editable.
 * `Lite`, `Editor`, and `Linkbuilder` export settings are shown as disabled and are not editable at role or user level.
 * The Imports page shows Webmaster Offers Import only to `SuperAdmin` and `Admin`.
-* The Webmaster Offers page is available only to `SuperAdmin`, `Admin`, `Editor`, and `Linkbuilder`.
+* The Webmaster Offers page is available to `SuperAdmin`, `Admin`, `Editor`, `Linkbuilder`, and `Internal`. Internal uses its restricted read-only table.
 * Webmaster Offers domain search uses the same full-width search-field pattern as Sites Catalog. It runs automatically after a short debounce without a separate Search button; pressing Enter runs it immediately.
-* The Webmasters page is available to the same roles and provides the separate Contact-based read-only search and offer-review workflow described above.
+* Search results and background refreshes after saving an offer apply only while their search and page instance remain current. Clearing/changing the domain, starting a newer request, leaving the page, or changing user/read access prevents older responses from replacing results or updating the cache.
+* The Webmasters page remains available only to `SuperAdmin`, `Admin`, `Editor`, and `Linkbuilder` and provides the separate Contact-based read-only search and offer-review workflow described above.
 * Webmaster Offers UI supports domain search and comparison of offers, contacts, outreach sender text, linkbuilder mailbox raw text, parsed mailboxes, raw prices by service, term, link policy, DF links raw text, sponsored tag raw text, comments, client raw text, and status.
-* `SuperAdmin`, `Admin`, and `Editor` can open an edit dialog for an offer. `Linkbuilder` remains read-only.
+* `Internal` sees one horizontally scrollable table with Offer, Status, Term, Link policy, DF links, Sponsored tag, Outreach sender, Linkbuilder mailbox raw text, parsed Linkbuilder mailboxes with their source, Comments, Client, Imported term, Created, Updated, and Updated by columns. Long text wraps without truncation; empty values use `—`. Its offers are ordered by creation date descending, then offer ID, independently of hidden prices. It has no price/contact columns, edit actions, or history controls.
+* `SuperAdmin`, `Admin`, and `Editor` can open an edit dialog for an offer. `Linkbuilder` and `Internal` remain read-only.
 * The edit dialog can update status, effective structured term, Contact, Primary email, offer-level raw text fields except imported `LinkbuilderMailboxRawText`, structured linkbuilder mailboxes, and all ten raw price types. While Contact still resolves to the currently linked Webmaster, it shows how many offers share that Webmaster before a Primary email edit. When Contact would relink the offer, the UI explains that the target scope is resolved during save and that an existing Webmaster's Primary email is not overwritten automatically. Site domain, imported raw term, imported linkbuilder mailbox text, and import fingerprint remain read-only.
 * Manual price editing enforces the same availability/amount consistency as import: numeric prices are positive with at most two decimal places; `YES`, `NO`, and `Unknown` have no numeric amount; Main supports only numeric price or Unknown.
 * A service shown as `Unknown` may have no stored price row. Manually entering a numeric price, `YES`/`NO` where supported, or price details creates that row; editing an existing row updates it. Both cases save the offer and its manual change history together.
@@ -1175,12 +1180,12 @@ Rules:
 * The database permits at most one raw price row per offer and price type. Concurrent additions of the same price type or mailbox return a conflict instead of creating duplicate rows or returning an unexpected error.
 * Successful saves refresh the domain search result because price changes can change offer ordering.
 * Manual Site and webmaster-offer edit forms expose the corresponding manual change history.
-* Offers are displayed as compact independently expandable comparison rows sorted by effective numeric price ascending. Effective price is the numeric Main price when present, otherwise the lowest numeric price among the other raw price types. Offers without any numeric price are placed last. Equal effective prices are ordered newest first, then by offer ID. Multiple offers can be expanded at the same time; all offers are collapsed by default after search.
+* Full-access offers are displayed as compact independently expandable comparison rows sorted by effective numeric price ascending. Effective price is the numeric Main price when present, otherwise the lowest numeric price among the other raw price types. Offers without any numeric price are placed last. Equal effective prices are ordered newest first, then by offer ID. Multiple offers can be expanded at the same time; all offers are collapsed by default after search.
 * Leading offer metadata columns show offer number, status and term, and primary email. A non-empty primary email remains selectable and has a dedicated copy action with success or failure feedback. Offer dates and sponsored tag raw text are not shown in the comparison row.
 * All ten raw price types are shown in a horizontally scrollable comparison matrix. The table, including offer metadata, scrolls horizontally as one surface. Each price cell shows the numeric USD amount, `YES`, `NO`, or `—` as its primary value. The full raw price-details text is shown in secondary typography and wraps without truncation. If there is no numeric/status value but price details exist, the empty-value dash is omitted and only the secondary price-details text is shown.
 * Table typography, header treatment, status treatment, density, hover feedback, and empty-value presentation follow the Sites table patterns; all empty table values use the same `—` presentation.
 * Expanded offer details remain anchored while the comparison table scrolls. They show contact raw text, outreach sender text, sponsored tag raw text, link policy, DF links raw text, comments, client raw text, linkbuilder mailbox raw text, parsed mailboxes, and raw term. Price details are not repeated in a separate table.
-* The last successful Webmaster Offers query and response are cached in browser `sessionStorage` for one hour and restored when the user returns to the page in the same browser tab. The search field clear action removes the query, displayed result, errors, expanded state, and cached entry.
+* The last successful Webmaster Offers query and response are cached in browser `sessionStorage` for one hour and restored only for the same user and read-access level in the same browser tab. A different user/access level, an expired or malformed entry, or a restricted entry containing contact/price fields discards the cached response. Legacy shared entries are discarded. Switching user/access level also resets page state. The search field clear action removes the query, displayed result, errors, expanded state, and cached entry.
 * Webmaster Offers UI must not include raw-data export controls.
 * `SuperAdmin` and `Admin` can access an Analytics page for Business Demand based on Client export requests.
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.

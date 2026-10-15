@@ -10,7 +10,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
 [Route("api/webmaster-offers")]
-[Authorize(Policy = AppPolicies.WebmasterOffersReadAccess)]
+[Authorize(Policy = AppPolicies.WebmasterOffersSummaryReadAccess)]
 public sealed class WebmasterOffersController : ControllerBase
 {
     private readonly IWebmasterOffersService _webmasterOffersService;
@@ -21,10 +21,18 @@ public sealed class WebmasterOffersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<WebmasterOffersSearchResult>> GetByDomain(
+    public async Task<IActionResult> GetByDomain(
         [FromQuery] string? domain,
         CancellationToken cancellationToken)
     {
+        var canReadFullOffers = User.FindAll(ClaimTypes.Role)
+            .Any(claim => RolePermissionMatrix.HasPermission(claim.Value, AppPermissions.WebmasterOffersRead));
+        if (!canReadFullOffers)
+        {
+            var summary = await _webmasterOffersService.GetSummaryByDomainAsync(domain, cancellationToken);
+            return Ok(summary);
+        }
+
         var result = await _webmasterOffersService.GetByDomainAsync(domain, cancellationToken);
         return Ok(result);
     }

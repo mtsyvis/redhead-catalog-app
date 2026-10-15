@@ -53,6 +53,7 @@ export const PageShell: React.FC<PageShellProps> = ({
     canReadAnyAnalytics,
     canManageAhrefsSync,
     canReadWebmasterOffers,
+    canReadWebmasterOffersSummary,
   } = useUserRoles();
   const navigate = useNavigate();
   const location = useLocation();
@@ -161,7 +162,7 @@ export const PageShell: React.FC<PageShellProps> = ({
                   {canReadWebmasterOffers && (
                     <Tab label="Webmasters" value="/webmasters" />
                   )}
-                  {canReadWebmasterOffers && (
+                  {canReadWebmasterOffersSummary && (
                     <Tab label="Webmaster Offers" value="/webmaster-offers" />
                   )}
                   {canRunImports && <Tab label="Imports" value="/imports" />}

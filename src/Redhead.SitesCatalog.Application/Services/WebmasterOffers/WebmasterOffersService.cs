@@ -76,6 +76,69 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
         };
     }
 
+    public async Task<WebmasterOffersSummarySearchResult> GetSummaryByDomainAsync(
+        string? domain,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedDomain = DomainNormalizer.Normalize(domain);
+        var siteFound = !string.IsNullOrEmpty(normalizedDomain)
+            && await _context.Sites.AsNoTracking()
+                .AnyAsync(site => site.Domain == normalizedDomain, cancellationToken);
+        if (!siteFound)
+        {
+            return new WebmasterOffersSummarySearchResult { Domain = normalizedDomain ?? string.Empty };
+        }
+
+        // Neither webmaster identities nor price rows are loaded or used to order restricted results.
+        var offers = await _context.SiteWebmasterOffers
+            .AsNoTracking()
+            .Where(offer => offer.SiteDomain == normalizedDomain)
+            .OrderByDescending(offer => offer.CreatedAtUtc)
+            .ThenBy(offer => offer.Id)
+            .Select(offer => new WebmasterOfferSummaryDto
+            {
+                Id = offer.Id,
+                OutreachSenderRawText = offer.OutreachSenderRawText,
+                LinkbuilderMailboxRawText = offer.LinkbuilderMailboxRawText,
+                LinkPolicyText = offer.LinkPolicyText,
+                DfLinksRawText = offer.DfLinksRawText,
+                SponsoredTagRawText = offer.SponsoredTagRawText,
+                CommentText = offer.CommentText,
+                ClientRawText = offer.ClientRawText,
+                TermRawText = offer.TermRawText,
+                TermType = offer.TermType,
+                TermValue = offer.TermValue,
+                TermUnit = offer.TermUnit,
+                Status = offer.Status,
+                CreatedAtUtc = offer.CreatedAtUtc,
+                UpdatedAtUtc = offer.UpdatedAtUtc,
+                UpdatedBy = offer.UpdatedBy,
+                Version = offer.Version,
+                LinkbuilderMailboxes = offer.LinkbuilderMailboxes
+                    .OrderBy(link => link.LinkbuilderMailbox.DisplayName)
+                    .ThenBy(link => link.LinkbuilderMailbox.Email)
+                    .Select(link => new WebmasterOfferMailboxDto
+                    {
+                        Id = link.LinkbuilderMailboxId,
+                        Email = link.LinkbuilderMailbox.Email,
+                        DisplayName = link.LinkbuilderMailbox.DisplayName,
+                        Source = link.Source
+                    }).ToList()
+            }).ToListAsync(cancellationToken);
+
+        foreach (var offer in offers)
+        {
+            offer.TermLabel = FormatTermLabel(offer.TermType, offer.TermValue, offer.TermUnit);
+        }
+
+        return new WebmasterOffersSummarySearchResult
+        {
+            Domain = normalizedDomain!,
+            SiteFound = true,
+            Offers = offers
+        };
+    }
+
     public async Task<WebmasterOfferEditDto?> GetForEditAsync(
         Guid offerId,
         CancellationToken cancellationToken = default)

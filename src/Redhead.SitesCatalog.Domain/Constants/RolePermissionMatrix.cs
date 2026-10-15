@@ -20,6 +20,7 @@ public static class RolePermissionMatrix
                 AppPermissions.MissingDomainsAnalyticsRead,
                 AppPermissions.AhrefsSyncManage,
                 AppPermissions.WebmasterOffersRead,
+                AppPermissions.WebmasterOffersSummaryRead,
                 AppPermissions.WebmasterOffersImport,
                 AppPermissions.WebmasterOffersManage
             },
@@ -30,6 +31,7 @@ public static class RolePermissionMatrix
                 AppPermissions.SitesEdit,
                 AppPermissions.TableViewsManage,
                 AppPermissions.WebmasterOffersRead,
+                AppPermissions.WebmasterOffersSummaryRead,
                 AppPermissions.WebmasterOffersManage
             },
             [AppRoles.Linkbuilder] = new HashSet<string>(StringComparer.Ordinal)
@@ -37,14 +39,16 @@ public static class RolePermissionMatrix
                 AppPermissions.SitesBrowse,
                 AppPermissions.SitesMultiSearch,
                 AppPermissions.TableViewsManage,
-                AppPermissions.WebmasterOffersRead
+                AppPermissions.WebmasterOffersRead,
+                AppPermissions.WebmasterOffersSummaryRead
             },
             [AppRoles.Internal] = new HashSet<string>(StringComparer.Ordinal)
             {
                 AppPermissions.SitesBrowse,
                 AppPermissions.SitesMultiSearch,
                 AppPermissions.SitesExport,
-                AppPermissions.TableViewsManage
+                AppPermissions.TableViewsManage,
+                AppPermissions.WebmasterOffersSummaryRead
             },
             [AppRoles.Client] = new HashSet<string>(StringComparer.Ordinal)
             {

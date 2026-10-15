@@ -6,6 +6,7 @@ namespace Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 public interface IWebmasterOffersService
 {
     Task<WebmasterOffersSearchResult> GetByDomainAsync(string? domain, CancellationToken cancellationToken = default);
+    Task<WebmasterOffersSummarySearchResult> GetSummaryByDomainAsync(string? domain, CancellationToken cancellationToken = default);
     Task<WebmasterOfferEditDto?> GetForEditAsync(Guid offerId, CancellationToken cancellationToken = default);
     Task<WebmasterOfferUpdateResult> UpdateAsync(
         Guid offerId,
