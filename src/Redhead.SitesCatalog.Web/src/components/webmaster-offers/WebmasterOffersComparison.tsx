@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import type { WebmasterOffer } from '../../types/webmasterOffers.types';
+import type { WebmasterOfferRow } from '../../types/webmasterOffers.types';
 import {
   getPinnedTableCellStyles,
   getTableCellStyles,
@@ -37,6 +37,13 @@ const PRIMARY_EMAIL_WIDTH = 220;
 const METADATA_WIDTH = OFFER_WIDTH + STATUS_TERM_WIDTH + PRIMARY_EMAIL_WIDTH;
 const COMPARISON_GRID_TEMPLATE = `${OFFER_WIDTH}px ${STATUS_TERM_WIDTH}px ${PRIMARY_EMAIL_WIDTH}px ${PRICE_GRID_TEMPLATE}`;
 const COMPARISON_MIN_WIDTH = METADATA_WIDTH + PRICE_MATRIX_MIN_WIDTH;
+const DOMAIN_WIDTH = 240;
+
+function comparisonGridTemplate(showDomain: boolean) {
+  return showDomain
+    ? `${OFFER_WIDTH}px ${DOMAIN_WIDTH}px ${STATUS_TERM_WIDTH}px ${PRIMARY_EMAIL_WIDTH}px ${PRICE_GRID_TEMPLATE}`
+    : COMPARISON_GRID_TEMPLATE;
+}
 
 function TermChip({ label }: { readonly label: string }) {
   return (
@@ -110,19 +117,23 @@ function ComparisonHeaderCell({ children, pinned = false }: {
   );
 }
 
-function DesktopComparisonHeader({ canEdit }: { readonly canEdit: boolean }) {
+function DesktopComparisonHeader({ canEdit, showDomain }: {
+  readonly canEdit: boolean;
+  readonly showDomain: boolean;
+}) {
   return (
     <Box
       sx={{
         display: 'grid',
-        gridTemplateColumns: COMPARISON_GRID_TEMPLATE,
-        minWidth: COMPARISON_MIN_WIDTH,
+        gridTemplateColumns: comparisonGridTemplate(showDomain),
+        minWidth: COMPARISON_MIN_WIDTH + (showDomain ? DOMAIN_WIDTH : 0),
         borderBottom: 1,
         borderColor: 'divider',
         bgcolor: 'grey.100',
       }}
     >
       <ComparisonHeaderCell pinned={canEdit}>#</ComparisonHeaderCell>
+      {showDomain && <ComparisonHeaderCell>Domain</ComparisonHeaderCell>}
       <ComparisonHeaderCell>Status &amp; Term</ComparisonHeaderCell>
       <ComparisonHeaderCell>Primary Email</ComparisonHeaderCell>
       <WebmasterOfferPriceHeader />
@@ -131,7 +142,7 @@ function DesktopComparisonHeader({ canEdit }: { readonly canEdit: boolean }) {
 }
 
 interface OfferRowProps {
-  readonly offer: WebmasterOffer;
+  readonly offer: WebmasterOfferRow;
   readonly index: number;
   readonly expanded: boolean;
   readonly onChange: (expanded: boolean) => void;
@@ -143,6 +154,8 @@ interface OfferRowProps {
 
 function DesktopOfferRow({
   offer,
+  showDomain,
+  newDomain,
   index,
   expanded,
   onChange,
@@ -150,7 +163,7 @@ function DesktopOfferRow({
   onEdit,
   onPrimaryEmailCopySuccess,
   onPrimaryEmailCopyError,
-}: OfferRowProps) {
+}: OfferRowProps & { readonly showDomain: boolean; readonly newDomain: boolean }) {
   return (
     <Accordion
       expanded={expanded}
@@ -160,7 +173,9 @@ function DesktopOfferRow({
       square
       elevation={0}
       sx={{
-        minWidth: COMPARISON_MIN_WIDTH,
+        minWidth: COMPARISON_MIN_WIDTH + (showDomain ? DOMAIN_WIDTH : 0),
+        borderTop: newDomain ? 2 : 0,
+        borderColor: 'divider',
         '&::before': { display: 'none' },
         '&:not(:last-of-type)': { borderBottom: 1, borderColor: 'divider' },
       }}
@@ -177,9 +192,9 @@ function DesktopOfferRow({
           '&.Mui-expanded': { minHeight: 0 },
           '& .MuiAccordionSummary-content': {
             display: 'grid',
-            gridTemplateColumns: COMPARISON_GRID_TEMPLATE,
+            gridTemplateColumns: comparisonGridTemplate(showDomain),
             width: '100%',
-            minWidth: COMPARISON_MIN_WIDTH,
+            minWidth: COMPARISON_MIN_WIDTH + (showDomain ? DOMAIN_WIDTH : 0),
             m: 0,
           },
           '& .MuiAccordionSummary-content.Mui-expanded': { m: 0 },
@@ -230,6 +245,13 @@ function DesktopOfferRow({
             </IconButton>
           </Stack>
         </Box>
+        {showDomain && (
+          <Box sx={(theme) => ({ ...getTableCellStyles(theme), minWidth: 0, display: 'flex', alignItems: 'center' })}>
+            <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>
+              {offer.domain}
+            </Typography>
+          </Box>
+        )}
         <Box
           sx={(theme) => ({
             ...getTableCellStyles(theme),
@@ -349,6 +371,11 @@ function MobileOfferRow({
             </IconButton>
           </Stack>
         </Box>
+        {offer.domain && (
+          <Typography variant="subtitle2" sx={{ mb: 1, overflowWrap: 'anywhere' }}>
+            {offer.domain}
+          </Typography>
+        )}
         <Box sx={{ mb: 1.5 }}>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
             Primary Email
@@ -393,7 +420,9 @@ function MobileOfferRow({
 }
 
 export interface WebmasterOffersComparisonProps {
-  readonly offers: readonly WebmasterOffer[];
+  readonly offers: readonly WebmasterOfferRow[];
+  readonly showDomain?: boolean;
+  readonly startIndex?: number;
   readonly expandedOfferIds: ReadonlySet<string>;
   readonly onExpandedOfferChange: (offerId: string, expanded: boolean) => void;
   readonly canEdit: boolean;
@@ -402,6 +431,8 @@ export interface WebmasterOffersComparisonProps {
 
 export function WebmasterOffersComparison({
   offers,
+  showDomain = false,
+  startIndex = 0,
   expandedOfferIds,
   onExpandedOfferChange,
   canEdit,
@@ -424,12 +455,14 @@ export function WebmasterOffersComparison({
           overflowX: 'auto',
         })}
       >
-        <DesktopComparisonHeader canEdit={canEdit} />
+        <DesktopComparisonHeader canEdit={canEdit} showDomain={showDomain} />
         {offers.map((offer, index) => (
           <DesktopOfferRow
             key={offer.id}
             offer={offer}
-            index={index}
+            index={startIndex + index}
+            showDomain={showDomain}
+            newDomain={showDomain && index > 0 && offer.domain !== offers[index - 1].domain}
             expanded={expandedOfferIds.has(offer.id)}
             onChange={(expanded) => onExpandedOfferChange(offer.id, expanded)}
             canEdit={canEdit}
@@ -445,7 +478,7 @@ export function WebmasterOffersComparison({
           <MobileOfferRow
             key={offer.id}
             offer={offer}
-            index={index}
+            index={startIndex + index}
             expanded={expandedOfferIds.has(offer.id)}
             onChange={(expanded) => onExpandedOfferChange(offer.id, expanded)}
             canEdit={canEdit}

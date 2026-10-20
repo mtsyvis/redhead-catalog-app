@@ -9,7 +9,7 @@ import {
   TableRow,
 } from '@mui/material';
 import dayjs from 'dayjs';
-import type { WebmasterOfferSummary } from '../../types/webmasterOffers.types';
+import type { WebmasterOfferSummaryRow } from '../../types/webmasterOffers.types';
 import { getTableSurfaceStyles } from '../../theme/tableStyles';
 import { OfferStatusChip } from './OfferStatusChip';
 import { OfferMailboxes } from './OfferMailboxes';
@@ -39,8 +39,12 @@ function textValue(value: string | null | undefined) {
 
 export function WebmasterOffersSummaryTable({
   offers,
+  showDomain = false,
+  startIndex = 0,
 }: {
-  readonly offers: WebmasterOfferSummary[];
+  readonly offers: WebmasterOfferSummaryRow[];
+  readonly showDomain?: boolean;
+  readonly startIndex?: number;
 }) {
   return (
     <TableContainer
@@ -66,6 +70,7 @@ export function WebmasterOffersSummaryTable({
         <TableHead>
           <TableRow>
             <TableCell sx={{ width: 64 }} aria-label="Offer number">#</TableCell>
+            {showDomain && <TableCell sx={{ width: 240 }}>Domain</TableCell>}
             <TableCell sx={{ width: 110 }}>Status</TableCell>
             <TableCell sx={{ width: 140 }}>Term</TableCell>
             {textColumns.map(([field, label, width]) => (
@@ -84,13 +89,15 @@ export function WebmasterOffersSummaryTable({
         </TableHead>
         <TableBody>
           {offers.map((offer, index) => (
-            <TableRow key={offer.id} hover>
+            <TableRow key={offer.id} hover sx={showDomain && index > 0 && offer.domain !== offers[index - 1].domain
+              ? { '& td': { borderTop: 2, borderColor: 'divider' } } : undefined}>
               <TableCell
                 className="OfferTable-nowrap"
                 sx={{ fontWeight: 600 }}
               >
-                #{index + 1}
+                #{startIndex + index + 1}
               </TableCell>
+              {showDomain && <TableCell>{offer.domain}</TableCell>}
               <TableCell>
                 <OfferStatusChip status={offer.status} />
               </TableCell>

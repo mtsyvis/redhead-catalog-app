@@ -1,6 +1,8 @@
 using Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 using System.Globalization;
+using System.IO.Compression;
 using System.Text.Json;
+using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Models;
@@ -963,6 +965,35 @@ public class ExportServiceTests : IDisposable
         Assert.Equal("FFFBEEEE", XlsxTestWorkbook.ReadCellFillRgb(result.FileStream, "Sites", "B3"));
         Assert.Equal("FFFBEEEE", XlsxTestWorkbook.ReadCellFillRgb(result.FileStream, "Sites", "C3"));
         Assert.Null(XlsxTestWorkbook.ReadCellFillRgb(result.FileStream, "Sites", "A2"));
+    }
+
+    [Fact]
+    public async Task ExportSitesAsExcelAsync_KeepsDefaultRowHeightAndCellAlignment()
+    {
+        // Arrange
+        var query = DefaultQuery();
+        XNamespace spreadsheet = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+        // Act
+        var result = await _service.ExportSitesAsExcelAsync(
+            query, TestUserId, TestUserEmail, AppRoles.Admin, ["domain", "dr", "priceUsd"], CancellationToken.None);
+        using var stream = result.FileStream;
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+        using var worksheetStream = archive.GetEntry("xl/worksheets/sheet1.xml")!.Open();
+        using var stylesStream = archive.GetEntry("xl/styles.xml")!.Open();
+        var worksheet = XDocument.Load(worksheetStream);
+        var styles = XDocument.Load(stylesStream).Root!.Element(spreadsheet + "cellXfs")!.Elements().ToList();
+        var rows = worksheet.Root!.Element(spreadsheet + "sheetData")!.Elements(spreadsheet + "row").ToList();
+
+        // Assert
+        Assert.Equal("15", worksheet.Root!.Element(spreadsheet + "sheetFormatPr")!.Attribute("defaultRowHeight")!.Value);
+        Assert.True(rows.Count > 1);
+        Assert.All(rows, row => Assert.Null(row.Attribute("customHeight")));
+        foreach (var cell in rows.SelectMany(row => row.Elements(spreadsheet + "c")))
+        {
+            var style = styles[int.Parse(cell.Attribute("s")!.Value, CultureInfo.InvariantCulture)];
+            Assert.Null(style.Element(spreadsheet + "alignment"));
+        }
     }
 
     [Fact]

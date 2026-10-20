@@ -42,6 +42,9 @@ import type {
 import type { SavedFilterSet, SavedFilterSettings } from '../../../types/savedFilters.types';
 import { sitesService } from '../../../services/sites.service';
 import { BrandButton } from '../../common/BrandButton';
+import { SearchModeToggle } from '../../common/SearchModeToggle';
+import { SearchBarLayout } from '../../common/SearchBarLayout';
+import { DEFAULT_MULTI_SEARCH_LIMIT } from '../../../constants/search.constants';
 import {
   SERVICE_AVAILABILITY_FILTER_OPTIONS,
   normalizeServiceAvailabilityFilter,
@@ -128,7 +131,6 @@ function getDefaultQuarantineFilter(multiSearchMode: boolean): SitesFilters['qua
 
 const FILTER_GROUP_GAP = 2.5;
 const LITE_MULTI_SEARCH_LIMIT = 50;
-const DEFAULT_MULTI_SEARCH_LIMIT = 5000;
 
 type SavedFilterDialogMode = 'create' | 'update' | 'rename';
 
@@ -719,57 +721,7 @@ export function SitesFilters({
   ) : null;
 
   const searchModeControl = onMultiSearchModeChange ? (
-    <ToggleButtonGroup
-      exclusive
-      size="small"
-      value={multiSearchMode ? 'multi' : 'single'}
-      onChange={(_, value: 'single' | 'multi' | null) => {
-        if (value === null) return;
-        onMultiSearchModeChange(value === 'multi');
-      }}
-      aria-label="Search mode"
-      sx={{
-        flex: multiSearchMode ? '0 0 auto' : { xs: '1 1 100%', md: '0 0 auto' },
-        maxWidth: { xs: '100%', md: 'none' },
-        borderRadius: 999,
-        bgcolor: 'background.paper',
-        '& .MuiToggleButton-root': {
-          px: 1.75,
-          py: 0.75,
-          minHeight: 38,
-          textTransform: 'none',
-          borderColor: 'divider',
-          color: 'text.primary',
-          bgcolor: 'background.paper',
-          lineHeight: 1.2,
-          '&:first-of-type': {
-            borderTopLeftRadius: 999,
-            borderBottomLeftRadius: 999,
-          },
-          '&:last-of-type': {
-            borderTopRightRadius: 999,
-            borderBottomRightRadius: 999,
-          },
-          '&.Mui-selected': {
-            color: 'primary.main',
-            bgcolor: 'rgba(255, 69, 91, 0.08)',
-            borderColor: 'rgba(255, 69, 91, 0.35)',
-            fontWeight: 600,
-            '&:hover': {
-              bgcolor: 'rgba(255, 69, 91, 0.12)',
-            },
-          },
-          '&:not(.Mui-selected)': {
-            '&:hover': {
-              bgcolor: 'action.hover',
-            },
-          },
-        },
-      }}
-    >
-      <ToggleButton value="single">Single search</ToggleButton>
-      <ToggleButton value="multi">Multi-search</ToggleButton>
-    </ToggleButtonGroup>
+    <SearchModeToggle multiSearchMode={multiSearchMode} onChange={onMultiSearchModeChange} />
   ) : null;
 
   const searchInput = (
@@ -818,58 +770,31 @@ export function SitesFilters({
     />
   );
 
-  if (liteMode) {
-    return (
-      <Box sx={{ mb: 1.5 }}>
-        <Stack spacing={0.75}>
-          {searchInput}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <BrandButton
-              kind="primary"
-              disabled={multiSearchLimitExceeded}
-              onClick={handleApply}
-              sx={{ minWidth: 120 }}
-            >
-              {multiSearchActionLabel}
-            </BrandButton>
-          </Box>
-        </Stack>
-      </Box>
-    );
-  }
+  const searchBar = (
+    <SearchBarLayout
+      multiSearchMode={multiSearchMode}
+      modeControl={liteMode ? undefined : searchModeControl}
+      input={searchInput}
+      searchAction={
+        <BrandButton
+          kind="primary"
+          disabled={multiSearchLimitExceeded}
+          onClick={handleApply}
+          sx={{ minWidth: 120 }}
+        >
+          {multiSearchActionLabel}
+        </BrandButton>
+      }
+    />
+  );
+
+  if (liteMode) return <Box sx={{ mb: 1.5 }}>{searchBar}</Box>;
 
   return (
     <Box sx={{ mb: 1.5 }}>
       {/* Search Bar */}
       <Box sx={{ mb: 1 }}>
-        {multiSearchMode ? (
-          <Stack spacing={0.75}>
-            {searchModeControl}
-            {searchInput}
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <BrandButton
-                kind="primary"
-                disabled={multiSearchLimitExceeded}
-                onClick={handleApply}
-                sx={{ minWidth: 120 }}
-              >
-                {multiSearchActionLabel}
-              </BrandButton>
-            </Box>
-          </Stack>
-        ) : (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.25,
-              flexWrap: 'wrap',
-            }}
-          >
-            {searchModeControl}
-            {searchInput}
-          </Box>
-        )}
+        {searchBar}
       </Box>
 
       {/* Filters */}

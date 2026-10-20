@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
@@ -82,6 +83,66 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         }
     }
 
+    [PostgresFact]
+    public async Task MultiSearch_LoadsCollectionsWithoutCrossProductAndKeepsSummaryPrivateOnPostgres()
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        var offer = await SeedOfferAsync(setup, "remove-mailbox");
+        offer.Site.IsQuarantined = true;
+        offer.Status = SiteWebmasterOfferStatus.Inactive;
+        setup.WebmasterOfferPrices.Add(CreatePrice(offer.Id, WebmasterOfferPriceType.Casino, 50m));
+        var secondMailbox = new LinkbuilderMailbox
+        {
+            Id = Guid.NewGuid(), Email = "second@example.com", DisplayName = "Second mailbox",
+            IsActive = true, CreatedAtUtc = offer.CreatedAtUtc, UpdatedAtUtc = offer.UpdatedAtUtc
+        };
+        setup.LinkbuilderMailboxes.Add(secondMailbox);
+        setup.SiteWebmasterOfferLinkbuilderMailboxes.Add(new SiteWebmasterOfferLinkbuilderMailbox
+        {
+            SiteWebmasterOfferId = offer.Id,
+            LinkbuilderMailboxId = secondMailbox.Id,
+            CreatedAtUtc = offer.CreatedAtUtc
+        });
+        setup.Sites.Add(new Site { Domain = "empty.example", CreatedAtUtc = offer.CreatedAtUtc, UpdatedAtUtc = offer.UpdatedAtUtc });
+        await setup.SaveChangesAsync();
+        var recorder = new ReadCommandRecorder();
+        await using var context = CreateContext(recorder);
+        var service = new WebmasterOffersService(context);
+        const string query = "empty.example https://www.CONCURRENT.example/path missing.example concurrent.example";
+
+        // Act
+        var full = await service.MultiSearchAsync(query);
+        var fullCommands = recorder.Commands.ToArray();
+        recorder.Commands.Clear();
+        var summary = await service.MultiSearchSummaryAsync(query);
+
+        // Assert
+        Assert.Equal(3, full.UniqueDomainCount);
+        Assert.Equal(["concurrent.example"], full.Duplicates);
+        Assert.Equal(["empty.example"], full.DomainsWithoutOffers);
+        Assert.Equal(["missing.example"], full.NotFoundDomains);
+        var fullGroup = Assert.Single(full.Results);
+        Assert.Equal("concurrent.example", fullGroup.Domain);
+        var fullOffer = Assert.Single(fullGroup.Offers);
+        Assert.Equal(SiteWebmasterOfferStatus.Inactive, fullOffer.Status);
+        Assert.Equal(2, fullOffer.Prices.Count);
+        Assert.Equal(2, fullOffer.LinkbuilderMailboxes.Count);
+        Assert.Equal(offer.ContactRawText, fullOffer.ContactRawText);
+        Assert.DoesNotContain(fullCommands, sql => sql.Contains("JOIN \"WebmasterOfferPrices\"", StringComparison.Ordinal)
+            && sql.Contains("JOIN \"SiteWebmasterOfferLinkbuilderMailboxes\"", StringComparison.Ordinal));
+        Assert.Equal(full.DomainsWithoutOffers, summary.DomainsWithoutOffers);
+        Assert.Equal(full.NotFoundDomains, summary.NotFoundDomains);
+        Assert.Equal(offer.Id, Assert.Single(Assert.Single(summary.Results).Offers).Id);
+        Assert.NotEmpty(recorder.Commands);
+        foreach (var sql in recorder.Commands)
+        {
+            Assert.DoesNotContain("\"ContactRawText\"", sql);
+            Assert.DoesNotContain("\"PrimaryEmail\"", sql);
+            Assert.DoesNotContain("\"WebmasterOfferPrices\"", sql);
+        }
+    }
+
     [PostgresTheory]
     [InlineData("add-price")]
     [InlineData("update-price")]
@@ -105,7 +166,8 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
                 .UpdateAsync(offer.Id, winnerRequest, "winner@example.com");
         });
         await using var loserContext = CreateContext(interceptor);
-        var controller = new WebmasterOffersController(new WebmasterOffersService(loserContext))
+        var controller = new WebmasterOffersController(new WebmasterOffersService(loserContext),
+            NullLogger<WebmasterOffersController>.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };

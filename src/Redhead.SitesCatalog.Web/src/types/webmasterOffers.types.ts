@@ -40,6 +40,19 @@ export interface WebmasterOffersSummarySearchResult {
 
 export type WebmasterOfferSummary = Omit<WebmasterOffer, 'primaryEmail' | 'contactRawText' | 'prices'>;
 
+export interface WebmasterOffersMultiSearchResult {
+  inputCount: number;
+  uniqueDomainCount: number;
+  duplicates: string[];
+  domainsWithoutOffers: string[];
+  notFoundDomains: string[];
+  results: { domain: string; offers: WebmasterOfferSummary[] }[];
+}
+
+export type WebmasterOffersResult = WebmasterOffersSummarySearchResult | WebmasterOffersMultiSearchResult;
+export type WebmasterOfferRow = WebmasterOffer & { domain?: string };
+export type WebmasterOfferSummaryRow = WebmasterOfferSummary & { domain?: string };
+
 export interface WebmasterOffer {
   id: string;
   primaryEmail: string | null;

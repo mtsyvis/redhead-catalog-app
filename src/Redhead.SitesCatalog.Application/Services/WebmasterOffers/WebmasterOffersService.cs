@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Redhead.SitesCatalog.Application.Audit;
+using Redhead.SitesCatalog.Application.Models;
 using Redhead.SitesCatalog.Application.Models.ChangeHistory;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Domain;
@@ -47,13 +48,27 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             };
         }
 
-        var offers = await _context.SiteWebmasterOffers
+        var offers = await LoadFullOffersAsync([normalizedDomain], cancellationToken);
+
+        return new WebmasterOffersSearchResult
+        {
+            Domain = normalizedDomain,
+            SiteFound = true,
+            Offers = offers.Select(MapOffer).ToList()
+        };
+    }
+
+    private Task<List<SiteWebmasterOffer>> LoadFullOffersAsync(
+        IReadOnlyList<string> domains,
+        CancellationToken cancellationToken)
+        => _context.SiteWebmasterOffers
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(offer => offer.Webmaster)
             .Include(offer => offer.Prices)
             .Include(offer => offer.LinkbuilderMailboxes)
             .ThenInclude(link => link.LinkbuilderMailbox)
-            .Where(offer => offer.SiteDomain == normalizedDomain)
+            .Where(offer => domains.Contains(offer.SiteDomain))
             .OrderBy(offer => offer.Prices.Any(price => price.WebmasterPriceUsd.HasValue) ? 0 : 1)
             .ThenBy(offer =>
                 offer.Prices
@@ -68,14 +83,6 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             .ThenBy(offer => offer.Id)
             .ToListAsync(cancellationToken);
 
-        return new WebmasterOffersSearchResult
-        {
-            Domain = normalizedDomain,
-            SiteFound = true,
-            Offers = offers.Select(MapOffer).ToList()
-        };
-    }
-
     public async Task<WebmasterOffersSummarySearchResult> GetSummaryByDomainAsync(
         string? domain,
         CancellationToken cancellationToken = default)
@@ -89,13 +96,26 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             return new WebmasterOffersSummarySearchResult { Domain = normalizedDomain ?? string.Empty };
         }
 
+        var offers = await LoadSummaryOffersAsync([normalizedDomain!], cancellationToken);
+        return new WebmasterOffersSummarySearchResult
+        {
+            Domain = normalizedDomain!,
+            SiteFound = true,
+            Offers = offers.Select(row => row.Offer).ToList()
+        };
+    }
+
+    private async Task<List<SummaryOfferRow>> LoadSummaryOffersAsync(
+        IReadOnlyList<string> domains,
+        CancellationToken cancellationToken)
+    {
         // Neither webmaster identities nor price rows are loaded or used to order restricted results.
         var offers = await _context.SiteWebmasterOffers
             .AsNoTracking()
-            .Where(offer => offer.SiteDomain == normalizedDomain)
+            .Where(offer => domains.Contains(offer.SiteDomain))
             .OrderByDescending(offer => offer.CreatedAtUtc)
             .ThenBy(offer => offer.Id)
-            .Select(offer => new WebmasterOfferSummaryDto
+            .Select(offer => new SummaryOfferRow(offer.SiteDomain, new WebmasterOfferSummaryDto
             {
                 Id = offer.Id,
                 OutreachSenderRawText = offer.OutreachSenderRawText,
@@ -124,20 +144,62 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                         DisplayName = link.LinkbuilderMailbox.DisplayName,
                         Source = link.Source
                     }).ToList()
-            }).ToListAsync(cancellationToken);
+            })).ToListAsync(cancellationToken);
 
         foreach (var offer in offers)
         {
-            offer.TermLabel = FormatTermLabel(offer.TermType, offer.TermValue, offer.TermUnit);
+            offer.Offer.TermLabel = FormatTermLabel(offer.Offer.TermType, offer.Offer.TermValue, offer.Offer.TermUnit);
         }
 
-        return new WebmasterOffersSummarySearchResult
+        return offers;
+    }
+
+    public async Task<WebmasterOffersMultiSearchResult<WebmasterOfferDto>> MultiSearchAsync(
+        string? queryText,
+        CancellationToken cancellationToken = default)
+    {
+        var parsed = MultiSearchParser.Parse(queryText);
+        var existingDomains = await GetExistingDomainsAsync(parsed.UniqueDomains, cancellationToken);
+        var offers = await LoadFullOffersAsync(existingDomains, cancellationToken);
+        return CreateMultiSearchResult(parsed, existingDomains, offers.ToLookup(offer => offer.SiteDomain, MapOffer));
+    }
+
+    public async Task<WebmasterOffersMultiSearchResult<WebmasterOfferSummaryDto>> MultiSearchSummaryAsync(
+        string? queryText,
+        CancellationToken cancellationToken = default)
+    {
+        var parsed = MultiSearchParser.Parse(queryText);
+        var existingDomains = await GetExistingDomainsAsync(parsed.UniqueDomains, cancellationToken);
+        var offers = await LoadSummaryOffersAsync(existingDomains, cancellationToken);
+        return CreateMultiSearchResult(parsed, existingDomains, offers.ToLookup(row => row.Domain, row => row.Offer));
+    }
+
+    private Task<List<string>> GetExistingDomainsAsync(IReadOnlyList<string> domains, CancellationToken cancellationToken)
+        => _context.Sites.AsNoTracking()
+            .Where(site => domains.Contains(site.Domain))
+            .Select(site => site.Domain)
+            .ToListAsync(cancellationToken);
+
+    private static WebmasterOffersMultiSearchResult<TOffer> CreateMultiSearchResult<TOffer>(
+        MultiSearchParseResult parsed,
+        IReadOnlyList<string> existingDomains,
+        ILookup<string, TOffer> offers)
+    {
+        var existing = existingDomains.ToHashSet(StringComparer.Ordinal);
+        return new WebmasterOffersMultiSearchResult<TOffer>
         {
-            Domain = normalizedDomain!,
-            SiteFound = true,
-            Offers = offers
+            InputCount = parsed.InputCount,
+            UniqueDomainCount = parsed.UniqueDomains.Count,
+            Duplicates = parsed.Duplicates,
+            NotFoundDomains = parsed.UniqueDomains.Where(domain => !existing.Contains(domain)).ToList(),
+            DomainsWithoutOffers = parsed.UniqueDomains.Where(domain => existing.Contains(domain) && !offers.Contains(domain)).ToList(),
+            Results = parsed.UniqueDomains.Where(offers.Contains)
+                .Select(domain => new WebmasterOffersDomainResult<TOffer> { Domain = domain, Offers = offers[domain].ToList() })
+                .ToList()
         };
     }
+
+    private sealed record SummaryOfferRow(string Domain, WebmasterOfferSummaryDto Offer);
 
     public async Task<WebmasterOfferEditDto?> GetForEditAsync(
         Guid offerId,

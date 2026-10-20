@@ -57,7 +57,7 @@ General rules:
 Current static permission model:
 
 * `SuperAdmin`: all permissions.
-* `Admin`: sites browse, Multi-search, site editing, exports, imports, user read, role settings read, analytics read, table views, Ahrefs sync management, webmaster offers read, import, and manual editing.
+* `Admin`: sites browse, Multi-search, site editing, exports, imports, user read, role settings read, analytics read, table views, Ahrefs sync management, webmaster offers read, import, manual editing, and unrestricted webmaster-offer export.
 * `Editor`: sites browse, Multi-search, site editing, table views, and webmaster offers read and manual editing.
 * `Linkbuilder`: sites browse, Multi-search, table views, and webmaster offers read.
 * `Internal`: sites browse, Multi-search, exports, table views, and webmaster offers read without webmaster contacts or prices.
@@ -236,7 +236,7 @@ Rules:
 
 ## Export limits
 
-Exports are controlled by role-level settings and optional per-user overrides.
+Sites catalog exports are controlled by role-level settings and optional per-user overrides. Webmaster-offer exports have separate permissions and no export limits, as specified below.
 
 Export modes:
 
@@ -435,6 +435,7 @@ Access rules:
 
 * `SuperAdmin`, `Admin`, `Editor`, and `Linkbuilder` can view webmaster offers, raw webmaster prices, contact raw text, outreach sender raw text, linkbuilder mailbox raw text, parsed linkbuilder mailboxes, offer notes, client raw text, terms, and status.
 * `SuperAdmin` and `Admin` can run Webmaster Offers Import.
+* `SuperAdmin` and `Admin` can export Webmaster Offers Multi-search results without role-level or per-user export limits. Other roles cannot export webmaster offers.
 * `SuperAdmin`, `Admin`, and `Editor` can manually edit webmaster offers and view their manual change history.
 * `Linkbuilder` can read webmaster offers but cannot import, edit, export, or download raw webmaster data.
 * `Internal` has separate restricted read access. Its domain-search API response includes only permitted offer fields and omits webmaster Primary email, Contact raw text, webmaster identity, import fingerprint, and all raw price rows, amounts, availability values, and price details. Other offer fields, including free-text notes, client/term text, outreach sender, and linkbuilder mailboxes, remain available without content redaction.
@@ -493,6 +494,32 @@ Raw price rules:
 * Amounts, when present, must be greater than `0`.
 * Details without amount are allowed.
 * Empty amount and empty details create no price row.
+
+Webmaster Offers Multi-search:
+
+* The domain-search page has the same `Single search` / `Multi-search` switch as the Sites catalog. Single search retains its automatic search and immediate Enter behavior.
+* The search layout matches Sites Catalog: compact title spacing, the mode switch above the full-width Multi-search field, a right-aligned input counter, and a right-aligned Search button. Both pages use the same search-field sizing and spacing; Single search places the mode switch beside the field where space permits.
+* Multi-search accepts up to 5,000 raw domain/URL inputs separated by whitespace, including duplicates, with a live input counter. It uses the catalog's domain normalization and exact matching, removes normalized duplicates, and reports the number of duplicate inputs removed.
+* Multi-search runs only on `Search` or `Ctrl+Enter`; Enter inserts a new line. Switching modes clears the query and results.
+* All current Webmaster Offers readers can use Multi-search. `Internal` responses retain their restricted fields and never load or expose webmaster contacts or prices.
+* Results use one table row per offer, repeating Domain on every row and placing all offers for a domain together. Domain order follows the normalized input after duplicate removal. Within a domain, full readers retain effective-price ordering and `Internal` retains newest-first ordering.
+* Results include both Active and Inactive offers and catalog sites regardless of quarantine status. The existing status badges, full-reader offer details, and authorized editing remain available.
+* Pagination counts offers, defaults to 50, and offers page sizes 25, 50, and 100. A domain's offers may span pages. A new search starts on the first page.
+* The summary shows unique searched domains, domains with offers, domains without offers, domains absent from the catalog, and the total number of offers.
+* Domains without offers and domains absent from the catalog do not create table rows. Non-empty categories appear as separate collapsed lists below the table, in input order, with copy actions.
+
+Webmaster Offers Excel export:
+
+* Multi-search results have an `Export Excel` action only for `SuperAdmin` and `Admin`, enforced by an independent server-side webmaster-offer export permission. Sites export settings and quotas do not apply.
+* Browser downloads are named `webmaster-offers-YYYY-MM-DD.xlsx`, using the browser's local calendar date without a time suffix.
+* Pending browser exports are cancelled when the search is edited, cleared, rerun, or switched to another mode, or when the page or authenticated read context changes. Cancelled requests must not start a download or display an export error.
+* Export searches the last applied domain list and includes every current matching offer, regardless of UI pagination, including Inactive offers. One row represents one offer, with repeated domains where needed and the same domain/offer ordering as search.
+* The `.xlsx` file contains one `Webmaster Offers` sheet. It preserves the relative order of the 30 Webmaster Offers Import fields, inserts `LinkbuilderMailboxParsed` immediately after `LinkbuilderMailbox`, and ends with `PrimaryEmail`. Export headers omit `RawText` (for example, `Contact`, `DfLinks`, and `Client`). Columns are wide enough to display their full headers, with extra padding. Reverse import of this file is not supported.
+* `LinkbuilderMailboxParsed` contains the email addresses of the offer's current linked mailboxes, including manual mailbox edits, one address per line. It is blank when no mailboxes are linked; the original imported text remains in `LinkbuilderMailbox`.
+* Export uses current persisted values, including manual edits, the effective structured term, and imported raw linkbuilder mailbox text. Price amounts are numeric; non-numeric availability is `YES`, `NO`, or blank, with raw details in their matching columns. Missing values are blank.
+* Offer data cells wrap text and align to the top. Data rows have a fixed height of 75 points, showing approximately five lines without expanding for longer notes. Complete text and source line breaks remain in the cells for reading in the formula bar or after manually increasing row height.
+* Every cell of an Inactive offer row, including blank cells, has the same restrained red background used for quarantined Sites export rows.
+* Domains without offers and domains absent from the catalog are omitted from the workbook. Export is disabled in the UI when no offers were found. Export failures are shown with the results, and successful exports are logged without raw offer data.
 
 ### Webmaster Contact search and offer review
 
@@ -718,7 +745,7 @@ Sites search and filter UX rules:
 
 * Normal domain search auto-applies after a short debounce; users do not need to press a Search button for single-search browsing.
 * Multi-search does not auto-run while the user is typing or pasting input; users must explicitly press Search.
-* The search area uses a two-option mode selector for Single search and Multi-search.
+* The search area uses a two-option mode selector for Single search and Multi-search. In both Sites Catalog and Webmaster Offers, its background is limited to the buttons, without a full-width strip.
 * The Sites table toolbar shows the current total result count for the active search/filter/multi-search context.
 * The filters area uses a command bar with a collapsible full filter panel.
 * The filters command bar shows the active advanced-filter count, the current saved filter set state, and primary filter actions.
@@ -1167,7 +1194,7 @@ Rules:
 * `Lite`, `Editor`, and `Linkbuilder` export settings are shown as disabled and are not editable at role or user level.
 * The Imports page shows Webmaster Offers Import only to `SuperAdmin` and `Admin`.
 * The Webmaster Offers page is available to `SuperAdmin`, `Admin`, `Editor`, `Linkbuilder`, and `Internal`. Internal uses its restricted read-only table.
-* Webmaster Offers domain search uses the same full-width search-field pattern as Sites Catalog. It runs automatically after a short debounce without a separate Search button; pressing Enter runs it immediately.
+* Webmaster Offers Single search uses the same full-width search-field pattern as Sites Catalog. It runs automatically after a short debounce without a separate Search button; pressing Enter runs it immediately. Multi-search uses the explicit search controls described above.
 * Search results and background refreshes after saving an offer apply only while their search and page instance remain current. Clearing/changing the domain, starting a newer request, leaving the page, or changing user/read access prevents older responses from replacing results or updating the cache.
 * The Webmasters page remains available only to `SuperAdmin`, `Admin`, `Editor`, and `Linkbuilder` and provides the separate Contact-based read-only search and offer-review workflow described above.
 * Webmaster Offers UI supports domain search and comparison of offers, contacts, outreach sender text, linkbuilder mailbox raw text, parsed mailboxes, raw prices by service, term, link policy, DF links raw text, sponsored tag raw text, comments, client raw text, and status.
@@ -1187,8 +1214,8 @@ Rules:
 * All ten raw price types are shown in a horizontally scrollable comparison matrix. The table, including offer metadata, scrolls horizontally as one surface. Each price cell shows the numeric USD amount, `YES`, `NO`, or `—` as its primary value. The full raw price-details text is shown in secondary typography and wraps without truncation. If there is no numeric/status value but price details exist, the empty-value dash is omitted and only the secondary price-details text is shown.
 * Table typography, header treatment, status treatment, density, hover feedback, and empty-value presentation follow the Sites table patterns; all empty table values use the same `—` presentation.
 * Expanded offer details remain anchored while the comparison table scrolls. They show contact raw text, outreach sender text, sponsored tag raw text, link policy, DF links raw text, comments, client raw text, linkbuilder mailbox raw text, parsed mailboxes, and raw term. Price details are not repeated in a separate table.
-* The last successful Webmaster Offers query and response are cached in browser `sessionStorage` for one hour and restored only for the same user and read-access level in the same browser tab. A different user/access level, an expired or malformed entry, or a restricted entry containing contact/price fields discards the cached response. Legacy shared entries are discarded. Switching user/access level also resets page state. The search field clear action removes the query, displayed result, errors, expanded state, and cached entry.
-* Webmaster Offers UI must not include raw-data export controls.
+* The last successful Webmaster Offers query, search mode, and response are cached in browser `sessionStorage` for one hour and restored only for the same user and read-access level in the same browser tab. A different user/access level, an expired or malformed entry, or a restricted entry containing contact/price fields discards the cached response. Legacy shared entries are discarded. Switching user/access level also resets page state. The search field clear action removes the query, displayed result, errors, expanded state, and cached entry.
+* Webmaster Offers raw-data export is limited to the authorized Multi-search Excel action described above. The separate Webmasters workflow has no export controls.
 * `SuperAdmin` and `Admin` can access an Analytics page for Business Demand based on Client export requests.
 * Business Demand analytics aggregate Client export logs and export analytics snapshots server-side. They summarize export request volume, Client activity, requested rows, exported domains, selected filter values, service demand, quality ranges, and export strictness.
 * Business Demand price range analytics aggregate the selected `priceUsd`, Casino, Crypto, Link Insert, Link Insert Casino, or Dating price range stored in export analytics snapshots. Service price ranges are labelled with the service name so equal ranges for different price types remain distinct. Term-aware pricing adds selected term demand and price-range-by-term demand; export logs without `termKey` are counted as `Any term`.

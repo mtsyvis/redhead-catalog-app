@@ -19,6 +19,7 @@ public static class AppPolicies
     public const string WebmasterOffersSummaryReadAccess = "WebmasterOffersSummaryReadAccess";
     public const string WebmasterOffersImportAccess = "WebmasterOffersImportAccess";
     public const string WebmasterOffersManageAccess = "WebmasterOffersManageAccess";
+    public const string WebmasterOffersExportAccess = "WebmasterOffersExportAccess";
 
     public static readonly IReadOnlyDictionary<string, string> PermissionPolicies =
         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -39,6 +40,7 @@ public static class AppPolicies
             [AppPermissions.WebmasterOffersRead] = WebmasterOffersReadAccess,
             [AppPermissions.WebmasterOffersSummaryRead] = WebmasterOffersSummaryReadAccess,
             [AppPermissions.WebmasterOffersImport] = WebmasterOffersImportAccess,
-            [AppPermissions.WebmasterOffersManage] = WebmasterOffersManageAccess
+            [AppPermissions.WebmasterOffersManage] = WebmasterOffersManageAccess,
+            [AppPermissions.WebmasterOffersExport] = WebmasterOffersExportAccess
         };
 }

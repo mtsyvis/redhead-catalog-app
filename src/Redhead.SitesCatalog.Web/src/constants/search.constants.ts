@@ -1,0 +1,1 @@
+export const DEFAULT_MULTI_SEARCH_LIMIT = 5000;

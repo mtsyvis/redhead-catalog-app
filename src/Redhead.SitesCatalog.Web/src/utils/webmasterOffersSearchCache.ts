@@ -1,4 +1,5 @@
-import type { WebmasterOffersSummarySearchResult } from '../types/webmasterOffers.types';
+import type { WebmasterOffersResult } from '../types/webmasterOffers.types';
+import { DEFAULT_MULTI_SEARCH_LIMIT } from '../constants/search.constants';
 
 const LEGACY_SEARCH_CACHE_KEY = 'webmaster-offers:last-search:v1';
 const SEARCH_CACHE_KEY = 'webmaster-offers:last-search:v2';
@@ -13,7 +14,8 @@ export interface CachedWebmasterOffersSearch {
   readonly cachedAt: number;
   readonly query: string;
   readonly scope: WebmasterOffersCacheScope;
-  readonly result: WebmasterOffersSummarySearchResult;
+  readonly mode?: 'single' | 'multi';
+  readonly result: WebmasterOffersResult;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -73,10 +75,27 @@ function isOffer(value: unknown, access: WebmasterOffersCacheScope['access']) {
 
 function isSearchResult(
   value: unknown,
-  access: WebmasterOffersCacheScope['access']
-): value is WebmasterOffersSummarySearchResult {
+  access: WebmasterOffersCacheScope['access'],
+  mode: 'single' | 'multi' = 'single'
+): value is WebmasterOffersResult {
   if (!isRecord(value)) return false;
+  if (mode === 'multi') {
+    const isStringArray = (items: unknown): items is string[] =>
+      Array.isArray(items) && items.every(item => typeof item === 'string');
+    const { inputCount, uniqueDomainCount, duplicates, domainsWithoutOffers, notFoundDomains, results } = value;
+    return !('offers' in value) &&
+      typeof inputCount === 'number' && Number.isInteger(inputCount) &&
+      inputCount >= 0 && inputCount <= DEFAULT_MULTI_SEARCH_LIMIT &&
+      typeof uniqueDomainCount === 'number' && Number.isInteger(uniqueDomainCount) &&
+      uniqueDomainCount >= 0 && uniqueDomainCount <= inputCount &&
+      isStringArray(duplicates) && duplicates.length <= inputCount - uniqueDomainCount &&
+      isStringArray(domainsWithoutOffers) && isStringArray(notFoundDomains) && Array.isArray(results) &&
+      results.length + domainsWithoutOffers.length + notFoundDomains.length === uniqueDomainCount &&
+      results.every(group => isRecord(group) && typeof group.domain === 'string' &&
+        Array.isArray(group.offers) && group.offers.length > 0 && group.offers.every(offer => isOffer(offer, access)));
+  }
   return (
+    !('results' in value) &&
     typeof value.domain === 'string' &&
     typeof value.siteFound === 'boolean' &&
     Array.isArray(value.offers) && value.offers.every(offer => isOffer(offer, access))
@@ -107,7 +126,8 @@ export function readCachedWebmasterOffersSearch(
       cached.scope?.access === scope.access &&
       typeof cached.cachedAt === 'number' &&
       typeof cached.query === 'string' &&
-      isSearchResult(cached.result, scope.access);
+      (cached.mode === undefined || cached.mode === 'single' || cached.mode === 'multi') &&
+      isSearchResult(cached.result, scope.access, cached.mode);
     const cacheAge = typeof cached?.cachedAt === 'number' ? Date.now() - cached.cachedAt : -1;
     const isFresh = isValid && cacheAge >= 0 && cacheAge < SEARCH_CACHE_TTL_MS;
 
@@ -125,11 +145,12 @@ export function readCachedWebmasterOffersSearch(
 
 export function cacheWebmasterOffersSearch(
   query: string,
-  result: WebmasterOffersSummarySearchResult,
-  scope: WebmasterOffersCacheScope
+  result: WebmasterOffersResult,
+  scope: WebmasterOffersCacheScope,
+  mode: 'single' | 'multi' = 'single'
 ) {
   try {
-    if (!isSearchResult(result, scope.access)) {
+    if (!isSearchResult(result, scope.access, mode)) {
       clearCachedWebmasterOffersSearch();
       return;
     }
@@ -138,6 +159,7 @@ export function cacheWebmasterOffersSearch(
       query,
       scope,
       result,
+      mode,
     };
     globalThis.sessionStorage?.removeItem(LEGACY_SEARCH_CACHE_KEY);
     globalThis.sessionStorage?.setItem(SEARCH_CACHE_KEY, JSON.stringify(cached));

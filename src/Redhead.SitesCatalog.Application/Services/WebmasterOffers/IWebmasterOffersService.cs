@@ -7,6 +7,8 @@ public interface IWebmasterOffersService
 {
     Task<WebmasterOffersSearchResult> GetByDomainAsync(string? domain, CancellationToken cancellationToken = default);
     Task<WebmasterOffersSummarySearchResult> GetSummaryByDomainAsync(string? domain, CancellationToken cancellationToken = default);
+    Task<WebmasterOffersMultiSearchResult<WebmasterOfferDto>> MultiSearchAsync(string? queryText, CancellationToken cancellationToken = default);
+    Task<WebmasterOffersMultiSearchResult<WebmasterOfferSummaryDto>> MultiSearchSummaryAsync(string? queryText, CancellationToken cancellationToken = default);
     Task<WebmasterOfferEditDto?> GetForEditAsync(Guid offerId, CancellationToken cancellationToken = default);
     Task<WebmasterOfferUpdateResult> UpdateAsync(
         Guid offerId,

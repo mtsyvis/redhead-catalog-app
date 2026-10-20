@@ -19,6 +19,7 @@ public static class AppPermissions
     public const string WebmasterOffersSummaryRead = "WebmasterOffersSummaryRead";
     public const string WebmasterOffersImport = "WebmasterOffersImport";
     public const string WebmasterOffersManage = "WebmasterOffersManage";
+    public const string WebmasterOffersExport = "WebmasterOffersExport";
 
     public static readonly string[] All =
     [
@@ -38,6 +39,7 @@ public static class AppPermissions
         WebmasterOffersRead,
         WebmasterOffersSummaryRead,
         WebmasterOffersImport,
-        WebmasterOffersManage
+        WebmasterOffersManage,
+        WebmasterOffersExport
     ];
 }

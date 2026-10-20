@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Validation;
+using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
@@ -14,10 +15,12 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 public sealed class WebmasterOffersController : ControllerBase
 {
     private readonly IWebmasterOffersService _webmasterOffersService;
+    private readonly ILogger<WebmasterOffersController> _logger;
 
-    public WebmasterOffersController(IWebmasterOffersService webmasterOffersService)
+    public WebmasterOffersController(IWebmasterOffersService webmasterOffersService, ILogger<WebmasterOffersController> logger)
     {
         _webmasterOffersService = webmasterOffersService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -25,9 +28,7 @@ public sealed class WebmasterOffersController : ControllerBase
         [FromQuery] string? domain,
         CancellationToken cancellationToken)
     {
-        var canReadFullOffers = User.FindAll(ClaimTypes.Role)
-            .Any(claim => RolePermissionMatrix.HasPermission(claim.Value, AppPermissions.WebmasterOffersRead));
-        if (!canReadFullOffers)
+        if (!CanReadFullOffers())
         {
             var summary = await _webmasterOffersService.GetSummaryByDomainAsync(domain, cancellationToken);
             return Ok(summary);
@@ -36,6 +37,38 @@ public sealed class WebmasterOffersController : ControllerBase
         var result = await _webmasterOffersService.GetByDomainAsync(domain, cancellationToken);
         return Ok(result);
     }
+
+    [HttpPost("multi-search")]
+    public async Task<IActionResult> MultiSearch(
+        [FromBody] WebmasterOffersMultiSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!CanReadFullOffers())
+        {
+            return Ok(await _webmasterOffersService.MultiSearchSummaryAsync(request.QueryText, cancellationToken));
+        }
+
+        return Ok(await _webmasterOffersService.MultiSearchAsync(request.QueryText, cancellationToken));
+    }
+
+    [HttpPost("export.xlsx")]
+    [Authorize(Policy = AppPolicies.WebmasterOffersExportAccess)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> Export(
+        [FromBody] WebmasterOffersMultiSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _webmasterOffersService.MultiSearchAsync(request.QueryText, cancellationToken);
+        var stream = WebmasterOffersExcelExportGenerator.Generate(result);
+        _logger.LogInformation("Webmaster offers export by {UserId}: {DomainCount} domains, {OfferCount} offers",
+            User.FindFirstValue(ClaimTypes.NameIdentifier), result.UniqueDomainCount,
+            result.Results.Sum(group => group.Offers.Count));
+        return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "webmaster-offers.xlsx");
+    }
+
+    private bool CanReadFullOffers()
+        => User.FindAll(ClaimTypes.Role)
+            .Any(claim => RolePermissionMatrix.HasPermission(claim.Value, AppPermissions.WebmasterOffersRead));
 
     [HttpGet("{offerId:guid}")]
     [Authorize(Policy = AppPolicies.WebmasterOffersManageAccess)]

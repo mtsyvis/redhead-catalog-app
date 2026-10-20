@@ -9,6 +9,22 @@ internal static class XlsxWorkbookWriter
     private const string SpreadsheetNamespace = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     private const string RelationshipsNamespace = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     private const string PackageRelationshipsNamespace = "http://schemas.openxmlformats.org/package/2006/relationships";
+    // Entries follow XlsxCellStyle order; wrapped variants use the same formats and fills.
+    private static readonly (string NumberFormat, string Font, string Fill)[] CellFormats =
+    [
+        ("0", "0", "0"),
+        ("0", "1", "2"),
+        ("3", "0", "0"),
+        ("4", "0", "0"),
+        ("164", "0", "0"),
+        ("165", "0", "0"),
+        ("0", "1", "0"),
+        ("0", "0", "3"),
+        ("3", "0", "3"),
+        ("4", "0", "3"),
+        ("164", "0", "3"),
+        ("165", "0", "3")
+    ];
 
     public static MemoryStream CreateWorkbook(IReadOnlyList<XlsxSheet> sheets)
     {
@@ -190,19 +206,9 @@ internal static class XlsxWorkbookWriter
         writer.WriteEndElement();
 
         writer.WriteStartElement("cellXfs");
-        writer.WriteAttributeString("count", "12");
-        WriteCellFormat(writer, "0", "0", "0", "0", applyNumberFormat: false, applyFont: false, applyFill: false);
-        WriteCellFormat(writer, "0", "1", "2", "0", applyNumberFormat: false, applyFont: true, applyFill: true);
-        WriteCellFormat(writer, "3", "0", "0", "0", applyNumberFormat: true, applyFont: false, applyFill: false);
-        WriteCellFormat(writer, "4", "0", "0", "0", applyNumberFormat: true, applyFont: false, applyFill: false);
-        WriteCellFormat(writer, "164", "0", "0", "0", applyNumberFormat: true, applyFont: false, applyFill: false);
-        WriteCellFormat(writer, "165", "0", "0", "0", applyNumberFormat: true, applyFont: false, applyFill: false);
-        WriteCellFormat(writer, "0", "1", "0", "0", applyNumberFormat: false, applyFont: true, applyFill: false);
-        WriteCellFormat(writer, "0", "0", "3", "0", applyNumberFormat: false, applyFont: false, applyFill: true);
-        WriteCellFormat(writer, "3", "0", "3", "0", applyNumberFormat: true, applyFont: false, applyFill: true);
-        WriteCellFormat(writer, "4", "0", "3", "0", applyNumberFormat: true, applyFont: false, applyFill: true);
-        WriteCellFormat(writer, "164", "0", "3", "0", applyNumberFormat: true, applyFont: false, applyFill: true);
-        WriteCellFormat(writer, "165", "0", "3", "0", applyNumberFormat: true, applyFont: false, applyFill: true);
+        writer.WriteAttributeString("count", (CellFormats.Length * 2).ToString(CultureInfo.InvariantCulture));
+        WriteCellFormats(writer, wrapText: false);
+        WriteCellFormats(writer, wrapText: true);
         writer.WriteEndElement();
 
         writer.WriteStartElement("cellStyles");
@@ -216,6 +222,15 @@ internal static class XlsxWorkbookWriter
 
         writer.WriteEndElement();
         writer.WriteEndDocument();
+    }
+
+    private static void WriteCellFormats(XmlWriter writer, bool wrapText)
+    {
+        foreach (var (numberFormat, font, fill) in CellFormats)
+        {
+            WriteCellFormat(writer, numberFormat, font, fill, "0",
+                applyNumberFormat: numberFormat != "0", applyFont: font != "0", applyFill: fill != "0", wrapText);
+        }
     }
 
     private static void WriteWorksheet(ZipArchive archive, int sheetNumber, XlsxSheet sheet)
@@ -252,7 +267,7 @@ internal static class XlsxWorkbookWriter
         WriteRow(writer, 1, sheet.Headers.Select(XlsxCell.Header).ToList());
         for (var i = 0; i < sheet.Rows.Count; i++)
         {
-            WriteRow(writer, i + 2, sheet.Rows[i]);
+            WriteRow(writer, i + 2, sheet.Rows[i], sheet.DataRowHeight, sheet.WrapText);
         }
         writer.WriteEndElement();
 
@@ -287,22 +302,29 @@ internal static class XlsxWorkbookWriter
         writer.WriteEndElement();
     }
 
-    private static void WriteRow(XmlWriter writer, int rowNumber, IReadOnlyList<XlsxCell> cells)
+    private static void WriteRow(XmlWriter writer, int rowNumber, IReadOnlyList<XlsxCell> cells,
+        double? height = null, bool wrapText = false)
     {
         writer.WriteStartElement("row");
         writer.WriteAttributeString("r", rowNumber.ToString(CultureInfo.InvariantCulture));
+        if (height.HasValue)
+        {
+            writer.WriteAttributeString("ht", height.Value.ToString(CultureInfo.InvariantCulture));
+            writer.WriteAttributeString("customHeight", "1");
+        }
         for (var i = 0; i < cells.Count; i++)
         {
-            WriteCell(writer, rowNumber, i + 1, cells[i]);
+            WriteCell(writer, rowNumber, i + 1, cells[i], wrapText);
         }
         writer.WriteEndElement();
     }
 
-    private static void WriteCell(XmlWriter writer, int rowNumber, int columnNumber, XlsxCell cell)
+    private static void WriteCell(XmlWriter writer, int rowNumber, int columnNumber, XlsxCell cell, bool wrapText)
     {
         writer.WriteStartElement("c");
         writer.WriteAttributeString("r", $"{ColumnName(columnNumber)}{rowNumber}");
-        writer.WriteAttributeString("s", ((int)cell.Style).ToString(CultureInfo.InvariantCulture));
+        var styleIndex = (int)cell.Style + (wrapText ? CellFormats.Length : 0);
+        writer.WriteAttributeString("s", styleIndex.ToString(CultureInfo.InvariantCulture));
 
         switch (cell.Type)
         {
@@ -390,7 +412,8 @@ internal static class XlsxWorkbookWriter
         string borderId,
         bool applyNumberFormat,
         bool applyFont,
-        bool applyFill)
+        bool applyFill,
+        bool wrapText = false)
     {
         writer.WriteStartElement("xf");
         writer.WriteAttributeString("numFmtId", numFmtId);
@@ -409,6 +432,14 @@ internal static class XlsxWorkbookWriter
         if (applyFill)
         {
             writer.WriteAttributeString("applyFill", "1");
+        }
+        if (wrapText)
+        {
+            writer.WriteAttributeString("applyAlignment", "1");
+            writer.WriteStartElement("alignment");
+            writer.WriteAttributeString("vertical", "top");
+            writer.WriteAttributeString("wrapText", "1");
+            writer.WriteEndElement();
         }
         writer.WriteEndElement();
     }
@@ -434,7 +465,9 @@ internal sealed record XlsxSheet(
     IReadOnlyList<IReadOnlyList<XlsxCell>> Rows,
     IReadOnlyList<double> ColumnWidths,
     bool FreezeHeader = true,
-    bool AutoFilter = true);
+    bool AutoFilter = true,
+    bool WrapText = false,
+    double? DataRowHeight = null);
 
 internal sealed record XlsxCell(
     XlsxCellType Type,
