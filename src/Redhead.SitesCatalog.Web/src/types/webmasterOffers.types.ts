@@ -136,3 +136,13 @@ export interface WebmasterOfferPrice {
   termUnit: WebmasterOfferTermUnit | null;
   termLabel: string;
 }
+export interface LinkDetectivePrices {
+  domain: string;
+  minimumUsd: number | null;
+  averageUsd: number | null;
+  medianUsd: number | null;
+  checkedAtUtc: string | null;
+  isStale: boolean;
+  message: string | null;
+  retryAfterUtc: string | null;
+}

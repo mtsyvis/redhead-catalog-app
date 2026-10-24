@@ -20,6 +20,7 @@ import { WebmasterOffersDomainList } from '../components/webmaster-offers/Webmas
 import { DEFAULT_MULTI_SEARCH_LIMIT } from '../constants/search.constants';
 import { PageShell } from '../components/layout/PageShell';
 import { WebmasterOffersComparison } from '../components/webmaster-offers/WebmasterOffersComparison';
+import { LinkDetectivePricesPanel } from '../components/webmaster-offers/LinkDetectivePricesPanel';
 import { EditWebmasterOfferDialog } from '../components/webmaster-offers/EditWebmasterOfferDialog';
 import { WebmasterOffersSummaryTable } from '../components/webmaster-offers/WebmasterOffersSummaryTable';
 import { useAuth } from '../contexts/AuthContext';
@@ -65,6 +66,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
   const [result, setResult] = useState<WebmasterOffersResult | null>(cachedSearch?.result ?? null);
   const [expandedOfferIds, setExpandedOfferIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(false);
+  const [searchVersion, setSearchVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -134,6 +136,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
             : await webmasterOffersService.getSummaryByDomain(trimmed);
         if (searchRequestSequence.current !== requestSequence) return;
         setResult(searchResult);
+        setSearchVersion((current) => current + 1);
         setAppliedQuery(trimmed);
         if (mode !== 'after-save') {
           setExpandedOfferIds(new Set());
@@ -358,6 +361,13 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
 
       {(multiResult || singleResult?.siteFound) && (
         <Stack spacing={2}>
+          {!multiSearchMode && singleResult?.siteFound && canReadWebmasterOffers && (
+            <LinkDetectivePricesPanel
+              key={singleResult.domain}
+              domain={singleResult.domain}
+              searchVersion={searchVersion}
+            />
+          )}
           {multiResult && (
             <Typography variant="body2" color="text.secondary">
               {multiResult.uniqueDomainCount} domains · {multiResult.results.length} with offers

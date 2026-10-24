@@ -4,6 +4,7 @@ import { notifySessionExpired } from './sessionExpired';
 import type { EntityChangeHistoryItem } from '../types/changeHistory.types';
 import type {
   UpdateWebmasterOfferPayload,
+  LinkDetectivePrices,
   WebmasterOffer,
   WebmasterOfferEdit,
   WebmasterOffersSearchResult,
@@ -12,6 +13,9 @@ import type {
 } from '../types/webmasterOffers.types';
 
 export const webmasterOffersService = {
+  getLinkDetectivePrices(domain: string, forceRefresh = false): Promise<LinkDetectivePrices> {
+    return apiClient.post('/api/webmaster-offers/linkdetective-prices', { domain, forceRefresh });
+  },
   multiSearch(queryText: string): Promise<WebmasterOffersMultiSearchResult> {
     return apiClient.post('/api/webmaster-offers/multi-search', { queryText });
   },

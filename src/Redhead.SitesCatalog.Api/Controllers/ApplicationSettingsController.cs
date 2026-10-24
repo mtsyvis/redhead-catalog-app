@@ -10,7 +10,9 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 [ApiController]
 [Route("api/admin/application-settings")]
 [Authorize(Policy = AppPolicies.RoleSettingsReadAccess)]
-public sealed class ApplicationSettingsController(IOptions<ClientCatalogOptions> clientCatalogOptions)
+public sealed class ApplicationSettingsController(
+    IOptions<ClientCatalogOptions> clientCatalogOptions,
+    IOptions<LinkDetectiveOptions> linkDetectiveOptions)
     : ControllerBase
 {
     [HttpGet("limits")]
@@ -28,6 +30,7 @@ public sealed class ApplicationSettingsController(IOptions<ClientCatalogOptions>
             LiteMultiSearchConstants.MaxDomainsPerRequest,
             LiteMultiSearchConstants.MonthlyDomainLimit,
             TableViewConstants.CustomViewsPerUserTableLimit,
-            SavedFilterSetConstants.FilterSetsPerUserTableLimit));
+            SavedFilterSetConstants.FilterSetsPerUserTableLimit,
+            linkDetectiveOptions.Value.CacheLifetimeDays));
     }
 }

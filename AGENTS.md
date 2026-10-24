@@ -174,6 +174,9 @@ When changing backend behavior, verify authorization, validation, persistence, a
 
 ## Frontend guidance
 
+For `borderRadius`, use `1` for the app default, `0` for square corners,
+or `999` for pills. Custom radii must use CSS units, e.g. `'8px'`.
+
 Follow the existing frontend architecture, component patterns, styling approach, and API usage.
 
 Do not introduce new UI libraries, state-management patterns, routing approaches, or styling systems unless the task clearly requires it.

@@ -21,6 +21,17 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Property[key.name=/^border(TopLeft|TopRight|BottomLeft|BottomRight)?Radius$/] > Literal.value[value>1][value!=999]',
+          message: 'Numeric MUI radii multiply the theme radius. Use 1 for the app standard, an explicit CSS length for a custom radius, or 999 for a pill.',
+        },
+        {
+          selector: 'JSXAttribute[name.name=/^border(TopLeft|TopRight|BottomLeft|BottomRight)?Radius$/] > JSXExpressionContainer > Literal[value>1][value!=999]',
+          message: 'Numeric MUI radii multiply the theme radius. Use 1 for the app standard, an explicit CSS length for a custom radius, or 999 for a pill.',
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',

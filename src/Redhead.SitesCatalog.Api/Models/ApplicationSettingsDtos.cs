@@ -11,4 +11,5 @@ public sealed record ApplicationSettingsLimitsResponse(
     int LiteMultiSearchMaxDomainsPerRequest,
     int LiteMonthlyDomainLimit,
     int CustomTableViewsPerUserTable,
-    int SavedFilterSetsPerUserTable);
+    int SavedFilterSetsPerUserTable,
+    int LinkDetectiveCacheLifetimeDays);

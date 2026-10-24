@@ -226,6 +226,70 @@ dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~MissingDomainsAn
 
 Without this environment variable, these PostgreSQL tests are skipped; ordinary analytics unit tests still run.
 
+### LinkDetective API quota diagnostic
+
+Requires PowerShell 7+. From the repository root, run:
+
+```powershell
+pwsh -File ./scripts/Test-LinkDetectiveApi.ps1
+```
+
+Enter the API token at the hidden prompt; do not put it in command arguments or files.
+The script calls only `/api/v2/inventory/preview`, which the
+[provider documents](https://linkdetective.pro/blog/api) as costing no domain checks.
+It prints quota usage, limit, remaining checks, period, and any returned rate-limit headers.
+`inventoryMaxRows` applies to Inventory, not the domain lookup endpoint.
+
+To also verify the endpoint needed for Webmaster Offers, explicitly pass one domain:
+
+```powershell
+pwsh -File ./scripts/Test-LinkDetectiveApi.ps1 -Domain example.com
+```
+
+This adds one `/api/v2/domains` request, budgeted as one domain check even if no offer is found.
+By default, the output contains diagnostic fields only, without the token, seller contacts, or prices.
+There are no automatic retries or rate-limit stress tests. A failed preview does not prevent
+the explicitly requested domain check, since endpoint access may differ.
+Missing quota fields or headers remain unknown; this diagnostic cannot establish an
+undocumented request-rate limit, domain batch limit, or exact reset time.
+
+To inspect actual prices and seller data for one domain:
+
+```powershell
+pwsh -File ./scripts/Test-LinkDetectiveApi.ps1 -Domain example.com -ShowOffers
+```
+
+This mode makes only one `/api/v2/domains` request (no preview), budgeted as one domain check.
+It includes domain price aggregates, seller count, seller names, prices, price-update dates,
+badges, and returned field names so the real response schema can be inspected. Seller email
+and website URL values are replaced with presence flags; token and raw response bodies are
+never printed or saved. `-ShowOffers` requires `-Domain`.
+This script does not enable a LinkDetective integration in the application.
+
+### LinkDetective market prices
+
+Webmaster Offers Single search optionally shows the provider's minimum, average, and median
+prices. Successful snapshots (including no-price results) are stored in PostgreSQL, reused
+across users, and refreshed on access when older than the configured lifetime (default: 30 days). Manual refresh is available
+with a shared one-minute cooldown per domain. Multi-search does not call LinkDetective.
+
+Set the server-side `LinkDetective__ApiToken` environment variable to enable lookups.
+Set `LinkDetective__CacheLifetimeDays` to a positive integer to override the default 30-day
+cache lifetime (`LinkDetective:CacheLifetimeDays` in appsettings.json). Restart the application
+after changing it. The effective value is shown read-only in Application settings → System limits.
+For local development, enter the token without placing it in shell history, then start the
+backend from the same PowerShell session:
+
+```powershell
+$env:LinkDetective__ApiToken = [System.Net.NetworkCredential]::new('', (Read-Host 'LinkDetective API token' -AsSecureString)).Password
+dotnet run --project src/Redhead.SitesCatalog.Api --launch-profile http
+```
+
+Never commit the actual token or put it in frontend configuration. An unset token leaves
+the catalog usable and shows an unconfigured market-prices state. Apply EF migrations through
+the normal setup workflow before using this feature; production startup applies migrations.
+The application persists only the three price values and cache/error timing metadata.
+
 ### Frontend
 
 ```bash
@@ -249,6 +313,16 @@ npm run test
 # Format frontend files
 npm run format
 ```
+
+The app uses `node_modules/.vite-app` for Vite's optimized dependencies and resolves React
+and Emotion from the frontend root. Temporary preview or diagnostic Vite servers must set
+their own distinct `cacheDir` outside that directory; concurrent servers with different
+configurations must not share an optimizer cache.
+
+If local development shows `Invalid hook call` together with a duplicate Emotion warning,
+stop the frontend server, run `npm run dev -- --force`, and hard-reload the browser tab
+(`Ctrl+Shift+R`). This rebuilds optimized dependencies without clearing the saved search
+or the server-side LinkDetective price cache.
 
 ### Production Docker build
 

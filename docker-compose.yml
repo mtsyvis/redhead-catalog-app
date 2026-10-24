@@ -56,6 +56,8 @@ services:
       ExportedDomainAccessCleanup__RetentionDays: ${ExportedDomainAccessCleanup__RetentionDays:-30}
       ExportedDomainAccessCleanup__BatchSize: ${ExportedDomainAccessCleanup__BatchSize:-1000}
       ExportedDomainAccessCleanup__IntervalHours: ${ExportedDomainAccessCleanup__IntervalHours:-24}
+      LinkDetective__ApiToken: ${LinkDetective__ApiToken:-}
+      LinkDetective__CacheLifetimeDays: ${LinkDetective__CacheLifetimeDays:-30}
       Ahrefs__ApiKey: ${Ahrefs__ApiKey:-}
       Ahrefs__BaseUrl: ${Ahrefs__BaseUrl:-https://api.ahrefs.com/v3}
       AhrefsSync__Enabled: ${AhrefsSync__Enabled:-false}

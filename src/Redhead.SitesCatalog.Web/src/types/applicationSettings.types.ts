@@ -10,6 +10,7 @@ export interface ApplicationSettingsLimits {
   liteMonthlyDomainLimit: number;
   customTableViewsPerUserTable: number;
   savedFilterSetsPerUserTable: number;
+  linkDetectiveCacheLifetimeDays: number;
 }
 
 export interface ClientCatalogProtectionSettings {

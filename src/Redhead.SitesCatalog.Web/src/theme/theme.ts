@@ -9,6 +9,7 @@ const brand = {
   accentEnd: '#FF7C32',
 };
 
+// MUI sx numeric radii multiply this value: use 1 for the standard surface radius.
 const appBorderRadius = 20;
 const accentGradient = `linear-gradient(0.25turn, rgba(255,69,91,1) 0%, rgba(255,124,50,1) 100%)`; // как на лендинге :contentReference[oaicite:1]{index=1}
 

@@ -946,6 +946,39 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.ToTable("ImportLogs", (string)null);
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LinkDetectivePriceCache", b =>
+                {
+                    b.Property<string>("SiteDomain")
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<decimal?>("AverageUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("CheckedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal?>("MedianUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("MinimumUsd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("RetryAfterUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("SiteDomain");
+
+                    b.ToTable("LinkDetectivePriceCaches");
+                });
+
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LinkbuilderMailbox", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2123,6 +2156,15 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.HasOne("Redhead.SitesCatalog.Domain.Entities.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LinkDetectivePriceCache", b =>
+                {
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.Site", null)
+                        .WithMany()
+                        .HasForeignKey("SiteDomain")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

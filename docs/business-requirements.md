@@ -176,6 +176,7 @@ Current rules:
 * Roles & exports preserves the existing read/manage permissions and saves role export policies separately from other application settings.
 * Client protection is visible only to SuperAdmin and manages the database-backed automatic-ban enabled flag and rolling-24-hour threshold. The page shows the persisted status, last update metadata and the one-minute application delay.
 * System limits and related protection limits are read-only snapshots returned by the server. They distinguish database settings that apply immediately, environment settings that require restart, and built-in limits that require deployment. The UI must not duplicate these numeric values as frontend constants.
+* System limits use a single compact panel with separated groups, aligned values, and configuration source/change requirements shown once per group. On narrow screens, group headings appear above their settings.
 
 ### Lite
 
@@ -494,6 +495,24 @@ Raw price rules:
 * Amounts, when present, must be greater than `0`.
 * Details without amount are allowed.
 * Empty amount and empty details create no price row.
+
+### LinkDetective market prices
+
+* Webmaster Offers Single search shows LinkDetective minimum, average, and median USD prices for an existing catalog domain to `SuperAdmin`, `Admin`, `Editor`, and `Linkbuilder`. Backend authorization requires full webmaster-offer read access.
+* The three price aggregates come directly from the provider. Sellers, contacts, SEO metrics, and raw provider responses are not stored or exposed by this integration.
+* Market prices are independent from client catalog prices and our webmaster offers. They are an indicative comparison: the provider does not specify service type or placement term.
+* Successful results are shared between authorized users and persisted by normalized domain with their successful retrieval time in UTC. The UI displays that time in the user's local timezone.
+* Reading reusable cached prices does not wait for another domain's provider request. Repeating a search for the same domain or saving a webmaster offer keeps already displayed market prices visible during the cache check and on failure.
+* Single search retrieves prices when there is no successful cached result, and automatically refreshes a result older than the configured cache lifetime (default: 30 days). A result exactly at that lifetime is still fresh. This is an on-demand refresh, not a scheduled catalog-wide sync.
+* The cache lifetime is a positive whole number of days configured on the server. Application settings → System limits shows the effective value read-only; configuration changes require an application restart.
+* Users can manually refresh prices before the cache expires. Repeated refreshes of one domain have a minimum one-minute interval shared by users; a provider cooldown may extend that interval.
+* A successful no-price result is also cached and can be refreshed by the same rules. Missing prices are displayed as `—`, never as zero.
+* Failed refreshes preserve the last successful prices and retrieval time, visibly report the failure and stale state, and allow another attempt after the cooldown. Provider failures must not prevent searching or editing our webmaster offers.
+* Single-search results restored from browser session storage still check the server-side market-price cache. Clearing/changing the search, changing mode or user/access level, or leaving the page prevents earlier market-price responses from replacing the current UI.
+* LinkDetective integration is optional and requires a server-side token. An unconfigured integration shows an explanatory state and may still display previously saved prices.
+* When there are no market prices, loading, unavailable, error, and no-result states use a compact unframed row without empty aggregate fields or placement caveats. Retry/refresh appears only when useful; an unconfigured integration without a cached result has no refresh action. Cached no-result timestamps remain visible. Existing saved prices remain visible if a refresh fails.
+* The source's missing service/placement-term caveat and the next allowed refresh time appear in the refresh button's tooltip instead of separate lines. The tooltip remains accessible while refresh is disabled by a cooldown, including via keyboard focus.
+* Webmaster Offers Multi-search and all exports exclude LinkDetective prices and do not trigger provider requests.
 
 Webmaster Offers Multi-search:
 

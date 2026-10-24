@@ -125,6 +125,34 @@ Current `Caddyfile` shape:
 }
 ```
 
+## LinkDetective market prices
+
+Set `LinkDetective__ApiToken` in the private deployment environment to enable market-price
+lookups from Webmaster Offers Single search. Compose passes it only to the app container.
+Keep the token out of frontend configuration, source control, and logs. An empty token leaves
+the optional integration unavailable without preventing ordinary catalog use.
+
+The normal startup migration workflow creates a separate price-cache table. Only the three
+price aggregates and successful retrieval/error timing metadata are persisted. Existing
+catalog prices and webmaster offers are not modified. Cache rows are deleted with their site.
+Set `LinkDetective__CacheLifetimeDays` in the deployment environment to a positive integer
+to change the cache lifetime (default: 30 days). Compose forwards it to the app container;
+recreate the app container after changing it. Application settings → System limits shows
+the effective value read-only.
+There is no scheduled full-catalog job: missing results and snapshots older than that lifetime are
+refreshed when an authorized user searches a domain. Manual refresh shares a one-minute
+per-domain cooldown. Failed refreshes preserve the previous successful snapshot.
+
+Provider requests have a 15-second timeout and no automatic retries. The single app instance
+serializes provider calls with at least one second between request starts, shares provider
+cooldowns across domains, and stops after an exhausted quota until the reported reset (or the
+next UTC day for a daily quota when no reset time is returned). Other unknown quota periods
+use a five-minute pause. Refreshes share one application-wide lock; reusable cached results
+are read without waiting for that lock, and the cache is checked again before a provider call.
+Request pacing and refresh locking are in memory; per-domain
+cooldowns are also persisted. Before deploying multiple replicas, replace the in-memory
+coordination with distributed coordination. Restart resets the in-memory provider cooldown.
+
 ## Production environment variables
 
 Production `.env` must not be committed.

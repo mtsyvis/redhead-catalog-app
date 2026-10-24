@@ -5,6 +5,11 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(() => ({
   plugins: [react()],
   base: '/',
+  // Keep the app's optimized dependencies separate from temporary preview servers.
+  cacheDir: 'node_modules/.vite-app',
+  resolve: {
+    dedupe: ['react', 'react-dom', '@emotion/react', '@emotion/styled'],
+  },
   server: {
     port: 5173,
     proxy: {

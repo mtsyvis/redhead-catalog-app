@@ -20,7 +20,8 @@ public sealed class ApplicationSettingsControllerTests
             UniqueSitesPerFiveMinutes = 2_345,
             AlertUniqueSitesPerHour = 6_789
         });
-        var sut = new ApplicationSettingsController(options);
+        var linkDetectiveOptions = Options.Create(new LinkDetectiveOptions { CacheLifetimeDays = 7 });
+        var sut = new ApplicationSettingsController(options, linkDetectiveOptions);
 
         // Act
         var result = sut.GetLimits();
@@ -33,6 +34,7 @@ public sealed class ApplicationSettingsControllerTests
         Assert.Equal(73, response.ClientRequestsPerMinute);
         Assert.Equal(2_345, response.ClientUniqueSitesPerFiveMinutes);
         Assert.Equal(6_789, response.ClientAlertUniqueSitesPerHour);
+        Assert.Equal(7, response.LinkDetectiveCacheLifetimeDays);
         Assert.Equal(MultiSearchConstants.MaxInputs, response.GlobalMultiSearchMaxInputs);
         Assert.Equal(StopListConstants.MaxStopListDomains, response.StopListMaxDomains);
         Assert.Equal(LiteMultiSearchConstants.MaxDomainsPerRequest, response.LiteMultiSearchMaxDomainsPerRequest);

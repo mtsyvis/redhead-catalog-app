@@ -32,6 +32,7 @@ using Redhead.SitesCatalog.Domain.SystemExports;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Concurrency;
 using Redhead.SitesCatalog.Infrastructure.Integrations.Ahrefs;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective;
 using Redhead.SitesCatalog.Infrastructure.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Infrastructure.Locations;
 using Redhead.SitesCatalog.Infrastructure.Options;
@@ -45,6 +46,15 @@ builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache();
 builder.Services.AddClientCatalogProtection(builder.Configuration);
 builder.Services.AddHttpClient();
+builder.Services.AddOptions<LinkDetectiveOptions>()
+    .Bind(builder.Configuration.GetSection(LinkDetectiveOptions.SectionName))
+    .Validate(LinkDetectiveOptions.IsValid, "LinkDetective:CacheLifetimeDays must be a positive integer.")
+    .ValidateOnStart();
+builder.Services.AddHttpClient(LinkDetectiveApiClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddSingleton<LinkDetectiveRequestCoordinator>();
+builder.Services.AddScoped<ILinkDetectiveApiClient, LinkDetectiveApiClient>();
+builder.Services.AddScoped<ILinkDetectivePricesService, LinkDetectivePricesService>();
 
 builder.Services.Configure<GoogleDriveOptions>(
     builder.Configuration.GetSection(GoogleDriveOptions.SectionName));
