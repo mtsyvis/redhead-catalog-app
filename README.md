@@ -268,7 +268,7 @@ This script does not enable a LinkDetective integration in the application.
 
 ### LinkDetective market prices
 
-Webmaster Offers Single search optionally shows the provider's minimum, average, and median
+For Admin and SuperAdmin only, Webmaster Offers Single search optionally shows the provider's minimum, average, and median
 prices. Successful snapshots (including no-price results) are stored in PostgreSQL, reused
 across users, and refreshed on access when older than the configured lifetime (default: 30 days). Manual refresh is available
 with a shared one-minute cooldown per domain. Multi-search does not call LinkDetective.

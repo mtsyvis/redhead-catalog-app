@@ -8,7 +8,7 @@ namespace Redhead.SitesCatalog.Api.Controllers;
 
 [ApiController]
 [Route("api/webmaster-offers/linkdetective-prices")]
-[Authorize(Policy = AppPolicies.WebmasterOffersReadAccess)]
+[Authorize(Policy = AppPolicies.LinkDetectivePricesReadAccess)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class LinkDetectivePricesController(ILinkDetectivePricesService service) : ControllerBase
 {

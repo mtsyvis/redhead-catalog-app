@@ -23,6 +23,7 @@ export const APP_PERMISSIONS = [
   'WebmasterOffersImport',
   'WebmasterOffersManage',
   'WebmasterOffersExport',
+  'LinkDetectivePricesRead',
 ] as const;
 export type AppPermission = (typeof APP_PERMISSIONS)[number];
 
@@ -44,6 +45,7 @@ export const ROLE_PERMISSION_MATRIX: Record<AppRole, readonly AppPermission[]> =
     'WebmasterOffersSummaryRead',
     'WebmasterOffersImport',
     'WebmasterOffersExport',
+    'LinkDetectivePricesRead',
     'WebmasterOffersManage',
   ],
   Editor: [

@@ -498,7 +498,7 @@ Raw price rules:
 
 ### LinkDetective market prices
 
-* Webmaster Offers Single search shows LinkDetective minimum, average, and median USD prices for an existing catalog domain to `SuperAdmin`, `Admin`, `Editor`, and `Linkbuilder`. Backend authorization requires full webmaster-offer read access.
+* Webmaster Offers Single search shows LinkDetective minimum, average, and median USD prices for an existing catalog domain only to `SuperAdmin` and `Admin`. The independent `LinkDetectivePricesRead` permission protects all reads, automatic lookups, and manual refreshes, including cached results. Other roles do not see the block or trigger requests; direct API requests are denied before accessing the cache/provider. Ordinary webmaster-offer search permissions are unchanged.
 * The three price aggregates come directly from the provider. Sellers, contacts, SEO metrics, and raw provider responses are not stored or exposed by this integration.
 * Market prices are independent from client catalog prices and our webmaster offers. They are an indicative comparison: the provider does not specify service type or placement term.
 * Successful results are shared between authorized users and persisted by normalized domain with their successful retrieval time in UTC. The UI displays that time in the user's local timezone.

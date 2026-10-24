@@ -14,27 +14,37 @@ public sealed class LinkDetectivePricesControllerTests
     [Theory]
     [InlineData(AppRoles.SuperAdmin, true)]
     [InlineData(AppRoles.Admin, true)]
-    [InlineData(AppRoles.Editor, true)]
-    [InlineData(AppRoles.Linkbuilder, true)]
+    [InlineData(AppRoles.Editor, false)]
+    [InlineData(AppRoles.Linkbuilder, false)]
     [InlineData(AppRoles.Internal, false)]
     [InlineData(AppRoles.Client, false)]
     [InlineData(AppRoles.Lite, false)]
-    public async Task Authorization_AllowsOnlyFullWebmasterPriceReaders(string role, bool allowed)
+    [InlineData("Unknown", false)]
+    [InlineData(null, false)]
+    public async Task Authorization_AllowsOnlyAdmins(string? role, bool allowed)
     {
         // Arrange
         var policy = Assert.Single(typeof(LinkDetectivePricesController).GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>()).Policy!;
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddAuthorization(options => options.AddPolicy(policy, builder => builder.RequireRole(
-            RolePermissionMatrix.GetRolesForPermission(AppPermissions.WebmasterOffersRead))));
+        services.AddAuthorization(options =>
+        {
+            foreach (var (permission, policyName) in AppPolicies.PermissionPolicies)
+            {
+                options.AddPolicy(policyName, builder => builder.RequireRole(
+                    RolePermissionMatrix.GetRolesForPermission(permission)));
+            }
+        });
         using var provider = services.BuildServiceProvider();
-        var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "Test"));
+        var user = new ClaimsPrincipal(role is null
+            ? new ClaimsIdentity()
+            : new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "Test"));
 
         // Act
         var result = await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(user, null, policy);
 
         // Assert
-        Assert.Equal(AppPolicies.WebmasterOffersReadAccess, policy);
+        Assert.Equal(AppPolicies.LinkDetectivePricesReadAccess, policy);
         Assert.Equal(allowed, result.Succeeded);
     }
 

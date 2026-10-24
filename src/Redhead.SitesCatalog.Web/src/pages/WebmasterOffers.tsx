@@ -58,7 +58,7 @@ function isFullOffers(offers: WebmasterOfferSummaryRow[]): offers is WebmasterOf
 }
 
 function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
-  const { canReadWebmasterOffers, canManageWebmasterOffers, canExportWebmasterOffers } =
+  const { canReadWebmasterOffers, canManageWebmasterOffers, canExportWebmasterOffers, canReadLinkDetectivePrices } =
     useUserRoles();
   const [cachedSearch] = useState(() => readCachedWebmasterOffersSearch({ userId, access }));
   const [multiSearchMode, setMultiSearchMode] = useState(cachedSearch?.mode === 'multi');
@@ -361,7 +361,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
 
       {(multiResult || singleResult?.siteFound) && (
         <Stack spacing={2}>
-          {!multiSearchMode && singleResult?.siteFound && canReadWebmasterOffers && (
+          {!multiSearchMode && singleResult?.siteFound && canReadLinkDetectivePrices && (
             <LinkDetectivePricesPanel
               key={singleResult.domain}
               domain={singleResult.domain}
