@@ -126,6 +126,79 @@ $env:REDHEAD_TEST_POSTGRES = 'Host=localhost;Port=5433;Database=postgres;Usernam
 dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~WebmasterPrimaryEmailMigrationTests
 ```
 
+## 20261026134302_RemoveWhlWebmasterOffers
+
+[Migration source](../src/Redhead.SitesCatalog.Infrastructure/Data/Migrations/20261026134302_RemoveWhlWebmasterOffers.cs).
+Production application has not been confirmed. This is a one-time cleanup before an employee
+re-imports corrected Webmaster Offers data.
+
+The migration deletes all active and inactive offers whose linked Webmaster's current
+`PrimaryEmail` exactly equals the contact-instruction value frozen in the source. Markdown
+asterisks are not part of that value. Matching is case-sensitive, without trimming, substring
+matching, or matching against raw Contact. Every matching Webmaster is included, even when
+several technical Webmasters have the same primary contact.
+
+Existing foreign keys cascade the deletion to raw offer prices and offer/mailbox links.
+Webmasters, mailbox definitions, existing change history, Sites, client prices, and other offers
+are preserved. No schema or ongoing import rules change. Startup applies the migration once,
+in its normal transaction; a failure rolls back deletions and the migration-history entry.
+
+### Preflight and rollout verification
+
+Take a fresh database backup using the [deployment guide](deployment.md#data-migrations).
+Pause imports and offer edits for the rollout, and review the affected counts before deploying.
+In psql, enter the exact contact value from the migration source:
+
+```sql
+\prompt 'Exact Primary Email from migration source: ' primary_contact
+
+WITH targets AS (
+    SELECT o."Id", o."WebmasterId"
+    FROM "SiteWebmasterOffers" o
+    JOIN "Webmasters" w ON w."Id" = o."WebmasterId"
+    WHERE w."PrimaryEmail" = :'primary_contact'
+)
+SELECT COUNT(*) AS offers,
+       COUNT(DISTINCT "WebmasterId") AS webmasters,
+       (SELECT COUNT(*) FROM "WebmasterOfferPrices" p
+        JOIN targets t ON t."Id" = p."SiteWebmasterOfferId") AS prices,
+       (SELECT COUNT(*) FROM "SiteWebmasterOfferLinkbuilderMailboxes" m
+        JOIN targets t ON t."Id" = m."SiteWebmasterOfferId") AS mailbox_links
+FROM targets;
+
+SELECT "MigrationId" FROM "__EFMigrationsHistory"
+WHERE "MigrationId" = '20261026134302_RemoveWhlWebmasterOffers';
+```
+
+After startup and **before re-import**, verify the migration record exists and rerun the count
+query: offers, prices, and mailbox links must be zero. Production counts are not known in advance.
+
+### Re-import and recovery
+
+Use the current UTF-8 CSV import with the exact 30-column header; place contact instructions
+in `ContactRawText`. `PrimaryEmail` is derived for new Webmasters, not an import column.
+Text without a recognizable email is supported and keeps its case. Reusing the same normalized
+Contact reuses the existing Webmaster and preserves its saved primary contact. Changing that
+saved primary contact requires manual editing; this cleanup does not reset it.
+
+Deleting an offer removes its unique fingerprint, so even its original source row can be imported
+again. Corrected rows create fresh offers/prices; repeated imports then skip exact duplicates.
+Domains must already exist in Sites. Review imported, duplicate, unmatched, invalid, and warning
+counts and their downloads. A normal restart after re-import must retain the new offers.
+
+`Down` deliberately rejects rollback because deleted data cannot be reconstructed. Reverting
+the image does not restore offers. Recover from the pre-rollout backup or re-import reviewed
+source data; do not remove the EF migration-history entry to retry the cleanup after re-import.
+
+Local rehearsal on 2026-10-26 verified exact matching, dependent deletion, preservation of
+unrelated records, original/corrected CSV re-import, duplicate detection, restart safety,
+transaction rollback on failure, and rejected `Down` on isolated PostgreSQL databases.
+All 21 existing primary-contact migration and offer-concurrency tests also passed. Solution
+build and normal backend tests passed; the generated EF SQL wraps the deletion and
+migration-history insert in one transaction. Historical migration tests target their specific
+migration rather than later cleanup migrations; offer-concurrency fixtures include the
+now-required primary contact.
+
 ## Webmaster offer price uniqueness
 
 `20260905070440_EnforceWebmasterOfferConcurrencyAndUniquePrices` enforces one price row per

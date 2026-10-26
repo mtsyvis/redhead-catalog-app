@@ -37,8 +37,6 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         await command.ExecuteNonQueryAsync();
         builder.Database = _databaseName;
         _connectionString = builder.ConnectionString;
-        await using var context = CreateContext();
-        await context.Database.MigrateAsync();
     }
 
     public async Task DisposeAsync()
@@ -53,6 +51,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
     {
         // Arrange
         await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
         var offer = await SeedOfferAsync(setup, "remove-mailbox");
         offer.TermType = TermType.Finite;
         offer.TermValue = 2;
@@ -88,6 +87,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
     {
         // Arrange
         await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
         var offer = await SeedOfferAsync(setup, "remove-mailbox");
         offer.Site.IsQuarantined = true;
         offer.Status = SiteWebmasterOfferStatus.Inactive;
@@ -154,6 +154,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
     {
         // Arrange
         await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
         var offer = await SeedOfferAsync(setup, scenario);
         var mailboxId = await setup.LinkbuilderMailboxes.Select(item => item.Id).SingleAsync();
         var winnerRequest = CreateRequest(offer, scenario, mailboxId, "Winner", 200m);
@@ -206,6 +207,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
     {
         // Arrange
         await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
         var selectedOffer = await SeedOfferAsync(setup, "details");
         var siblingOffer = new SiteWebmasterOffer
         {
@@ -257,6 +259,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
     {
         // Arrange
         await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
         var firstOffer = await SeedOfferAsync(setup, "details");
         var secondOffer = new SiteWebmasterOffer
         {
@@ -304,6 +307,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
     {
         // Arrange
         await using var context = CreateContext();
+        await context.Database.MigrateAsync();
         var offer = await SeedOfferAsync(context, "details");
         context.WebmasterOfferPrices.Add(CreatePrice(offer.Id, WebmasterOfferPriceType.Casino, 50m));
         await context.SaveChangesAsync();
@@ -372,6 +376,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
             Webmaster = new Webmaster
             {
                 Id = Guid.NewGuid(), ContactRawText = "contact@example.com", NormalizedContactRawText = "contact@example.com",
+                PrimaryEmail = "contact@example.com",
                 CreatedAtUtc = now, UpdatedAtUtc = now
             }
         };

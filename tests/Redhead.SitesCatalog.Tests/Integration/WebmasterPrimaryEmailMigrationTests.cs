@@ -20,6 +20,7 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
     private const string PreviousMigration = "20261007112728_UsePostgresXminForWebmasterOfferConcurrency";
     private const string RepairMigration = "20261012153852_NormalizeWebmasterPrimaryEmails";
     private const string Actor = "Migration:" + RepairMigration;
+    // Keep population/rollback tests independent of later offer cleanup migrations.
     private const string MissingPrimaryMigration = "20261014102750_PopulateWebmasterPrimaryContacts";
     private readonly string _databaseName = "redhead_email_repair_test_" + Guid.NewGuid().ToString("N");
     private string _connectionString = string.Empty;
@@ -252,7 +253,7 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
         var preserved = await OfferSnapshotAsync(context);
 
         // Act
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(MissingPrimaryMigration);
         await using (var transaction = await context.Database.BeginTransactionAsync())
         {
             await using var command = context.Database.GetDbConnection().CreateCommand();
@@ -288,7 +289,7 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
             """);
 
         // Act
-        var exception = await Assert.ThrowsAsync<PostgresException>(() => context.Database.MigrateAsync());
+        var exception = await Assert.ThrowsAsync<PostgresException>(() => context.GetService<IMigrator>().MigrateAsync(MissingPrimaryMigration));
 
         // Assert
         Assert.Equal("P0001", exception.SqlState);
@@ -314,13 +315,13 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
         await using var context = CreateContext();
         await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
         await SeedOfferAsync(context, new RepairCase("first@example.org\nsecond@example.org - answ", null, "second@example.org"));
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(MissingPrimaryMigration);
 
         // Act
         await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
         var restored = await context.Webmasters.Select(w => w.PrimaryEmail).SingleAsync();
         var rollbackEntries = await context.EntityChangeHistories.CountAsync(h => h.ChangedBy == "Rollback:" + MissingPrimaryMigration);
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(MissingPrimaryMigration);
 
         // Assert
         Assert.Null(restored);
@@ -336,7 +337,7 @@ public sealed class WebmasterPrimaryEmailMigrationTests : IAsyncLifetime
         await using var context = CreateContext();
         await context.GetService<IMigrator>().MigrateAsync(RepairMigration);
         var offer = await SeedOfferAsync(context, new RepairCase("first@example.org\nsecond@example.org - answ", null, "second@example.org"));
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(MissingPrimaryMigration);
         await using (var editor = CreateContext())
         {
             var webmaster = await editor.Webmasters.SingleAsync();
