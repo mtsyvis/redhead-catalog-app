@@ -24,6 +24,7 @@ public static class RolePermissionMatrix
                 AppPermissions.WebmasterOffersImport,
                 AppPermissions.WebmasterOffersExport,
                 AppPermissions.LinkDetectivePricesRead,
+                AppPermissions.WebmasterPriceComparisonRead,
                 AppPermissions.WebmasterOffersManage
             },
             [AppRoles.Editor] = new HashSet<string>(StringComparer.Ordinal)

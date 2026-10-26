@@ -128,7 +128,8 @@ Current `Caddyfile` shape:
 ## LinkDetective market prices
 
 Set `LinkDetective__ApiToken` in the private deployment environment to enable market-price
-lookups from Webmaster Offers Single search. Compose passes it only to the app container.
+lookups from the admin-only Price comparison view in Webmaster Offers Single search.
+Compose passes it only to the app container.
 Keep the token out of frontend configuration, source control, and logs. An empty token leaves
 the optional integration unavailable without preventing ordinary catalog use.
 
@@ -140,7 +141,8 @@ to change the cache lifetime (default: 30 days). Compose forwards it to the app 
 recreate the app container after changing it. Application settings → System limits shows
 the effective value read-only.
 There is no scheduled full-catalog job: missing results and snapshots older than that lifetime are
-refreshed when an authorized user searches a domain. Manual refresh shares a one-minute
+refreshed when an authorized admin opens or rechecks Price comparison for a domain. Ordinary
+Offers and Multi-search do not call the provider. Manual refresh shares a one-minute
 per-domain cooldown. Failed refreshes preserve the previous successful snapshot.
 
 Provider requests have a 15-second timeout and no automatic retries. The single app instance

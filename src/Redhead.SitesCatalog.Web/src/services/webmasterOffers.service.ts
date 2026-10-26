@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import { apiClient, API_BASE_URL } from './api.client';
 import { notifySessionExpired } from './sessionExpired';
 import type { EntityChangeHistoryItem } from '../types/changeHistory.types';
+import type { WebmasterPriceComparison } from '../types/webmasterPriceComparison.types';
 import type {
   UpdateWebmasterOfferPayload,
   LinkDetectivePrices,
@@ -13,6 +14,9 @@ import type {
 } from '../types/webmasterOffers.types';
 
 export const webmasterOffersService = {
+  getPriceComparison(domain: string): Promise<WebmasterPriceComparison> {
+    return apiClient.get(`/api/webmaster-offers/price-comparison?domain=${encodeURIComponent(domain)}`);
+  },
   getLinkDetectivePrices(domain: string, forceRefresh = false): Promise<LinkDetectivePrices> {
     return apiClient.post('/api/webmaster-offers/linkdetective-prices', { domain, forceRefresh });
   },

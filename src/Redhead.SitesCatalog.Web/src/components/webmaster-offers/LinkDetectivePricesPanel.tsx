@@ -80,7 +80,8 @@ export function LinkDetectivePricesPanel({
     if (!busy.current) void loadPrices(true);
   };
 
-  const hasPrices = prices != null &&
+  const hasPrices =
+    prices != null &&
     [prices.minimumUsd, prices.averageUsd, prices.medianUsd].some((amount) => amount != null);
 
   const refreshTooltip = [
@@ -88,11 +89,17 @@ export function LinkDetectivePricesPanel({
     coolingDown && prices?.retryAfterUtc
       ? `Refresh available after ${new Date(prices.retryAfterUtc).toLocaleString()}.`
       : null,
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const refreshButton = (
     <Tooltip title={refreshTooltip} describeChild>
-      <Box component="span" tabIndex={loading || coolingDown ? 0 : undefined} sx={{ display: 'inline-flex' }}>
+      <Box
+        component="span"
+        tabIndex={loading || coolingDown ? 0 : undefined}
+        sx={{ display: 'inline-flex' }}
+      >
         <BrandButton
           size="small"
           disabled={loading || coolingDown}
@@ -107,16 +114,24 @@ export function LinkDetectivePricesPanel({
 
   if (!hasPrices) {
     return (
-      <Box
-        aria-label="LinkDetective market prices"
-        sx={{ px: 0.25, py: 0.5 }}
-      >
+      <Box aria-label="LinkDetective market prices" sx={{ px: 0.25, py: 0.5 }}>
         <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1}>
-          <Typography variant="body2" fontWeight={600}>Market prices · LinkDetective</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ flex: '1 1 240px' }} role="status">
-            {loading ? 'Loading market prices…' : error || prices?.message || 'No market prices found for this domain.'}
+          <Typography variant="body2" fontWeight={600}>
+            Market prices · LinkDetective
           </Typography>
-          {loading ? <CircularProgress size={16} aria-label="Loading market prices" /> : (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ flex: '1 1 240px' }}
+            role="status"
+          >
+            {loading
+              ? 'Loading market prices…'
+              : error || prices?.message || 'No market prices found for this domain.'}
+          </Typography>
+          {loading ? (
+            <CircularProgress size={16} aria-label="Loading market prices" />
+          ) : (
             (error || prices?.checkedAtUtc || prices?.retryAfterUtc) && refreshButton
           )}
         </Stack>
@@ -131,44 +146,43 @@ export function LinkDetectivePricesPanel({
 
   return (
     <Box
-      sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper' }}
+      sx={{
+        p: 1.5,
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 1,
+        bgcolor: 'background.paper',
+      }}
       aria-label="LinkDetective market prices"
     >
-      <Stack
-        direction={{ xs: 'column', sm: 'row' }}
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
-        justifyContent="space-between"
-        spacing={2}
-      >
-        <Typography variant="subtitle1" fontWeight={600}>
+      <Stack direction="row" alignItems="center" flexWrap="wrap" gap={2}>
+        <Typography variant="body2" fontWeight={600}>
           LinkDetective
         </Typography>
-        {refreshButton}
-      </Stack>
-      <Stack direction="row" flexWrap="wrap" gap={3} sx={{ my: 1 }}>
         {(
           [
             ['Minimum', prices?.minimumUsd],
-            ['Average', prices?.averageUsd],
             ['Median', prices?.medianUsd],
+            ['Average', prices?.averageUsd],
           ] as const
         ).map(([label, amount]) => (
-          <Box key={label}>
+          <Stack key={label} direction="row" alignItems="baseline" gap={0.5}>
             <Typography variant="caption" color="text.secondary">
               {label}
             </Typography>
-            <Typography variant="body1">
+            <Typography variant="body2">
               {amount == null ? '—' : currency.format(amount)}
             </Typography>
-          </Box>
+          </Stack>
         ))}
+        {prices?.checkedAtUtc && (
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+            Retrieved: {new Date(prices.checkedAtUtc).toLocaleString()}
+            {prices.isStale ? ' · Outdated' : ''}
+          </Typography>
+        )}
+        {refreshButton}
       </Stack>
-      {prices?.checkedAtUtc && (
-        <Typography variant="caption" color="text.secondary">
-          Retrieved: {new Date(prices.checkedAtUtc).toLocaleString()}
-          {prices.isStale ? ' · Outdated' : ''}
-        </Typography>
-      )}
       {(error || prices?.message) && (
         <Alert
           severity={error || prices?.isStale || !prices?.checkedAtUtc ? 'warning' : 'info'}

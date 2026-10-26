@@ -268,10 +268,11 @@ This script does not enable a LinkDetective integration in the application.
 
 ### LinkDetective market prices
 
-For Admin and SuperAdmin only, Webmaster Offers Single search optionally shows the provider's minimum, average, and median
+For Admin and SuperAdmin only, the **Price comparison** view in Webmaster Offers Single search
+shows catalog versus webmaster prices and optionally the provider's minimum, average, and median
 prices. Successful snapshots (including no-price results) are stored in PostgreSQL, reused
 across users, and refreshed on access when older than the configured lifetime (default: 30 days). Manual refresh is available
-with a shared one-minute cooldown per domain. Multi-search does not call LinkDetective.
+with a shared one-minute cooldown per domain. Ordinary Offers and Multi-search do not call LinkDetective.
 
 Set the server-side `LinkDetective__ApiToken` environment variable to enable lookups.
 Set `LinkDetective__CacheLifetimeDays` to a positive integer to override the default 30-day

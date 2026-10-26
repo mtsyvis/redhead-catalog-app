@@ -5,7 +5,6 @@ import {
   AccordionSummary,
   Alert,
   Box,
-  Chip,
   IconButton,
   Paper,
   Snackbar,
@@ -22,7 +21,7 @@ import {
   getTableSurfaceStyles,
 } from '../../theme/tableStyles';
 import { CopyToClipboardIconButton } from '../common/CopyToClipboardIconButton';
-import { OfferStatusChip } from './OfferStatusChip';
+import { OfferTermStatus } from './OfferTermStatus';
 import { WebmasterOfferDetails } from './WebmasterOfferDetails';
 import {
   PRICE_GRID_TEMPLATE,
@@ -32,7 +31,7 @@ import {
 } from './WebmasterOfferPriceMatrix';
 
 const OFFER_WIDTH = 120;
-const STATUS_TERM_WIDTH = 190;
+const STATUS_TERM_WIDTH = 140;
 const PRIMARY_EMAIL_WIDTH = 220;
 const METADATA_WIDTH = OFFER_WIDTH + STATUS_TERM_WIDTH + PRIMARY_EMAIL_WIDTH;
 const COMPARISON_GRID_TEMPLATE = `${OFFER_WIDTH}px ${STATUS_TERM_WIDTH}px ${PRIMARY_EMAIL_WIDTH}px ${PRICE_GRID_TEMPLATE}`;
@@ -43,17 +42,6 @@ function comparisonGridTemplate(showDomain: boolean) {
   return showDomain
     ? `${OFFER_WIDTH}px ${DOMAIN_WIDTH}px ${STATUS_TERM_WIDTH}px ${PRIMARY_EMAIL_WIDTH}px ${PRICE_GRID_TEMPLATE}`
     : COMPARISON_GRID_TEMPLATE;
-}
-
-function TermChip({ label }: { readonly label: string }) {
-  return (
-    <Chip
-      size="small"
-      label={label}
-      variant="outlined"
-      sx={{ height: 24, borderColor: 'divider', fontSize: 12, fontWeight: 400 }}
-    />
-  );
 }
 
 function PrimaryEmailValue({
@@ -258,12 +246,9 @@ function DesktopOfferRow({
             minWidth: 0,
             display: 'flex',
             alignItems: 'center',
-            gap: 0.75,
-            flexWrap: 'wrap',
           })}
         >
-          <OfferStatusChip status={offer.status} />
-          <TermChip label={offer.termLabel || 'No term'} />
+          <OfferTermStatus termLabel={offer.termLabel} status={offer.status} />
         </Box>
         <Box
           sx={(theme) => ({
@@ -338,12 +323,11 @@ function MobileOfferRow({
         }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1 }}>
-          <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+          <Stack direction="row" spacing={0.75} alignItems="flex-start" flexWrap="wrap" useFlexGap>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: '24px' }}>
               #{index + 1}
             </Typography>
-            <OfferStatusChip status={offer.status} />
-            <TermChip label={offer.termLabel || 'No term'} />
+            <OfferTermStatus termLabel={offer.termLabel} status={offer.status} />
           </Stack>
           <Stack direction="row" spacing={0.25} alignItems="center">
             {canEdit && (

@@ -38,6 +38,7 @@ export function useUserRoles() {
   const canManageWebmasterOffers = hasPermission('WebmasterOffersManage');
   const canExportWebmasterOffers = hasPermission('WebmasterOffersExport');
   const canReadLinkDetectivePrices = hasPermission('LinkDetectivePricesRead');
+  const canReadWebmasterPriceComparison = hasPermission('WebmasterPriceComparisonRead');
 
   return {
     roles,
@@ -70,5 +71,6 @@ export function useUserRoles() {
     canManageWebmasterOffers,
     canExportWebmasterOffers,
     canReadLinkDetectivePrices,
+    canReadWebmasterPriceComparison,
   };
 }

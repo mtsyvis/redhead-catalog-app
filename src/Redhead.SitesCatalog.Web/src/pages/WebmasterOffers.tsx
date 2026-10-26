@@ -9,6 +9,8 @@ import {
   TextField,
   Typography,
   TablePagination,
+  Tab,
+  Tabs,
 } from '@mui/material';
 import ClearIcon from '@mui/icons-material/Clear';
 import SearchIcon from '@mui/icons-material/Search';
@@ -20,7 +22,7 @@ import { WebmasterOffersDomainList } from '../components/webmaster-offers/Webmas
 import { DEFAULT_MULTI_SEARCH_LIMIT } from '../constants/search.constants';
 import { PageShell } from '../components/layout/PageShell';
 import { WebmasterOffersComparison } from '../components/webmaster-offers/WebmasterOffersComparison';
-import { LinkDetectivePricesPanel } from '../components/webmaster-offers/LinkDetectivePricesPanel';
+import { WebmasterPriceComparisonPanel } from '../components/webmaster-offers/WebmasterPriceComparisonPanel';
 import { EditWebmasterOfferDialog } from '../components/webmaster-offers/EditWebmasterOfferDialog';
 import { WebmasterOffersSummaryTable } from '../components/webmaster-offers/WebmasterOffersSummaryTable';
 import { useAuth } from '../contexts/AuthContext';
@@ -46,11 +48,18 @@ function pluralizeOffers(count: number) {
 
 export function WebmasterOffers() {
   const { user } = useAuth();
-  const { canReadWebmasterOffers, canReadWebmasterOffersSummary } = useUserRoles();
+  const { canReadWebmasterOffers, canReadWebmasterOffersSummary, canReadWebmasterPriceComparison } =
+    useUserRoles();
   if (!canReadWebmasterOffersSummary || !user) return <Navigate to="/sites" replace />;
 
   const access = canReadWebmasterOffers ? 'full' : 'summary';
-  return <WebmasterOffersPage key={`${user.id}:${access}`} userId={user.id} access={access} />;
+  return (
+    <WebmasterOffersPage
+      key={`${user.id}:${access}:${canReadWebmasterPriceComparison}`}
+      userId={user.id}
+      access={access}
+    />
+  );
 }
 
 function isFullOffers(offers: WebmasterOfferSummaryRow[]): offers is WebmasterOfferRow[] {
@@ -58,8 +67,12 @@ function isFullOffers(offers: WebmasterOfferSummaryRow[]): offers is WebmasterOf
 }
 
 function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
-  const { canReadWebmasterOffers, canManageWebmasterOffers, canExportWebmasterOffers, canReadLinkDetectivePrices } =
-    useUserRoles();
+  const {
+    canReadWebmasterOffers,
+    canManageWebmasterOffers,
+    canExportWebmasterOffers,
+    canReadWebmasterPriceComparison,
+  } = useUserRoles();
   const [cachedSearch] = useState(() => readCachedWebmasterOffersSearch({ userId, access }));
   const [multiSearchMode, setMultiSearchMode] = useState(cachedSearch?.mode === 'multi');
   const [domain, setDomain] = useState(cachedSearch?.query ?? '');
@@ -67,6 +80,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
   const [expandedOfferIds, setExpandedOfferIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(false);
   const [searchVersion, setSearchVersion] = useState(0);
+  const [view, setView] = useState<'offers' | 'comparison'>('offers');
   const [error, setError] = useState<string | null>(null);
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -80,6 +94,8 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
   const mounted = useRef(false);
   const multiResult = result && 'results' in result ? result : null;
   const singleResult = result && 'offers' in result ? result : null;
+  const showComparison =
+    canReadWebmasterPriceComparison && !multiSearchMode && view === 'comparison';
   const inputCount = domain.trim() ? domain.trim().split(/\s+/).length : 0;
   const limitExceeded = multiSearchMode && inputCount > DEFAULT_MULTI_SEARCH_LIMIT;
   const duplicateInputCount = multiResult
@@ -111,7 +127,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
   }, []);
 
   const runSearch = useCallback(
-    async (query: string, mode: 'automatic' | 'manual' | 'after-save' = 'automatic') => {
+    async (query: string, mode: 'automatic' | 'manual' | 'after-save' | 'refresh' = 'automatic') => {
       if (!mounted.current) return;
       const trimmed = query.trim();
       if (!trimmed) return;
@@ -138,7 +154,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
         setResult(searchResult);
         setSearchVersion((current) => current + 1);
         setAppliedQuery(trimmed);
-        if (mode !== 'after-save') {
+        if (mode === 'automatic' || mode === 'manual') {
           setExpandedOfferIds(new Set());
           setPage(0);
         } else if ('results' in searchResult) {
@@ -189,6 +205,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
     setExporting(false);
     lastSearchKey.current = '';
     setDomain(value);
+    if (!value.trim()) setView('offers');
     setResult(null);
     setExpandedOfferIds(new Set());
     setLoading(false);
@@ -204,6 +221,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
     if (enabled === multiSearchMode) return;
     handleDomainChange('');
     setMultiSearchMode(enabled);
+    setView('offers');
   };
 
   const handleExport = async () => {
@@ -216,7 +234,11 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
     try {
       await webmasterOffersService.exportMultiSearch(appliedQuery, controller.signal);
     } catch (err) {
-      if (!controller.signal.aborted && mounted.current && requestSequence === searchRequestSequence.current) {
+      if (
+        !controller.signal.aborted &&
+        mounted.current &&
+        requestSequence === searchRequestSequence.current
+      ) {
         setExportError(err instanceof Error ? err.message : 'Failed to export webmaster offers');
       }
     } finally {
@@ -244,6 +266,13 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
     setEditingOfferId(null);
     if (!result) return;
     await runSearch(appliedQuery, 'after-save');
+  };
+
+  const handleViewOffer = (id: string) => {
+    setExpandedOfferIds((current) => new Set(current).add(id));
+    setView('offers');
+    // Comparison may be newer than the ordinary browser search cache.
+    void runSearch(appliedQuery, 'refresh');
   };
 
   return (
@@ -341,6 +370,18 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
         </Box>
       </Box>
 
+      {canReadWebmasterPriceComparison && !multiSearchMode && (
+        <Tabs
+          value={view}
+          onChange={(_, next: 'offers' | 'comparison') => setView(next)}
+          aria-label="Webmaster offer views"
+          sx={{ mb: 2 }}
+        >
+          <Tab value="offers" label="Offers" />
+          <Tab value="comparison" label="Price comparison" disabled={!singleResult?.siteFound} />
+        </Tabs>
+      )}
+
       {error && (
         <Alert
           severity="error"
@@ -361,87 +402,91 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
 
       {(multiResult || singleResult?.siteFound) && (
         <Stack spacing={2}>
-          {!multiSearchMode && singleResult?.siteFound && canReadLinkDetectivePrices && (
-            <LinkDetectivePricesPanel
+          {showComparison && singleResult?.siteFound ? (
+            <WebmasterPriceComparisonPanel
               key={singleResult.domain}
               domain={singleResult.domain}
               searchVersion={searchVersion}
-            />
-          )}
-          {multiResult && (
-            <Typography variant="body2" color="text.secondary">
-              {multiResult.uniqueDomainCount} domains · {multiResult.results.length} with offers
-              {' · '}
-              {multiResult.domainsWithoutOffers.length} without offers
-              {' · '}
-              {multiResult.notFoundDomains.length} not in catalog
-              {duplicateInputCount > 0 &&
-                ` · ${duplicateInputCount} duplicate ${duplicateInputCount === 1 ? 'input' : 'inputs'} removed`}
-            </Typography>
-          )}
-          <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-            <Typography variant="body2" color="text.secondary">
-              {pluralizeOffers(offers.length)}
-              {!canReadWebmasterOffers &&
-                (multiResult ? ' · Newest first within each domain' : ' · Newest first')}
-            </Typography>
-            {multiResult && canExportWebmasterOffers && (
-              <BrandButton
-                size="small"
-                startIcon={exporting ? <CircularProgress size={16} /> : <DownloadIcon />}
-                disabled={loading || exporting || offers.length === 0}
-                onClick={() => void handleExport()}
-              >
-                {exporting ? 'Exporting…' : 'Export Excel'}
-              </BrandButton>
-            )}
-          </Stack>
-          {exportError && <Alert severity="error">{exportError}</Alert>}
-
-          {offers.length === 0 ? (
-            <Alert severity="info">No webmaster offers found.</Alert>
-          ) : canReadWebmasterOffers && isFullOffers(visibleOffers) ? (
-            <WebmasterOffersComparison
-              offers={visibleOffers}
-              showDomain={Boolean(multiResult)}
-              startIndex={multiResult ? page * rowsPerPage : 0}
-              expandedOfferIds={expandedOfferIds}
-              onExpandedOfferChange={handleExpandedOfferChange}
-              canEdit={canManageWebmasterOffers}
-              onEditOffer={setEditingOfferId}
+              onViewOffer={handleViewOffer}
             />
           ) : (
-            <WebmasterOffersSummaryTable
-              offers={visibleOffers}
-              showDomain={Boolean(multiResult)}
-              startIndex={multiResult ? page * rowsPerPage : 0}
-            />
-          )}
-          {multiResult && offers.length > 0 && (
-            <TablePagination
-              component="div"
-              count={offers.length}
-              page={page}
-              rowsPerPage={rowsPerPage}
-              rowsPerPageOptions={[25, 50, 100]}
-              labelRowsPerPage="Offers per page:"
-              onPageChange={(_, nextPage) => setPage(nextPage)}
-              onRowsPerPageChange={(event) => {
-                setRowsPerPage(Number(event.target.value));
-                setPage(0);
-              }}
-            />
-          )}
-          {multiResult && (
             <>
-              <WebmasterOffersDomainList
-                title="Without offers"
-                domains={multiResult.domainsWithoutOffers}
-              />
-              <WebmasterOffersDomainList
-                title="Not in catalog"
-                domains={multiResult.notFoundDomains}
-              />
+              {multiResult && (
+                <Typography variant="body2" color="text.secondary">
+                  {multiResult.uniqueDomainCount} domains · {multiResult.results.length} with offers
+                  {' · '}
+                  {multiResult.domainsWithoutOffers.length} without offers
+                  {' · '}
+                  {multiResult.notFoundDomains.length} not in catalog
+                  {duplicateInputCount > 0 &&
+                    ` · ${duplicateInputCount} duplicate ${duplicateInputCount === 1 ? 'input' : 'inputs'} removed`}
+                </Typography>
+              )}
+              <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">
+                  {pluralizeOffers(offers.length)}
+                  {!canReadWebmasterOffers &&
+                    (multiResult ? ' · Newest first within each domain' : ' · Newest first')}
+                </Typography>
+                {multiResult && canExportWebmasterOffers && (
+                  <BrandButton
+                    size="small"
+                    startIcon={exporting ? <CircularProgress size={16} /> : <DownloadIcon />}
+                    disabled={loading || exporting || offers.length === 0}
+                    onClick={() => void handleExport()}
+                  >
+                    {exporting ? 'Exporting…' : 'Export Excel'}
+                  </BrandButton>
+                )}
+              </Stack>
+              {exportError && <Alert severity="error">{exportError}</Alert>}
+
+              {offers.length === 0 ? (
+                <Alert severity="info">No webmaster offers found.</Alert>
+              ) : canReadWebmasterOffers && isFullOffers(visibleOffers) ? (
+                <WebmasterOffersComparison
+                  offers={visibleOffers}
+                  showDomain={Boolean(multiResult)}
+                  startIndex={multiResult ? page * rowsPerPage : 0}
+                  expandedOfferIds={expandedOfferIds}
+                  onExpandedOfferChange={handleExpandedOfferChange}
+                  canEdit={canManageWebmasterOffers}
+                  onEditOffer={setEditingOfferId}
+                />
+              ) : (
+                <WebmasterOffersSummaryTable
+                  offers={visibleOffers}
+                  showDomain={Boolean(multiResult)}
+                  startIndex={multiResult ? page * rowsPerPage : 0}
+                />
+              )}
+              {multiResult && offers.length > 0 && (
+                <TablePagination
+                  component="div"
+                  count={offers.length}
+                  page={page}
+                  rowsPerPage={rowsPerPage}
+                  rowsPerPageOptions={[25, 50, 100]}
+                  labelRowsPerPage="Offers per page:"
+                  onPageChange={(_, nextPage) => setPage(nextPage)}
+                  onRowsPerPageChange={(event) => {
+                    setRowsPerPage(Number(event.target.value));
+                    setPage(0);
+                  }}
+                />
+              )}
+              {multiResult && (
+                <>
+                  <WebmasterOffersDomainList
+                    title="Without offers"
+                    domains={multiResult.domainsWithoutOffers}
+                  />
+                  <WebmasterOffersDomainList
+                    title="Not in catalog"
+                    domains={multiResult.notFoundDomains}
+                  />
+                </>
+              )}
             </>
           )}
         </Stack>
