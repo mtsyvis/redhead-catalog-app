@@ -53,6 +53,7 @@ General rules:
 * One global search field matches a case-insensitive substring in email or `DisplayName`, ignoring leading/trailing search whitespace. For `SuperAdmin`, it also matches `SuperAdminNote`; other roles cannot search or retrieve that private field. Non-empty search includes all roles regardless of the selected group, including when a group is supplied to the API. Filtering happens server-side before counting and pagination.
 * User search applies automatically after a short debounce, or immediately on Enter. During search, group controls are replaced with `Search results` and an `All roles` indicator. Clearing search restores the previously selected group. Changing the search or user group resets pagination to the first page.
 * Internal users in the admin users list means any user whose role is neither `Client` nor `Lite`.
+* The Users page provides a `Roles & permissions` text button in its header for `SuperAdmin` and `Admin`. It opens an English-language reference describing all seven roles, their main capabilities and restrictions, and how catalog export limits and Trusted Client access apply.
 
 Current static permission model:
 

@@ -5,6 +5,7 @@ import { ClientCatalogAutoBanDialog } from '../components/admin/ClientCatalogAut
 import { Navigate, useNavigate } from 'react-router-dom';
 import {
   Box,
+  Button,
   Paper,
   Typography,
   TextField,
@@ -39,6 +40,7 @@ import { InvitationResultDialog } from '../components/admin/InvitationResultDial
 import { ClientSelectionLimitDialog } from '../components/admin/ClientSelectionLimitDialog';
 import { ReactivationResultDialog } from '../components/admin/ReactivationResultDialog';
 import { OneTimeValueDialog } from '../components/admin/OneTimeValueDialog';
+import { RoleGuideDialog } from '../components/admin/RoleGuideDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { adminUsersService } from '../services/adminUsers.service';
 import { roleSettingsService } from '../services/roleSettings.service';
@@ -192,6 +194,7 @@ export const AdminUsers: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [roleGuideOpen, setRoleGuideOpen] = useState(false);
   const [createEmail, setCreateEmail] = useState('');
   const [createRole, setCreateRole] = useState<string>(ROLES[1]);
   const [createSuperAdminNote, setCreateSuperAdminNote] = useState('');
@@ -1096,13 +1099,25 @@ export const AdminUsers: React.FC = () => {
       title="Users"
       maxWidth="lg"
       actions={
-        canManageUsers ? (
-          <BrandButton kind="primary" onClick={handleOpenCreateDialog}>
-            Add user
-          </BrandButton>
-        ) : undefined
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Button
+            variant="text"
+            color="inherit"
+            onClick={() => setRoleGuideOpen(true)}
+            aria-haspopup="dialog"
+            sx={{ color: 'text.secondary', '&:hover': { color: 'text.primary' } }}
+          >
+            Roles &amp; permissions
+          </Button>
+          {canManageUsers && (
+            <BrandButton kind="primary" onClick={handleOpenCreateDialog}>
+              Add user
+            </BrandButton>
+          )}
+        </Box>
       }
     >
+      <RoleGuideDialog open={roleGuideOpen} onClose={() => setRoleGuideOpen(false)} />
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
