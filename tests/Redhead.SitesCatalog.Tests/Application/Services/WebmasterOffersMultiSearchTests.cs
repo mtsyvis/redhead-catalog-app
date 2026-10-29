@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
+using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
@@ -87,7 +88,7 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
     {
         // Arrange
         var service = new WebmasterOffersService(_context);
-        var query = string.Join('\n', Enumerable.Repeat("example.org", MultiSearchConstants.MaxInputs + 1));
+        var query = string.Join('\n', Enumerable.Repeat("example.org", MultiSearchConstants.WebmasterOffersMaxInputs + 1));
 
         // Act
         var exception = await Assert.ThrowsAsync<RequestValidationException>(async () =>
@@ -103,26 +104,125 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
         });
 
         // Assert
-        Assert.Contains("5000", exception.Message);
+        Assert.Contains("50000", exception.Message);
     }
 
     [Fact]
-    public async Task MultiSearchAsync_AcceptsFiveThousandUniqueDomainsAndMatchesExactly()
+    public async Task MultiSearchAsync_AcceptsFiftyThousandUniqueDomainsAndMatchesExactly()
     {
         // Arrange
         _context.Sites.Add(CreateSite("prefix-site0.example"));
         await _context.SaveChangesAsync();
         var service = new WebmasterOffersService(_context);
-        var domains = Enumerable.Range(0, MultiSearchConstants.MaxInputs).Select(index => $"site{index}.example").ToArray();
+        var domains = Enumerable.Range(0, MultiSearchConstants.WebmasterOffersMaxInputs).Select(index => $"site{index}.example").ToArray();
 
         // Act
         var result = await service.MultiSearchAsync(string.Join(' ', domains));
 
         // Assert
-        Assert.Equal(5000, result.UniqueDomainCount);
+        Assert.Equal(50000, result.UniqueDomainCount);
         Assert.Equal(domains, result.NotFoundDomains);
         Assert.Empty(result.Results);
         Assert.Empty(result.DomainsWithoutOffers);
+    }
+
+    [Fact]
+    public async Task MultiSearchSummaryAsync_AcceptsFiftyThousandInputsBeforeDeduplication()
+    {
+        // Arrange
+        var service = new WebmasterOffersService(_context);
+        var query = string.Join('\n', Enumerable.Repeat("example.org", 50000));
+
+        // Act
+        var result = await service.MultiSearchSummaryAsync(query);
+
+        // Assert
+        Assert.Equal(50000, result.InputCount);
+        Assert.Equal(1, result.UniqueDomainCount);
+        Assert.Equal(["example.org"], result.NotFoundDomains);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" \t ")]
+    public async Task GetExportDataAsync_ExportsAllOnlyForEmptySingleSearch(string query)
+    {
+        // Arrange
+        var expensive = CreateOffer("a.example", 200m);
+        var cheap = CreateOffer("a.example", 50m);
+        cheap.Status = SiteWebmasterOfferStatus.Inactive;
+        var quarantined = CreateSite("z.example");
+        quarantined.IsQuarantined = true;
+        _context.Sites.AddRange(CreateSite("a.example"), quarantined, CreateSite("empty.example"));
+        _context.SiteWebmasterOffers.AddRange(expensive, cheap, CreateOffer("z.example", 100m), CreateOffer("orphan.example", 1m));
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+        var service = new WebmasterOffersService(_context);
+
+        // Act
+        var result = await service.GetExportDataAsync(new WebmasterOffersExportRequest
+        {
+            ExportAll = true, MultiSearch = false, QueryText = query
+        });
+
+        // Assert
+        Assert.Equal(["a.example", "z.example"], result.Results.Select(group => group.Domain));
+        Assert.Equal([cheap.Id, expensive.Id], result.Results[0].Offers.Select(offer => offer.Id));
+        Assert.Equal(SiteWebmasterOfferStatus.Inactive, result.Results[0].Offers[0].Status);
+        Assert.Equal("private@publisher.example", result.Results[0].Offers[0].PrimaryEmail);
+        Assert.Equal(2, result.UniqueDomainCount);
+        Assert.Empty(_context.ChangeTracker.Entries());
+    }
+
+    [Theory]
+    [InlineData(true, "")]
+    [InlineData(true, "missing.example")]
+    [InlineData(false, "missing.example")]
+    public async Task GetExportDataAsync_RejectsFullExportOutsideEmptySingleSearch(bool multiSearch, string query)
+    {
+        // Arrange
+        var service = new WebmasterOffersService(_context);
+        var request = new WebmasterOffersExportRequest { ExportAll = true, MultiSearch = multiSearch, QueryText = query };
+
+        // Act
+        var action = () => service.GetExportDataAsync(request);
+
+        // Assert
+        var exception = await Assert.ThrowsAsync<RequestValidationException>(action);
+        Assert.Contains("only in Single search with an empty search field", exception.Message);
+    }
+
+    [Theory]
+    [InlineData(false, "https://www.A.example/path", "a.example")]
+    [InlineData(true, "z.example https://www.A.example/path z.example", "z.example,a.example")]
+    public async Task GetExportDataAsync_ExportsOnlyTheAppliedSearchInItsOrder(bool multiSearch, string query, string expectedDomains)
+    {
+        // Arrange
+        _context.Sites.AddRange(CreateSite("a.example"), CreateSite("z.example"), CreateSite("other.example"));
+        _context.SiteWebmasterOffers.AddRange(CreateOffer("a.example", 10m), CreateOffer("z.example", 20m), CreateOffer("other.example", 1m));
+        await _context.SaveChangesAsync();
+        var service = new WebmasterOffersService(_context);
+
+        // Act
+        var result = await service.GetExportDataAsync(new WebmasterOffersExportRequest { QueryText = query, MultiSearch = multiSearch });
+
+        // Assert
+        Assert.Equal(expectedDomains.Split(','), result.Results.Select(group => group.Domain));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetExportDataAsync_DoesNotImplicitlyExportAllForEmptySearch(bool multiSearch)
+    {
+        // Arrange
+        var service = new WebmasterOffersService(_context);
+
+        // Act
+        var action = () => service.GetExportDataAsync(new WebmasterOffersExportRequest { MultiSearch = multiSearch });
+
+        // Assert
+        await Assert.ThrowsAsync<RequestValidationException>(action);
     }
 
     private static Site CreateSite(string domain) => new() { Domain = domain, CreatedAtUtc = Now, UpdatedAtUtc = Now };

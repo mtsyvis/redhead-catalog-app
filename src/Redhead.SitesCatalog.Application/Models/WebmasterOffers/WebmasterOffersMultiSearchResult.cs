@@ -5,6 +5,13 @@ public sealed class WebmasterOffersMultiSearchRequest
     public string QueryText { get; set; } = string.Empty;
 }
 
+public sealed class WebmasterOffersExportRequest
+{
+    public string QueryText { get; set; } = string.Empty;
+    public bool MultiSearch { get; set; } = true;
+    public bool ExportAll { get; set; }
+}
+
 public sealed class WebmasterOffersMultiSearchResult<TOffer>
 {
     public int InputCount { get; init; }

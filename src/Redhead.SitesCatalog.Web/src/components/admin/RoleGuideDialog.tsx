@@ -99,7 +99,10 @@ export function RoleGuideDialog({ open, onClose }: { open: boolean; onClose: () 
         <Alert severity="info" sx={{ mt: 2 }}>
           Catalog exports for Admin, Internal, and Client depend on role settings and personal
           overrides. Clients also have daily and weekly export quotas. Trusted clients have no catalog
-          selection cap, but export limits still apply. Editor, Linkbuilder, and Lite cannot export.
+          selection cap, but export limits still apply. Admin and Super Admin can export Webmaster
+          Offers search results to Excel or Google Drive without catalog export limits. Clearing
+          Single search enables a full export; Multi-search exports found offers only.
+          Editor, Linkbuilder, and Lite cannot export.
         </Alert>
       </DialogContent>
       <DialogActions>

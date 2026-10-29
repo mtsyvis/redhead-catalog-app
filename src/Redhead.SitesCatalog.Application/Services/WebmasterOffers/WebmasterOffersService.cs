@@ -59,16 +59,19 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
     }
 
     private Task<List<SiteWebmasterOffer>> LoadFullOffersAsync(
-        IReadOnlyList<string> domains,
+        IReadOnlyList<string>? domains,
         CancellationToken cancellationToken)
-        => _context.SiteWebmasterOffers
-            .AsNoTracking()
+    {
+        var query = _context.SiteWebmasterOffers.AsNoTracking();
+        query = domains is null
+            ? query.Where(offer => _context.Sites.Any(site => site.Domain == offer.SiteDomain))
+            : query.Where(offer => domains.Contains(offer.SiteDomain));
+        return query
             .AsSplitQuery()
             .Include(offer => offer.Webmaster)
             .Include(offer => offer.Prices)
             .Include(offer => offer.LinkbuilderMailboxes)
             .ThenInclude(link => link.LinkbuilderMailbox)
-            .Where(offer => domains.Contains(offer.SiteDomain))
             .OrderBy(offer => offer.Prices.Any(price => price.WebmasterPriceUsd.HasValue) ? 0 : 1)
             .ThenBy(offer =>
                 offer.Prices
@@ -82,6 +85,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             .ThenByDescending(offer => offer.CreatedAtUtc)
             .ThenBy(offer => offer.Id)
             .ToListAsync(cancellationToken);
+    }
 
     public async Task<WebmasterOffersSummarySearchResult> GetSummaryByDomainAsync(
         string? domain,
@@ -158,7 +162,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
         string? queryText,
         CancellationToken cancellationToken = default)
     {
-        var parsed = MultiSearchParser.Parse(queryText);
+        var parsed = MultiSearchParser.Parse(queryText, MultiSearchConstants.WebmasterOffersMaxInputs);
         var existingDomains = await GetExistingDomainsAsync(parsed.UniqueDomains, cancellationToken);
         var offers = await LoadFullOffersAsync(existingDomains, cancellationToken);
         return CreateMultiSearchResult(parsed, existingDomains, offers.ToLookup(offer => offer.SiteDomain, MapOffer));
@@ -168,7 +172,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
         string? queryText,
         CancellationToken cancellationToken = default)
     {
-        var parsed = MultiSearchParser.Parse(queryText);
+        var parsed = MultiSearchParser.Parse(queryText, MultiSearchConstants.WebmasterOffersMaxInputs);
         var existingDomains = await GetExistingDomainsAsync(parsed.UniqueDomains, cancellationToken);
         var offers = await LoadSummaryOffersAsync(existingDomains, cancellationToken);
         return CreateMultiSearchResult(parsed, existingDomains, offers.ToLookup(row => row.Domain, row => row.Offer));
@@ -179,6 +183,51 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             .Where(site => domains.Contains(site.Domain))
             .Select(site => site.Domain)
             .ToListAsync(cancellationToken);
+
+    public async Task<WebmasterOffersMultiSearchResult<WebmasterOfferDto>> GetExportDataAsync(
+        WebmasterOffersExportRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.ExportAll)
+        {
+            if (request.MultiSearch || !string.IsNullOrWhiteSpace(request.QueryText))
+            {
+                throw new RequestValidationException("Export all offers is available only in Single search with an empty search field.");
+            }
+
+            var offers = await LoadFullOffersAsync(null, cancellationToken);
+            var groups = offers.GroupBy(offer => offer.SiteDomain, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .Select(group => new WebmasterOffersDomainResult<WebmasterOfferDto>
+                {
+                    Domain = group.Key,
+                    Offers = group.Select(MapOffer).ToList()
+                }).ToList();
+            return new WebmasterOffersMultiSearchResult<WebmasterOfferDto>
+            {
+                UniqueDomainCount = groups.Count,
+                Results = groups
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.QueryText))
+        {
+            throw new RequestValidationException("Apply a search to export matching offers. To export all offers, clear the Single search field.");
+        }
+
+        if (request.MultiSearch)
+        {
+            return await MultiSearchAsync(request.QueryText, cancellationToken);
+        }
+
+        var result = await GetByDomainAsync(request.QueryText, cancellationToken);
+        return new WebmasterOffersMultiSearchResult<WebmasterOfferDto>
+        {
+            UniqueDomainCount = string.IsNullOrEmpty(result.Domain) ? 0 : 1,
+            Results = result.Offers.Count == 0 ? [] :
+                [new WebmasterOffersDomainResult<WebmasterOfferDto> { Domain = result.Domain, Offers = result.Offers }]
+        };
+    }
 
     private static WebmasterOffersMultiSearchResult<TOffer> CreateMultiSearchResult<TOffer>(
         MultiSearchParseResult parsed,

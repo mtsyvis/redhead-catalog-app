@@ -124,6 +124,37 @@ public sealed class GoogleDriveExportService : IGoogleDriveExportService
         PreparedExportResult export,
         CancellationToken cancellationToken)
     {
+        using var workbook = export.FileStream;
+        var response = await UploadWorkbookAsync(connection, workbook, ExportConstants.SitesFileName,
+            export.ExportedRows, cancellationToken);
+        var completedExport = await _exportService.CompletePreparedExportAsync(export, cancellationToken);
+        return response with
+        {
+            RowsExported = completedExport.ExportedRows,
+            WasTruncated = completedExport.Truncated,
+            TruncationReason = completedExport.TruncationReason
+        };
+    }
+
+    public async Task<GoogleDriveExportResponse> UploadWorkbookAsync(
+        string userId,
+        Stream workbook,
+        string fileName,
+        int rowsExported,
+        CancellationToken cancellationToken)
+    {
+        var connection = await GetActiveConnectionAsync(userId, cancellationToken)
+            ?? throw GoogleDriveExportException.NotConnected();
+        return await UploadWorkbookAsync(connection, workbook, fileName, rowsExported, cancellationToken);
+    }
+
+    private async Task<GoogleDriveExportResponse> UploadWorkbookAsync(
+        GoogleDriveConnection connection,
+        Stream workbook,
+        string fileName,
+        int rowsExported,
+        CancellationToken cancellationToken)
+    {
         var options = GetValidatedOptions();
         var folderName = GetExportFolderName(options);
         var exportedAtUtc = DateTime.UtcNow;
@@ -151,22 +182,19 @@ public sealed class GoogleDriveExportService : IGoogleDriveExportService
             var uploadedFile = await _googleDriveApiClient.UploadFileAsync(
                 accessToken.AccessToken,
                 folder.Id,
-                ExportConstants.SitesFileName,
-                export.FileStream,
+                fileName,
+                workbook,
                 ExportConstants.ExcelContentType,
                 cancellationToken);
-
-            var completedExport = await _exportService.CompletePreparedExportAsync(export, cancellationToken);
 
             return new GoogleDriveExportResponse(
                 uploadedFile.Id,
                 uploadedFile.Name,
                 uploadedFile.WebViewLink,
-                completedExport.ExportedRows,
-                completedExport.Truncated,
+                rowsExported,
+                false,
                 exportedAtUtc,
-                $"Google Drive / {connection.ExportFolderName}",
-                completedExport.TruncationReason);
+                $"Google Drive / {connection.ExportFolderName}");
         }
         catch (GoogleDriveApiException ex) when (ex.ReconnectRequired)
         {

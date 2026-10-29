@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Npgsql;
 using Redhead.SitesCatalog.Api.Controllers;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
@@ -168,7 +170,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         });
         await using var loserContext = CreateContext(interceptor);
         var controller = new WebmasterOffersController(new WebmasterOffersService(loserContext),
-            NullLogger<WebmasterOffersController>.Instance)
+            NullLogger<WebmasterOffersController>.Instance, Mock.Of<IGoogleDriveExportService>())
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };

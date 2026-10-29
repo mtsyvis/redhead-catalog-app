@@ -6,6 +6,9 @@ using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Validation;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Application.Exceptions;
+using Redhead.SitesCatalog.Api.Models;
 
 namespace Redhead.SitesCatalog.Api.Controllers;
 
@@ -16,11 +19,14 @@ public sealed class WebmasterOffersController : ControllerBase
 {
     private readonly IWebmasterOffersService _webmasterOffersService;
     private readonly ILogger<WebmasterOffersController> _logger;
+    private readonly IGoogleDriveExportService _googleDriveExportService;
 
-    public WebmasterOffersController(IWebmasterOffersService webmasterOffersService, ILogger<WebmasterOffersController> logger)
+    public WebmasterOffersController(IWebmasterOffersService webmasterOffersService, ILogger<WebmasterOffersController> logger,
+        IGoogleDriveExportService googleDriveExportService)
     {
         _webmasterOffersService = webmasterOffersService;
         _logger = logger;
+        _googleDriveExportService = googleDriveExportService;
     }
 
     [HttpGet]
@@ -55,16 +61,56 @@ public sealed class WebmasterOffersController : ControllerBase
     [Authorize(Policy = AppPolicies.WebmasterOffersExportAccess)]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> Export(
-        [FromBody] WebmasterOffersMultiSearchRequest request,
+        [FromBody] WebmasterOffersExportRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _webmasterOffersService.MultiSearchAsync(request.QueryText, cancellationToken);
+        var result = await _webmasterOffersService.GetExportDataAsync(request, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         var stream = WebmasterOffersExcelExportGenerator.Generate(result);
-        _logger.LogInformation("Webmaster offers export by {UserId}: {DomainCount} domains, {OfferCount} offers",
-            User.FindFirstValue(ClaimTypes.NameIdentifier), result.UniqueDomainCount,
-            result.Results.Sum(group => group.Offers.Count));
+        LogExport(result, request.ExportAll, ExportConstants.DestinationDownload);
         return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "webmaster-offers.xlsx");
     }
+
+    [HttpPost("export/google-drive")]
+    [Authorize(Policy = AppPolicies.WebmasterOffersExportAccess)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> ExportToGoogleDrive(
+        [FromBody] WebmasterOffersExportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null)
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var result = await _webmasterOffersService.GetExportDataAsync(request, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            using var workbook = WebmasterOffersExcelExportGenerator.Generate(result);
+            var response = await _googleDriveExportService.UploadWorkbookAsync(userId, workbook,
+                $"webmaster-offers-{DateTime.UtcNow:yyyy-MM-dd}.xlsx",
+                result.Results.Sum(group => group.Offers.Count), cancellationToken);
+            LogExport(result, request.ExportAll, ExportConstants.DestinationGoogleDrive);
+            return Ok(response);
+        }
+        catch (GoogleDriveExportException exception)
+        {
+            var statusCode = exception.ErrorCode switch
+            {
+                GoogleDriveExportException.NotConnectedErrorCode or GoogleDriveExportException.ReconnectRequiredErrorCode => StatusCodes.Status409Conflict,
+                GoogleDriveExportException.ConfigurationMissingErrorCode => StatusCodes.Status500InternalServerError,
+                _ => StatusCodes.Status502BadGateway
+            };
+            return StatusCode(statusCode, new ApiErrorResponse(exception.ErrorCode, statusCode));
+        }
+    }
+
+    private void LogExport(WebmasterOffersMultiSearchResult<WebmasterOfferDto> result, bool exportAll, string destination)
+        => _logger.LogInformation("Webmaster offers export by {UserId}: {DomainCount} domains, {OfferCount} offers, all: {ExportAll}, destination: {Destination}",
+            User.FindFirstValue(ClaimTypes.NameIdentifier), result.UniqueDomainCount,
+            result.Results.Sum(group => group.Offers.Count), exportAll, destination);
 
     private bool CanReadFullOffers()
         => User.FindAll(ClaimTypes.Role)

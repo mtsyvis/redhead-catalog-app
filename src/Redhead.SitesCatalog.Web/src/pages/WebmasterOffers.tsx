@@ -4,6 +4,7 @@ import {
   Alert,
   Box,
   CircularProgress,
+  Link,
   IconButton,
   Stack,
   TextField,
@@ -14,12 +15,16 @@ import {
 } from '@mui/material';
 import ClearIcon from '@mui/icons-material/Clear';
 import SearchIcon from '@mui/icons-material/Search';
-import DownloadIcon from '@mui/icons-material/Download';
 import { BrandButton } from '../components/common/BrandButton';
 import { SearchModeToggle } from '../components/common/SearchModeToggle';
 import { SearchBarLayout } from '../components/common/SearchBarLayout';
 import { WebmasterOffersDomainList } from '../components/webmaster-offers/WebmasterOffersDomainList';
-import { DEFAULT_MULTI_SEARCH_LIMIT } from '../constants/search.constants';
+import { WEBMASTER_OFFERS_MULTI_SEARCH_LIMIT } from '../constants/search.constants';
+import { WebmasterOffersExportMenu } from '../components/webmaster-offers/WebmasterOffersExportMenu';
+import { GoogleDriveConnectionDialog, type GoogleDriveDialogState } from '../components/sites/dialogs/GoogleDriveConnectionDialog';
+import { googleDriveService } from '../services/googleDrive.service';
+import type { GoogleDriveStatus } from '../types/googleDrive.types';
+import type { GoogleDriveExportResponse } from '../types/sites.types';
 import { PageShell } from '../components/layout/PageShell';
 import { WebmasterOffersComparison } from '../components/webmaster-offers/WebmasterOffersComparison';
 import { WebmasterPriceComparisonPanel } from '../components/webmaster-offers/WebmasterPriceComparisonPanel';
@@ -87,6 +92,10 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [driveExport, setDriveExport] = useState<GoogleDriveExportResponse | null>(null);
+  const [driveStatus, setDriveStatus] = useState<GoogleDriveStatus | null>(null);
+  const [driveDialog, setDriveDialog] = useState<GoogleDriveDialogState>({ open: false, reconnect: false });
+  const [connectingDrive, setConnectingDrive] = useState(false);
   const [appliedQuery, setAppliedQuery] = useState(cachedSearch?.query ?? '');
   const searchRequestSequence = useRef(0);
   const exportController = useRef<AbortController | null>(null);
@@ -97,7 +106,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
   const showComparison =
     canReadWebmasterPriceComparison && !multiSearchMode && view === 'comparison';
   const inputCount = domain.trim() ? domain.trim().split(/\s+/).length : 0;
-  const limitExceeded = multiSearchMode && inputCount > DEFAULT_MULTI_SEARCH_LIMIT;
+  const limitExceeded = multiSearchMode && inputCount > WEBMASTER_OFFERS_MULTI_SEARCH_LIMIT;
   const duplicateInputCount = multiResult
     ? multiResult.inputCount - multiResult.uniqueDomainCount
     : 0;
@@ -116,6 +125,11 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
   const editingDomain = multiResult
     ? (offers.find((offer) => offer.id === editingOfferId)?.domain ?? '')
     : (singleResult?.domain ?? domain.trim());
+  const exportAll = !multiSearchMode && !domain.trim();
+  const canExportCurrentResults = Boolean(
+    result && appliedQuery && domain.trim() === appliedQuery && offers.length > 0
+  );
+  const canExport = !loading && !error && !limitExceeded && (exportAll || canExportCurrentResults);
 
   useEffect(() => {
     mounted.current = true;
@@ -131,7 +145,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
       if (!mounted.current) return;
       const trimmed = query.trim();
       if (!trimmed) return;
-      if (multiSearchMode && trimmed.split(/\s+/).length > DEFAULT_MULTI_SEARCH_LIMIT) return;
+      if (multiSearchMode && trimmed.split(/\s+/).length > WEBMASTER_OFFERS_MULTI_SEARCH_LIMIT) return;
 
       const searchKey = trimmed.toLowerCase();
       if (mode === 'automatic' && lastSearchKey.current === searchKey) return;
@@ -142,6 +156,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
       exportController.current = null;
       setExporting(false);
       setExportError(null);
+      setDriveExport(null);
       setLoading(true);
       setError(null);
       try {
@@ -211,6 +226,8 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
     setLoading(false);
     setError(null);
     setExportError(null);
+    setDriveExport(null);
+    setDriveDialog({ open: false, reconnect: false });
     setEditingOfferId(null);
     setPage(0);
     setAppliedQuery('');
@@ -224,28 +241,72 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
     setView('offers');
   };
 
-  const handleExport = async () => {
-    if (exportController.current) return;
+  const handleExport = async (googleDrive: boolean) => {
+    if (!canExportWebmasterOffers || !canExport || exportController.current) return;
     const controller = new AbortController();
     exportController.current = controller;
     const requestSequence = searchRequestSequence.current;
     setExporting(true);
     setExportError(null);
+    setDriveExport(null);
+    const payload = { queryText: exportAll ? '' : appliedQuery, multiSearch: multiSearchMode, exportAll };
     try {
-      await webmasterOffersService.exportMultiSearch(appliedQuery, controller.signal);
+      if (googleDrive) {
+        const status = await googleDriveService.getStatus();
+        controller.signal.throwIfAborted();
+        if (!mounted.current) return;
+        setDriveStatus(status);
+        if (!status.connected || status.needsReconnect) {
+          setDriveDialog({ open: true, reconnect: status.needsReconnect });
+          return;
+        }
+        const saved = await webmasterOffersService.exportToGoogleDrive(payload, controller.signal);
+        if (!mounted.current) return;
+        setDriveExport(saved);
+        if (saved.webViewLink) {
+          try {
+            window.open(saved.webViewLink, '_blank', 'noopener,noreferrer');
+          } catch {
+            // The success alert keeps an Open file link when automatic opening is blocked.
+          }
+        }
+      } else {
+        await webmasterOffersService.exportWorkbook(payload, controller.signal);
+      }
     } catch (err) {
       if (
         !controller.signal.aborted &&
         mounted.current &&
         requestSequence === searchRequestSequence.current
       ) {
-        setExportError(err instanceof Error ? err.message : 'Failed to export webmaster offers');
+        const message = err instanceof Error ? err.message : 'Failed to export webmaster offers';
+        if (googleDrive && (message === 'GoogleDriveNotConnected' || message === 'GoogleDriveReconnectRequired')) {
+          setDriveDialog({ open: true, reconnect: message === 'GoogleDriveReconnectRequired' });
+        } else {
+          setExportError(message === 'GoogleDriveConfigurationMissing'
+            ? 'Google Drive integration is not configured. You can download Excel instead.'
+            : message === 'GoogleDriveUploadFailed'
+              ? 'Could not save to Google Drive. Try again or download Excel.'
+              : message);
+        }
       }
     } finally {
       if (exportController.current === controller) {
         exportController.current = null;
         if (mounted.current) setExporting(false);
       }
+    }
+  };
+
+  const handleConnectDrive = async () => {
+    setConnectingDrive(true);
+    try {
+      const response = await googleDriveService.startConnect();
+      if (mounted.current) window.location.assign(response.authorizationUrl);
+    } catch {
+      if (mounted.current) setExportError('Could not start Google Drive connection. Try again later.');
+    } finally {
+      if (mounted.current) setConnectingDrive(false);
     }
   };
 
@@ -277,10 +338,21 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
 
   return (
     <PageShell maxWidth="xl">
-      <Box sx={{ mb: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
           Webmaster Offers
         </Typography>
+        {canExportWebmasterOffers && (
+          <Box sx={{ ml: 'auto', flexShrink: 0 }}>
+            <WebmasterOffersExportMenu
+              key={`${multiSearchMode}:${searchVersion}:${exportAll}:${canExport}`}
+              exporting={exporting}
+              disabled={!canExport}
+              resultCount={exportAll ? null : offers.length}
+              onExport={(googleDrive) => void handleExport(googleDrive)}
+            />
+          </Box>
+        )}
       </Box>
       <Box sx={{ mb: 1.5 }}>
         <Box sx={{ mb: 1 }}>
@@ -304,8 +376,8 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
                 helperText={
                   multiSearchMode
                     ? limitExceeded
-                      ? `Too many inputs. Limit is ${DEFAULT_MULTI_SEARCH_LIMIT.toLocaleString('en-US')}.`
-                      : `${inputCount.toLocaleString('en-US')} / ${DEFAULT_MULTI_SEARCH_LIMIT.toLocaleString('en-US')} inputs`
+                      ? `Too many inputs. Limit is ${WEBMASTER_OFFERS_MULTI_SEARCH_LIMIT.toLocaleString('en-US')}.`
+                      : `${inputCount.toLocaleString('en-US')} / ${WEBMASTER_OFFERS_MULTI_SEARCH_LIMIT.toLocaleString('en-US')} inputs`
                     : undefined
                 }
                 value={domain}
@@ -375,11 +447,21 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
           value={view}
           onChange={(_, next: 'offers' | 'comparison') => setView(next)}
           aria-label="Webmaster offer views"
-          sx={{ mb: 2 }}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ minWidth: 0, mb: 2 }}
         >
           <Tab value="offers" label="Offers" />
           <Tab value="comparison" label="Price comparison" disabled={!singleResult?.siteFound} />
         </Tabs>
+      )}
+      {exportError && <Alert severity="error" sx={{ mb: 2 }}>{exportError}</Alert>}
+      {driveExport && (
+        <Alert severity="success" sx={{ mb: 2 }} action={driveExport.webViewLink ? (
+          <Link href={driveExport.webViewLink} target="_blank" rel="noopener noreferrer" color="inherit">Open file</Link>
+        ) : undefined}>
+          Export saved to Google Drive · {driveExport.rowsExported.toLocaleString()} offers · {driveExport.fileName}
+        </Alert>
       )}
 
       {error && (
@@ -428,18 +510,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
                   {!canReadWebmasterOffers &&
                     (multiResult ? ' · Newest first within each domain' : ' · Newest first')}
                 </Typography>
-                {multiResult && canExportWebmasterOffers && (
-                  <BrandButton
-                    size="small"
-                    startIcon={exporting ? <CircularProgress size={16} /> : <DownloadIcon />}
-                    disabled={loading || exporting || offers.length === 0}
-                    onClick={() => void handleExport()}
-                  >
-                    {exporting ? 'Exporting…' : 'Export Excel'}
-                  </BrandButton>
-                )}
               </Stack>
-              {exportError && <Alert severity="error">{exportError}</Alert>}
 
               {offers.length === 0 ? (
                 <Alert severity="info">No webmaster offers found.</Alert>
@@ -492,6 +563,15 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
         </Stack>
       )}
 
+      {canExportWebmasterOffers && (
+        <GoogleDriveConnectionDialog
+          dialog={driveDialog}
+          status={driveStatus}
+          connecting={connectingDrive}
+          onClose={() => setDriveDialog({ open: false, reconnect: false })}
+          onConnect={() => void handleConnectDrive()}
+        />
+      )}
       {canManageWebmasterOffers && (
         <EditWebmasterOfferDialog
           open={Boolean(editingOfferId)}

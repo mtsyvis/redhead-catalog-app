@@ -19,7 +19,7 @@ public static class MultiSearchParser
     /// <param name="queryText">Raw input (domains/URLs separated by whitespace)</param>
     /// <returns>Unique domains to search and list of domains that appeared more than once</returns>
     /// <exception cref="RequestValidationException">Thrown when input count exceeds MaxInputs</exception>
-    public static MultiSearchParseResult Parse(string? queryText)
+    public static MultiSearchParseResult Parse(string? queryText, int maxInputs = MultiSearchConstants.MaxInputs)
     {
         if (string.IsNullOrWhiteSpace(queryText))
         {
@@ -34,10 +34,10 @@ public static class MultiSearchParser
         var rawTokens = queryText!
             .Split(Whitespace, StringSplitOptions.RemoveEmptyEntries);
 
-        if (rawTokens.Length > MultiSearchConstants.MaxInputs)
+        if (rawTokens.Length > maxInputs)
         {
             throw new RequestValidationException(
-                $"Multi-search accepts at most {MultiSearchConstants.MaxInputs} inputs. Received {rawTokens.Length}.");
+                $"Multi-search accepts at most {maxInputs} inputs. Received {rawTokens.Length}.");
         }
 
         var normalized = rawTokens

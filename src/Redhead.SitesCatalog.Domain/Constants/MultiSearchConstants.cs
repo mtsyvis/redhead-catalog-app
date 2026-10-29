@@ -9,4 +9,6 @@ public static class MultiSearchConstants
     /// Maximum number of domain/URL inputs allowed in a single multi-search request
     /// </summary>
     public const int MaxInputs = 5000;
+
+    public const int WebmasterOffersMaxInputs = 50000;
 }

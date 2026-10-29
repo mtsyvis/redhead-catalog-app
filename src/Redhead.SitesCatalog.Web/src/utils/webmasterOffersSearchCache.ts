@@ -1,5 +1,5 @@
 import type { WebmasterOffersResult } from '../types/webmasterOffers.types';
-import { DEFAULT_MULTI_SEARCH_LIMIT } from '../constants/search.constants';
+import { WEBMASTER_OFFERS_MULTI_SEARCH_LIMIT } from '../constants/search.constants';
 
 const LEGACY_SEARCH_CACHE_KEY = 'webmaster-offers:last-search:v1';
 const SEARCH_CACHE_KEY = 'webmaster-offers:last-search:v2';
@@ -85,7 +85,7 @@ function isSearchResult(
     const { inputCount, uniqueDomainCount, duplicates, domainsWithoutOffers, notFoundDomains, results } = value;
     return !('offers' in value) &&
       typeof inputCount === 'number' && Number.isInteger(inputCount) &&
-      inputCount >= 0 && inputCount <= DEFAULT_MULTI_SEARCH_LIMIT &&
+      inputCount >= 0 && inputCount <= WEBMASTER_OFFERS_MULTI_SEARCH_LIMIT &&
       typeof uniqueDomainCount === 'number' && Number.isInteger(uniqueDomainCount) &&
       uniqueDomainCount >= 0 && uniqueDomainCount <= inputCount &&
       isStringArray(duplicates) && duplicates.length <= inputCount - uniqueDomainCount &&

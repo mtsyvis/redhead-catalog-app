@@ -7,6 +7,7 @@ using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Infrastructure.Options;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Application.Services.ClientCatalog;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -24,6 +25,59 @@ public sealed class GoogleDriveExportServiceTests
 {
     private const string TestUserId = "user-1";
     private const string TestUserEmail = "user@example.com";
+
+    [Fact]
+    public async Task UploadWorkbookAsync_UploadsWebmasterDataWithoutCatalogExportLimitsOrUsage()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        SeedExportData(db, ExportLimitMode.Disabled);
+        SeedConnection(db);
+        using var workbook = WebmasterOffersExcelExportGenerator.Generate(new WebmasterOffersMultiSearchResult<WebmasterOfferDto>
+        {
+            Results = [new WebmasterOffersDomainResult<WebmasterOfferDto>
+            {
+                Domain = "publisher.example", Offers = [new WebmasterOfferDto { ContactRawText = "contact@publisher.example" }]
+            }]
+        });
+        string? exportedDomain = null;
+        var client = CreateDriveClientMock();
+        client.Setup(item => item.UploadFileAsync("access-token", "folder-1", "webmaster-offers.xlsx", It.IsAny<Stream>(),
+                ExportConstants.ExcelContentType, CancellationToken.None))
+            .Returns<string, string, string, Stream, string, CancellationToken>((_, _, name, stream, _, _) =>
+            {
+                exportedDomain = XlsxTestWorkbook.ReadRows(stream, "Webmaster Offers")[0]["Domain"];
+                return Task.FromResult(new GoogleDriveUploadedFile("file-1", name, null));
+            });
+        var service = CreateService(db, client.Object);
+
+        // Act
+        var response = await service.UploadWorkbookAsync(TestUserId, workbook, "webmaster-offers.xlsx", 1, CancellationToken.None);
+
+        // Assert
+        Assert.Equal("publisher.example", exportedDomain);
+        Assert.Equal("webmaster-offers.xlsx", response.FileName);
+        Assert.Equal(1, response.RowsExported);
+        Assert.False(response.WasTruncated);
+        Assert.Empty(await db.ExportLogs.ToListAsync());
+        Assert.Empty(await db.ExportedDomainAccesses.ToListAsync());
+    }
+
+    [Fact]
+    public async Task UploadWorkbookAsync_RequiresAnActiveUserConnection()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        var service = CreateService(db, CreateDriveClientMock().Object);
+        using var workbook = new MemoryStream();
+
+        // Act
+        var action = () => service.UploadWorkbookAsync(TestUserId, workbook, "webmaster-offers.xlsx", 0, CancellationToken.None);
+
+        // Assert
+        var exception = await Assert.ThrowsAsync<GoogleDriveExportException>(action);
+        Assert.Equal(GoogleDriveExportException.NotConnectedErrorCode, exception.ErrorCode);
+    }
 
     [Fact]
     public async Task ExportSitesAsync_WhenNoActiveConnectionExists_ReturnsNotConnectedError()
