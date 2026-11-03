@@ -46,7 +46,7 @@ marked-address corrections. Production counts can differ after portal edits.
 
 [Migration source](../src/Redhead.SitesCatalog.Infrastructure/Data/Migrations/20261014102750_PopulateWebmasterPrimaryContacts.cs).
 Verification: applied locally on 2026-10-14 to a fresh restore of the 2026-10-13 11:56:40 UTC dump;
-production application has not been confirmed.
+production application is confirmed by its presence in the 2026-10-29 03:00:01 UTC dump.
 
 One schema/data migration replaces the undeployed follow-up work. It changes `PrimaryEmail`
 from `varchar(320)` to PostgreSQL `text` and replaces its B-tree index with a hash equality index,
@@ -129,7 +129,7 @@ dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~WebmasterPrimary
 ## 20261026134302_RemoveWhlWebmasterOffers
 
 [Migration source](../src/Redhead.SitesCatalog.Infrastructure/Data/Migrations/20261026134302_RemoveWhlWebmasterOffers.cs).
-Production application has not been confirmed. This is a one-time cleanup before an employee
+Production application is confirmed by its presence in the 2026-10-29 03:00:01 UTC dump. This is a one-time cleanup before an employee
 re-imports corrected Webmaster Offers data.
 
 The migration deletes all active and inactive offers whose linked Webmaster's current
@@ -198,6 +198,57 @@ build and normal backend tests passed; the generated EF SQL wraps the deletion a
 migration-history insert in one transaction. Historical migration tests target their specific
 migration rather than later cleanup migrations; offer-concurrency fixtures include the
 now-required primary contact.
+
+## 2026-10-29 Webmaster profile preflight
+
+Source: `redhead-prod-postgres-2026-10-29T03-00-01Z.dump`. Restored into the separate local
+Docker database `redhead_prod_snapshot_20261029`; existing databases were retained. The working
+copy `redhead_webmaster_profiles_20261029` is used for the local application and rehearsal.
+Both existing primary-contact cleanup migrations and the WHL cleanup are already in the dump.
+
+| Measure | Count |
+| --- | ---: |
+| Catalog sites | 84,103 |
+| Technical Webmaster identities | 57,317 |
+| Offers | 91,068 |
+| Offer domains | 84,049 |
+| Raw offer price rows | 317,728 |
+| Identities with an email primary contact | 57,162 |
+| Identities with a text primary contact | 154 |
+| Identities with a unique empty-Contact placeholder | 1 |
+| Missing primary contacts | 0 |
+| Candidate profiles using trimmed, lowercase saved primary contact | 42,657 |
+| Candidate profiles with offers | 42,622 |
+| Profiles with multiple source identities | 3,765 |
+| Identities in those multi-member profiles | 18,425 |
+| Largest profile by identities / offers | 457 / 3,618 |
+| Identities without offers, retained | 252 |
+
+The preflight uses saved values without reparsing Contact or changing PrimaryEmail. PostgreSQL
+and .NET normalization matched for every identity. Identity/offer Contact normalization and
+offer-to-Webmaster references passed. Current normalized keys are at most 754 UTF-8 bytes;
+this does not remove the need to support the existing 20,000-character manual-contact limit
+when designing a production uniqueness index.
+
+A local-only schema `profile_migration_rehearsal` created candidate profiles and memberships
+in the working copy. This is a rehearsal, not an EF migration or a change to the Webmasters UI.
+All 57,317 identities received exactly one membership and all 91,068 offers remained linked.
+Replaying inserted zero duplicate profiles/memberships. Row counts and full-row checksums
+matched before/after for Sites, Webmasters, offers, prices, offer/mailbox links, and change history.
+The pristine snapshot was not changed by the rehearsal.
+
+Grouping still requires the agreed preservation rules: 653 candidate profiles contain the same
+domain through several member identities; these offers must all remain. There are 3,411 secondary
+email addresses shared by different primary-contact groups, so secondary contact overlap must
+not create transitive membership. Of the candidate groups, 14,733 contain multiple contact emails;
+deduplicating a display list must preserve annotations and source identity/offer/domain evidence.
+The 221 groups with at least ten identities and 891 multi-member generic-mailbox groups are
+review/performance signals, not automatic split or exclusion rules. No conflicting non-empty
+DisplayName/Notes values were found inside candidate groups.
+
+Private SQL, diagnostics, group details, and checksums live under ignored local `tmp/`; no dump,
+credentials, contact values, or membership datasets are committed. The application profile schema,
+runtime membership maintenance, and grouped Webmasters UI are not implemented by this preflight.
 
 ## Webmaster offer price uniqueness
 

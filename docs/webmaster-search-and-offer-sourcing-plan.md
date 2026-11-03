@@ -324,6 +324,10 @@ Do not assume mass activation automatically removes site quarantine. That rule r
 
 ## Future WebmasterProfile normalization
 
+The 2026-10-29 [profile migration plan](webmaster-profile-migration-plan.md) supersedes this
+section's original assumptions about missing/email-only keys and deferred membership maintenance.
+The profile implementation is still pending; the old proposal below is historical context.
+
 Do not destructively merge current `Webmaster` rows while import matches by exact normalized Contact. Otherwise a future nonduplicate row can recreate the removed identity.
 
 Preferred model:
