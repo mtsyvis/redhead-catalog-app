@@ -58,6 +58,12 @@ services:
       ExportedDomainAccessCleanup__IntervalHours: ${ExportedDomainAccessCleanup__IntervalHours:-24}
       LinkDetective__ApiToken: ${LinkDetective__ApiToken:-}
       LinkDetective__CacheLifetimeDays: ${LinkDetective__CacheLifetimeDays:-30}
+      LinkDetectiveSync__Enabled: ${LinkDetectiveSync__Enabled:-false}
+      LinkDetectiveSync__DailySelectionTimeUtc: ${LinkDetectiveSync__DailySelectionTimeUtc:-00:10}
+      LinkDetectiveSync__BatchSize: ${LinkDetectiveSync__BatchSize:-500}
+      LinkDetectiveSync__OnDemandReserve: ${LinkDetectiveSync__OnDemandReserve:-10000}
+      LinkDetectiveSync__MaxAttempts: ${LinkDetectiveSync__MaxAttempts:-3}
+      LinkDetectiveSync__RetryDelayMinutes: ${LinkDetectiveSync__RetryDelayMinutes:-5}
       Ahrefs__ApiKey: ${Ahrefs__ApiKey:-}
       Ahrefs__BaseUrl: ${Ahrefs__BaseUrl:-https://api.ahrefs.com/v3}
       AhrefsSync__Enabled: ${AhrefsSync__Enabled:-false}

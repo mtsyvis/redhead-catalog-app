@@ -124,6 +124,7 @@ Use this mapping:
 * Setup, commands, repository structure, general project overview -> `README.md`
 * Production, Docker, VPS, Caddy, PostgreSQL, backups -> `docs/deployment.md`
 * AI-agent workflow and repository instructions -> `AGENTS.md`
+* Technical debt and deferred maintenance -> `docs/technical-debt.md`; follow its recording and maintenance instructions.
 * Role or permission changes -> also update the English Users `Roles & permissions` guide in `src/Redhead.SitesCatalog.Web/src/components/admin/RoleGuideDialog.tsx` in the same change.
 
 Keep business requirements concise and declarative. Put migration IDs, one-off audit counts,

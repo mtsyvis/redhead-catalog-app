@@ -1,5 +1,6 @@
 namespace Redhead.SitesCatalog.Domain.Entities;
 
+// Current shared market-price snapshot per domain; refreshed by both background and on-demand lookups.
 public sealed class LinkDetectivePriceCache
 {
     public string SiteDomain { get; set; } = string.Empty;

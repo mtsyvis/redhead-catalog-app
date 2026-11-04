@@ -14,13 +14,13 @@ import { BrandButton } from '../common/BrandButton';
 const ROLE_GUIDE: Record<AppRole, { access: string; limits: string }> = {
   SuperAdmin: {
     access:
-      'Full access. Manage users, roles, account access, export limits, application settings, and all catalog tools.',
+      'Full access. Manage users, roles, account access, export limits, application settings, and all catalog tools. Monitor LinkDetective background sync.',
     limits:
       'Catalog exports are unlimited. Super Admin is a protected role and cannot be assigned through role changes.',
   },
   Admin: {
     access:
-      'Browse, edit, import, and export sites and webmaster offers. View webmaster contacts and prices, analytics, users, and settings. Manage Ahrefs sync.',
+      'Browse, edit, import, and export sites and webmaster offers. View webmaster contacts and prices, analytics, users, and settings. Manage Ahrefs sync and monitor LinkDetective background sync.',
     limits:
       'Cannot create or change user accounts, reset passwords, change roles or limits, or edit application settings.',
   },

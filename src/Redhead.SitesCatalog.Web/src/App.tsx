@@ -44,6 +44,9 @@ const Analytics = React.lazy(() => import('./pages/Analytics').then((module) => 
 const AhrefsSync = React.lazy(() =>
   import('./pages/AhrefsSync').then((module) => ({ default: module.AhrefsSync }))
 );
+const LinkDetectiveSync = React.lazy(() =>
+  import('./pages/LinkDetectiveSync').then((module) => ({ default: module.LinkDetectiveSync }))
+);
 const AhrefsSyncRunDetails = React.lazy(() =>
   import('./pages/AhrefsSyncRunDetails').then((module) => ({ default: module.AhrefsSyncRunDetails }))
 );
@@ -191,6 +194,26 @@ const App: React.FC = () => {
                   <ProtectedRoute>
                     <AccountSetupRequiredRoute>
                       <AhrefsSync />
+                    </AccountSetupRequiredRoute>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/linkdetective-sync"
+                element={
+                  <ProtectedRoute>
+                    <AccountSetupRequiredRoute>
+                      <LinkDetectiveSync />
+                    </AccountSetupRequiredRoute>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/linkdetective-sync/runs/:id"
+                element={
+                  <ProtectedRoute>
+                    <AccountSetupRequiredRoute>
+                      <LinkDetectiveSync />
                     </AccountSetupRequiredRoute>
                   </ProtectedRoute>
                 }

@@ -13,6 +13,7 @@ Use this repository documentation in the following way:
 * `docs/business-requirements.md` — current business rules and product behavior.
 * `docs/deployment.md` — production deployment, VPS, Docker, Caddy, PostgreSQL, and backup notes.
 * `docs/backup-restore.md` — production PostgreSQL backup setup, manual backup checks, and restore guidance.
+* `docs/technical-debt.md` — deferred engineering work and known lifecycle gaps.
 
 Old planning files, commit summaries, and legacy specs are historical context only. They should not be treated as current source of truth unless a task explicitly says so.
 
@@ -226,47 +227,11 @@ dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~MissingDomainsAn
 
 Without this environment variable, these PostgreSQL tests are skipped; ordinary analytics unit tests still run.
 
-### LinkDetective API quota diagnostic
-
-Requires PowerShell 7+. From the repository root, run:
-
-```powershell
-pwsh -File ./scripts/Test-LinkDetectiveApi.ps1
-```
-
-Enter the API token at the hidden prompt; do not put it in command arguments or files.
-The script calls only `/api/v2/inventory/preview`, which the
-[provider documents](https://linkdetective.pro/blog/api) as costing no domain checks.
-It prints quota usage, limit, remaining checks, period, and any returned rate-limit headers.
-`inventoryMaxRows` applies to Inventory, not the domain lookup endpoint.
-
-To also verify the endpoint needed for Webmaster Offers, explicitly pass one domain:
-
-```powershell
-pwsh -File ./scripts/Test-LinkDetectiveApi.ps1 -Domain example.com
-```
-
-This adds one `/api/v2/domains` request, budgeted as one domain check even if no offer is found.
-By default, the output contains diagnostic fields only, without the token, seller contacts, or prices.
-There are no automatic retries or rate-limit stress tests. A failed preview does not prevent
-the explicitly requested domain check, since endpoint access may differ.
-Missing quota fields or headers remain unknown; this diagnostic cannot establish an
-undocumented request-rate limit, domain batch limit, or exact reset time.
-
-To inspect actual prices and seller data for one domain:
-
-```powershell
-pwsh -File ./scripts/Test-LinkDetectiveApi.ps1 -Domain example.com -ShowOffers
-```
-
-This mode makes only one `/api/v2/domains` request (no preview), budgeted as one domain check.
-It includes domain price aggregates, seller count, seller names, prices, price-update dates,
-badges, and returned field names so the real response schema can be inspected. Seller email
-and website URL values are replaced with presence flags; token and raw response bodies are
-never printed or saved. `-ShowOffers` requires `-Domain`.
-This script does not enable a LinkDetective integration in the application.
 
 ### LinkDetective market prices
+
+API investigation, measured batch/quota results, and notes for a future background job:
+[LinkDetective API investigation](docs/linkdetective-api-investigation.md).
 
 For Admin and SuperAdmin only, the **Price comparison** view in Webmaster Offers Single search
 shows catalog versus webmaster prices and optionally the provider's minimum, average, and median
@@ -274,22 +239,66 @@ prices. Successful snapshots (including no-price results) are stored in PostgreS
 across users, and refreshed on access when older than the configured lifetime (default: 30 days). Manual refresh is available
 with a shared one-minute cooldown per domain. Ordinary Offers and Multi-search do not call LinkDetective.
 
-Set the server-side `LinkDetective__ApiToken` environment variable to enable lookups.
-Set `LinkDetective__CacheLifetimeDays` to a positive integer to override the default 30-day
-cache lifetime (`LinkDetective:CacheLifetimeDays` in appsettings.json). Restart the application
-after changing it. The effective value is shown read-only in Application settings → System limits.
-For local development, enter the token without placing it in shell history, then start the
-backend from the same PowerShell session:
+`LinkDetective__CacheLifetimeDays` accepts whole numbers from 1 to 365; the default is 30.
+Invalid values prevent application startup.
+
+
+### LinkDetective background sync
+
+The optional worker refreshes missing or stale shared market-price snapshots without changing
+catalog selling prices or Webmaster Offers. Admin and SuperAdmin can inspect progress, quota,
+cache coverage, run history, and domain results through **Admin → LinkDetective Sync**.
+The monitor reads application data only; opening it or clicking **Refresh status** does not
+perform paid domain checks. Existing on-demand lookup and manual Refresh remain available.
+
+Storage responsibilities:
+
+* `LinkDetectivePriceCaches` stores one current price snapshot per domain, shared by background
+  and on-demand lookups. The three price aggregates are stored only here.
+* `LinkDetectiveSyncRuns` stores run-level progress and summary counts.
+* `LinkDetectiveSyncRunItems` stores each selected domain's status, attempts, check/retry times,
+  and error. These rows support restart recovery and run diagnostics; they contain no prices.
+  Their check times and errors describe that run, while cache metadata describes the current
+  shared snapshot and latest refresh attempt.
+* `LinkDetectiveSyncStates` stores the scheduler's next selection and last observed provider quota.
+
+Completed run history currently has no automatic cleanup. Retention is deferred as
+[TD-001](docs/technical-debt.md#td-001-linkdetective-sync-history-retention).
+
+The worker is **disabled by default**. Configure the server-side token as usual and set
+`LinkDetectiveSync__Enabled=true` to enable it. The first enabled startup selects due domains;
+subsequent selections use `LinkDetectiveSync__DailySelectionTimeUtc` (default `00:10` UTC).
+Only domains with no successful check or a snapshot older than `LinkDetective__CacheLifetimeDays`
+(default 30 days) are selected. Successful no-price results also have that lifetime.
+An existing run continues before another selection, including across quota resets and restarts.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `LinkDetectiveSync__BatchSize` | `500` | Unique domains per background batch; any positive whole number |
+| `LinkDetectiveSync__OnDemandReserve` | `10000` | Checks reserved for other token consumers; set below the provider quota |
+| `LinkDetectiveSync__MaxAttempts` | `3` | Maximum failed/incomplete domain attempts per run, between 1 and 10 |
+| `LinkDetectiveSync__RetryDelayMinutes` | `5` | Delay before retrying incomplete, interrupted, or transiently failed requests |
+
+500 is a verified working batch size, not a confirmed provider maximum. The configured batch
+size controls background selection; the API client does not impose an assumed 500-domain ceiling.
+
+Free preview confirms available quota before each batch; provider responses and Retry-After
+control waiting. Quota shown in the UI is the last observation, with its observation time.
+An interrupted request may already have consumed quota. Confirmed results are saved, while
+missing or failed rows retain their previous successful prices. The worker resumes durable
+progress instead of repeating completed domains. Different preview/domain quota pools pause
+background checks rather than applying one pool's budget to another.
+
+Backend tests include optional PostgreSQL migration, SQL-selection, and locking checks:
 
 ```powershell
-$env:LinkDetective__ApiToken = [System.Net.NetworkCredential]::new('', (Read-Host 'LinkDetective API token' -AsSecureString)).Password
-dotnet run --project src/Redhead.SitesCatalog.Api --launch-profile http
+$env:REDHEAD_TEST_POSTGRES = 'Host=localhost;Port=5433;Database=postgres;Username=postgres;Password=postgres'
+dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~LinkDetectiveSyncPostgresTests
 ```
 
-Never commit the actual token or put it in frontend configuration. An unset token leaves
-the catalog usable and shows an unconfigured market-prices state. Apply EF migrations through
-the normal setup workflow before using this feature; production startup applies migrations.
-The application persists only the three price values and cache/error timing metadata.
+These tests create and remove their own `redhead_ld_test_*` databases with synthetic data.
+Production configuration and operational details are in [docs/deployment.md](docs/deployment.md#linkdetective-market-prices).
+
 
 ### Frontend
 

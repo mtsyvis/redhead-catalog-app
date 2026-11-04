@@ -94,6 +94,7 @@ Current rules:
 * `Admin` can run catalog imports and update catalog data where backend policies allow it.
 * `Admin` can run Webmaster Offers Import and view or manually edit raw webmaster offer data.
 * `Admin` can read Business Demand, Export Activity, and Catalog coverage analytics.
+* `Admin` can read LinkDetective background-sync monitoring through `LinkDetectiveSyncRead`. Other roles cannot access monitoring or run/domain diagnostics. This permission does not expose a job-start or force-refresh action.
 * `Admin` can also read Missing Domains analytics through the independent `MissingDomainsAnalyticsRead` permission. It does not grant export analytics access; `AnalyticsRead` continues to protect the existing export reports. No additional role is introduced.
 * `Admin` must not be able to create users.
 * `Admin` must not be able to change role export limits.
@@ -504,8 +505,8 @@ Raw price rules:
 * Market prices are independent from client catalog prices and our webmaster offers. They are an indicative comparison: the provider does not specify service type or placement term.
 * Successful results are shared between authorized users and persisted by normalized domain with their successful retrieval time in UTC. The UI displays that time in the user's local timezone.
 * Reading reusable cached prices does not wait for another domain's provider request. Repeating a search for the same domain while in Price comparison keeps already displayed market prices visible during the cache check and on failure.
-* Opening or rechecking Price comparison retrieves market prices when there is no successful cached result, and automatically refreshes a result older than the configured cache lifetime (default: 30 days). A result exactly at that lifetime is still fresh. This is an on-demand refresh, not a scheduled catalog-wide sync.
-* The cache lifetime is a positive whole number of days configured on the server. Application settings → System limits shows the effective value read-only; configuration changes require an application restart.
+* Opening or rechecking Price comparison retrieves market prices when there is no successful cached result, and automatically refreshes a result older than the configured cache lifetime (default: 30 days). A result exactly at that lifetime is still fresh. This on-demand behavior also reuses results from the optional background sync described below.
+* The cache lifetime is a whole number from 1 to 365 days configured on the server; the default is 30 days. Values outside this range prevent application startup. Application settings → System limits shows the effective value read-only; configuration changes require an application restart.
 * Users can manually refresh prices before the cache expires. Repeated refreshes of one domain have a minimum one-minute interval shared by users; a provider cooldown may extend that interval.
 * A successful no-price result is also cached and can be refreshed by the same rules. Missing prices are displayed as `—`, never as zero.
 * Failed refreshes preserve the last successful prices and retrieval time, visibly report the failure and stale state, and allow another attempt after the cooldown. Provider failures must not prevent searching or editing our webmaster offers.
@@ -533,6 +534,40 @@ Raw price rules:
 * The comparison includes Active and Inactive offers with their existing statuses. Clicking an offer number opens that offer's details in ordinary Offers and rechecks ordinary offer data, which may have been restored from browser storage. No offer is automatically chosen as the procurement price.
 * LinkDetective remains a separate domain-level market reference with manual refresh and retrieval time. Its unknown service type and placement term do not establish a matching price for any service or term.
 * `Banner`, `Banner18Plus`, `HomepageTextLink`, and `HomepageTextLink18Plus` are excluded from the comparison table for now and retain their existing display in ordinary Offers. Adding corresponding catalog prices and margin comparisons is deferred to a later scope.
+
+### LinkDetective scheduled market-price sync
+
+* Optional background sync is disabled by default and does not change catalog selling prices or Webmaster Offers. Admin and SuperAdmin can read its independent monitoring page at `Admin` → `LinkDetective Sync`, protected by `LinkDetectiveSyncRead`.
+* A daily background selection finds catalog domains with no successful LinkDetective check or a check older than the effective cache lifetime, which defaults to 30 days. All catalog domains are eligible, including quarantined sites and sites without webmaster offers. A successful on-demand check resets the same per-domain refresh age. A successful no-price result also counts as a successful check.
+* Background processing respects the provider's current quota, rate limits, and cooldowns, with a configurable reserve for on-demand traffic. It persists progress, waits for quota reset when necessary, resumes after restarts, and coordinates with manual lookups without holding the shared refresh lock for the full catalog pass. The refresh interval is a target, not a guaranteed deadline during provider failures or quota exhaustion.
+* Background batch size is a positive whole number configured through `LinkDetectiveSync:BatchSize`, defaulting to 500. It controls processing size and does not establish the provider's maximum batch size.
+* A confirmed no-price result replaces older market values with a successful no-price state. Provider errors and omitted or unaccounted domains do not erase previous successful prices. Partial batch results must distinguish successful domains, confirmed not-found domains, and unresolved domains.
+* Existing Webmaster Offers on-demand loading, cache freshness checks, manual Refresh, permissions, and cooldown behavior remain unchanged and reuse results written by the background worker. Ordinary Offers, Multi-search, and existing exports retain their current behavior.
+* LinkDetective sync monitoring is read-only and shows configuration/availability, current progress, found/not-found/error counts, catalog cache freshness, last observed quota and its observation time, waiting reason and expected retry/reset time, run history, and paginated run-item details. Successful no-price checks count as fresh; `notFound` is not an error. Details allow finding domains by name or result status. History and run-item pagination remain independent; returning from details preserves the history page. `Refresh status` reads application monitoring data without triggering paid domain checks. Enabled/configured monitoring refreshes automatically while idle and active, with no overlapping polls. It does not add a force-full-refresh action in this MVP.
+
+### Planned admin Pricing workspace
+
+The following Pricing MVP requirements are agreed for the second implementation step.
+The Pricing workspace is not implemented yet. LinkDetective background sync is delivered
+independently as described above.
+
+* A separate top-level `Pricing` navigation item is available only to `SuperAdmin` and `Admin`. LinkDetective monitoring is independently accessible through `Admin` → `LinkDetective Sync` in the first delivery; Pricing later links to that same monitoring page. Server-side permissions protect pricing data, editing, cached market prices, and sync monitoring independently of navigation visibility.
+* Catalog pricing includes all catalog sites by default, including quarantined sites and sites without numeric prices, webmaster offers, or LinkDetective data. One row represents one domain. Paging, search, filtering, and sorting are server-side across the complete matching catalog.
+* The table shows Domain, Term, all six catalog price types, and LinkDetective minimum, average, and median USD prices. The three market columns initially follow Main price. Domain remains visible, first, and pinned left; row actions remain last. Users can change price-column visibility and order and save presentation separately from Sites table views.
+* Term lists every distinct valid term present in the site's numeric catalog prices. A site with one term displays that term's catalog prices. A site with no numeric prices has no displayed term or calculated margin and retains its existing service-availability semantics.
+* A site with multiple terms remains in the table, lists all its terms, and shows `Needs review`. Its table price and margin cells use placeholders with a concise multiple-term explanation. The table does not automatically select a cheapest term or combine prices from different terms. Prices for each term are available in the price-edit dialog.
+* Each numeric catalog price displays its indicative USD margin below the amount. Margin is the catalog selling price minus the lowest positive numeric Active Webmaster Offer price for the same service and exact normalized price term, using the existing service mappings. The minimum may come from different offers for different services. Inactive offers are excluded from this minimum.
+* `No term` matches only `No term`; it does not match a known term. Malformed terms, unknown prices, unavailable services, and missing matching offers do not establish a purchase price or margin. LinkDetective prices are market references and never establish a purchase price or margin.
+* Zero margin displays as `$0`; zero and negative margins receive the same unfavorable emphasis. Missing margins display `—`, without `No calculation` text. Purchase-price provenance and the matching term are available through supplementary detail.
+* Users can search domains, filter quarantine and term, and filter or sort margin for any of the six price types. Margin filters support a USD range and negative, zero, or missing values; multiple-term sites can be found separately. Unknown margins sort last in either direction. Filtering and sorting use the same values shown in the table.
+* `Edit prices` opens a dialog consistent with existing application dialogs. It edits catalog selling prices and optional-service availability, using the existing positive-price validation and `YES` / `NO` / unknown semantics. Webmaster purchase prices and LinkDetective market prices are read-only references.
+* The dialog shows the site's domain, its term, all six catalog price types, `Offer price`, and `Margin after save`. `Offer price` means the lowest matching Active numeric webmaster offer price. An information icon next to its header provides a keyboard-accessible tooltip explaining the source, exact service/term matching, Active status, and use in the margin calculation. LinkDetective aggregates and their retrieval time appear above the pricing fields when available.
+* Draft price changes immediately recalculate indicative margin and reveal the original price. Missing draft margins display `—`. A compact warning identifies zero or negative margins without the phrase `Saving is allowed`; unfavorable margin does not prevent saving a valid catalog price.
+* A single term is shown as a badge. Multiple terms are separate tabs in the dialog, with exact-term prices and purchase-price comparisons. Changing the terms themselves remains in the existing full site-edit workflow.
+* Saving persists all submitted pricing changes atomically through catalog pricing validation and manual change history, without overwriting unrelated site fields or silently replacing concurrent edits. Successful saves update the table and reapply its current filtering and sorting. A no-op does not create history or change normal audit fields. Closing with unsaved changes requires an explicit discard decision.
+* The screen uses the application's MUI theme, shared buttons, table tokens, borders, typography, badges, and dialog conventions. Repeated UI patterns are shared components or theme tokens rather than new page-specific copies.
+* The table and price dialog read LinkDetective data from the shared persistent domain cache without making provider requests when opened, filtered, sorted, or edited. Prices retain their successful retrieval timestamps, stale indication, and missing/error distinctions.
+* Automated repricing, competitor thresholds, scheduled Excel/email reports, bulk price changes, additional exports, and market-price history are outside this MVP.
 
 ### Webmaster Offers Multi-search
 
@@ -1283,6 +1318,7 @@ The app should look like a clean internal business tool with Redhead Digital Age
 Rules:
 
 * Use the existing MUI-based design system.
+* The shared application header keeps navigation horizontally scrollable within narrow screens and hides the display-name text on extra-small screens while retaining the account menu.
 * Prefer shared theme tokens and shared components over one-off styling.
 * Tables, DataGrids, and offer comparison matrices share typography, cell spacing, light-grey headers, dividers, rounded surfaces, hover feedback, and visible keyboard focus. Page-specific selection, warning colors, and user-selected Sites density remain available.
 * Offer-status badges in Webmaster Offers, Internal, and Webmasters share the same height, fill, border, and type treatment. Full-access Offers and Price comparison stack the colored status badge above a white outlined term badge of equal dimensions. Sites availability badges use the same visual component with their own availability labels.

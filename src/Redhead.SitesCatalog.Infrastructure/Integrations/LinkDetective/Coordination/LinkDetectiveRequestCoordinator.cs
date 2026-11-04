@@ -1,8 +1,13 @@
-namespace Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Constants;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Errors;
+
+namespace Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Coordination;
 
 // Shared by requests in the single app instance used by the Docker Compose deployment.
 public sealed class LinkDetectiveRequestCoordinator(TimeProvider clock) : IDisposable
 {
+    private static readonly TimeSpan MinimumRequestInterval = TimeSpan.FromSeconds(1);
+
     private readonly SemaphoreSlim _refreshLock = new(1);
     private readonly SemaphoreSlim _apiLock = new(1);
     private DateTime _nextRequestUtc;
@@ -22,7 +27,7 @@ public sealed class LinkDetectiveRequestCoordinator(TimeProvider clock) : IDispo
             var now = clock.GetUtcNow().UtcDateTime;
             if (_blockedUntilUtc > now)
             {
-                throw new LinkDetectiveApiException("LinkDetective is temporarily unavailable. Try again later.", _blockedUntilUtc);
+                throw new LinkDetectiveApiException(LinkDetectiveMessages.TemporarilyUnavailable, _blockedUntilUtc);
             }
 
             var delay = _nextRequestUtc - now;
@@ -31,7 +36,7 @@ public sealed class LinkDetectiveRequestCoordinator(TimeProvider clock) : IDispo
                 await Task.Delay(delay, clock, cancellationToken);
             }
 
-            _nextRequestUtc = clock.GetUtcNow().UtcDateTime.AddSeconds(1);
+            _nextRequestUtc = clock.GetUtcNow().UtcDateTime.Add(MinimumRequestInterval);
             return new ReleaseHandle(_apiLock);
         }
         catch

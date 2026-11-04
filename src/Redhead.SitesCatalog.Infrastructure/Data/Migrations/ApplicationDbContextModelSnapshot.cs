@@ -979,6 +979,129 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.ToTable("LinkDetectivePriceCaches");
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LinkDetectiveSyncRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("FailedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FinishedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("NotFoundCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PricesFoundCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProcessedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ReusedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SelectedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SkippedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("WaitingReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StartedAtUtc");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("LinkDetectiveSyncRuns");
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LinkDetectiveSyncRunItem", b =>
+                {
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Domain")
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<DateTime?>("AttemptedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("CheckedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("RunId", "Domain");
+
+                    b.HasIndex("RunId", "Status", "NextAttemptAtUtc");
+
+                    b.ToTable("LinkDetectiveSyncRunItems");
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LinkDetectiveSyncState", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("NextSelectionAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("QuotaLimit")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("QuotaObservedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("QuotaPeriod")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<long?>("QuotaRemaining")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("QuotaResetAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("QuotaUsed")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LinkDetectiveSyncStates");
+                });
+
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LinkbuilderMailbox", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2165,6 +2288,15 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.HasOne("Redhead.SitesCatalog.Domain.Entities.Site", null)
                         .WithMany()
                         .HasForeignKey("SiteDomain")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.LinkDetectiveSyncRunItem", b =>
+                {
+                    b.HasOne("Redhead.SitesCatalog.Domain.Entities.LinkDetectiveSyncRun", null)
+                        .WithMany()
+                        .HasForeignKey("RunId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

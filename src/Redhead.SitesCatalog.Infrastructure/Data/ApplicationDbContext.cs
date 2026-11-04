@@ -20,6 +20,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ClientCatalogProtectionSettings> ClientCatalogProtectionSettings => Set<ClientCatalogProtectionSettings>();
     public DbSet<SitePriceOption> SitePriceOptions => Set<SitePriceOption>();
     public DbSet<LinkDetectivePriceCache> LinkDetectivePriceCaches => Set<LinkDetectivePriceCache>();
+    public DbSet<LinkDetectiveSyncRun> LinkDetectiveSyncRuns => Set<LinkDetectiveSyncRun>();
+    public DbSet<LinkDetectiveSyncRunItem> LinkDetectiveSyncRunItems => Set<LinkDetectiveSyncRunItem>();
+    public DbSet<LinkDetectiveSyncState> LinkDetectiveSyncStates => Set<LinkDetectiveSyncState>();
     public DbSet<SiteServiceAvailability> SiteServiceAvailabilities => Set<SiteServiceAvailability>();
     public DbSet<RoleSettings> RoleSettings => Set<RoleSettings>();
     public DbSet<ExportLog> ExportLogs => Set<ExportLog>();

@@ -52,6 +52,7 @@ export const PageShell: React.FC<PageShellProps> = ({
     canReadRoleSettings,
     canReadAnyAnalytics,
     canManageAhrefsSync,
+    canReadLinkDetectiveSync,
     canReadWebmasterOffers,
     canReadWebmasterOffersSummary,
   } = useUserRoles();
@@ -95,7 +96,7 @@ export const PageShell: React.FC<PageShellProps> = ({
 
   const displayName = user?.displayName || user?.email;
   const canOpenAdminMenu =
-    canReadAnyAnalytics || canReadUsers || canReadRoleSettings || canManageAhrefsSync;
+    canReadAnyAnalytics || canReadUsers || canReadRoleSettings || canManageAhrefsSync || canReadLinkDetectiveSync;
   const isAdminPath = location.pathname.startsWith('/admin');
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
@@ -127,7 +128,8 @@ export const PageShell: React.FC<PageShellProps> = ({
             sx={{
               display: 'flex',
               alignItems: 'center',
-              mr: 4,
+              mr: { xs: 1, sm: 4 },
+              flexShrink: 0,
               cursor: 'pointer',
               userSelect: 'none',
             }}
@@ -143,13 +145,15 @@ export const PageShell: React.FC<PageShellProps> = ({
 
           {user && (
             <>
-              <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: 0 }}>
                 <Tabs
                   value={getCurrentTab()}
                   onChange={handleTabChange}
                   variant="scrollable"
                   scrollButtons="auto"
                   sx={{
+                    minWidth: 0,
+                    flex: 1,
                     '& .MuiTab-root': {
                       color: 'text.secondary',
                       '&.Mui-selected': {
@@ -199,6 +203,11 @@ export const PageShell: React.FC<PageShellProps> = ({
                           Ahrefs Sync
                         </MenuItem>
                       )}
+                      {canReadLinkDetectiveSync && (
+                        <MenuItem onClick={() => handleAdminNav('/admin/linkdetective-sync')}>
+                          LinkDetective Sync
+                        </MenuItem>
+                      )}
                       {canReadUsers && (
                         <MenuItem onClick={() => handleAdminNav('/admin/users')}>Users</MenuItem>
                       )}
@@ -212,8 +221,8 @@ export const PageShell: React.FC<PageShellProps> = ({
                 )}
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="body2" color="text.secondary">
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
                   {displayName}
                 </Typography>
                 <IconButton

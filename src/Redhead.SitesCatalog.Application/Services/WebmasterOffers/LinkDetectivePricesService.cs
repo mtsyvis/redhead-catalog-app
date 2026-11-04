@@ -4,6 +4,10 @@ using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Constants;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Coordination;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Errors;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Persistence;
 using Redhead.SitesCatalog.Infrastructure.Options;
 
 namespace Redhead.SitesCatalog.Application.Services.WebmasterOffers;
@@ -39,12 +43,13 @@ public sealed class LinkDetectivePricesService(
         var now = clock.GetUtcNow().UtcDateTime;
         if (string.IsNullOrWhiteSpace(options.Value.ApiToken))
         {
-            return Result(domain, cache, now, "LinkDetective is not configured. Contact an administrator.");
+            return CreateResult(domain, cache, now, LinkDetectiveMessages.NotConfigured);
         }
 
-        if ((cache?.CheckedAtUtc is not null || cache?.LastError is not null) && CanUseCache(cache, forceRefresh, now))
+        var hasSavedOutcome = cache?.CheckedAtUtc is not null || cache?.LastError is not null;
+        if (hasSavedOutcome && CanUseCache(cache, forceRefresh, now))
         {
-            return Result(domain, cache, now);
+            return CreateResult(domain, cache, now);
         }
 
         using var refresh = await coordinator.BeginRefreshAsync(cancellationToken);
@@ -53,7 +58,7 @@ public sealed class LinkDetectivePricesService(
         now = clock.GetUtcNow().UtcDateTime;
         if (CanUseCache(cache, forceRefresh, now))
         {
-            return Result(domain, cache, now);
+            return CreateResult(domain, cache, now);
         }
 
         if (cache is null)
@@ -66,7 +71,14 @@ public sealed class LinkDetectivePricesService(
         await context.SaveChangesAsync(cancellationToken);
         try
         {
-            var prices = await api.GetPricesAsync(domain, cancellationToken);
+            var response = await api.GetPricesAsync(domain, cancellationToken);
+            if (response.Quota is { } quota)
+            {
+                LinkDetectiveQuotaPersistence.ApplyObservation(
+                    await LinkDetectiveQuotaPersistence.GetOrCreateStateAsync(context, cancellationToken), quota, clock.GetUtcNow().UtcDateTime);
+            }
+
+            var prices = response.Prices;
             cache.MinimumUsd = prices.MinimumUsd;
             cache.AverageUsd = prices.AverageUsd;
             cache.MedianUsd = prices.MedianUsd;
@@ -82,21 +94,58 @@ public sealed class LinkDetectivePricesService(
                 ? exception.RetryAfterUtc : minimumRetryAt;
         }
         await context.SaveChangesAsync(cancellationToken);
-        return Result(domain, cache, clock.GetUtcNow().UtcDateTime);
+        return CreateResult(domain, cache, clock.GetUtcNow().UtcDateTime);
     }
 
     private bool CanUseCache(LinkDetectivePriceCache? cache, bool forceRefresh, DateTime now)
-        => cache?.RetryAfterUtc > now ||
-            !forceRefresh && cache?.CheckedAtUtc is { } checkedAt && !IsStale(checkedAt, now);
+    {
+        if (cache?.RetryAfterUtc > now)
+        {
+            return true;
+        }
+
+        if (forceRefresh || cache?.CheckedAtUtc is not { } checkedAt)
+        {
+            return false;
+        }
+
+        return !IsStale(checkedAt, now);
+    }
 
     private bool IsStale(DateTime checkedAt, DateTime now)
         => (now - checkedAt).TotalDays > options.Value.CacheLifetimeDays;
 
-    private LinkDetectivePricesResult Result(string domain, LinkDetectivePriceCache? cache, DateTime now, string? message = null)
-        => new(domain, cache?.MinimumUsd, cache?.AverageUsd, cache?.MedianUsd, cache?.CheckedAtUtc,
-            cache?.CheckedAtUtc is { } checkedAt && IsStale(checkedAt, now),
-            message ?? cache?.LastError ?? (cache?.CheckedAtUtc is not null && cache.MinimumUsd is null
-                ? "No market prices found for this domain."
-                : cache is { CheckedAtUtc: null, RetryAfterUtc: not null } ? "Prices are not available yet. Try again shortly." : null),
-            cache?.RetryAfterUtc > now ? cache.RetryAfterUtc : null);
+    private LinkDetectivePricesResult CreateResult(
+        string domain, LinkDetectivePriceCache? cache, DateTime now, string? message = null)
+    {
+        return new LinkDetectivePricesResult(
+            Domain: domain,
+            MinimumUsd: cache?.MinimumUsd,
+            AverageUsd: cache?.AverageUsd,
+            MedianUsd: cache?.MedianUsd,
+            CheckedAtUtc: cache?.CheckedAtUtc,
+            IsStale: cache?.CheckedAtUtc is { } checkedAt && IsStale(checkedAt, now),
+            Message: message ?? GetCacheMessage(cache),
+            RetryAfterUtc: cache?.RetryAfterUtc > now ? cache.RetryAfterUtc : null);
+    }
+
+    private static string? GetCacheMessage(LinkDetectivePriceCache? cache)
+    {
+        if (cache?.LastError is not null)
+        {
+            return cache.LastError;
+        }
+
+        if (cache?.CheckedAtUtc is not null && cache.MinimumUsd is null)
+        {
+            return LinkDetectiveMessages.NoMarketPrices;
+        }
+
+        if (cache is { CheckedAtUtc: null, RetryAfterUtc: not null })
+        {
+            return LinkDetectiveMessages.PricesPending;
+        }
+
+        return null;
+    }
 }

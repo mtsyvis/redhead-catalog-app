@@ -24,6 +24,7 @@ public static class RolePermissionMatrix
                 AppPermissions.WebmasterOffersImport,
                 AppPermissions.WebmasterOffersExport,
                 AppPermissions.LinkDetectivePricesRead,
+                AppPermissions.LinkDetectiveSyncRead,
                 AppPermissions.WebmasterPriceComparisonRead,
                 AppPermissions.WebmasterOffersManage
             },

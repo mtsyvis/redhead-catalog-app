@@ -224,3 +224,24 @@ the data and index on failure. Deploy the schema and corresponding concurrency-a
 imports catalog Traffic/DR values into history dated 2026-06-04 with source `AhrefsBaselineImport`.
 This historical backfill does not create an Ahrefs sync run. Recurring metric-history behavior
 belongs in the business requirements.
+
+## LinkDetective background sync
+
+`20261103080717_AddLinkDetectiveBackgroundSync` is additive: it creates
+`LinkDetectiveSyncRuns`, `LinkDetectiveSyncRunItems`, and the singleton
+`LinkDetectiveSyncStates` table with indexes for run history and pending work.
+It does not backfill, rewrite, or clear Sites, Webmaster Offers, or the existing market-price cache.
+Normal API startup applies the schema before hosted processing begins. Background sync remains
+disabled until explicitly enabled in server configuration.
+
+Local PostgreSQL verification uses only synthetic records in disposable `redhead_ld_test_*`
+databases. The integration tests cover migration application, the actual stale-domain selection
+SQL, persisted cache updates without catalog audit changes, cross-session advisory locking,
+and rollback preserving existing market-price cache rows. No production application is recorded.
+
+To roll back, disable background sync and stop the corresponding application before migrating
+to `20261026134302_RemoveWhlWebmasterOffers` using the same project/startup-project arguments
+as the normal migration command. Take the normal database backup first. Down migration drops
+only these three new tables, including run history, queued work, and quota observations; shared
+market prices and catalog/offer data remain. Deploy the matching application version together
+with the schema. Re-applying creates empty run history and a new due-domain selection on enable.

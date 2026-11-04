@@ -4,6 +4,11 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Redhead.SitesCatalog.Domain;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Constants;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Coordination;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Errors;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Models;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Parsing;
 using Redhead.SitesCatalog.Infrastructure.Options;
 
 namespace Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective;
@@ -15,75 +20,108 @@ public sealed class LinkDetectiveApiClient(
     TimeProvider clock) : ILinkDetectiveApiClient
 {
     public const string HttpClientName = "LinkDetective";
+    private const string ApiBaseUrl = "https://linkdetective.pro/api/v2/";
+    private const string DomainsEndpoint = "domains";
+    private const string QuotaEndpoint = "inventory/preview";
+    private static readonly TimeSpan DefaultRetryDelay = TimeSpan.FromMinutes(1);
 
-    public async Task<LinkDetectiveDomainPrices> GetPricesAsync(string domain, CancellationToken cancellationToken)
+    public async Task<LinkDetectivePricesResponse> GetPricesAsync(string domain, CancellationToken cancellationToken)
+    {
+        var requestedDomains = NormalizeDomains([domain]);
+        var response = await SendAsync(DomainsEndpoint, new { domains = requestedDomains }, cancellationToken);
+        return LinkDetectiveResponseParser.ParseSingleDomain(response, domain, clock.GetUtcNow().UtcDateTime);
+    }
+
+    public async Task<LinkDetectiveBatchPricesResponse> GetBatchPricesAsync(
+        IReadOnlyCollection<string> domains, CancellationToken cancellationToken)
+    {
+        var requestedDomains = NormalizeDomains(domains);
+        var response = await SendAsync(DomainsEndpoint, new { domains = requestedDomains }, cancellationToken);
+        return LinkDetectiveResponseParser.ParseBatch(response, requestedDomains, clock.GetUtcNow().UtcDateTime);
+    }
+
+    public async Task<LinkDetectiveQuota> GetQuotaAsync(CancellationToken cancellationToken)
+    {
+        var response = await SendAsync(QuotaEndpoint, new { }, cancellationToken);
+        return LinkDetectiveQuotaParser.Parse(response.Quota, clock.GetUtcNow().UtcDateTime)
+            ?? throw new LinkDetectiveApiException(LinkDetectiveMessages.MissingQuota);
+    }
+
+    private async Task<LinkDetectiveApiResponse> SendAsync(string endpoint, object body, CancellationToken cancellationToken)
     {
         using var slot = await coordinator.BeginRequestAsync(cancellationToken);
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, "https://linkdetective.pro/api/v2/domains");
+            using var request = new HttpRequestMessage(HttpMethod.Post, ApiBaseUrl + endpoint);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.Value.ApiToken?.Trim());
-            request.Content = JsonContent.Create(new { domains = new[] { domain } });
+            request.Content = JsonContent.Create(body);
             using var response = await clients.CreateClient(HttpClientName).SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            ThrowIfUnsuccessful(response, applyDomainCooldown: endpoint == DomainsEndpoint);
+            // Sellers, contacts, SEO metrics and raw responses are never persisted or exposed.
+            var payload = await response.Content.ReadFromJsonAsync<LinkDetectiveApiResponse>(cancellationToken)
+                ?? throw LinkDetectiveApiException.IncompleteResponse();
+            if (endpoint == DomainsEndpoint &&
+                LinkDetectiveQuotaParser.GetCooldownUntilUtc(payload.Quota, clock.GetUtcNow().UtcDateTime) is { } retryAtUtc)
             {
-                var now = clock.GetUtcNow().UtcDateTime;
-                var retryAt = response.Headers.RetryAfter?.Date?.UtcDateTime
-                    ?? now.Add(response.Headers.RetryAfter?.Delta ?? TimeSpan.FromMinutes(1));
-                retryAt = retryAt > now ? retryAt : now.AddMinutes(1);
-                coordinator.BlockUntil(retryAt);
-                throw new LinkDetectiveApiException(response.StatusCode switch
-                {
-                    HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "LinkDetective access is unavailable. Contact an administrator.",
-                    HttpStatusCode.TooManyRequests => "LinkDetective request limit or quota reached. Try again later.",
-                    _ => "LinkDetective could not update prices. Try again later."
-                }, retryAt);
+                coordinator.BlockUntil(retryAtUtc);
             }
-
-            // Only price aggregates are deserialized; contacts, sellers, and metrics are ignored.
-            var payload = await response.Content.ReadFromJsonAsync<DomainResponse>(cancellationToken);
-            if (payload is null || payload.Truncated || payload.Results is null || payload.Results.Any(row => row is null))
-            {
-                throw InvalidResponse();
-            }
-
-            if (payload.Quota?.Remaining == 0)
-            {
-                var now = clock.GetUtcNow().UtcDateTime;
-                var resetAt = payload.Quota.ResetAt?.UtcDateTime;
-                coordinator.BlockUntil(resetAt > now ? resetAt.Value
-                    : payload.Quota.Period == "day" ? now.Date.AddDays(1) : now.AddMinutes(5));
-            }
-
-            var rows = payload.Results.OfType<PriceRow>().Where(row => DomainNormalizer.Normalize(row.Domain) == domain).ToList();
-            if (rows.Count == 1)
-            {
-                var row = rows[0];
-                if (row.Price is not >= 0 || row.Avg is not >= 0 || row.Median is not >= 0)
-                {
-                    throw InvalidResponse();
-                }
-                return new LinkDetectiveDomainPrices(row.Price, row.Avg, row.Median);
-            }
-            if (rows.Count == 0 && payload.NotFound?.Any(value => DomainNormalizer.Normalize(value) == domain) == true)
-            {
-                return new LinkDetectiveDomainPrices(null, null, null);
-            }
-
-            throw InvalidResponse();
+            return payload;
         }
         catch (Exception exception) when (exception is HttpRequestException or JsonException ||
             exception is OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
-            // Never propagate an upstream response, token, or request details to logs/UI.
-            throw new LinkDetectiveApiException("LinkDetective could not update prices. Try again later.");
+            throw new LinkDetectiveApiException(LinkDetectiveMessages.RequestFailed);
         }
     }
 
-    private static LinkDetectiveApiException InvalidResponse()
-        => new("LinkDetective returned an incomplete price response. Saved prices have been kept.");
+    private void ThrowIfUnsuccessful(HttpResponseMessage response, bool applyDomainCooldown)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
 
-    private sealed record DomainResponse(List<PriceRow?>? Results, List<string?>? NotFound, bool Truncated, QuotaRow? Quota);
-    private sealed record PriceRow(string? Domain, decimal? Price, decimal? Avg, decimal? Median);
-    private sealed record QuotaRow(long? Remaining, string? Period, DateTimeOffset? ResetAt);
+        var retryAt = GetRetryAtUtc(response.Headers.RetryAfter);
+        // Inventory limits must not block the existing on-demand domain lookup.
+        if (applyDomainCooldown)
+        {
+            coordinator.BlockUntil(retryAt);
+        }
+
+        var kind = response.StatusCode switch
+        {
+            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => LinkDetectiveFailureKind.AccessDenied,
+            HttpStatusCode.TooManyRequests => LinkDetectiveFailureKind.RateLimited,
+            _ => LinkDetectiveFailureKind.Transient
+        };
+        var message = kind switch
+        {
+            LinkDetectiveFailureKind.AccessDenied => LinkDetectiveMessages.AccessDenied,
+            LinkDetectiveFailureKind.RateLimited => LinkDetectiveMessages.RateLimited,
+            _ => LinkDetectiveMessages.RequestFailed
+        };
+        throw new LinkDetectiveApiException(message, retryAt, kind);
+    }
+
+    private DateTime GetRetryAtUtc(RetryConditionHeaderValue? retryAfter)
+    {
+        var now = clock.GetUtcNow().UtcDateTime;
+        var retryAt = retryAfter?.Date?.UtcDateTime ?? now.Add(retryAfter?.Delta ?? DefaultRetryDelay);
+        return retryAt > now ? retryAt : now.Add(DefaultRetryDelay);
+    }
+
+    private static string[] NormalizeDomains(IReadOnlyCollection<string> domains)
+    {
+        var normalized = domains
+            .Select(DomainNormalizer.Normalize)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (normalized.Length == 0)
+        {
+            throw new ArgumentException(LinkDetectiveMessages.InvalidDomainBatch, nameof(domains));
+        }
+
+        return normalized;
+    }
 }

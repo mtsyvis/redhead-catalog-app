@@ -5,6 +5,9 @@ using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Coordination;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Errors;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Models;
 using Redhead.SitesCatalog.Infrastructure.Options;
 
 namespace Redhead.SitesCatalog.Tests.Application.Services;
@@ -36,7 +39,10 @@ public sealed class LinkDetectivePricesServiceTests : IDisposable
     {
         // Arrange
         SeedCache(Now.AddDays(-ageInDays));
-        if (shouldRefresh) SetupPrices();
+        if (shouldRefresh)
+        {
+            SetupPrices();
+        }
 
         // Act
         var result = await CreateService().GetAsync("example.com", false, CancellationToken.None);
@@ -145,7 +151,7 @@ public sealed class LinkDetectivePricesServiceTests : IDisposable
         {
             entered.SetResult();
             await release.Task;
-            return new LinkDetectiveDomainPrices(525m, 558.67m, 534m);
+            return new LinkDetectivePricesResponse(new LinkDetectivePrices(525m, 558.67m, 534m));
         });
         using var secondContext = new ApplicationDbContext(_dbOptions);
         var secondService = CreateService(context: secondContext);
@@ -171,7 +177,7 @@ public sealed class LinkDetectivePricesServiceTests : IDisposable
     {
         // Arrange
         _api.Setup(api => api.GetPricesAsync("example.com", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new LinkDetectiveDomainPrices(null, null, null));
+            .ReturnsAsync(new LinkDetectivePricesResponse(new LinkDetectivePrices(null, null, null)));
         var service = CreateService();
 
         // Act
@@ -198,7 +204,7 @@ public sealed class LinkDetectivePricesServiceTests : IDisposable
         {
             entered.SetResult();
             await release.Task;
-            return new LinkDetectiveDomainPrices(525m, 558.67m, 534m);
+            return new LinkDetectivePricesResponse(new LinkDetectivePrices(525m, 558.67m, 534m));
         });
         using var secondContext = new ApplicationDbContext(_dbOptions);
         var secondService = CreateService(context: secondContext);
@@ -270,7 +276,10 @@ public sealed class LinkDetectivePricesServiceTests : IDisposable
     {
         // Arrange
         SeedCache(Now.AddDays(-ageDays));
-        if (shouldRefresh) SetupPrices();
+        if (shouldRefresh)
+        {
+            SetupPrices();
+        }
 
         // Act
         var result = await CreateService(cacheLifetimeDays: lifetimeDays)
@@ -298,6 +307,25 @@ public sealed class LinkDetectivePricesServiceTests : IDisposable
         Assert.Empty(_api.Invocations);
     }
 
+    [Fact]
+    public async Task GetAsync_RecordsSharedQuotaObservationForBackgroundMonitoring()
+    {
+        // Arrange
+        _api.Setup(api => api.GetPricesAsync("example.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LinkDetectivePricesResponse(
+                new LinkDetectivePrices(10, 20, 15),
+                new LinkDetectiveQuota(50000, 1, 49999, "day", Now.Date.AddDays(1))));
+
+        // Act
+        await CreateService().GetAsync("example.com", false, CancellationToken.None);
+
+        // Assert
+        var state = await _context.LinkDetectiveSyncStates.SingleAsync();
+        Assert.Equal(49999, state.QuotaRemaining);
+        Assert.Equal(Now, state.QuotaObservedAtUtc);
+        Assert.Equal(Now.Date.AddDays(1), state.QuotaResetAtUtc);
+    }
+
     private LinkDetectivePricesService CreateService(string? token = "test-token", ApplicationDbContext? context = null,
         int cacheLifetimeDays = 30)
         => new(context ?? _context, _api.Object, Options.Create(new LinkDetectiveOptions
@@ -307,7 +335,7 @@ public sealed class LinkDetectivePricesServiceTests : IDisposable
 
     private void SetupPrices()
         => _api.Setup(api => api.GetPricesAsync("example.com", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new LinkDetectiveDomainPrices(525m, 558.67m, 534m));
+            .ReturnsAsync(new LinkDetectivePricesResponse(new LinkDetectivePrices(525m, 558.67m, 534m)));
 
     private void SeedCache(DateTime checkedAt)
     {

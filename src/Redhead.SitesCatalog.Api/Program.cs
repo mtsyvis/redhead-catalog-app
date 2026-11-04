@@ -1,21 +1,21 @@
-using Redhead.SitesCatalog.Application.Services.Analytics.MissingDomainsAnalytics;
-using Redhead.SitesCatalog.Application.Services.Analytics.CatalogCoverageAnalytics;
-using Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.OAuth.Claims;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Redhead.SitesCatalog.Api.AccountSetup;
 using Redhead.SitesCatalog.Api.Authentication;
 using Redhead.SitesCatalog.Api.Controllers;
-using Redhead.SitesCatalog.Api.AccountSetup;
 using Redhead.SitesCatalog.Api.DependencyInjection;
 using Redhead.SitesCatalog.Api.Middleware;
 using Redhead.SitesCatalog.Application.Ahrefs;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.Analytics.CatalogCoverageAnalytics;
+using Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
+using Redhead.SitesCatalog.Application.Services.Analytics.MissingDomainsAnalytics;
 using Redhead.SitesCatalog.Application.Services.Import.Artifacts;
 using Redhead.SitesCatalog.Application.Services.Import.LastPublished;
 using Redhead.SitesCatalog.Application.Services.Import.Quarantine;
@@ -29,11 +29,12 @@ using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Repositories;
 using Redhead.SitesCatalog.Domain.SystemExports;
-using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Concurrency;
+using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Integrations.Ahrefs;
-using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective;
 using Redhead.SitesCatalog.Infrastructure.Integrations.GoogleDrive;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective;
+using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Coordination;
 using Redhead.SitesCatalog.Infrastructure.Locations;
 using Redhead.SitesCatalog.Infrastructure.Options;
 using Redhead.SitesCatalog.Infrastructure.Repositories;
@@ -48,13 +49,22 @@ builder.Services.AddClientCatalogProtection(builder.Configuration);
 builder.Services.AddHttpClient();
 builder.Services.AddOptions<LinkDetectiveOptions>()
     .Bind(builder.Configuration.GetSection(LinkDetectiveOptions.SectionName))
-    .Validate(LinkDetectiveOptions.IsValid, "LinkDetective:CacheLifetimeDays must be a positive integer.")
+    .Validate(LinkDetectiveOptions.IsValid,
+        $"LinkDetective:CacheLifetimeDays must be between 1 and {LinkDetectiveOptions.MaxCacheLifetimeDays} days.")
     .ValidateOnStart();
 builder.Services.AddHttpClient(LinkDetectiveApiClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15))
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddSingleton<LinkDetectiveRequestCoordinator>();
 builder.Services.AddScoped<ILinkDetectiveApiClient, LinkDetectiveApiClient>();
 builder.Services.AddScoped<ILinkDetectivePricesService, LinkDetectivePricesService>();
+builder.Services.AddOptions<LinkDetectiveSyncOptions>()
+    .Bind(builder.Configuration.GetSection(LinkDetectiveSyncOptions.SectionName))
+    .Validate(LinkDetectiveSyncOptions.IsValid, "Invalid LinkDetectiveSync schedule, batch size, reserve, or retry settings.")
+    .ValidateOnStart();
+builder.Services.AddScoped<Redhead.SitesCatalog.Application.LinkDetective.LinkDetectiveSyncService>();
+builder.Services.AddScoped<Redhead.SitesCatalog.Application.LinkDetective.LinkDetectiveSyncMonitoring>();
+builder.Services.AddScoped<ILinkDetectiveSyncLock, PostgresLinkDetectiveSyncLock>();
+builder.Services.AddHostedService<Redhead.SitesCatalog.Api.BackgroundJobs.LinkDetective.LinkDetectiveSyncHostedService>();
 
 builder.Services.Configure<GoogleDriveOptions>(
     builder.Configuration.GetSection(GoogleDriveOptions.SectionName));

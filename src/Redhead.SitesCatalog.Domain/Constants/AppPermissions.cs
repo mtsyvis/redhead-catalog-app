@@ -21,6 +21,7 @@ public static class AppPermissions
     public const string WebmasterOffersManage = "WebmasterOffersManage";
     public const string WebmasterOffersExport = "WebmasterOffersExport";
     public const string LinkDetectivePricesRead = "LinkDetectivePricesRead";
+    public const string LinkDetectiveSyncRead = "LinkDetectiveSyncRead";
     public const string WebmasterPriceComparisonRead = "WebmasterPriceComparisonRead";
 
     public static readonly string[] All =
@@ -44,6 +45,7 @@ public static class AppPermissions
         WebmasterOffersManage,
         WebmasterOffersExport,
         LinkDetectivePricesRead,
+        LinkDetectiveSyncRead,
         WebmasterPriceComparisonRead
     ];
 }

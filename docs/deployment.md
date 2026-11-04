@@ -136,24 +136,71 @@ the optional integration unavailable without preventing ordinary catalog use.
 The normal startup migration workflow creates a separate price-cache table. Only the three
 price aggregates and successful retrieval/error timing metadata are persisted. Existing
 catalog prices and webmaster offers are not modified. Cache rows are deleted with their site.
-Set `LinkDetective__CacheLifetimeDays` in the deployment environment to a positive integer
-to change the cache lifetime (default: 30 days). Compose forwards it to the app container;
+Set `LinkDetective__CacheLifetimeDays` in the deployment environment to an integer from 1 to 365
+to change the cache lifetime (default: 30 days). Values outside this range prevent application startup.
+Compose forwards it to the app container;
 recreate the app container after changing it. Application settings → System limits shows
 the effective value read-only.
-There is no scheduled full-catalog job: missing results and snapshots older than that lifetime are
-refreshed when an authorized admin opens or rechecks Price comparison for a domain. Ordinary
+Missing results and snapshots older than that lifetime are still refreshed when an authorized
+admin opens or rechecks Price comparison for a domain. Ordinary
 Offers and Multi-search do not call the provider. Manual refresh shares a one-minute
 per-domain cooldown. Failed refreshes preserve the previous successful snapshot.
 
-Provider requests have a 15-second timeout and no automatic retries. The single app instance
+Individual provider HTTP calls have a 15-second timeout and no automatic HTTP retries. The single app instance
 serializes provider calls with at least one second between request starts, shares provider
 cooldowns across domains, and stops after an exhausted quota until the reported reset (or the
 next UTC day for a daily quota when no reset time is returned). Other unknown quota periods
-use a five-minute pause. Refreshes share one application-wide lock; reusable cached results
+and explicitly expired reset timestamps use a five-minute pause. Inventory preview failures
+pause the background run without applying Inventory quota/access/rate cooldowns to on-demand
+domain lookups. Refreshes share one application-wide lock; reusable cached results
 are read without waiting for that lock, and the cache is checked again before a provider call.
 Request pacing and refresh locking are in memory; per-domain
 cooldowns are also persisted. Before deploying multiple replicas, replace the in-memory
 coordination with distributed coordination. Restart resets the in-memory provider cooldown.
+
+### Optional background market-price sync
+
+The worker is disabled by default. To enable it, set `LinkDetectiveSync__Enabled=true` alongside
+`LinkDetective__ApiToken` in the private deployment environment and recreate the app container.
+Admin and SuperAdmin have read-only monitoring at `Admin` → `LinkDetective Sync`; it exposes
+no token and cannot start or force provider requests. `Refresh status` only reads the database.
+
+Compose forwards the following settings. Invalid settings fail startup:
+
+* `LinkDetectiveSync__DailySelectionTimeUtc`: `HH:mm`, default `00:10` UTC (08:10 Asia/Singapore).
+* `LinkDetectiveSync__BatchSize`: positive whole number, default 500. The default is a verified
+  working batch size, not a confirmed provider maximum.
+* `LinkDetectiveSync__OnDemandReserve`: non-negative checks reserved for on-demand use, default 10000.
+  Configure it below the provider's quota; a quota at or below the reserve intentionally pauses the worker.
+* `LinkDetectiveSync__MaxAttempts`: 1–10, default 3.
+* `LinkDetectiveSync__RetryDelayMinutes`: 1–1440, default 5.
+
+The first enabled startup selects missing/stale catalog domains immediately. Later selections
+run daily; an existing run is resumed first and can span several quota periods.
+Changing the daily selection time updates the persisted future occurrence after restart;
+an already active run continues first. All catalog
+domains are eligible, including quarantine. Cache freshness uses the same effective lifetime as
+on-demand lookup. A successful manual check can satisfy queued work without another paid lookup.
+
+The worker confirms quota with the free preview before each paid batch. Preview and domain
+quota pool differences pause processing and are shown in the monitor; do not assume the
+Inventory row limit is a domains batch limit. The UI shows the last observed quota and reset
+time, not a live balance. Exhausted reserve waits for the provider reset, or rechecks after 15
+minutes when no usable reset time is available. An explicitly expired reset is rechecked rather
+than treated as a new future daily reset. Access failures wait at least
+an hour. Rate limits respect Retry-After; incomplete/transient domain failures have bounded retries.
+
+Run/item progress, retries, and the next selection are persisted. A PostgreSQL advisory lock
+allows only one background worker to process at a time. Each paid attempt is saved before
+calling the provider: after a crash its charge is uncertain, and retries may spend checks again.
+Confirmed prices and confirmed no-price results update the existing shared cache; errors retain
+the previous successful snapshot. A malformed individual result or quota field does not discard
+other confirmed domains in the same valid JSON response. Catalog price and offer tables are untouched.
+
+Disable the worker by setting `LinkDetectiveSync__Enabled=false` and recreating the app container.
+Saved progress and market prices remain; enabling again resumes pending work. Deployment uses
+the normal startup migrations. The additive sync schema and rollback record are documented in
+[data-migrations.md](data-migrations.md#linkdetective-background-sync).
 
 ## Production environment variables
 

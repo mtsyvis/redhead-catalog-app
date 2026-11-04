@@ -22,8 +22,10 @@ public sealed class LinkDetectiveOptionsTests
     [InlineData(0, false)]
     [InlineData(1, true)]
     [InlineData(30, true)]
-    [InlineData(int.MaxValue, true)]
-    public void IsValid_RequiresPositiveCacheLifetime(int lifetimeDays, bool expected)
+    [InlineData(365, true)]
+    [InlineData(366, false)]
+    [InlineData(int.MaxValue, false)]
+    public void IsValid_RequiresSupportedCacheLifetime(int lifetimeDays, bool expected)
     {
         // Arrange
         var options = new LinkDetectiveOptions { CacheLifetimeDays = lifetimeDays };
