@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE } from '../../constants/pagination.constants';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Tab, Tabs } from "@mui/material";
 import type { GridPaginationModel } from "@mui/x-data-grid";
@@ -63,7 +64,7 @@ export const ExportAnalytics: React.FC<{ active: boolean }> = ({ active }) => {
   const [recentExportsPaginationModel, setRecentExportsPaginationModel] =
     useState<GridPaginationModel>({
       page: 0,
-      pageSize: 25,
+      pageSize: DEFAULT_PAGE_SIZE,
     });
 
   const updateFilters = (changes: Partial<ExportFilters>) => {

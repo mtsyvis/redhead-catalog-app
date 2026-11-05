@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.constants';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
@@ -89,7 +90,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
   const [error, setError] = useState<string | null>(null);
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [driveExport, setDriveExport] = useState<GoogleDriveExportResponse | null>(null);
@@ -537,7 +538,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
                   count={offers.length}
                   page={page}
                   rowsPerPage={rowsPerPage}
-                  rowsPerPageOptions={[25, 50, 100]}
+                  rowsPerPageOptions={PAGE_SIZE_OPTIONS}
                   labelRowsPerPage="Offers per page:"
                   onPageChange={(_, nextPage) => setPage(nextPage)}
                   onRowsPerPageChange={(event) => {

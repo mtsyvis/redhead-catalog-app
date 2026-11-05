@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../../constants/pagination.constants';
 import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
@@ -247,9 +248,9 @@ function ClientExportSummaryTable({ rows }: { rows: ExportActivityClientSummaryI
       rows={rows}
       columns={columns}
       getRowId={(row) => row.userId}
-      pageSizeOptions={[10, 25, 50, 100]}
+      pageSizeOptions={PAGE_SIZE_OPTIONS}
       initialState={{
-        pagination: { paginationModel: { page: 0, pageSize: 25 } },
+        pagination: { paginationModel: { page: 0, pageSize: DEFAULT_PAGE_SIZE } },
       }}
       localeText={dataGridLocaleText}
       disableRowSelectionOnClick
@@ -373,7 +374,7 @@ function RecentExportsTable({
       columns={columns}
       getRowId={(row) => row.id}
       rowCount={totalCount}
-      pageSizeOptions={[10, 25, 50, 100]}
+      pageSizeOptions={PAGE_SIZE_OPTIONS}
       paginationModel={paginationModel}
       paginationMode="server"
       onPaginationModelChange={onPaginationModelChange}

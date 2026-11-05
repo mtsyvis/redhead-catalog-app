@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.constants';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Navigate } from 'react-router-dom';
@@ -42,7 +43,7 @@ export function Webmasters() {
   const [contact, setContact] = useState('');
   const [debouncedContact, setDebouncedContact] = useState('');
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [result, setResult] = useState<WebmasterSearchResult | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -301,7 +302,7 @@ export function Webmasters() {
             count={result.total}
             page={page}
             rowsPerPage={pageSize}
-            rowsPerPageOptions={[10, 20, 50]}
+            rowsPerPageOptions={PAGE_SIZE_OPTIONS}
             onPageChange={(_event, nextPage) => setPage(nextPage)}
             onRowsPerPageChange={(event) => {
               setPageSize(Number(event.target.value));

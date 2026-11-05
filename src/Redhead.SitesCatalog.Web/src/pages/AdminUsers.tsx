@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.constants';
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import type { ClientCatalogAlert, ClientCatalogAutoBan } from '../types/adminUsers.types';
 import { ClientCatalogAlertDialog } from '../components/admin/ClientCatalogAlertDialog';
@@ -186,7 +187,7 @@ export const AdminUsers: React.FC = () => {
   const searchActive = Boolean(searchInput.trim() || search);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
-    pageSize: 25,
+    pageSize: DEFAULT_PAGE_SIZE,
   });
   const [roleSettings, setRoleSettings] = useState<RoleSettingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1220,7 +1221,7 @@ export const AdminUsers: React.FC = () => {
           getRowId={(row) => row.id}
           rowCount={totalCount}
           loading={loading || searchInput.trim() !== search}
-          pageSizeOptions={[10, 25, 50, 100]}
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
           paginationModel={paginationModel}
           paginationMode="server"
           onPaginationModelChange={handlePaginationModelChange}

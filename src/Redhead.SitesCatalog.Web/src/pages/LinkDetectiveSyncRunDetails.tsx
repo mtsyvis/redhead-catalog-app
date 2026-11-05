@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.constants';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import {
@@ -30,7 +31,7 @@ import { dataGridLocaleText } from '../utils/numberFormat';
 export function LinkDetectiveSyncRunDetails({ id }: { id: string }) {
   const { canReadLinkDetectiveSync } = useUserRoles();
   const navigate = useNavigate();
-  const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 100 });
+  const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: DEFAULT_PAGE_SIZE });
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [resultStatus, setResultStatus] = useState('');
@@ -172,7 +173,7 @@ export function LinkDetectiveSyncRunDetails({ id }: { id: string }) {
                   paginationMode="server"
                   paginationModel={pagination}
                   onPaginationModelChange={setPagination}
-                  pageSizeOptions={[25, 50, 100]}
+                  pageSizeOptions={PAGE_SIZE_OPTIONS}
                   loading={loading}
                   disableRowSelectionOnClick
                   disableColumnFilter

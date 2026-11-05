@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.constants';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -47,7 +48,7 @@ export const AhrefsSyncRunDetails: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
-    pageSize: 100,
+    pageSize: DEFAULT_PAGE_SIZE,
   });
 
   const loadDetails = useCallback(
@@ -232,7 +233,7 @@ export const AhrefsSyncRunDetails: React.FC = () => {
                 paginationMode="server"
                 paginationModel={paginationModel}
                 onPaginationModelChange={setPaginationModel}
-                pageSizeOptions={[25, 50, 100, 250, 500]}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
                 disableRowSelectionOnClick
                 loading={loading}
                 localeText={dataGridLocaleText}

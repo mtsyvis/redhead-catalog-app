@@ -99,6 +99,7 @@ public sealed class AhrefsSyncControllerTests
     [Theory]
     [InlineData(0, 100)]
     [InlineData(1, 0)]
+    [InlineData(1, 101)]
     [InlineData(1, 501)]
     public async Task GetRun_WhenPaginationIsInvalid_ReturnsBadRequest(
         int page,

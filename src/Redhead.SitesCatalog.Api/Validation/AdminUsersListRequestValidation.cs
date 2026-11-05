@@ -1,12 +1,11 @@
 using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Application.Models;
+using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Api.Validation;
 
 public static class AdminUsersListRequestValidation
 {
-    private static readonly int[] AllowedPageSizes = [10, 25, 50, 100];
-
     public static string? Validate(UserListRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.UserType))
@@ -30,9 +29,9 @@ public static class AdminUsersListRequestValidation
             return "Page must be greater than or equal to 1.";
         }
 
-        if (!AllowedPageSizes.Contains(request.PageSize))
+        if (!PaginationDefaults.PageSizes.Contains(request.PageSize))
         {
-            return "Invalid pageSize. Allowed values: 10, 25, 50, 100.";
+            return $"Invalid pageSize. Allowed values: {string.Join(", ", PaginationDefaults.PageSizes)}.";
         }
 
         return null;

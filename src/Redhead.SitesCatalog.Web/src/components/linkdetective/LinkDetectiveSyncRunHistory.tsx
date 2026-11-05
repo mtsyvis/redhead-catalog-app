@@ -1,3 +1,4 @@
+import { PAGE_SIZE_OPTIONS } from '../../constants/pagination.constants';
 import { useMemo } from 'react';
 import { Box, Button, Paper, Typography } from '@mui/material';
 import { DataGrid, type GridColDef, type GridPaginationModel } from '@mui/x-data-grid';
@@ -93,7 +94,7 @@ export function LinkDetectiveSyncRunHistory({
           paginationMode="server"
           paginationModel={pagination}
           onPaginationModelChange={onPaginationChange}
-          pageSizeOptions={[10, 25, 50, 100]}
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
           loading={loading}
           disableRowSelectionOnClick
           disableColumnFilter

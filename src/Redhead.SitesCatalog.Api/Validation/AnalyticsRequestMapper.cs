@@ -141,9 +141,9 @@ public static class AnalyticsRequestMapper
             return $"Page must be greater than or equal to {PaginationDefaults.DefaultPage}.";
         }
 
-        if (!PaginationDefaults.AnalyticsPageSizes.Contains(pageSize))
+        if (!PaginationDefaults.PageSizes.Contains(pageSize))
         {
-            return $"Invalid pageSize. Allowed values: {string.Join(", ", PaginationDefaults.AnalyticsPageSizes)}.";
+            return $"Invalid pageSize. Allowed values: {string.Join(", ", PaginationDefaults.PageSizes)}.";
         }
 
         var offset = ((long)page - PaginationDefaults.DefaultPage) * pageSize;

@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE } from '../constants/pagination.constants';
 import { useCallback, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Alert, Box, Button, CircularProgress, Paper, Stack, Typography } from '@mui/material';
@@ -20,7 +21,7 @@ const path = '/admin/linkdetective-sync';
 export function LinkDetectiveSync() {
   const { id } = useParams<{ id: string }>();
   // Keep the history page when opening details and returning to the overview.
-  const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: 25 });
+  const [pagination, setPagination] = useState<GridPaginationModel>({ page: 0, pageSize: DEFAULT_PAGE_SIZE });
   return id ? (
     <LinkDetectiveSyncRunDetails key={id} id={id} />
   ) : (

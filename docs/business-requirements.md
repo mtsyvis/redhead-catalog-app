@@ -17,6 +17,11 @@ This file is the current source of truth for product behavior and business rules
 
 Legacy planning files and old specs are historical context only. They must not override this document.
 
+## Table pagination
+
+* All paginated UI tables use the same page-size choices: 10, 25, 50, and 100 rows, with 25 rows by default. UI defaults and choices match the shared API pagination settings.
+* A protected Client catalog selection keeps its existing access cap and hidden pagination; this is a limited selection rather than normal paged browsing.
+
 ## Users and roles
 
 The app has seven roles:

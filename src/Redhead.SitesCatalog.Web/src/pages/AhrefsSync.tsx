@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.constants';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -44,7 +45,7 @@ import {
 const EMPTY_RUNS: AhrefsSyncRunsPage = {
   items: [],
   page: 1,
-  pageSize: 25,
+  pageSize: DEFAULT_PAGE_SIZE,
   totalCount: 0,
   totalPages: 0,
 };
@@ -61,7 +62,7 @@ export const AhrefsSync: React.FC = () => {
   const [runsError, setRunsError] = useState<string | null>(null);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
-    pageSize: 25,
+    pageSize: DEFAULT_PAGE_SIZE,
   });
 
   const loadData = useCallback(
@@ -261,7 +262,7 @@ export const AhrefsSync: React.FC = () => {
               paginationMode="server"
               paginationModel={paginationModel}
               onPaginationModelChange={handlePaginationChange}
-              pageSizeOptions={[10, 25, 50, 100]}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
               disableRowSelectionOnClick
               loading={runsLoading || refreshing}
               onRowClick={(params) => navigate(`/admin/ahrefs-sync/runs/${params.row.id}`)}

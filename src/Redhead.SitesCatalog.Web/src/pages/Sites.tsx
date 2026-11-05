@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.constants';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Alert,
@@ -263,14 +264,14 @@ export function Sites() {
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
-    pageSize: isClient && !user?.isTrustedClient ? 100 : 25,
+    pageSize: isClient && !user?.isTrustedClient ? 100 : DEFAULT_PAGE_SIZE,
   });
 
   useEffect(() => {
     if (!isClient) return;
     setPaginationModel((previous) => ({
       page: 0,
-      pageSize: hasClientSelectionCap ? 100 : previous.pageSize === 100 ? 25 : previous.pageSize,
+      pageSize: hasClientSelectionCap ? 100 : previous.pageSize === 100 ? DEFAULT_PAGE_SIZE : previous.pageSize,
     }));
   }, [hasClientSelectionCap, isClient]);
 
@@ -1025,7 +1026,7 @@ export function Sites() {
                   }}
                   rowCount={hasClientSelectionCap || isMultiSearchView ? undefined : gridRowCount}
                   loading={gridLoading}
-                  pageSizeOptions={hasClientSelectionCap ? [100] : [10, 25, 50, 100]}
+                  pageSizeOptions={hasClientSelectionCap ? [100] : PAGE_SIZE_OPTIONS}
                   hideFooterPagination={hasClientSelectionCap && gridRows.length <= 100}
                   paginationModel={paginationModel}
                   paginationMode={hasClientSelectionCap || isMultiSearchView ? 'client' : 'server'}

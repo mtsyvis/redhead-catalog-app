@@ -15,19 +15,19 @@ public sealed class LinkDetectiveSyncController(LinkDetectiveSyncMonitoring moni
     public async Task<ActionResult> Status(CancellationToken cancellationToken) => Ok(await monitoring.GetStatusAsync(cancellationToken));
 
     [HttpGet("runs")]
-    public async Task<ActionResult> Runs(CancellationToken cancellationToken, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+    public async Task<ActionResult> Runs(CancellationToken cancellationToken, [FromQuery] int page = PaginationDefaults.DefaultPage, [FromQuery] int pageSize = PaginationDefaults.DefaultPageSize)
     {
         if (!ValidPage(page, pageSize))
         {
-            return BadRequest("Provide a positive page and a page size between 1 and 100.");
+            return BadRequest($"Provide a positive page and a page size between 1 and {PaginationDefaults.MaxTablePageSize}.");
         }
 
         return Ok(await monitoring.ListRunsAsync(page, pageSize, cancellationToken));
     }
 
     [HttpGet("runs/{id:guid}")]
-    public async Task<ActionResult> Run(Guid id, CancellationToken cancellationToken, [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 100, [FromQuery] string? domain = null, [FromQuery] LinkDetectiveSyncItemStatus? status = null)
+    public async Task<ActionResult> Run(Guid id, CancellationToken cancellationToken, [FromQuery] int page = PaginationDefaults.DefaultPage,
+        [FromQuery] int pageSize = PaginationDefaults.DefaultPageSize, [FromQuery] string? domain = null, [FromQuery] LinkDetectiveSyncItemStatus? status = null)
     {
         if (!ValidPage(page, pageSize) || domain?.Length > 253 || status is not null && !Enum.IsDefined(status.Value))
         {
@@ -38,5 +38,5 @@ public sealed class LinkDetectiveSyncController(LinkDetectiveSyncMonitoring moni
         return result is null ? NotFound() : Ok(result);
     }
 
-    private static bool ValidPage(int page, int pageSize) => page > 0 && pageSize is >= 1 and <= 100 && (long)(page - 1) * pageSize <= int.MaxValue;
+    private static bool ValidPage(int page, int pageSize) => page > 0 && pageSize is >= 1 and <= PaginationDefaults.MaxTablePageSize && (long)(page - 1) * pageSize <= int.MaxValue;
 }

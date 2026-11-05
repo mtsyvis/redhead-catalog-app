@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../../constants/pagination.constants';
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -118,7 +119,7 @@ const defaultFilters = (): Filters => ({
   status: "all",
   domain: "",
   page: 0,
-  pageSize: 25,
+  pageSize: DEFAULT_PAGE_SIZE,
 });
 
 export function MissingDomainsAnalytics({ active }: { active: boolean }) {
@@ -363,7 +364,7 @@ export function MissingDomainsAnalytics({ active }: { active: boolean }) {
               rowCount={data.uniqueDomains}
               paginationModel={{ page: data.page - 1, pageSize: filters.pageSize }}
               paginationMode="server"
-              pageSizeOptions={[10, 25, 50, 100]}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
               onPaginationModelChange={(model) =>
                 setFilters((current) => {
                   const page = model.pageSize === current.pageSize ? model.page : 0;

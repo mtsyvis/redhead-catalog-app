@@ -21,8 +21,8 @@ public sealed class WebmastersController : ControllerBase
     [HttpGet("search")]
     public async Task<ActionResult<WebmasterSearchResult>> Search(
         [FromQuery] string? contact,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = WebmasterSearchService.DefaultPageSize,
+        [FromQuery] int page = PaginationDefaults.DefaultPage,
+        [FromQuery] int pageSize = PaginationDefaults.DefaultPageSize,
         CancellationToken cancellationToken = default)
     {
         var result = await _webmasterSearchService.SearchAsync(

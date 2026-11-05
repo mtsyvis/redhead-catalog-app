@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Models.WebmasterSearch;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
@@ -10,8 +11,6 @@ namespace Redhead.SitesCatalog.Application.Services.WebmasterSearch;
 public sealed class WebmasterSearchService : IWebmasterSearchService
 {
     public const int MinimumContactLength = 3;
-    public const int DefaultPageSize = 20;
-    public const int MaximumPageSize = 100;
 
     private readonly ApplicationDbContext _context;
 
@@ -28,7 +27,7 @@ public sealed class WebmasterSearchService : IWebmasterSearchService
     {
         var normalizedContact = contact?.Trim().ToLowerInvariant() ?? string.Empty;
         var effectivePage = Math.Max(page, 1);
-        var effectivePageSize = Math.Clamp(pageSize, 1, MaximumPageSize);
+        var effectivePageSize = Math.Clamp(pageSize, 1, PaginationDefaults.MaxTablePageSize);
 
         if (normalizedContact.Length < MinimumContactLength)
         {

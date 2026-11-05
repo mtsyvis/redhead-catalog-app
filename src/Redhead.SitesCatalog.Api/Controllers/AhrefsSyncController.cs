@@ -73,8 +73,8 @@ public sealed class AhrefsSyncController : ControllerBase
 
     [HttpGet("runs")]
     public async Task<ActionResult> ListRuns(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 25,
+        [FromQuery] int page = PaginationDefaults.DefaultPage,
+        [FromQuery] int pageSize = PaginationDefaults.DefaultPageSize,
         CancellationToken cancellationToken = default)
     {
         if (page <= 0)
@@ -82,9 +82,9 @@ public sealed class AhrefsSyncController : ControllerBase
             return BadRequest(new MessageResponse("Page must be greater than zero."));
         }
 
-        if (pageSize is <= 0 or > 100)
+        if (pageSize is <= 0 or > PaginationDefaults.MaxTablePageSize)
         {
-            return BadRequest(new MessageResponse("PageSize must be between 1 and 100."));
+            return BadRequest(new MessageResponse($"PageSize must be between 1 and {PaginationDefaults.MaxTablePageSize}."));
         }
 
         return Ok(await _syncService.ListRunsAsync(page, pageSize, cancellationToken));
@@ -179,8 +179,8 @@ public sealed class AhrefsSyncController : ControllerBase
     [HttpGet("runs/{id:guid}")]
     public async Task<ActionResult> GetRun(
         Guid id,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 100,
+        [FromQuery] int page = PaginationDefaults.DefaultPage,
+        [FromQuery] int pageSize = PaginationDefaults.DefaultPageSize,
         CancellationToken cancellationToken = default)
     {
         if (page <= 0)
@@ -188,9 +188,9 @@ public sealed class AhrefsSyncController : ControllerBase
             return BadRequest(new MessageResponse("Page must be greater than zero."));
         }
 
-        if (pageSize is <= 0 or > 500)
+        if (pageSize is <= 0 or > PaginationDefaults.MaxTablePageSize)
         {
-            return BadRequest(new MessageResponse("PageSize must be between 1 and 500."));
+            return BadRequest(new MessageResponse($"PageSize must be between 1 and {PaginationDefaults.MaxTablePageSize}."));
         }
 
         var result = await _syncService.GetRunAsync(id, page, pageSize, cancellationToken);
