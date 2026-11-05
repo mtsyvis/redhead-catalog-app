@@ -187,6 +187,17 @@ export function PricingTable({
                   sx={(theme) => ({
                     ...getPinnedTableCellStyles(theme),
                     minWidth: columnWidths.domain ?? 220,
+                    // Keep the divider inside the sticky cell when row coordinates are fractional.
+                    borderBottom: 0,
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      borderBottom: `1px solid ${theme.palette.divider}`,
+                      pointerEvents: 'none',
+                    },
                   })}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
