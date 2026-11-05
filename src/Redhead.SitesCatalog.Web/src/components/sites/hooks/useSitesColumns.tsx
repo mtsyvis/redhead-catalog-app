@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Box, Chip, IconButton, Tooltip, Typography } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import EditIcon from '@mui/icons-material/Edit';
-import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
+import { UnavailableSiteIndicator } from '../../common/UnavailableSiteIndicator';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { Site } from '../../../types/sites.types';
 import type { TableViewDensity } from '../../../types/tableViews.types';
@@ -98,35 +98,7 @@ function renderDomainCell(row: GridRow, value: string) {
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, width: '100%' }}>
-      <Tooltip
-        title="Unavailable"
-        arrow
-        placement="top"
-        slotProps={{
-          popper: {
-            modifiers: [{ name: 'offset', options: { offset: [0, 24] } }],
-          },
-        }}
-      >
-        <Box
-          component="span"
-          role="img"
-          aria-label="Unavailable site"
-          tabIndex={0}
-          sx={{
-            display: 'inline-flex',
-            flexShrink: 0,
-            color: 'error.dark',
-            outline: 'none',
-            borderRadius: '50%',
-            '&:focus-visible': {
-              boxShadow: (theme) => `0 0 0 2px ${theme.palette.error.light}`,
-            },
-          }}
-        >
-          <ErrorOutlineRoundedIcon aria-hidden sx={{ fontSize: 18 }} />
-        </Box>
-      </Tooltip>
+      <UnavailableSiteIndicator />
       {renderTruncatedTextCell(value)}
     </Box>
   );

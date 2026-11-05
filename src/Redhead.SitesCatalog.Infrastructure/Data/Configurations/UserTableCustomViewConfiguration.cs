@@ -13,7 +13,7 @@ public class UserTableCustomViewConfiguration : IEntityTypeConfiguration<UserTab
         {
             table.HasCheckConstraint(
                 "CK_UserTableCustomViews_TableKey",
-                $@"""TableKey"" = '{TableViewConstants.SitesTableKey}'");
+                $@"""TableKey"" IN ('{TableViewConstants.SitesTableKey}', '{TableViewConstants.PricingTableKey}')");
 
             table.HasCheckConstraint(
                 "CK_UserTableCustomViews_SchemaVersion",

@@ -13,7 +13,7 @@ public class UserTablePreferenceConfiguration : IEntityTypeConfiguration<UserTab
         {
             table.HasCheckConstraint(
                 "CK_UserTablePreferences_TableKey",
-                $@"""TableKey"" = '{TableViewConstants.SitesTableKey}'");
+                $@"""TableKey"" IN ('{TableViewConstants.SitesTableKey}', '{TableViewConstants.PricingTableKey}')");
 
             table.HasCheckConstraint(
                 "CK_UserTablePreferences_ActiveViewType",

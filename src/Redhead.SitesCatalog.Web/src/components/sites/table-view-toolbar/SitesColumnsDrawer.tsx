@@ -329,7 +329,7 @@ function ColumnOrderList({
         const locked = Boolean(column.required);
         const active = draggedColumnId === column.id;
         const columnIndex = visibleColumnIds.indexOf(column.id);
-        const canMoveUp = !locked && columnIndex > 1;
+        const canMoveUp = !locked && columnIndex > orderedColumns.filter((item) => item.required).length;
         const canMoveDown = !locked && columnIndex < visibleColumnIds.length - 1;
 
         return (

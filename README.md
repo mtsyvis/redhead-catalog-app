@@ -4,6 +4,10 @@ Internal web application for Redhead Digital Agency to manage a large catalog of
 
 The app is used to browse, search, filter, import, edit, and export sites data. It also includes user management, role-based access, export limits, and production deployment via Docker Compose.
 
+Admin and SuperAdmin can use the separate **Pricing** workspace to review catalog selling prices,
+filter and sort USD margins against Active webmaster offers, compare saved LinkDetective prices,
+and edit catalog prices in a dialog. Its migration enables a separate `pricing` key in the existing table-view preferences.
+
 ## Documentation
 
 Use this repository documentation in the following way:
@@ -194,6 +198,27 @@ REDHEAD_TEST_POSTGRES='Host=localhost;Port=5433;Database=postgres;Username=postg
 The database user needs permission to create databases. Each test migrates a fresh database
 named `redhead_offer_test_<random id>` and drops that database afterward. Do not point these
 tests at production. Without the environment variable, the regular backend unit tests still run.
+
+### Pricing functional and PostgreSQL tests
+
+Pricing business behavior is covered by
+`tests/Redhead.SitesCatalog.Tests/Application/Services/PricingTests.cs` using EF InMemory:
+validation, ordinary saves, audit history, stale-version rejection, no-op saves, and cached references.
+These tests run without PostgreSQL:
+
+```bash
+dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~Application.Services.PricingTests
+```
+
+`Integration/PricingPostgresTests.cs` covers SQL queries, decimal storage, simultaneous writes,
+and migration rollback. Set `REDHEAD_TEST_POSTGRES` as described above, then run:
+
+```bash
+dotnet test redhead-catalog-app.sln --filter FullyQualifiedName~Integration.PricingPostgresTests
+```
+
+Each PostgreSQL test creates and drops its own `redhead_pricing_test_<random id>` database.
+Without the connection variable, these integration tests are skipped.
 
 ### Business Demand analytics load benchmark
 

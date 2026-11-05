@@ -16,9 +16,10 @@ public class SitePriceOptionConfiguration : IEntityTypeConfiguration<SitePriceOp
                 "\"AmountUsd\" > 0");
             tableBuilder.HasCheckConstraint(
                 "CK_SitePriceOptions_Term_Consistency",
-                "(\"TermKey\" = 'unknown' AND \"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR " +
+                // PostgreSQL CHECK accepts NULL; a valid term must explicitly evaluate to TRUE.
+                "((\"TermKey\" = 'unknown' AND \"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR " +
                 "(\"TermKey\" = 'permanent' AND \"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR " +
-                "(\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1 AND \"TermKey\" = ('finite:' || \"TermValue\"::text || ':year'))");
+                "(\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1 AND \"TermKey\" = ('finite:' || \"TermValue\"::text || ':year'))) IS TRUE");
         });
 
         builder.HasKey(priceOption => priceOption.Id);

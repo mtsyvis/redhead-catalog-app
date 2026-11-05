@@ -2,6 +2,8 @@ namespace Redhead.SitesCatalog.Domain.Constants;
 
 public static class AppPolicies
 {
+    public const string PricingReadAccess = "PricingReadAccess";
+    public const string PricingEditAccess = "PricingEditAccess";
     public const string SitesBrowseAccess = "SitesBrowseAccess";
     public const string SitesMultiSearchAccess = "SitesMultiSearchAccess";
     public const string SitesEditAccess = "SitesEditAccess";
@@ -27,6 +29,8 @@ public static class AppPolicies
     public static readonly IReadOnlyDictionary<string, string> PermissionPolicies =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            [AppPermissions.PricingRead] = PricingReadAccess,
+            [AppPermissions.PricingEdit] = PricingEditAccess,
             [AppPermissions.SitesBrowse] = SitesBrowseAccess,
             [AppPermissions.SitesMultiSearch] = SitesMultiSearchAccess,
             [AppPermissions.SitesEdit] = SitesEditAccess,

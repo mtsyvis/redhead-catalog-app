@@ -301,6 +301,26 @@ public sealed class UserTableViewsServiceTests
         Assert.Contains("too large", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task PricingPreferences_AreIndependentFromSitesPreferences()
+    {
+        // Arrange
+        await using var db = CreateDbContext();
+        var sut = CreateService(db);
+        var pricing = await sut.CreateCustomViewAsync("user-1", "pricing", "Pricing", CreateSettings("domain", "price0", "ldMinimum"), default);
+        await sut.SetActiveViewAsync("user-1", "pricing", "custom", pricing.Id.ToString(), default);
+
+        // Act
+        var pricingViews = await sut.GetTableViewsAsync("user-1", "pricing", default);
+        var sitesViews = await sut.GetTableViewsAsync("user-1", "sites", default);
+
+        // Assert
+        Assert.Equal(pricing.Id.ToString(), pricingViews.ActiveViewKey);
+        Assert.Equal("default", sitesViews.ActiveViewKey);
+        Assert.Empty(sitesViews.CustomViews);
+        Assert.Equal(new[] { "domain", "price0", "ldMinimum" }, Assert.Single(pricingViews.CustomViews).Settings.VisibleColumnIds);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

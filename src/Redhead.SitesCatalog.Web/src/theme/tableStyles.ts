@@ -45,6 +45,32 @@ export function getPinnedTableCellStyles(theme: Theme, header = false): CSSObjec
   };
 }
 
+export function getUnavailableTableRowStyles(
+  theme: Theme,
+  cellSelector: string,
+  pinnedCellSelector: string
+): CSSObject {
+  const accent = {
+    backgroundImage: `linear-gradient(to right, ${theme.palette.error.main} 0 3px, transparent 3px)`,
+    backgroundRepeat: 'no-repeat',
+  };
+  return {
+    [`& ${cellSelector}`]: { backgroundColor: alpha(theme.palette.error.main, 0.08) },
+    [`& ${pinnedCellSelector}`]: {
+      // A pinned cell needs an opaque background so scrolled columns cannot show through.
+      backgroundColor: `color-mix(in srgb, ${theme.palette.error.main} 8%, ${theme.palette.background.paper})`,
+      ...accent,
+    },
+    [`&:hover ${cellSelector}, &.Mui-selected ${cellSelector}, &.Mui-selected:hover ${cellSelector}`]: {
+      backgroundColor: alpha(theme.palette.error.main, 0.1),
+    },
+    [`&:hover ${pinnedCellSelector}, &.Mui-selected ${pinnedCellSelector}, &.Mui-selected:hover ${pinnedCellSelector}`]: {
+      backgroundColor: `color-mix(in srgb, ${theme.palette.error.main} 10%, ${theme.palette.background.paper})`,
+      ...accent,
+    },
+  };
+}
+
 export function getDataGridStyles(theme: Theme): CSSObject {
   return {
     ...getTableSurfaceStyles(theme),

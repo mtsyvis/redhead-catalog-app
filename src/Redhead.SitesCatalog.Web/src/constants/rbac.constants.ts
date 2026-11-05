@@ -5,6 +5,8 @@ export const NON_SUPER_ADMIN_ROLES = ['Admin', 'Editor', 'Linkbuilder', 'Interna
 export type NonSuperAdminRole = (typeof NON_SUPER_ADMIN_ROLES)[number];
 
 export const APP_PERMISSIONS = [
+  'PricingRead',
+  'PricingEdit',
   'SitesBrowse',
   'SitesMultiSearch',
   'SitesEdit',
@@ -32,6 +34,8 @@ export type AppPermission = (typeof APP_PERMISSIONS)[number];
 export const ROLE_PERMISSION_MATRIX: Record<AppRole, readonly AppPermission[]> = {
   SuperAdmin: APP_PERMISSIONS,
   Admin: [
+    'PricingRead',
+    'PricingEdit',
     'SitesBrowse',
     'SitesMultiSearch',
     'SitesEdit',

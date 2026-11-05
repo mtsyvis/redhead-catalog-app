@@ -226,6 +226,22 @@ public static class SiteWriteValidator
         };
     }
 
+    public static SitePricingValidationResult ValidatePricing(UpdateSitePricingRequest? pricing)
+    {
+        if (pricing is null)
+        {
+            return new SitePricingValidationResult { FieldErrors = new() { ["pricing"] = ["Pricing is required."] } };
+        }
+
+        var errors = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var normalized = NormalizePricing(errors, pricing);
+        return new SitePricingValidationResult
+        {
+            FieldErrors = errors.ToDictionary(entry => entry.Key, entry => entry.Value.ToArray()),
+            NormalizedPricing = normalized
+        };
+    }
+
     private static UpdateSitePricingRequest NormalizePricing(
         Dictionary<string, List<string>> errors,
         UpdateSitePricingRequest pricing)
@@ -259,6 +275,14 @@ public static class SiteWriteValidator
             if (price.AmountUsd <= 0)
             {
                 Add(errors, $"{prefix}.amountUsd", "Price amount must be greater than 0.");
+            }
+            else if (price.AmountUsd > SiteFieldLimits.MaxPriceUsd)
+            {
+                Add(errors, $"{prefix}.amountUsd", "Price amount is too large.");
+            }
+            else if (decimal.Round(price.AmountUsd, 2) != price.AmountUsd)
+            {
+                Add(errors, $"{prefix}.amountUsd", "Price may have at most 2 decimal places.");
             }
 
             if (!seenPriceTerms.Add((price.PriceType, term.TermKey)))

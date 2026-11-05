@@ -1,3 +1,4 @@
+import { MarginAmount } from '../common/MarginAmount';
 import { useEffect, useState } from 'react';
 import {
   Alert,
@@ -102,22 +103,7 @@ function PriceCell({
         {value}
       </Typography>
       {amount != null ? (
-        <Tooltip title="Catalog price for the same service and term − webmaster price, in USD">
-          <Typography
-            variant="caption"
-            component="div"
-            sx={{
-              color: amount <= 0 ? 'error.main' : 'success.main',
-              fontWeight: 500,
-              fontVariantNumeric: 'tabular-nums',
-              whiteSpace: 'nowrap',
-              mt: 0.25,
-            }}
-          >
-            Margin {amount > 0 ? '+' : amount < 0 ? '−' : ''}
-            {amount === 0 ? '$0' : currency.format(Math.abs(amount))}
-          </Typography>
-        </Tooltip>
+        <MarginAmount amount={amount} tooltip="Catalog price for the same service and term − webmaster price, in USD" />
       ) : (
         <Typography
           variant="caption"

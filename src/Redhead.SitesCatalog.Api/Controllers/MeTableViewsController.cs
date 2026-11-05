@@ -30,6 +30,8 @@ public sealed class MeTableViewsController : ControllerBase
         string tableKey,
         CancellationToken cancellationToken)
     {
+        if (tableKey == TableViewConstants.PricingTableKey && !CanReadPricing()) return Forbid();
+
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -50,6 +52,8 @@ public sealed class MeTableViewsController : ControllerBase
         [FromBody] SetActiveTableViewRequest request,
         CancellationToken cancellationToken)
     {
+        if (tableKey == TableViewConstants.PricingTableKey && !CanReadPricing()) return Forbid();
+
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -72,6 +76,8 @@ public sealed class MeTableViewsController : ControllerBase
         [FromBody] CreateTableCustomViewRequest request,
         CancellationToken cancellationToken)
     {
+        if (tableKey == TableViewConstants.PricingTableKey && !CanReadPricing()) return Forbid();
+
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -98,6 +104,8 @@ public sealed class MeTableViewsController : ControllerBase
         [FromBody] UpdateTableCustomViewRequest request,
         CancellationToken cancellationToken)
     {
+        if (tableKey == TableViewConstants.PricingTableKey && !CanReadPricing()) return Forbid();
+
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -121,6 +129,8 @@ public sealed class MeTableViewsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
+        if (tableKey == TableViewConstants.PricingTableKey && !CanReadPricing()) return Forbid();
+
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -135,4 +145,6 @@ public sealed class MeTableViewsController : ControllerBase
 
         return NoContent();
     }
+    private bool CanReadPricing() => User.FindAll(System.Security.Claims.ClaimTypes.Role)
+        .Any(claim => RolePermissionMatrix.HasPermission(claim.Value, AppPermissions.PricingRead));
 }

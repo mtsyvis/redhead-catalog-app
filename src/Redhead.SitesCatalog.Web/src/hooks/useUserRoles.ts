@@ -18,6 +18,8 @@ export function useUserRoles() {
   const isLinkbuilder = hasRole('Linkbuilder');
   const isClient = hasRole('Client');
   const isLite = hasRole('Lite');
+  const canReadPricing = hasPermission('PricingRead');
+  const canEditPricing = hasPermission('PricingEdit');
   const canBrowseSites = hasPermission('SitesBrowse');
   const canMultiSearchSites = hasPermission('SitesMultiSearch');
   const canEditSites = hasPermission('SitesEdit');
@@ -52,6 +54,8 @@ export function useUserRoles() {
     hasRole,
     hasAnyRole,
     hasPermission,
+    canReadPricing,
+    canEditPricing,
     canBrowseSites,
     canMultiSearchSites,
     canEditSites,

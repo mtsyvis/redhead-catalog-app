@@ -8,6 +8,8 @@ public static class RolePermissionMatrix
             [AppRoles.SuperAdmin] = AppPermissions.All.ToHashSet(StringComparer.Ordinal),
             [AppRoles.Admin] = new HashSet<string>(StringComparer.Ordinal)
             {
+                AppPermissions.PricingRead,
+                AppPermissions.PricingEdit,
                 AppPermissions.SitesBrowse,
                 AppPermissions.SitesMultiSearch,
                 AppPermissions.SitesEdit,

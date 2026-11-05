@@ -16,15 +16,15 @@ public sealed class WebmasterPriceComparisonService(
     IWebmasterOffersService offersService) : IWebmasterPriceComparisonService
 {
     // Order and offer-facing names match the original Webmaster Offers table.
-    private static readonly (PriceType Catalog, WebmasterOfferPriceType Offer)[] PriceTypes =
-    [
-        (PriceType.Main, WebmasterOfferPriceType.Main),
-        (PriceType.Casino, WebmasterOfferPriceType.Casino),
-        (PriceType.Crypto, WebmasterOfferPriceType.Crypto),
-        (PriceType.Dating, WebmasterOfferPriceType.Dating),
-        (PriceType.LinkInsertion, WebmasterOfferPriceType.LinkInsertion),
-        (PriceType.LinkInsertionCasino, WebmasterOfferPriceType.LinkInsertion18Plus)
-    ];
+    private static readonly (PriceType Catalog, WebmasterOfferPriceType Offer)[] PriceTypes = new[]
+    {
+        PriceType.Main,
+        PriceType.Casino,
+        PriceType.Crypto,
+        PriceType.Dating,
+        PriceType.LinkInsertion,
+        PriceType.LinkInsertionCasino
+    }.Select(type => (Catalog: type, Offer: CatalogPriceMapping.ToOfferType(type))).ToArray();
 
     public async Task<WebmasterPriceComparisonResult> GetByDomainAsync(string domain, CancellationToken cancellationToken = default)
     {

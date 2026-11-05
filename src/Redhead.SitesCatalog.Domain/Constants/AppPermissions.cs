@@ -2,6 +2,8 @@ namespace Redhead.SitesCatalog.Domain.Constants;
 
 public static class AppPermissions
 {
+    public const string PricingRead = "PricingRead";
+    public const string PricingEdit = "PricingEdit";
     public const string SitesBrowse = "SitesBrowse";
     public const string SitesMultiSearch = "SitesMultiSearch";
     public const string SitesEdit = "SitesEdit";
@@ -26,6 +28,8 @@ public static class AppPermissions
 
     public static readonly string[] All =
     [
+        PricingRead,
+        PricingEdit,
         SitesBrowse,
         SitesMultiSearch,
         SitesEdit,

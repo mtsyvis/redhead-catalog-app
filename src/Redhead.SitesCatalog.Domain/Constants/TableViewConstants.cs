@@ -2,6 +2,7 @@ namespace Redhead.SitesCatalog.Domain.Constants;
 
 public static class TableViewConstants
 {
+    public const string PricingTableKey = "pricing";
     public const string SitesTableKey = "sites";
 
     public const string SystemViewType = "system";

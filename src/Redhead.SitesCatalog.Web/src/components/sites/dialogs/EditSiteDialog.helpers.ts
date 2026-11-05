@@ -8,6 +8,7 @@ import {
   normalizeServiceAvailabilityStatus,
 } from '../../../utils/serviceAvailability';
 import { normalizeLanguageCode } from '../../../utils/language';
+import { parseCatalogPriceAmount } from '../../../utils/catalogPriceAmount';
 import {
   OPTIONAL_PRICE_TYPES,
   PRICE_TYPE,
@@ -159,14 +160,12 @@ function validatePricingRows(
   for (const row of form.pricingRows) {
     const amountKey = pricingAmountErrorKey(row.id);
     const termKey = pricingTermErrorKey(row.id);
-    const amount = parseNumberOrNull(row.amountUsd);
+    const { error } = parseCatalogPriceAmount(row.amountUsd);
 
     if (row.amountUsd.trim() === '') {
       errors[amountKey] = ['Amount is required.'];
-    } else if (amount === null) {
-      errors[amountKey] = ['Amount must be a valid number.'];
-    } else if (amount <= 0) {
-      errors[amountKey] = ['Amount must be greater than 0.'];
+    } else if (error) {
+      errors[amountKey] = [error];
     }
 
     const duplicateKey = `${row.priceType}:${row.termKey}`;

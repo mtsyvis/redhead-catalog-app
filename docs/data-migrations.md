@@ -245,3 +245,43 @@ as the normal migration command. Take the normal database backup first. Down mig
 only these three new tables, including run history, queued work, and quota observations; shared
 market prices and catalog/offer data remain. Deploy the matching application version together
 with the schema. Re-applying creates empty run history and a new due-domain selection on enable.
+
+## Pricing table preferences
+
+`20261104075352_AddPricingTableViews` expands the `TableKey` check constraints on
+`UserTableCustomViews` and `UserTablePreferences` to allow `pricing` alongside `sites`.
+It adds no tables and does not rewrite catalog prices, offers, market-price caches, or existing views.
+Normal API startup applies the migration before the Pricing page can save its presentation.
+No production application is recorded.
+
+Verification uses synthetic records in disposable `redhead_pricing_test_*` PostgreSQL databases.
+It covers creating and activating separate Sites and Pricing preferences and rollback preserving
+the Sites view, catalog prices, and LinkDetective cache. Pricing persistence tests also verify
+atomic price/history writes, no-op audit preservation, and concurrent-save conflicts.
+
+For rollback, back up the database and stop the new application before migrating to
+`20261103080717_AddLinkDetectiveBackgroundSync`. Down removes only `pricing` preferences and
+custom views, then restores the Sites-only constraints. These Pricing presentation settings are
+lost on rollback; saved catalog-price edits and their history remain. Deploy the matching application.
+
+## Strict catalog-price term constraint
+
+`20261105084327_EnforceStrictCatalogPriceTerms` replaces
+`CK_SitePriceOptions_Term_Consistency` with the same supported-term predicate followed by
+`IS TRUE`. PostgreSQL CHECK constraints accept a NULL result; requiring TRUE closes the gap
+for known terms with missing type or unit. The existing positive-amount constraint is unchanged.
+Pricing queries can consequently read `SitePriceOptions` directly without a duplicate SQL validator.
+
+The migration changes no rows. Adding the validated constraint scans existing prices and fails
+transactionally if any term does not satisfy the stricter predicate. Before rollout, count rows for
+which the predicate from the migration's Down constraint is `IS NOT TRUE`; the count must be zero.
+Any nonzero result needs an explicit data repair before deployment. Apply through the normal
+startup migration workflow with the usual backup; no production application is recorded.
+
+Read-only local preflight on 2026-11-05 found zero inconsistent terms in both the local catalog
+(132,578 prices) and the 2026-10-29 production snapshot (161,922 prices). These counts are not a
+production verification. Disposable PostgreSQL tests cover valid/invalid term metadata, positive
+amount enforcement, failed-upgrade preservation, and rollback/reapplication without price changes.
+
+Rollback to `20261104075352_AddPricingTableViews` restores the previous weaker constraint without
+rewriting prices. Deploy the corresponding application version; reapplying validates all rows again.

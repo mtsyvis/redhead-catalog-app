@@ -23,6 +23,9 @@ const AccountSetup = React.lazy(() =>
   import('./pages/AccountSetup').then((module) => ({ default: module.AccountSetup }))
 );
 const Profile = React.lazy(() => import('./pages/Profile').then((module) => ({ default: module.Profile })));
+const Pricing = React.lazy(() =>
+  import('./pages/Pricing').then((module) => ({ default: module.Pricing }))
+);
 const Sites = React.lazy(() => import('./pages/Sites').then((module) => ({ default: module.Sites })));
 const WebmasterOffers = React.lazy(() =>
   import('./pages/WebmasterOffers').then((module) => ({ default: module.WebmasterOffers }))
@@ -139,6 +142,16 @@ const App: React.FC = () => {
                 }
               />
 
+              <Route
+                path="/pricing"
+                element={
+                  <ProtectedRoute>
+                    <AccountSetupRequiredRoute>
+                      <Pricing />
+                    </AccountSetupRequiredRoute>
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/admin/users"
                 element={

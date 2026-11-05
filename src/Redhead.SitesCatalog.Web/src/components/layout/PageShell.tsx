@@ -48,6 +48,7 @@ export const PageShell: React.FC<PageShellProps> = ({
   const { user, logout } = useAuth();
   const {
     canRunImports,
+    canReadPricing,
     canReadUsers,
     canReadRoleSettings,
     canReadAnyAnalytics,
@@ -86,6 +87,7 @@ export const PageShell: React.FC<PageShellProps> = ({
   };
 
   const getCurrentTab = () => {
+    if (location.pathname === '/pricing') return '/pricing';
     if (location.pathname === '/sites') return '/sites';
     if (location.pathname.startsWith('/webmaster-offers')) return '/webmaster-offers';
     if (location.pathname.startsWith('/webmasters')) return '/webmasters';
@@ -163,6 +165,7 @@ export const PageShell: React.FC<PageShellProps> = ({
                   }}
                 >
                   <Tab label="Sites" value="/sites" />
+                  {canReadPricing && <Tab label="Pricing" value="/pricing" />}
                   {canReadWebmasterOffers && (
                     <Tab label="Webmasters" value="/webmasters" />
                   )}

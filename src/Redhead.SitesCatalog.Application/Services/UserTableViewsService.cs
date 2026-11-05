@@ -248,7 +248,7 @@ public sealed class UserTableViewsService : IUserTableViewsService
 
     private static void ValidateTableKey(string tableKey)
     {
-        if (!string.Equals(tableKey, TableViewConstants.SitesTableKey, StringComparison.Ordinal))
+        if (tableKey is not (TableViewConstants.SitesTableKey or TableViewConstants.PricingTableKey))
         {
             throw new RequestValidationException("Unsupported table key.");
         }

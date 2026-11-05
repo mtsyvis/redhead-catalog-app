@@ -8,6 +8,77 @@ namespace Redhead.SitesCatalog.Tests.Api.Models;
 public class SiteWriteValidatorTests
 {
     [Fact]
+    public void ValidatePricing_NullPricing_ReturnsRequiredError()
+    {
+        // Arrange
+        UpdateSitePricingRequest? pricing = null;
+
+        // Act
+        var result = SiteWriteValidator.ValidatePricing(pricing);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Contains("pricing", result.FieldErrors.Keys);
+        Assert.Null(result.NormalizedPricing);
+    }
+
+    [Theory]
+    [InlineData("0", false)]
+    [InlineData("-1", false)]
+    [InlineData("0.001", false)]
+    [InlineData("100.001", false)]
+    [InlineData("10000000000000000", false)]
+    [InlineData("0.01", true)]
+    [InlineData("100", true)]
+    [InlineData("100.1", true)]
+    [InlineData("100.12", true)]
+    [InlineData("100.1200", true)]
+    [InlineData("9999999999999999.99", true)]
+    public void ValidatePricing_AmountMustFitPositiveTwoDecimalPrice(string text, bool expectedValid)
+    {
+        // Arrange
+        var amount = decimal.Parse(text, System.Globalization.CultureInfo.InvariantCulture);
+        var pricing = new UpdateSitePricingRequest
+        {
+            Prices = [new() { PriceType = PriceType.Main, TermKey = "unknown", AmountUsd = amount }]
+        };
+
+        // Act
+        var result = SiteWriteValidator.ValidatePricing(pricing);
+
+        // Assert
+        Assert.Equal(expectedValid, result.IsValid);
+        if (expectedValid)
+        {
+            Assert.Equal(amount, Assert.Single(Assert.IsType<UpdateSitePricingRequest>(result.NormalizedPricing).Prices).AmountUsd);
+        }
+        else
+        {
+            Assert.Contains("pricing.prices[0].amountUsd", result.FieldErrors.Keys);
+        }
+    }
+
+    [Theory]
+    [InlineData("0.001")]
+    [InlineData("100.001")]
+    [InlineData("10000000000000000")]
+    public void ValidateAndNormalize_FullSiteEditUsesSamePricingAmountValidation(string text)
+    {
+        // Arrange
+        var request = BuildValidRequest();
+        request.Pricing = new UpdateSitePricingRequest
+        {
+            Prices = [new() { PriceType = PriceType.Casino, TermKey = "unknown", AmountUsd = decimal.Parse(text, System.Globalization.CultureInfo.InvariantCulture) }]
+        };
+
+        // Act
+        var result = SiteWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        AssertError(result, "pricing.prices[0].amountUsd");
+    }
+
+    [Fact]
     public void ValidateAndNormalize_NullInput_ReturnsBodyRequiredError()
     {
         var result = SiteWriteValidator.ValidateAndNormalize(null);

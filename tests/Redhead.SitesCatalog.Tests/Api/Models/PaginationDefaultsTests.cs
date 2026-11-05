@@ -4,6 +4,7 @@ using Redhead.SitesCatalog.Api.Models;
 using Redhead.SitesCatalog.Api.Models.Analytics;
 using Redhead.SitesCatalog.Api.Models.Sites;
 using Redhead.SitesCatalog.Api.Validation;
+using Redhead.SitesCatalog.Application.Models.Pricing;
 using Redhead.SitesCatalog.Domain.Constants;
 
 namespace Redhead.SitesCatalog.Tests.Api.Models;
@@ -15,7 +16,7 @@ public sealed class PaginationDefaultsTests
     {
         // Arrange
         var requests = new object[] { new SitesQueryRequest(), new UserListRequest(), new ExportActivityAnalyticsRequest(),
-            new MissingDomainsAnalyticsRequest() };
+            new MissingDomainsAnalyticsRequest(), new PricingQuery() };
 
         // Act
         var defaults = requests.Select(request => (int)request.GetType().GetProperty("PageSize")!.GetValue(request)!);
@@ -28,7 +29,7 @@ public sealed class PaginationDefaultsTests
     public void PaginatedEndpoints_DefaultToTheSamePageAndPageSize()
     {
         // Arrange
-        var endpoints = typeof(SitesController).Assembly.GetTypes()
+        var endpoints = typeof(PricingController).Assembly.GetTypes()
             .Where(type => typeof(ControllerBase).IsAssignableFrom(type))
             .SelectMany(type => type.GetMethods())
             .SelectMany(method => method.GetParameters())

@@ -16,6 +16,7 @@ import {
   Typography,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
+import { getUnavailableTableRowStyles } from '../theme/tableStyles';
 import { DataGrid } from '@mui/x-data-grid';
 import SearchIcon from '@mui/icons-material/Search';
 import type {
@@ -1045,7 +1046,7 @@ export function Sites() {
                   disableColumnMenu
                   // Keep manually pinned Domain cells mounted while users scroll across Full view columns.
                   disableVirtualization
-                  sx={{
+                  sx={(theme) => ({
                 borderTopLeftRadius: 0,
                 borderTopRightRadius: 0,
                 // The saved Status width can be as narrow as 100px; keep the badge fully visible.
@@ -1082,46 +1083,9 @@ export function Sites() {
                 '& .MuiDataGrid-row.Mui-selected:hover .SitesGrid-domainCell': {
                   backgroundColor: 'grey.100',
                 },
-                '& .SitesGrid-unavailableRow .MuiDataGrid-cell': {
-                  bgcolor: (theme) => alpha(theme.palette.error.main, 0.08),
-                },
-                '& .SitesGrid-unavailableRow .SitesGrid-domainCell': {
-                  bgcolor: (theme) =>
-                    `color-mix(in srgb, ${theme.palette.error.main} 8%, ${theme.palette.background.paper})`,
-                  backgroundImage: (theme) =>
-                    `linear-gradient(to right, ${theme.palette.error.main} 0 3px, transparent 3px)`,
-                  backgroundRepeat: 'no-repeat',
-                },
-                '& .SitesGrid-unavailableRow:hover .MuiDataGrid-cell': {
-                  bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
-                },
-                '& .SitesGrid-unavailableRow:hover .SitesGrid-domainCell': {
-                  bgcolor: (theme) =>
-                    `color-mix(in srgb, ${theme.palette.error.main} 10%, ${theme.palette.background.paper})`,
-                  backgroundImage: (theme) =>
-                    `linear-gradient(to right, ${theme.palette.error.main} 0 3px, transparent 3px)`,
-                  backgroundRepeat: 'no-repeat',
-                },
-                '& .SitesGrid-unavailableRow.Mui-selected .MuiDataGrid-cell': {
-                  bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
-                },
-                '& .SitesGrid-unavailableRow.Mui-selected .SitesGrid-domainCell': {
-                  bgcolor: (theme) =>
-                    `color-mix(in srgb, ${theme.palette.error.main} 10%, ${theme.palette.background.paper})`,
-                  backgroundImage: (theme) =>
-                    `linear-gradient(to right, ${theme.palette.error.main} 0 3px, transparent 3px)`,
-                  backgroundRepeat: 'no-repeat',
-                },
-                '& .SitesGrid-unavailableRow.Mui-selected:hover .MuiDataGrid-cell': {
-                  bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
-                },
-                '& .SitesGrid-unavailableRow.Mui-selected:hover .SitesGrid-domainCell': {
-                  bgcolor: (theme) =>
-                    `color-mix(in srgb, ${theme.palette.error.main} 10%, ${theme.palette.background.paper})`,
-                  backgroundImage: (theme) =>
-                    `linear-gradient(to right, ${theme.palette.error.main} 0 3px, transparent 3px)`,
-                  backgroundRepeat: 'no-repeat',
-                },
+                '& .SitesGrid-unavailableRow': getUnavailableTableRowStyles(
+                  theme, '.MuiDataGrid-cell', '.SitesGrid-domainCell'
+                ),
                 '& .SitesGrid-notFoundRow .MuiDataGrid-cell': {
                   bgcolor: '#fff4e5',
                 },
@@ -1134,7 +1098,7 @@ export function Sites() {
                 '& .SitesGrid-notFoundRow:hover .SitesGrid-domainCell': {
                   bgcolor: '#ffedda',
                 },
-                  }}
+                  })}
                 />
               </Box>
             </>

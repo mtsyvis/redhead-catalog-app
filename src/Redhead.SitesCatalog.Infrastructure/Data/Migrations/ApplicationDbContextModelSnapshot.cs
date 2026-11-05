@@ -1654,7 +1654,7 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_SitePriceOptions_AmountUsd_Positive", "\"AmountUsd\" > 0");
 
-                            t.HasCheckConstraint("CK_SitePriceOptions_Term_Consistency", "(\"TermKey\" = 'unknown' AND \"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermKey\" = 'permanent' AND \"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1 AND \"TermKey\" = ('finite:' || \"TermValue\"::text || ':year'))");
+                            t.HasCheckConstraint("CK_SitePriceOptions_Term_Consistency", "((\"TermKey\" = 'unknown' AND \"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermKey\" = 'permanent' AND \"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1 AND \"TermKey\" = ('finite:' || \"TermValue\"::text || ':year'))) IS TRUE");
                         });
                 });
 
@@ -2012,7 +2012,7 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
 
                             t.HasCheckConstraint("CK_UserTableCustomViews_SettingsJsonLength", "length(\"SettingsJson\"::text) <= 16384");
 
-                            t.HasCheckConstraint("CK_UserTableCustomViews_TableKey", "\"TableKey\" = 'sites'");
+                            t.HasCheckConstraint("CK_UserTableCustomViews_TableKey", "\"TableKey\" IN ('sites', 'pricing')");
                         });
                 });
 
@@ -2057,7 +2057,7 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_UserTablePreferences_ActiveViewType", "\"ActiveViewType\" IN ('system', 'custom')");
 
-                            t.HasCheckConstraint("CK_UserTablePreferences_TableKey", "\"TableKey\" = 'sites'");
+                            t.HasCheckConstraint("CK_UserTablePreferences_TableKey", "\"TableKey\" IN ('sites', 'pricing')");
                         });
                 });
 

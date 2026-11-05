@@ -188,6 +188,36 @@ public sealed class MeTableViewsControllerTests
             Times.Once);
     }
 
+    [Theory]
+    [InlineData(AppRoles.Editor)]
+    [InlineData(AppRoles.Linkbuilder)]
+    [InlineData(AppRoles.Internal)]
+    [InlineData(AppRoles.Client)]
+    [InlineData(AppRoles.Lite)]
+    public async Task PricingPreferences_NonAdminsCannotReadOrChangeThem(string role)
+    {
+        // Arrange
+        var user = new ApplicationUser { Id = "restricted", Email = "restricted@example.invalid" };
+        var service = new Mock<IUserTableViewsService>(MockBehavior.Strict);
+        var sut = new MeTableViewsController(CreateUserManagerForCurrentUser(user).Object, service.Object);
+        SetUser(sut, role);
+
+        // Act
+        var read = await sut.GetTableViews("pricing", default);
+        var activate = await sut.SetActiveView("pricing", new("system", "default"), default);
+        var create = await sut.CreateCustomView("pricing", new("Pricing", CreateSettings()), default);
+        var update = await sut.UpdateCustomView("pricing", Guid.NewGuid(), new(null, CreateSettings()), default);
+        var delete = await sut.DeleteCustomView("pricing", Guid.NewGuid(), default);
+
+        // Assert
+        Assert.IsType<ForbidResult>(read.Result);
+        Assert.IsType<ForbidResult>(activate);
+        Assert.IsType<ForbidResult>(create.Result);
+        Assert.IsType<ForbidResult>(update.Result);
+        Assert.IsType<ForbidResult>(delete);
+        Assert.Empty(service.Invocations);
+    }
+
     private static Mock<UserManager<ApplicationUser>> CreateUserManagerForCurrentUser(ApplicationUser? user)
     {
         var userManager = new Mock<UserManager<ApplicationUser>>(

@@ -1,32 +1,25 @@
 import type { TableViewDensity, TableViewSettings } from '../../../types/tableViews.types';
-
-export type SitesColumnGroup = 'Main' | 'SEO metrics' | 'Prices' | 'Publication' | 'Admin';
-
-export interface SitesColumnMetadata {
-  id: string;
-  label: string;
-  group: SitesColumnGroup;
-  required?: boolean;
-  defaultVisible?: boolean;
-  includeInViews: boolean;
-  systemOnly?: boolean;
-  hiddenForClient?: boolean;
-  width?: number;
-  minWidth?: number;
-  maxWidth?: number;
-  resizable?: boolean;
-}
-
-export interface SitesSystemView {
-  key: string;
-  name: string;
-  density: TableViewDensity;
-  visibleColumnIds: string[];
-  columnWidths?: Record<string, number>;
-}
+import {
+  createDefaultTableColumnWidths,
+  createTableViewSettings,
+} from '../../common/table-views/tableViewColumns';
+import type {
+  TableColumnMetadata as SitesColumnMetadata,
+  TableSystemView as SitesSystemView,
+} from '../../common/table-views/tableViewColumns';
+export type {
+  TableColumnGroup as SitesColumnGroup,
+  TableColumnMetadata as SitesColumnMetadata,
+  TableSystemView as SitesSystemView,
+} from '../../common/table-views/tableViewColumns';
+export {
+  TABLE_VIEW_SCHEMA_VERSION,
+  normalizeTableColumnWidth as normalizeSitesColumnWidth,
+  normalizeTableVisibleColumnIds as normalizeSitesVisibleColumnIds,
+  insertTableColumnsByDefaultOrder as insertSitesColumnsByDefaultOrder,
+} from '../../common/table-views/tableViewColumns';
 
 export const SITES_TABLE_KEY = 'sites';
-export const TABLE_VIEW_SCHEMA_VERSION = 1;
 
 export const sitesColumnRegistry: SitesColumnMetadata[] = [
   {
@@ -333,98 +326,9 @@ export function createSitesViewSettings(
   density: TableViewDensity,
   columnWidthsInput: Record<string, number> = {}
 ): TableViewSettings {
-  const columnWidths = createDefaultSitesColumnWidths();
-
-  for (const [columnId, width] of Object.entries(columnWidthsInput)) {
-    const metadata = sitesColumnRegistry.find(
-      (column) => column.id === columnId && column.includeInViews && !column.systemOnly
-    );
-    const normalizedWidth = normalizeSitesColumnWidth(metadata, width);
-    if (metadata && normalizedWidth != null) {
-      columnWidths[columnId] = normalizedWidth;
-    }
-  }
-
-  return {
-    schemaVersion: TABLE_VIEW_SCHEMA_VERSION,
-    visibleColumnIds,
-    density,
-    columnWidths,
-  };
+  return createTableViewSettings(sitesColumnRegistry, visibleColumnIds, density, columnWidthsInput);
 }
 
 export function createDefaultSitesColumnWidths(): Record<string, number> {
-  return Object.fromEntries(
-    sitesColumnRegistry
-      .filter((column) => column.includeInViews && !column.systemOnly && column.width)
-      .map((column) => [column.id, column.width as number])
-  );
-}
-
-export function normalizeSitesColumnWidth(
-  column: SitesColumnMetadata | undefined,
-  width: number
-): number | null {
-  if (!column || column.systemOnly || !column.includeInViews || !Number.isFinite(width)) {
-    return null;
-  }
-
-  const minWidth = column.minWidth ?? 50;
-  const maxWidth = column.maxWidth ?? 1000;
-  return Math.min(maxWidth, Math.max(minWidth, Math.round(width)));
-}
-
-export function normalizeSitesVisibleColumnIds(
-  columnIds: string[],
-  allowedViewColumns: SitesColumnMetadata[]
-): string[] {
-  const allowedColumnIds = new Set(allowedViewColumns.map((column) => column.id));
-  const requiredColumnIds = allowedViewColumns
-    .filter((column) => column.required)
-    .map((column) => column.id);
-  const result: string[] = [];
-
-  for (const columnId of [...requiredColumnIds, ...columnIds]) {
-    if (allowedColumnIds.has(columnId) && !result.includes(columnId)) {
-      result.push(columnId);
-    }
-  }
-
-  return result.length > 0 ? result : requiredColumnIds;
-}
-
-export function insertSitesColumnsByDefaultOrder(
-  currentColumnIds: string[],
-  columnIdsToAdd: string[],
-  allowedViewColumns: SitesColumnMetadata[]
-): string[] {
-  const allowedColumnIds = new Set(allowedViewColumns.map((column) => column.id));
-  const orderByColumnId = new Map(allowedViewColumns.map((column, index) => [column.id, index]));
-  const result = normalizeSitesVisibleColumnIds(currentColumnIds, allowedViewColumns);
-
-  for (const columnId of columnIdsToAdd) {
-    if (!allowedColumnIds.has(columnId) || result.includes(columnId)) {
-      continue;
-    }
-
-    const columnOrder = orderByColumnId.get(columnId) ?? Number.MAX_SAFE_INTEGER;
-    const firstMovableIndex = result.findIndex(
-      (resultColumnId) =>
-        !allowedViewColumns.find((column) => column.id === resultColumnId)?.required
-    );
-    const lockedPrefixEnd = firstMovableIndex === -1 ? result.length : firstMovableIndex;
-    let insertAt = result.length;
-
-    for (let index = lockedPrefixEnd; index < result.length; index += 1) {
-      const resultColumnOrder = orderByColumnId.get(result[index]) ?? Number.MAX_SAFE_INTEGER;
-      if (resultColumnOrder > columnOrder) {
-        insertAt = index;
-        break;
-      }
-    }
-
-    result.splice(insertAt, 0, columnId);
-  }
-
-  return normalizeSitesVisibleColumnIds(result, allowedViewColumns);
+  return createDefaultTableColumnWidths(sitesColumnRegistry);
 }

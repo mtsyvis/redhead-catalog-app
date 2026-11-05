@@ -1,6 +1,11 @@
 import type { GridLocaleText } from '@mui/x-data-grid';
 
 const integerFormatter = new Intl.NumberFormat('en-US');
+const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+
+export function formatUsd(value: number | null | undefined): string {
+  return value == null ? '—' : usdFormatter.format(value);
+}
 
 export function formatInteger(value: number): string {
   return integerFormatter.format(value);

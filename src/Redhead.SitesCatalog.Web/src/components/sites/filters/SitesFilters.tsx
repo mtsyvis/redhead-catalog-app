@@ -42,6 +42,7 @@ import type {
 import type { SavedFilterSet, SavedFilterSettings } from '../../../types/savedFilters.types';
 import { sitesService } from '../../../services/sites.service';
 import { BrandButton } from '../../common/BrandButton';
+import { QuarantineFilter } from '../../common/QuarantineFilter';
 import { SearchModeToggle } from '../../common/SearchModeToggle';
 import { SearchBarLayout } from '../../common/SearchBarLayout';
 import { DEFAULT_MULTI_SEARCH_LIMIT } from '../../../constants/search.constants';
@@ -1043,25 +1044,10 @@ export function SitesFilters({
                 error={lastPublishedRangeError}
               />
 
-              {/* Quarantine Filter */}
-              <Box sx={{ flex: '0 0 auto', minWidth: '185px' }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Quarantine Status
-                </Typography>
-                <TextField
-                  select
-                  size="small"
-                  value={filters.quarantine}
-                  onChange={(e) =>
-                    handleChange('quarantine', e.target.value as 'all' | 'only' | 'exclude')
-                  }
-                  sx={{ width: 185 }}
-                >
-                  <MenuItem value="all">All Sites</MenuItem>
-                  <MenuItem value="exclude">Available Only</MenuItem>
-                  <MenuItem value="only">Unavailable Only</MenuItem>
-                </TextField>
-              </Box>
+              <QuarantineFilter
+                value={filters.quarantine}
+                onChange={(value) => handleChange('quarantine', value)}
+              />
               {/* Language Multi-Select */}
               <Box sx={{ flex: 1, minWidth: '200px', maxWidth: '350px' }}>
                 <Typography variant="subtitle2" gutterBottom>

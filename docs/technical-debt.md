@@ -161,3 +161,31 @@ References: [Refit](https://github.com/reactiveui/refit),
 [IHttpClientFactory](https://learn.microsoft.com/en-us/dotnet/core/extensions/httpclient-factory),
 [HTTP resilience](https://learn.microsoft.com/en-us/dotnet/core/resilience/http-resilience),
 [outbound rate limiting](https://learn.microsoft.com/en-us/dotnet/core/extensions/http-ratelimiter).
+
+## TD-004: One shared PriceType
+
+Status: deferred. Record the simplification for a separate change; no enum or data migration
+is part of this documentation update.
+
+Affected components: domain price enums and entities, EF Core persistence, pricing and
+webmaster-offer services, API/frontend contracts, imports, exports, validation, and tests.
+
+`PriceType` and `WebmasterOfferPriceType` describe overlapping services with different numeric
+values and some different names. Keeping both requires `CatalogPriceMapping`, duplicated type
+definitions, and mapping-specific tests without adding useful business separation.
+
+Planned work:
+
+* Use a single shared `PriceType` for catalog and webmaster-offer prices. Remove
+  `WebmasterOfferPriceType`, `CatalogPriceMapping`, and the redundant conversion code and tests.
+* Preserve all existing services, including offer-only Banner and Homepage Text Link variants.
+  Keep the catalog's currently supported service set explicit; sharing the enum must not
+  automatically add catalog price fields or margin comparisons for these extra services.
+* Migrate stored offer values explicitly rather than casting or renaming the enum: Dating,
+  LinkInsertion, and the LinkInsertionCasino/LinkInsertion18Plus equivalent currently use
+  different values. Update backend and frontend contracts together and preserve service meaning
+  across existing data, import/export formats, and displayed labels.
+
+Verify migration and rollback against existing numeric values, all supported services, and
+unchanged prices, availability, term matching, margins, imports, and exports. Replace mapping-only
+tests with coverage of observable behavior using the shared enum.
