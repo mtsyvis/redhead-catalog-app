@@ -130,20 +130,38 @@ export function EditCatalogPricesDialog({
         slotProps={{ paper: { sx: { height: "calc(100% - 64px)" } } }}
         aria-labelledby="edit-catalog-prices-title"
       >
-        <DialogTitle id="edit-catalog-prices-title">Edit catalog prices · {domain}</DialogTitle>
+        <DialogTitle id="edit-catalog-prices-title" sx={{ overflowWrap: "anywhere" }}>
+          Edit catalog prices · {domain}
+        </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
-            <Tabs
-              value={tab}
-              onChange={(_, value: number) => {
-                setTab(value);
-                if (value === 1) void history.load();
-              }}
-              aria-label="Catalog price dialog sections"
+            <Stack
+              direction="row"
+              flexWrap="wrap"
+              alignItems="center"
+              justifyContent="space-between"
+              gap={1}
             >
-              <Tab id="catalog-prices-tab" aria-controls="catalog-prices-panel" label="Prices" />
-              <Tab id="catalog-history-tab" aria-controls="catalog-history-panel" label="History" />
-            </Tabs>
+              <Tabs
+                sx={{ flexShrink: 0 }}
+                value={tab}
+                onChange={(_, value: number) => {
+                  setTab(value);
+                  if (value === 1) void history.load();
+                }}
+                aria-label="Catalog price dialog sections"
+              >
+                <Tab id="catalog-prices-tab" aria-controls="catalog-prices-panel" label="Prices" />
+                <Tab
+                  id="catalog-history-tab"
+                  aria-controls="catalog-history-panel"
+                  label="History"
+                />
+              </Tabs>
+              {tab === 0 && site && !loading && terms.length === 1 && (
+                <Chip label={terms[0].label} variant="outlined" size="small" />
+              )}
+            </Stack>
             {error && (
               <Alert
                 severity="error"
@@ -204,11 +222,7 @@ export function EditCatalogPricesDialog({
                     can be saved.
                   </Alert>
                 )}
-                {terms.length === 1 ? (
-                  <Box>
-                    <Chip label={terms[0].label} variant="outlined" size="small" />
-                  </Box>
-                ) : (
+                {terms.length > 1 && (
                   <Tabs
                     value={termKey}
                     onChange={(_, value: string) => setTermKey(value)}

@@ -92,7 +92,6 @@ export const PageShell: React.FC<PageShellProps> = ({
     if (location.pathname.startsWith('/webmaster-offers')) return '/webmaster-offers';
     if (location.pathname.startsWith('/webmasters')) return '/webmasters';
     if (location.pathname.startsWith('/imports')) return '/imports';
-    if (location.pathname.startsWith('/admin')) return '/admin';
     return false;
   };
 
@@ -155,7 +154,7 @@ export const PageShell: React.FC<PageShellProps> = ({
                   scrollButtons="auto"
                   sx={{
                     minWidth: 0,
-                    flex: 1,
+                    flex: '0 1 auto',
                     '& .MuiTab-root': {
                       color: 'text.secondary',
                       '&.Mui-selected': {
@@ -182,6 +181,7 @@ export const PageShell: React.FC<PageShellProps> = ({
                       endIcon={<ArrowDropDown />}
                       sx={{
                         minHeight: 48,
+                        flexShrink: 0,
                         color: isAdminPath ? 'primary.main' : 'text.secondary',
                         textTransform: 'none',
                         fontSize: '0.875rem',

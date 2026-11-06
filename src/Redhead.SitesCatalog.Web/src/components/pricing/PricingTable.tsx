@@ -62,7 +62,7 @@ function CatalogPrice({ site, type }: { site: PricingSite; type: PriceTypeValue 
           tooltip={
             price.offerPrice == null
               ? 'No matching Active numeric offer for this service and term'
-              : `Offer price ${formatUsd(price.offerPrice)} · ${site.terms[0]?.label} · Active offer ${price.offerId}`
+              : `Offer price ${formatUsd(price.offerPrice)} · ${site.terms[0]?.label} · Active offer`
           }
         />
       )}
