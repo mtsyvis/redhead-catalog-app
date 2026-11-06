@@ -151,7 +151,9 @@ export function PricingTable({
                   ) : (
                     <Tooltip title={`Sort by ${column.label} margin`}>
                       <TableSortLabel
-                        active={query.sortBy === 'margin' && query.sortPriceType === column.priceType}
+                        active={
+                          query.sortBy === 'margin' && query.sortPriceType === column.priceType
+                        }
                         direction={query.descending ? 'desc' : 'asc'}
                         onClick={() => sort(column.priceType)}
                       >
@@ -161,7 +163,6 @@ export function PricingTable({
                   )}
                 </TableCell>
               ))}
-              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -202,9 +203,25 @@ export function PricingTable({
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
                     {site.isQuarantined && <UnavailableSiteIndicator />}
-                    <Typography variant="body2" fontWeight={600}>
+                    <Typography
+                      variant="body2"
+                      fontWeight={600}
+                      sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}
+                    >
                       {site.domain}
                     </Typography>
+                    <Tooltip title="Edit catalog prices">
+                      <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0 }}>
+                        <IconButton
+                          disabled={!canEdit}
+                          aria-label={`Edit prices for ${site.domain}`}
+                          onClick={() => onEdit(site.domain)}
+                          sx={{ width: 36, height: 36 }}
+                        >
+                          <EditOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </Tooltip>
                   </Box>
                 </TableCell>
                 <TableCell>
@@ -237,24 +254,11 @@ export function PricingTable({
                     )}
                   </TableCell>
                 ))}
-                <TableCell align="right">
-                  <Tooltip title="Edit catalog prices">
-                    <span>
-                      <IconButton
-                        disabled={!canEdit}
-                        aria-label={`Edit prices for ${site.domain}`}
-                        onClick={() => onEdit(site.domain)}
-                      >
-                        <EditOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                </TableCell>
               </TableRow>
             ))}
             {!data?.items.length && !loading && (
               <TableRow>
-                <TableCell colSpan={columns.length + 3} align="center">
+                <TableCell colSpan={columns.length + 2} align="center">
                   No sites match these filters.
                 </TableCell>
               </TableRow>

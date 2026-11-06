@@ -10,7 +10,6 @@ import {
   Chip,
   Checkbox,
   Button,
-  IconButton,
   ToggleButton,
   ToggleButtonGroup,
   CircularProgress,
@@ -25,7 +24,6 @@ import {
   ListItemText,
   ListSubheader,
 } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
@@ -45,6 +43,7 @@ import { BrandButton } from '../../common/BrandButton';
 import { QuarantineFilter } from '../../common/QuarantineFilter';
 import { SearchModeToggle } from '../../common/SearchModeToggle';
 import { SearchBarLayout } from '../../common/SearchBarLayout';
+import { SearchInput } from '../../common/SearchInput';
 import { DEFAULT_MULTI_SEARCH_LIMIT } from '../../../constants/search.constants';
 import {
   SERVICE_AVAILABILITY_FILTER_OPTIONS,
@@ -726,7 +725,7 @@ export function SitesFilters({
   ) : null;
 
   const searchInput = (
-    <TextField
+    <SearchInput
       fullWidth
       multiline={multiSearchMode}
       minRows={multiSearchMode ? 3 : 1}
@@ -738,27 +737,13 @@ export function SitesFilters({
       }
       helperText={multiSearchMode ? multiSearchHelperText : undefined}
       value={searchValue}
+      onClear={handleClearSearch}
       onChange={(e) => handleSearchChange(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' && !multiSearchMode) {
           e.preventDefault();
           handleApply();
         }
-      }}
-      InputProps={{
-        startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-        endAdornment: searchValue ? (
-          <IconButton
-            aria-label="Clear search"
-            edge="end"
-            size="small"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={handleClearSearch}
-            sx={{ color: 'text.secondary' }}
-          >
-            <ClearIcon fontSize="small" />
-          </IconButton>
-        ) : undefined,
       }}
       FormHelperTextProps={{
         sx: {
@@ -767,7 +752,6 @@ export function SitesFilters({
           color: multiSearchLimitExceeded ? 'error.main' : 'text.secondary',
         },
       }}
-      sx={multiSearchMode ? undefined : { flex: '1 1 360px', minWidth: { xs: '100%', md: 320 } }}
     />
   );
 

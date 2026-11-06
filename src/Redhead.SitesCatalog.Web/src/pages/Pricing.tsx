@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import {
   Alert,
+  Box,
   Checkbox,
   FormControlLabel,
   MenuItem,
@@ -10,10 +11,12 @@ import {
   Snackbar,
   Stack,
   TextField,
+  Typography,
 } from "@mui/material";
 import { PageShell } from "../components/layout/PageShell";
 import { BrandButton } from "../components/common/BrandButton";
 import { QuarantineFilter } from "../components/common/QuarantineFilter";
+import { SearchInput } from "../components/common/SearchInput";
 import { PricingTable } from "../components/pricing/PricingTable";
 import { EditCatalogPricesDialog } from "../components/pricing/EditCatalogPricesDialog";
 import { TableViewToolbar } from "../components/common/table-views/TableViewToolbar";
@@ -178,15 +181,26 @@ export function Pricing() {
         {columns.loadError && <Alert severity="warning">{columns.loadError}</Alert>}
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Stack spacing={2}>
-            <Stack direction="row" gap={2} flexWrap="wrap" alignItems="flex-end">
-              <TextField
-                label="Domain"
-                size="small"
+            <Box
+              sx={{
+                display: { xs: "grid", sm: "flex" },
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 1.5,
+              }}
+            >
+              <SearchInput
+                searchSize="compact"
+                placeholder="Search domains…"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                sx={{ flex: "1 1 240px" }}
+                onClear={() => setSearch("")}
+                inputProps={{ "aria-label": "Search domains" }}
+                sx={{ gridColumn: "1 / -1", width: { lg: 360 } }}
               />
               <QuarantineFilter
+                labelPlacement="outlined"
                 value={
                   query.isQuarantined == null ? "all" : query.isQuarantined ? "only" : "exclude"
                 }
@@ -201,7 +215,7 @@ export function Pricing() {
                 select
                 label="Term"
                 size="small"
-                sx={{ minWidth: 160 }}
+                sx={{ width: { xs: "100%", sm: 160 }, minWidth: 0 }}
                 value={query.termKey}
                 slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
                 onChange={(event) => changeQuery({ termKey: event.target.value, page: 1 })}
@@ -221,64 +235,16 @@ export function Pricing() {
                   />
                 }
                 label="Multiple terms"
-              />
-            </Stack>
-            <Stack direction="row" gap={2} flexWrap="wrap" alignItems="flex-start">
-              <TextField
-                select
-                label="Margin price type"
-                size="small"
-                value={query.priceType}
-                sx={{ minWidth: 180 }}
-                onChange={(event) =>
-                  changeQuery({ priceType: Number(event.target.value) as PriceTypeValue, page: 1 })
-                }
-              >
-                {PRICING_SECTION_ORDER.map((type) => (
-                  <MenuItem key={type} value={type}>
-                    {PRICE_TYPE_LABELS[type]}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                label="Margin"
-                size="small"
-                value={query.margin}
-                sx={{ minWidth: 160 }}
-                onChange={(event) =>
-                  changeQuery({ margin: event.target.value as PricingQuery["margin"], page: 1 })
-                }
-              >
-                <MenuItem value="all">Any margin</MenuItem>
-                <MenuItem value="nonPositive">Negative &amp; Zero</MenuItem>
-                <MenuItem value="missing">Missing</MenuItem>
-              </TextField>
-              <TextField
-                label="Margin from, USD"
-                size="small"
-                value={minText}
-                error={Boolean(minError)}
-                helperText={minError}
-                onChange={(event) => setMinText(event.target.value)}
-                sx={{ width: 155 }}
-                slotProps={{ htmlInput: { inputMode: "decimal" } }}
-              />
-              <TextField
-                label="Margin to, USD"
-                size="small"
-                value={maxText}
-                error={Boolean(maxError)}
-                helperText={maxError}
-                onChange={(event) => setMaxText(event.target.value)}
-                sx={{ width: 155 }}
-                slotProps={{ htmlInput: { inputMode: "decimal" } }}
+                sx={{ m: 0, whiteSpace: { sm: "nowrap" } }}
               />
               <BrandButton
+                sx={{ ml: { sm: "auto" }, justifySelf: "end" }}
                 onClick={() => {
+                  setSearch("");
                   setMinText("");
                   setMaxText("");
                   changeQuery({
+                    domain: defaultQuery.domain,
                     isQuarantined: undefined,
                     termKey: defaultQuery.termKey,
                     needsReview: defaultQuery.needsReview,
@@ -290,9 +256,103 @@ export function Pricing() {
                   });
                 }}
               >
-                Clear filters
+                Clear all filters
               </BrandButton>
-            </Stack>
+            </Box>
+            <Box component="fieldset" sx={{ m: 0, p: 0, border: 0, minWidth: 0 }}>
+              <Typography
+                component="legend"
+                variant="caption"
+                color="text.secondary"
+                sx={{ px: 0, mb: 1, fontWeight: 500 }}
+              >
+                Margin (USD)
+              </Typography>
+              <Box
+                sx={{
+                  display: { xs: "grid", sm: "flex" },
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  flexWrap: "wrap",
+                  alignItems: "flex-start",
+                  gap: 1.5,
+                  "@media (max-width: 359px)": { gridTemplateColumns: "minmax(0, 1fr)" },
+                }}
+              >
+                <TextField
+                  select
+                  label="Price type"
+                  size="small"
+                  value={query.priceType}
+                  sx={{ width: { xs: "100%", sm: 180 }, minWidth: 0 }}
+                  onChange={(event) =>
+                    changeQuery({
+                      priceType: Number(event.target.value) as PriceTypeValue,
+                      page: 1,
+                    })
+                  }
+                >
+                  {PRICING_SECTION_ORDER.map((type) => (
+                    <MenuItem key={type} value={type}>
+                      {PRICE_TYPE_LABELS[type]}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="Condition"
+                  size="small"
+                  value={query.margin}
+                  sx={{ width: { xs: "100%", sm: 190 }, minWidth: 0 }}
+                  onChange={(event) =>
+                    changeQuery({ margin: event.target.value as PricingQuery["margin"], page: 1 })
+                  }
+                >
+                  <MenuItem value="all">Any margin</MenuItem>
+                  <MenuItem value="nonPositive">Negative &amp; Zero</MenuItem>
+                  <MenuItem value="missing">Missing</MenuItem>
+                </TextField>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
+                    alignItems: "start",
+                    gap: 0.75,
+                    width: { xs: "100%", sm: 240 },
+                    gridColumn: "1 / -1",
+                  }}
+                >
+                  <TextField
+                    label="Min"
+                    size="small"
+                    value={minText}
+                    error={Boolean(minError)}
+                    helperText={minError}
+                    onChange={(event) => setMinText(event.target.value)}
+                    slotProps={{
+                      inputLabel: { shrink: true },
+                      htmlInput: { inputMode: "decimal", "aria-label": "Minimum margin in USD" },
+                    }}
+                    sx={{ minWidth: 0 }}
+                  />
+                  <Typography aria-hidden="true" color="text.secondary" sx={{ pt: 1 }}>
+                    —
+                  </Typography>
+                  <TextField
+                    label="Max"
+                    size="small"
+                    value={maxText}
+                    error={Boolean(maxError)}
+                    helperText={maxError}
+                    onChange={(event) => setMaxText(event.target.value)}
+                    slotProps={{
+                      inputLabel: { shrink: true },
+                      htmlInput: { inputMode: "decimal", "aria-label": "Maximum margin in USD" },
+                    }}
+                    sx={{ minWidth: 0 }}
+                  />
+                </Box>
+              </Box>
+            </Box>
             {invalidRange && (
               <Alert severity="error">
                 The entered range has not been applied. The table still uses the last valid margin

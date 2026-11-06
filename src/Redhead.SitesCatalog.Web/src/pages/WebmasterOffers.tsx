@@ -4,21 +4,17 @@ import { Navigate } from 'react-router-dom';
 import {
   Alert,
   Box,
-  CircularProgress,
   Link,
-  IconButton,
   Stack,
-  TextField,
   Typography,
   TablePagination,
   Tab,
   Tabs,
 } from '@mui/material';
-import ClearIcon from '@mui/icons-material/Clear';
-import SearchIcon from '@mui/icons-material/Search';
 import { BrandButton } from '../components/common/BrandButton';
 import { SearchModeToggle } from '../components/common/SearchModeToggle';
 import { SearchBarLayout } from '../components/common/SearchBarLayout';
+import { SearchInput } from '../components/common/SearchInput';
 import { WebmasterOffersDomainList } from '../components/webmaster-offers/WebmasterOffersDomainList';
 import { WEBMASTER_OFFERS_MULTI_SEARCH_LIMIT } from '../constants/search.constants';
 import { WebmasterOffersExportMenu } from '../components/webmaster-offers/WebmasterOffersExportMenu';
@@ -363,7 +359,7 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
               <SearchModeToggle multiSearchMode={multiSearchMode} onChange={handleModeChange} />
             }
             input={
-              <TextField
+              <SearchInput
                 fullWidth
                 multiline={multiSearchMode}
                 minRows={multiSearchMode ? 3 : 1}
@@ -382,6 +378,8 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
                     : undefined
                 }
                 value={domain}
+                onClear={() => handleDomainChange('')}
+                loading={loading}
                 onChange={(event) => handleDomainChange(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && (!multiSearchMode || event.ctrlKey)) {
@@ -394,27 +392,6 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
                     ? 'Search webmaster offers by domains'
                     : 'Search webmaster offers by domain',
                 }}
-                InputProps={{
-                  startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-                  endAdornment:
-                    loading || domain ? (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        {loading && <CircularProgress size={18} color="inherit" />}
-                        {domain && (
-                          <IconButton
-                            aria-label="Clear search"
-                            edge="end"
-                            size="small"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => handleDomainChange('')}
-                            sx={{ color: 'text.secondary' }}
-                          >
-                            <ClearIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                      </Box>
-                    ) : undefined,
-                }}
                 FormHelperTextProps={{
                   sx: {
                     mx: 1.5,
@@ -422,11 +399,6 @@ function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
                     color: limitExceeded ? 'error.main' : 'text.secondary',
                   },
                 }}
-                sx={
-                  multiSearchMode
-                    ? undefined
-                    : { flex: '1 1 360px', minWidth: { xs: '100%', md: 320 } }
-                }
               />
             }
             searchAction={
