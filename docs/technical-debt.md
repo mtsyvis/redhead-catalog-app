@@ -189,3 +189,55 @@ Planned work:
 Verify migration and rollback against existing numeric values, all supported services, and
 unchanged prices, availability, term matching, margins, imports, and exports. Replace mapping-only
 tests with coverage of observable behavior using the shared enum.
+
+## TD-005: Upstream container image security findings
+
+Status: in progress. Application package remediation is complete; the upstream-image findings
+below remain open. This record is not acceptance of the remaining risk or proof of exploitability.
+
+Affected components: frontend build tooling bundled with npm, `postgres:16-alpine`, and
+`caddy:2-alpine`. The app Dockerfile upgrades Alpine packages in all stages and pins npm 11.21.2.
+The database and proxy still run unmodified upstream images.
+
+Verification on 2026-11-09, Linux amd64, Trivy 0.76.2 with a freshly downloaded vulnerability DB:
+
+| Artifact | Remaining scanner findings | Details |
+| --- | ---: | --- |
+| App runtime image after remediation | 0 | ASP.NET Core/.NET 10.0.14; Alpine zlib updated to 1.4-r0 |
+| Frontend build stage after remediation | 2 medium | npm 11.21.2 bundles glob 13.0.6 and minimatch 10.2.5; CVE-2026-118773 and CVE-2026-118764 |
+| PostgreSQL 16.15, freshly pulled `16-alpine` | 62 | One zlib finding and 61 findings in the bundled gosu 1.19 binary, including Go toolchain/module matches |
+| Caddy 2.11.9, freshly pulled `2-alpine` | 7 | zlib, go-jose/v3, golang.org/x/crypto and golang.org/x/net |
+
+Direct and transitive NuGet audits of the solution and analytics load tool, and npm audits of
+all project dependencies (including dev dependencies), reported no known vulnerabilities.
+These results describe checked images and registry data on that date, not the VPS or future builds.
+
+Upstream image indexes checked:
+
+* PostgreSQL: `sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139`.
+* Caddy: `sha256:78bd35025c7ba85961dd149ae670315129954e77abe2383ac47c89106b35ade9`.
+
+Why this remains open:
+
+* Refreshing the current official tags did not remove these findings. Some fixes are available
+  in individual libraries but are not incorporated in those images or npm's bundled dependency
+  ranges. A patched go-jose/v3 release is not available for
+  [CVE-2026-116587](https://github.com/go-jose/go-jose/security/advisories/GHSA-mgcc-cww5-fp2q).
+* Gosu [1.20](https://github.com/tianon/gosu/releases/tag/1.20) fixes its moby/sys/user dependency,
+  but the checked PostgreSQL image still contains 1.19. Gosu's
+  [security policy](https://github.com/tianon/gosu/blob/1.20/SECURITY.md) requires checking function
+  reachability before treating Go standard-library version matches as exploitable vulnerabilities.
+  Those matches were not individually dismissed in this audit.
+
+Required follow-up:
+
+* Recheck supported npm and image releases and rescan the actual resulting images.
+* Assess reachability for the remaining Go findings using vendor guidance and `govulncheck`;
+  retain the evidence and any explicit risk decision. Do not suppress findings solely to reach zero.
+* If upstream images continue to lag available zlib/gosu fixes, evaluate minimal derived images
+  with reproducible, verified inputs. Validate PostgreSQL initialization, restart with existing
+  data, helper privilege dropping, and backup/restore; keep major version 16 and persistent volumes.
+* For Caddy, verify reverse proxying, HTTPS issuance/renewal and existing persistent state after
+  any dependency/image change. Do not silently replace upstream Go dependency majors.
+* Scan the deployed VPS images and maintain its OS/Docker separately using
+  [the deployment runbook](deployment.md#security-maintenance-and-version-checks).

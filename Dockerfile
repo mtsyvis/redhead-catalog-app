@@ -1,5 +1,6 @@
 # Stage 1: build frontend
-FROM node:22-alpine AS frontend
+FROM node:24-alpine AS frontend
+RUN apk upgrade --no-cache && npm install --global npm@11.21.2
 WORKDIR /src/web
 COPY src/Redhead.SitesCatalog.Web/package.json src/Redhead.SitesCatalog.Web/package-lock.json ./
 RUN npm ci
@@ -8,6 +9,7 @@ RUN npm run build
 
 # Stage 2: build backend and include frontend assets in API wwwroot
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS backend
+RUN apk upgrade --no-cache
 WORKDIR /src
 COPY . .
 COPY --from=frontend /src/web/dist ./src/Redhead.SitesCatalog.Api/wwwroot
@@ -16,7 +18,7 @@ RUN dotnet publish src/Redhead.SitesCatalog.Api/Redhead.SitesCatalog.Api.csproj 
 # Stage 3: runtime
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 WORKDIR /app
-RUN apk add --no-cache \
+RUN apk upgrade --no-cache && apk add --no-cache \
     icu-libs \
     krb5-libs
 

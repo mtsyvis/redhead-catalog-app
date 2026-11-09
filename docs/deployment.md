@@ -328,7 +328,9 @@ nano .env
 # APP_DOMAIN=catalog.rhda.us
 
 # 4. Build and start
- docker compose up -d --build
+ docker compose pull postgres caddy
+ docker compose build --pull app
+ docker compose up -d
 
 # 5. Check containers
  docker compose ps
@@ -356,9 +358,9 @@ Use this flow for normal updates:
 ```bash
 cd /opt/readhead-catalog
 
-git pull
+git pull --ff-only
 
-docker compose build app
+docker compose build --pull app
 
 docker compose up -d
 
@@ -367,13 +369,102 @@ docker compose ps
 curl -I https://catalog.rhda.us/api/health
 ```
 
-If Docker Compose needs to rebuild everything:
+`--pull` refreshes the Dockerfile's Node.js build image and .NET SDK/runtime images.
+`docker compose up -d --build` alone does not guarantee fresh base images.
+To also update the PostgreSQL and Caddy images within their existing major versions, take
+the usual database backup, then run:
 
 ```bash
-docker compose up -d --build
+docker compose pull postgres caddy
+docker compose build --pull app
+docker compose up -d
 ```
 
+Updated images cause the affected containers to be recreated, including a brief database
+interruption when PostgreSQL changes. Keep PostgreSQL on major version 16 unless performing
+a separately planned database upgrade.
+
 Do not run destructive Docker commands such as `docker compose down -v` unless you intentionally want to delete persistent volumes.
+
+## Security maintenance and version checks
+
+The frontend builds inside the Dockerfile's `node:24-alpine` stage. The final application image
+contains ASP.NET Core and the built static frontend, with no Node.js runtime. Host Node.js and
+.NET installations are not used by this Docker deployment. Updating Node.js on a laptop or VPS
+does not update Docker images or the committed npm lockfile.
+
+All application Dockerfile stages upgrade Alpine packages within the base image's existing
+Alpine release. The frontend stage also installs npm 11.21.2. When changing that pinned npm
+version, verify the clean frontend build and scan the frontend stage as well as the runtime image.
+PostgreSQL and Caddy use unmodified upstream images; `apk upgrade` in the app Dockerfile does
+not update those separate services. Open upstream-image findings are tracked in
+[TD-005](technical-debt.md#td-005-upstream-container-image-security-findings).
+
+To inspect a host Node.js installation on the VPS:
+
+```bash
+command -v node
+node --version
+npm --version
+```
+
+If these commands report that Node.js is missing, this application does not require installing it
+on the host. If other host applications use Node.js, check their requirements and installation
+method before updating it. Use the latest patched release of a supported LTS line.
+
+Inspect the current build image and the running service versions:
+
+```bash
+docker run --rm --pull=always node:24-alpine sh -c 'node --version && npm --version'
+docker compose exec app dotnet --list-runtimes
+docker compose exec postgres postgres --version
+docker compose exec caddy caddy version
+docker version
+docker compose version
+docker compose images
+```
+
+The temporary Node.js container reports the freshly pulled build image, not a host installation
+or proof that the running app was rebuilt. Rebuild with `docker compose build --pull app`, then
+recreate with `docker compose up -d` and verify health as described above.
+
+Run the [dependency audits](../README.md#dependency-security-checks) on the checked-out source
+before deployment. They cover npm and NuGet packages, including transitive dependencies;
+they do not cover the operating-system packages inside images. With Docker Scout installed
+and authenticated, scan the actual local images used by the running stack:
+
+```bash
+docker scout cves "local://$(docker compose images -q app)"
+docker scout cves "local://$(docker compose images -q postgres)"
+docker scout cves "local://$(docker compose images -q caddy)"
+```
+
+If Scout is unavailable, an alternative is to scan a saved image with Trivy. This example
+runs the scanner against only a temporary archive, without mounting the Docker socket:
+
+```bash
+audit_dir=$(mktemp -d /tmp/redhead-security.XXXXXX)
+docker image save --output "$audit_dir/app.tar" "$(docker compose images -q app)"
+docker run --rm --cap-drop=ALL --security-opt=no-new-privileges \
+  --mount "type=bind,source=$audit_dir,target=/reports" \
+  --mount type=volume,source=redhead-security-trivy-cache,target=/root/.cache/ \
+  aquasec/trivy:0.76.2 image --scanners vuln --input /reports/app.tar
+```
+
+Repeat for the PostgreSQL and Caddy image IDs. To check build tooling, also build the frontend
+stage with `docker build --pull --target frontend -t redhead-catalog:frontend-security-check .`
+and scan that tag. Build tools are absent from the final app image but still execute during builds.
+
+Review findings and available fixes at every severity. A successful scan command is not proof
+of zero findings. Refresh images and rebuild/recreate the affected services, then scan again.
+Some upstream findings may have no released fix; assess applicability and record unresolved
+findings in `docs/technical-debt.md` rather than suppressing audit warnings. A scanner finding
+alone does not establish that a vulnerable function is reachable in this deployment.
+
+VPS OS packages and the Docker daemon are a separate maintenance layer. For Ubuntu/Debian,
+inspect pending updates with `sudo apt update` and `apt list --upgradable`, then apply them
+under the normal VPS maintenance process. Host updates do not replace images or running
+containers. Reboots and daemon/database restarts can interrupt the application.
 
 ## Data migrations
 
@@ -579,7 +670,7 @@ Use:
 
 ```bash
 git rev-parse --short HEAD
-docker compose build app
+docker compose build --pull app
 docker compose up -d
 docker compose ps
 ```

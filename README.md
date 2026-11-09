@@ -82,7 +82,7 @@ Analytics services live under `src/Redhead.SitesCatalog.Application/Services/Ana
 Required:
 
 * .NET SDK matching `global.json`
-* Node.js 22+ and npm
+* Node.js 24 LTS (latest patch) and npm; Docker uses the same Node.js major version
 * PostgreSQL 16 recommended
 
 Useful tools:
@@ -151,7 +151,7 @@ Open a second terminal:
 
 ```bash
 cd src/Redhead.SitesCatalog.Web
-npm install
+npm ci
 npm run dev
 ```
 
@@ -331,7 +331,7 @@ Production configuration and operational details are in [docs/deployment.md](doc
 cd src/Redhead.SitesCatalog.Web
 
 # Install dependencies
-npm install
+npm ci
 
 # Start development server
 npm run dev
@@ -362,11 +362,41 @@ or the server-side LinkDetective price cache.
 ### Production Docker build
 
 ```bash
-docker compose build
+docker compose build --pull app
 docker compose up -d
 ```
 
 Production configuration is expected to come from `.env` / environment variables. Use `.env.example` as a template, but never commit `.env`.
+
+### Dependency security checks
+
+From the repository root, check direct and transitive NuGet dependencies:
+
+```bash
+dotnet restore redhead-catalog-app.sln --force-evaluate
+dotnet list redhead-catalog-app.sln package --vulnerable --include-transitive
+dotnet list tools/Redhead.SitesCatalog.AnalyticsLoadTest/Redhead.SitesCatalog.AnalyticsLoadTest.csproj package --vulnerable --include-transitive
+```
+
+Check all frontend dependencies, including build and test tools:
+
+```bash
+cd src/Redhead.SitesCatalog.Web
+npm ci
+npm audit
+```
+
+These checks need access to the package registries. A failed request is not a clean audit.
+NuGet's list command can exit successfully even when it reports vulnerable packages; read its output.
+Prefer compatible dependency updates and review the lockfile; avoid applying `npm audit fix --force`
+without reviewing its proposed changes. Run the quality gates after updates.
+
+The scoped `minimatch` override under `@typescript-eslint/typescript-estree` selects the patched
+11.x line for [CVE-2026-118764](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+Remove it when the upstream dependency range includes a patched version, then rerun audit and lint.
+
+Package audits do not scan container OS packages or the VPS. See
+[deployment security checks](docs/deployment.md#security-maintenance-and-version-checks) for those checks.
 
 ## Environment variables
 
