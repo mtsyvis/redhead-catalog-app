@@ -285,3 +285,24 @@ amount enforcement, failed-upgrade preservation, and rollback/reapplication with
 
 Rollback to `20261104075352_AddPricingTableViews` restores the previous weaker constraint without
 rewriting prices. Deploy the corresponding application version; reapplying validates all rows again.
+
+## Restore missing catalog-price terms
+
+[`20261109082829_BackfillCatalogPriceTerms`](../src/Redhead.SitesCatalog.Infrastructure/Data/Migrations/20261109082829_BackfillCatalogPriceTerms.cs)
+fills missing catalog-price terms when all Active offers agree on one known term and the same
+service has a positive numeric Active price. Selling amounts, known terms, and offers are preserved.
+Identical target-term duplicates are merged. Conflicting amounts/known terms, contradictory service
+availability, and sites where partial coverage would introduce multiple terms are skipped entirely.
+Existing multiple-term sites can be repaired partially; unsupported service prices remain unchanged.
+
+The repair runs transactionally, blocks competing writes, and creates one Site history per changed
+site: source `Data migration`, actor `Migration:<MigrationId>`, old/new prices, and a separate
+`Technical correction:` reason. Site audit fields are updated. Repeated SQL execution is a no-op.
+
+Isolated rehearsal on the 2026-11-09 snapshot: 25,844 prices moved, two identical rows merged,
+16,947 Site histories; Main-price Missing fell from 19,470 to 2,591. Unrelated data was preserved.
+All eight migration PostgreSQL tests and 27 existing Pricing PostgreSQL tests passed.
+
+Apply through normal API startup or `dotnet ef database update`, with a fresh backup beforehand.
+`Down` rejects rollback after data changes; restore the backup or apply a reviewed correction.
+An empty repair can be rolled back. Production application has not been confirmed.

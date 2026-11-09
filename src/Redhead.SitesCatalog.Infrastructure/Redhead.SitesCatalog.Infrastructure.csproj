@@ -22,6 +22,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Data\Migrations\Sql\NormalizeWebmasterPrimaryEmails.*.sql" />
     <EmbeddedResource Include="Data\Migrations\Sql\PopulateWebmasterPrimaryContacts.*.sql" />
+    <EmbeddedResource Include="Data\Migrations\Sql\BackfillCatalogPriceTerms.Up.sql" />
     <EmbeddedResource
       Include="Email\Assets\redhead-digital-logo-light.png"
       LogicalName="Redhead.SitesCatalog.Infrastructure.Email.Assets.redhead-digital-logo-light.png" />
