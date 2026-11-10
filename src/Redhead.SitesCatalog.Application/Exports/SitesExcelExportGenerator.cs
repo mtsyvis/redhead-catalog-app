@@ -4,10 +4,13 @@ using Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 
 namespace Redhead.SitesCatalog.Application.Exports;
 
-public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
+public sealed class SitesExcelExportGenerator(TimeProvider? timeProvider = null) : ISitesExcelExportGenerator
 {
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+
     public MemoryStream Generate(SitesExcelExportRequest request)
     {
+        var generatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var siteColumns = SitesExportColumnRegistry.ValidateRequestedColumns(
             request.VisibleColumnKeys,
             request.ExportColumnRole);
@@ -21,7 +24,8 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
                     site,
                     siteColumns,
                     request.SelectedTermKey,
-                    request.PriceCellMode)).ToList(),
+                    request.PriceCellMode,
+                    generatedAtUtc.Date)).ToList(),
                 siteColumns.Select(column => column.Width).ToArray())
         };
 
@@ -39,6 +43,7 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
                 "Export info",
                 ["Property", "Value"],
                 CreateExportInfoRows(
+                    generatedAtUtc,
                     request.GeneratedBy,
                     request.RoleLabel,
                     request.RequestedRows,
@@ -61,17 +66,29 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
         Site site,
         IReadOnlyList<SitesExportColumnDefinition> siteColumns,
         string? selectedTermKey,
-        SitesExcelPriceCellMode priceCellMode)
+        SitesExcelPriceCellMode priceCellMode,
+        DateTime exportDate)
     {
         var cells = siteColumns
             .Select(column => column.CreateCell(site, selectedTermKey, priceCellMode));
 
-        return site.IsQuarantined
-            ? cells.Select(cell => cell.WithUnavailableRowStyle()).ToList()
-            : cells.ToList();
+        if (site.IsQuarantined)
+        {
+            return cells.Select(cell => cell.WithUnavailableRowStyle()).ToList();
+        }
+
+        if (site.LastPublishedDate is { } lastPublishedDate
+            && lastPublishedDate.Date >= exportDate.AddYears(-1)
+            && lastPublishedDate.Date <= exportDate)
+        {
+            return cells.Select(cell => cell.WithRecentPublicationRowStyle()).ToList();
+        }
+
+        return cells.ToList();
     }
 
     private static IReadOnlyList<IReadOnlyList<XlsxCell>> CreateExportInfoRows(
+        DateTime generatedAtUtc,
         string generatedBy,
         string roleLabel,
         int requestedRows,
@@ -86,7 +103,7 @@ public sealed class SitesExcelExportGenerator : ISitesExcelExportGenerator
     {
         var rows = new List<IReadOnlyList<XlsxCell>>
         {
-            InfoRow("GeneratedAtUtc", XlsxCell.DateTime(DateTime.UtcNow)),
+            InfoRow("GeneratedAtUtc", XlsxCell.DateTime(generatedAtUtc)),
             InfoRow("GeneratedBy", XlsxCell.Text(generatedBy)),
             InfoRow("Role", XlsxCell.Text(roleLabel)),
             InfoRow("Rows matching export request", XlsxCell.Number(requestedRows, XlsxCellStyle.Integer)),

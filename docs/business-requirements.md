@@ -1201,6 +1201,7 @@ Rules:
 * The export menu clearly shows an `Include unavailable sites` switch. It is off by default for `All Sites`, so Excel downloads, Google Drive exports, and Client export previews exclude quarantined sites. Users may turn it on to include them. With `Available Only`, the switch is locked off because the filter already excludes unavailable sites; with `Unavailable Only`, it is locked on so the export is not unexpectedly empty.
 * The export default does not depend on access to the `Quarantine Status` filter. For any role with export permission, unavailable sites remain excluded by default even when that filter control is not available; the export-menu switch is the explicit way to include them.
 * When unavailable sites are included, every cell in their `Sites` sheet row uses the same restrained red treatment as unavailable rows in the Sites UI.
+* Every exported cell in an available site's `Sites` sheet row has a pale-green fill when `LastPublishedDate` is between the UTC export date minus one calendar year and the export date, inclusive, even if the Last Published column is hidden. Missing, older, and future dates do not receive this fill. Month-only dates use their stored first day of the month. Unavailable rows retain their red treatment.
 * Export includes only the Sites table columns currently visible in the UI, including unsaved column visibility/order changes.
 * Export column order must match the current Sites table visible column order.
 * Export column names should match the Sites UI table where a matching UI column exists.

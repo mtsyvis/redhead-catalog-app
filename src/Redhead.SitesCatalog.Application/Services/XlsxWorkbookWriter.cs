@@ -23,7 +23,12 @@ internal static class XlsxWorkbookWriter
         ("3", "0", "3"),
         ("4", "0", "3"),
         ("164", "0", "3"),
-        ("165", "0", "3")
+        ("165", "0", "3"),
+        ("0", "0", "4"),
+        ("3", "0", "4"),
+        ("4", "0", "4"),
+        ("164", "0", "4"),
+        ("165", "0", "4")
     ];
 
     public static MemoryStream CreateWorkbook(IReadOnlyList<XlsxSheet> sheets)
@@ -154,7 +159,7 @@ internal static class XlsxWorkbookWriter
         writer.WriteEndElement();
 
         writer.WriteStartElement("fills");
-        writer.WriteAttributeString("count", "4");
+        writer.WriteAttributeString("count", "5");
         writer.WriteStartElement("fill");
         writer.WriteStartElement("patternFill");
         writer.WriteAttributeString("patternType", "none");
@@ -181,6 +186,17 @@ internal static class XlsxWorkbookWriter
         writer.WriteAttributeString("patternType", "solid");
         writer.WriteStartElement("fgColor");
         writer.WriteAttributeString("rgb", "FFFBEEEE");
+        writer.WriteEndElement();
+        writer.WriteStartElement("bgColor");
+        writer.WriteAttributeString("indexed", "64");
+        writer.WriteEndElement();
+        writer.WriteEndElement();
+        writer.WriteEndElement();
+        writer.WriteStartElement("fill");
+        writer.WriteStartElement("patternFill");
+        writer.WriteAttributeString("patternType", "solid");
+        writer.WriteStartElement("fgColor");
+        writer.WriteAttributeString("rgb", "FFE2F0D9");
         writer.WriteEndElement();
         writer.WriteStartElement("bgColor");
         writer.WriteAttributeString("indexed", "64");
@@ -504,6 +520,19 @@ internal sealed record XlsxCell(
                 _ => XlsxCellStyle.Unavailable
             }
         };
+
+    public XlsxCell WithRecentPublicationRowStyle()
+        => this with
+        {
+            Style = Style switch
+            {
+                XlsxCellStyle.Integer => XlsxCellStyle.RecentPublicationInteger,
+                XlsxCellStyle.Decimal => XlsxCellStyle.RecentPublicationDecimal,
+                XlsxCellStyle.Date => XlsxCellStyle.RecentPublicationDate,
+                XlsxCellStyle.DateTime => XlsxCellStyle.RecentPublicationDateTime,
+                _ => XlsxCellStyle.RecentPublication
+            }
+        };
 }
 
 internal enum XlsxCellType
@@ -528,5 +557,10 @@ internal enum XlsxCellStyle
     UnavailableInteger = 8,
     UnavailableDecimal = 9,
     UnavailableDate = 10,
-    UnavailableDateTime = 11
+    UnavailableDateTime = 11,
+    RecentPublication = 12,
+    RecentPublicationInteger = 13,
+    RecentPublicationDecimal = 14,
+    RecentPublicationDate = 15,
+    RecentPublicationDateTime = 16
 }
