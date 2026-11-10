@@ -199,6 +199,18 @@ Affected components: frontend build tooling bundled with npm, `postgres:16-alpin
 `caddy:2-alpine`. The app Dockerfile upgrades Alpine packages in all stages and pins npm 11.21.2.
 The database and proxy still run unmodified upstream images.
 
+Production follow-up on 2026-11-10 (reported by the owner):
+
+* Application security commit `fc40875` was deployed; the owner confirmed the application works.
+* Caddy was updated from 2.11.2 to 2.11.9 after validating the existing configuration. The external
+  HTTPS health check succeeded. The deployed images have not been rescanned on the VPS.
+* PostgreSQL remains on 16.13. The owner explicitly deferred its update; no maintenance date is
+  set. PostgreSQL image updates and container replacement are excluded from the current work
+  unless the owner changes this instruction. The database findings remain open.
+* Reported host versions: Ubuntu 22.04.5 LTS, Docker Engine 29.5.3 and Compose 5.1.4. Host package
+  updates have not yet been reviewed or applied in this maintenance session. Docker daemon or
+  host restarts may interrupt containers even without changing the PostgreSQL image version.
+
 Verification on 2026-11-09, Linux amd64, Trivy 0.76.2 with a freshly downloaded vulnerability DB:
 
 | Artifact | Remaining scanner findings | Details |
