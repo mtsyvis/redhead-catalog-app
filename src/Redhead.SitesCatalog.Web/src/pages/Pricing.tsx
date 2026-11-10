@@ -8,7 +8,6 @@ import {
   FormControlLabel,
   MenuItem,
   Paper,
-  Snackbar,
   Stack,
   TextField,
   Typography,
@@ -17,6 +16,7 @@ import { PageShell } from "../components/layout/PageShell";
 import { BrandButton } from "../components/common/BrandButton";
 import { QuarantineFilter } from "../components/common/QuarantineFilter";
 import { SearchInput } from "../components/common/SearchInput";
+import { SitesSnackbar, type SitesSnackbarState } from "../components/sites/feedback/SitesSnackbar";
 import { PricingTable } from "../components/pricing/PricingTable";
 import { EditCatalogPricesDialog } from "../components/pricing/EditCatalogPricesDialog";
 import { TableViewToolbar } from "../components/common/table-views/TableViewToolbar";
@@ -54,7 +54,11 @@ export function Pricing() {
   const [termsRefresh, setTermsRefresh] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [editing, setEditing] = useState<{ domain: string; termKey?: string } | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState<SitesSnackbarState>({
+    open: false,
+    message: "",
+    severity: "success",
+  });
   const [minText, setMinText] = useState("");
   const [maxText, setMaxText] = useState("");
   const searchTimer = useRef<number | undefined>(undefined);
@@ -83,6 +87,7 @@ export function Pricing() {
         : null;
   const changeQuery = (next: Partial<PricingQuery>) =>
     setQuery((current) => ({ ...current, ...next }));
+  const showSuccess = (message: string) => setSnackbar({ open: true, message, severity: "success" });
   const updateMarket = (domain: string, market: PricingMarket) => {
     setData(
       (current) =>
@@ -397,7 +402,7 @@ export function Pricing() {
                   : `${formatInteger(data?.domainCount ?? 0)} domains · ${formatInteger(data?.totalCount ?? 0)} rows`
               }
               resultLoading={loading}
-              onSuccess={setNotice}
+              onSuccess={showSuccess}
               onError={setError}
             />
           }
@@ -414,16 +419,14 @@ export function Pricing() {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
-            setNotice("Catalog prices saved");
+            showSuccess("Catalog prices saved");
             setRefresh((value) => value + 1);
           }}
         />
       )}
-      <Snackbar
-        open={notice != null}
-        autoHideDuration={3500}
-        onClose={() => setNotice(null)}
-        message={notice ?? ""}
+      <SitesSnackbar
+        snackbar={snackbar}
+        onClose={() => setSnackbar((current) => ({ ...current, open: false }))}
       />
     </PageShell>
   );
