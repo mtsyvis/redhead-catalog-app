@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Box, CircularProgress, Stack, Tooltip, Typography } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import { BrandButton } from '../common/BrandButton';
+import { Alert, Box, CircularProgress, Stack, Typography } from '@mui/material';
+import { LinkDetectiveRefreshButton } from '../linkdetective/LinkDetectiveRefreshButton';
 import { webmasterOffersService } from '../../services/webmasterOffers.service';
 import type { LinkDetectivePrices } from '../../types/webmasterOffers.types';
 
@@ -21,7 +20,6 @@ export function LinkDetectivePricesPanel({
   const [prices, setPrices] = useState<LinkDetectivePrices | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
   const requestSequence = useRef(0);
   const mounted = useRef(false);
   const busy = useRef(true);
@@ -36,7 +34,6 @@ export function LinkDetectivePricesPanel({
         const result = await webmasterOffersService.getLinkDetectivePrices(domain, forceRefresh);
         if (mounted.current && sequence === requestSequence.current) {
           setPrices(result);
-          setNow(Date.now());
         }
       } catch {
         if (mounted.current && sequence === requestSequence.current) {
@@ -65,17 +62,6 @@ export function LinkDetectivePricesPanel({
     };
   }, [loadPrices, searchVersion]);
 
-  useEffect(() => {
-    if (!prices?.retryAfterUtc) return;
-    const timer = window.setTimeout(
-      () => setNow(Date.now()),
-      Math.min(2_147_483_647, Math.max(0, Date.parse(prices.retryAfterUtc) - Date.now()))
-    );
-    return () => window.clearTimeout(timer);
-  }, [prices?.retryAfterUtc]);
-
-  const coolingDown = Boolean(prices?.retryAfterUtc && Date.parse(prices.retryAfterUtc) > now);
-
   const refresh = () => {
     if (!busy.current) void loadPrices(true);
   };
@@ -84,32 +70,13 @@ export function LinkDetectivePricesPanel({
     prices != null &&
     [prices.minimumUsd, prices.averageUsd, prices.medianUsd].some((amount) => amount != null);
 
-  const refreshTooltip = [
-    'Service type and placement term are not specified by the source.',
-    coolingDown && prices?.retryAfterUtc
-      ? `Refresh available after ${new Date(prices.retryAfterUtc).toLocaleString()}.`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
   const refreshButton = (
-    <Tooltip title={refreshTooltip} describeChild>
-      <Box
-        component="span"
-        tabIndex={loading || coolingDown ? 0 : undefined}
-        sx={{ display: 'inline-flex' }}
-      >
-        <BrandButton
-          size="small"
-          disabled={loading || coolingDown}
-          startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
-          onClick={refresh}
-        >
-          {loading ? 'Loading…' : error && !hasPrices ? 'Retry' : 'Refresh prices'}
-        </BrandButton>
-      </Box>
-    </Tooltip>
+    <LinkDetectiveRefreshButton
+      loading={loading}
+      retryAfterUtc={prices?.retryAfterUtc ?? null}
+      onRefresh={refresh}
+      label={error && !hasPrices ? 'Retry' : 'Refresh prices'}
+    />
   );
 
   if (!hasPrices) {

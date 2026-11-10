@@ -92,17 +92,87 @@ public sealed class PricingPostgresTests : IAsyncLifetime
 
         // Act
         var all = await service.SearchAsync(new() { PageSize = 1 }, default);
-        var review = await service.SearchAsync(new() { NeedsReview = true, TermKey = "finite:3:year", Margin = "missing", SortBy = "margin" }, default);
+        var multipleTerms = await service.SearchAsync(new() { MultipleTerms = true, TermKey = "finite:3:year", Margin = "missing", SortBy = "margin" }, default);
         var quarantine = await service.SearchAsync(new() { IsQuarantined = true }, default);
 
         // Assert
-        Assert.Equal(3, all.TotalCount);
+        Assert.Equal(4, all.TotalCount);
+        Assert.Equal(3, all.DomainCount);
         Assert.Equal("empty.example", Assert.Single(all.Items).Domain);
-        var multi = Assert.Single(review.Items);
+        var multi = Assert.Single(multipleTerms.Items);
         Assert.Equal("multi.example", multi.Domain);
-        Assert.Equal(2, multi.Terms.Count);
+        Assert.Equal("finite:3:year", Assert.Single(multi.Terms).TermKey);
         Assert.Empty(Assert.Single(quarantine.Items).Terms);
-        Assert.Null(Assert.Single(quarantine.Items).Market);
+        Assert.Null(Assert.Single(quarantine.Items).Market!.CheckedAtUtc);
+        Assert.False(Assert.Single(quarantine.Items).Market!.CanRefresh);
+    }
+
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Search_MultipleTermsKeepExactMarginsAndOtherServiceSortBeforePaging(bool descending)
+    {
+        // Arrange
+        await using var context = CreateContext();
+        var site = Site("multi.example",
+            (PriceType.Main, 100m, PricingTerm.Unknown),
+            (PriceType.Main, 80m, PricingTerm.Permanent),
+            (PriceType.Main, 90m, PricingTerm.FiniteYears(2)),
+            (PriceType.Casino, 300m, PricingTerm.Unknown),
+            (PriceType.Casino, 110m, PricingTerm.Permanent));
+        context.Sites.Add(site);
+        AddOffer(context, site, PriceType.Main, 120, PricingTerm.Unknown);
+        AddOffer(context, site, PriceType.Main, 100, PricingTerm.Permanent);
+        AddOffer(context, site, PriceType.Main, 100, PricingTerm.FiniteYears(2));
+        AddOffer(context, site, PriceType.Casino, 100, PricingTerm.Unknown);
+        AddOffer(context, site, PriceType.Casino, 100, PricingTerm.Permanent);
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+        var query = new PricingQuery
+        {
+            MultipleTerms = true, Margin = "nonPositive", SortBy = "margin",
+            SortPriceType = PriceType.Casino, Descending = descending, PageSize = 1
+        };
+
+        // Act
+        var first = await service.SearchAsync(query, default);
+        query.Page = 2;
+        var second = await service.SearchAsync(query, default);
+        query.Page = 3;
+        var third = await service.SearchAsync(query, default);
+        var exact = await service.SearchAsync(new() { TermKey = "permanent", MinMargin = -20, MaxMargin = -20 }, default);
+
+        // Assert
+        Assert.Equal(3, first.TotalCount);
+        Assert.Equal(1, first.DomainCount);
+        Assert.Equal(descending ? "unknown" : "permanent", Assert.Single(Assert.Single(first.Items).Terms).TermKey);
+        Assert.Equal(descending ? "permanent" : "unknown", Assert.Single(Assert.Single(second.Items).Terms).TermKey);
+        Assert.Equal("finite:2:year", Assert.Single(Assert.Single(third.Items).Terms).TermKey);
+        Assert.Equal(-10, Assert.Single(third.Items).Prices.Single(price => price.PriceType == PriceType.Main).Margin);
+        var exactRow = Assert.Single(exact.Items);
+        Assert.Equal(1, exact.TotalCount);
+        Assert.Equal(exact.TotalCount, exact.DomainCount);
+        Assert.Equal("permanent", Assert.Single(exactRow.Terms).TermKey);
+        Assert.Equal(80, exactRow.Prices.Single(price => price.PriceType == PriceType.Main).CatalogPrice);
+        Assert.Equal(100, exactRow.Prices.Single(price => price.PriceType == PriceType.Main).OfferPrice);
+        Assert.All(exactRow.Prices, price => Assert.Equal("permanent", price.TermKey));
+    }
+
+    [PostgresFact]
+    public async Task CatalogPrices_RejectDuplicateServiceWithinSameDomainAndTerm()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        context.Sites.Add(Site("duplicate.example",
+            (PriceType.Main, 100m, PricingTerm.Unknown),
+            (PriceType.Main, 200m, PricingTerm.Unknown)));
+
+        // Act
+        var exception = await Record.ExceptionAsync(() => context.SaveChangesAsync());
+
+        // Assert
+        var updateException = Assert.IsType<DbUpdateException>(exception);
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, Assert.IsType<PostgresException>(updateException.InnerException).SqlState);
     }
 
     [PostgresTheory]

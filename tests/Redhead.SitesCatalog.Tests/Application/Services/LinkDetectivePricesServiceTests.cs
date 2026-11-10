@@ -103,6 +103,7 @@ public sealed class LinkDetectivePricesServiceTests : IDisposable
         Assert.Equal(Now.AddDays(-31), result.CheckedAtUtc);
         Assert.True(result.IsStale);
         Assert.Equal("Request limit reached.", result.Message);
+        Assert.Equal("Request limit reached.", result.LastError);
         Assert.Equal(Now.AddMinutes(5), result.RetryAfterUtc);
     }
 
@@ -191,6 +192,7 @@ public sealed class LinkDetectivePricesServiceTests : IDisposable
         Assert.Null(result.MedianUsd);
         Assert.Equal(Now, result.CheckedAtUtc);
         Assert.Equal("No market prices found for this domain.", result.Message);
+        Assert.Null(result.LastError);
         Assert.Single(_api.Invocations);
     }
 

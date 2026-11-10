@@ -11,17 +11,20 @@ import {
   Stack,
   Tab,
   Tabs,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import { BrandButton } from "../common/BrandButton";
 import { ChangeHistoryContent } from "../common/ChangeHistoryContent";
 import { CatalogPricingFields } from "./CatalogPricingFields";
 import { PricingMarketReference } from "./PricingMarketReference";
+import { WebmasterOffersLink } from "../webmaster-offers/WebmasterOffersLink";
 import { pricingService } from "../../services/pricing.service";
 import { sitesService } from "../../services/sites.service";
 import { ApiClientError } from "../../services/api.client";
 import { useChangeHistory } from "../../hooks/useChangeHistory";
-import type { PricingSite } from "../../types/pricing.types";
+import type { PricingMarket, PricingSite } from "../../types/pricing.types";
 import type { ServiceAvailabilityStatusValue } from "../../types/sites.types";
 import { PRICE_TYPE_LABELS, type PriceTypeValue } from "../../utils/pricing";
 import { SERVICE_AVAILABILITY_STATUS } from "../../utils/serviceAvailability";
@@ -33,16 +36,20 @@ import {
   createPricingDraft,
   getPricingTerms,
   hasServicePrices,
-  isPricingDraftDirty,
+  getPricingChangeSummary,
   type CatalogPricingDraft,
 } from "./EditCatalogPricesDialog.helpers";
 
 export function EditCatalogPricesDialog({
   domain,
+  initialTermKey,
+  onMarketUpdated,
   onClose,
   onSaved,
 }: {
   domain: string;
+  initialTermKey?: string;
+  onMarketUpdated: (market: PricingMarket) => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -67,7 +74,11 @@ export function EditCatalogPricesDialog({
           if (!active) return;
           setSite(data);
           setDraft(createPricingDraft(data));
-          setTermKey(data.terms[0]?.termKey ?? "unknown");
+          setTermKey(
+            data.terms.find((term) => term.termKey === initialTermKey)?.termKey ??
+              data.terms[0]?.termKey ??
+              "unknown"
+          );
           setError(null);
           setConflict(false);
         })
@@ -83,10 +94,26 @@ export function EditCatalogPricesDialog({
       active = false;
       window.clearTimeout(timer);
     };
-  }, [domain, reload]);
+  }, [domain, initialTermKey, reload]);
 
   const terms = getPricingTerms(site);
-  const dirty = site != null && isPricingDraftDirty(site, draft);
+  const changes = site ? getPricingChangeSummary(site, draft) : null;
+  const dirty = changes != null && (changes.priceCount > 0 || changes.availabilityCount > 0);
+  const changeSummary = changes
+    ? [
+        changes.priceCount > 0
+          ? `${changes.priceCount} price ${changes.priceCount === 1 ? "change" : "changes"}`
+          : null,
+        changes.termCount > 0
+          ? `${changes.termCount} ${changes.termCount === 1 ? "term" : "terms"}`
+          : null,
+        changes.availabilityCount > 0
+          ? `${changes.availabilityCount} availability ${changes.availabilityCount === 1 ? "change" : "changes"}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
   const { pricing, errors } = buildPricingPayload(terms, draft);
   const unfavorable = pricing.prices.filter((price) => {
     const offer = site?.prices.find(
@@ -130,38 +157,89 @@ export function EditCatalogPricesDialog({
         slotProps={{ paper: { sx: { height: "calc(100% - 64px)" } } }}
         aria-labelledby="edit-catalog-prices-title"
       >
-        <DialogTitle id="edit-catalog-prices-title" sx={{ overflowWrap: "anywhere" }}>
-          Edit catalog prices · {domain}
+        <DialogTitle
+          id="edit-catalog-prices-title"
+          sx={{ overflowWrap: "anywhere", py: 1.5, borderBottom: 1, borderColor: "divider" }}
+        >
+          <Stack
+            direction="row"
+            flexWrap="wrap"
+            alignItems="center"
+            justifyContent="space-between"
+            gap={1}
+          >
+            <Box component="span" sx={{ flex: "1 1 240px", minWidth: 0 }}>
+              Edit catalog prices · {domain}
+            </Box>
+            <WebmasterOffersLink domain={domain} />
+          </Stack>
         </DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2}>
-            <Stack
-              direction="row"
-              flexWrap="wrap"
-              alignItems="center"
-              justifyContent="space-between"
-              gap={1}
-            >
-              <Tabs
-                sx={{ flexShrink: 0 }}
-                value={tab}
-                onChange={(_, value: number) => {
-                  setTab(value);
-                  if (value === 1) void history.load();
-                }}
-                aria-label="Catalog price dialog sections"
+        <Stack
+          direction="row"
+          flexWrap="wrap"
+          alignItems="center"
+          justifyContent="space-between"
+          gap={1}
+          sx={{ px: 3, py: 1 }}
+        >
+          <Tabs
+            sx={{ flexShrink: 0, minHeight: 40, "& .MuiTab-root": { minHeight: 40, py: 1 } }}
+            value={tab}
+            onChange={(_, value: number) => {
+              setTab(value);
+              if (value === 1) void history.load();
+            }}
+            aria-label="Catalog price dialog sections"
+          >
+            <Tab id="catalog-prices-tab" aria-controls="catalog-prices-panel" label="Prices" />
+            <Tab id="catalog-history-tab" aria-controls="catalog-history-panel" label="History" />
+          </Tabs>
+          {tab === 0 &&
+            site &&
+            !loading &&
+            (terms.length === 1 ? (
+              <Chip label={terms[0].label} variant="outlined" size="small" />
+            ) : (
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                sx={{ minWidth: 0, maxWidth: "100%" }}
               >
-                <Tab id="catalog-prices-tab" aria-controls="catalog-prices-panel" label="Prices" />
-                <Tab
-                  id="catalog-history-tab"
-                  aria-controls="catalog-history-panel"
-                  label="History"
-                />
-              </Tabs>
-              {tab === 0 && site && !loading && terms.length === 1 && (
-                <Chip label={terms[0].label} variant="outlined" size="small" />
-              )}
-            </Stack>
+                <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                  Term
+                </Typography>
+                <Box sx={{ minWidth: 0, overflowX: "auto" }}>
+                  <ToggleButtonGroup
+                    exclusive
+                    size="small"
+                    value={termKey}
+                    onChange={(_, value: string | null) => {
+                      if (value !== null) setTermKey(value);
+                    }}
+                    aria-label="Catalog placement term"
+                    sx={{
+                      "& .MuiToggleButton-root": {
+                        px: 1.5,
+                        py: 0.5,
+                        textTransform: "none",
+                        whiteSpace: "nowrap",
+                        "&.Mui-selected": { color: "primary.main", bgcolor: "action.selected" },
+                      },
+                    }}
+                  >
+                    {terms.map((term) => (
+                      <ToggleButton key={term.termKey} value={term.termKey}>
+                        {term.label}
+                      </ToggleButton>
+                    ))}
+                  </ToggleButtonGroup>
+                </Box>
+              </Stack>
+            ))}
+        </Stack>
+        <DialogContent dividers sx={{ py: 1.5 }}>
+          <Stack spacing={1.5}>
             {error && (
               <Alert
                 severity="error"
@@ -208,38 +286,27 @@ export function EditCatalogPricesDialog({
                 )}
               </Stack>
             )}
-            {tab === 0 && site && !loading && (
+            {site && (
               <Stack
                 id="catalog-prices-panel"
                 role="tabpanel"
                 aria-labelledby="catalog-prices-tab"
-                spacing={2}
+                spacing={1.5}
+                sx={{ display: tab === 0 && !loading ? "flex" : "none" }}
               >
-                <PricingMarketReference market={site.market} />
+                <PricingMarketReference
+                  domain={domain}
+                  market={site.market}
+                  onUpdated={(market) => {
+                    setSite((current) => current && { ...current, market });
+                    onMarketUpdated(market);
+                  }}
+                />
                 {site.hasInvalidTerms && (
                   <Alert severity="warning">
                     Some placement terms need correction in the full site editor before these prices
                     can be saved.
                   </Alert>
-                )}
-                {terms.length > 1 && (
-                  <Tabs
-                    value={termKey}
-                    onChange={(_, value: string) => setTermKey(value)}
-                    variant="scrollable"
-                    scrollButtons="auto"
-                    aria-label="Catalog placement terms"
-                  >
-                    {terms.map((term) => (
-                      <Tab key={term.termKey} value={term.termKey} label={term.label} />
-                    ))}
-                  </Tabs>
-                )}
-                {terms.length > 1 && (
-                  <Typography variant="caption" color="text.secondary">
-                    Availability applies to this service across all terms. Placement terms can be
-                    changed in the full site editor.
-                  </Typography>
                 )}
                 <CatalogPricingFields
                   site={site}
@@ -266,7 +333,15 @@ export function EditCatalogPricesDialog({
             )}
           </Stack>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, flexWrap: "wrap", rowGap: 1 }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            aria-live="polite"
+            sx={{ flex: "1 1 180px", mr: 1 }}
+          >
+            {changeSummary}
+          </Typography>
           <BrandButton onClick={close} disabled={saving}>
             Cancel
           </BrandButton>

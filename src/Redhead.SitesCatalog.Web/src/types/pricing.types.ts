@@ -20,6 +20,8 @@ export interface PricingMarket {
   checkedAtUtc: string | null;
   isStale: boolean;
   lastError: string | null;
+  retryAfterUtc: string | null;
+  canRefresh: boolean;
 }
 export interface PricingSite {
   domain: string;
@@ -34,6 +36,7 @@ export interface PricingSite {
 export interface PricingPage {
   items: PricingSite[];
   totalCount: number;
+  domainCount: number;
   page: number;
   pageSize: number;
 }
@@ -41,7 +44,7 @@ export interface PricingQuery {
   domain: string;
   isQuarantined?: boolean;
   termKey: string;
-  needsReview: boolean;
+  multipleTerms: boolean;
   priceType: PriceTypeValue;
   margin: 'all' | 'nonPositive' | 'missing';
   minMargin?: number;

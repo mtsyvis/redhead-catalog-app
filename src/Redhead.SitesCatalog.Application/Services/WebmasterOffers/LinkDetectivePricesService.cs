@@ -14,7 +14,7 @@ namespace Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 
 public sealed record LinkDetectivePricesResult(
     string Domain, decimal? MinimumUsd, decimal? AverageUsd, decimal? MedianUsd,
-    DateTime? CheckedAtUtc, bool IsStale, string? Message, DateTime? RetryAfterUtc);
+    DateTime? CheckedAtUtc, bool IsStale, string? Message, DateTime? RetryAfterUtc, string? LastError = null);
 
 public interface ILinkDetectivePricesService
 {
@@ -126,7 +126,8 @@ public sealed class LinkDetectivePricesService(
             CheckedAtUtc: cache?.CheckedAtUtc,
             IsStale: cache?.CheckedAtUtc is { } checkedAt && IsStale(checkedAt, now),
             Message: message ?? GetCacheMessage(cache),
-            RetryAfterUtc: cache?.RetryAfterUtc > now ? cache.RetryAfterUtc : null);
+            RetryAfterUtc: cache?.RetryAfterUtc > now ? cache.RetryAfterUtc : null,
+            LastError: cache?.LastError);
     }
 
     private static string? GetCacheMessage(LinkDetectivePriceCache? cache)

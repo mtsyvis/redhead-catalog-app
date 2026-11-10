@@ -8,7 +8,7 @@ public sealed class PricingQuery
     public string? Domain { get; set; }
     public bool? IsQuarantined { get; set; }
     public string? TermKey { get; set; }
-    public bool NeedsReview { get; set; }
+    public bool MultipleTerms { get; set; }
     public PriceType PriceType { get; set; } = PriceType.Main;
     public string Margin { get; set; } = "all";
     public decimal? MinMargin { get; set; }
@@ -20,12 +20,12 @@ public sealed class PricingQuery
     public int PageSize { get; set; } = PaginationDefaults.DefaultPageSize;
 }
 
-public sealed record PricingPage(IReadOnlyList<PricingSiteDto> Items, int TotalCount, int Page, int PageSize);
+public sealed record PricingPage(IReadOnlyList<PricingSiteDto> Items, int TotalCount, int DomainCount, int Page, int PageSize);
 public sealed record PricingTermDto(string TermKey, string Label);
 public sealed record PricingPriceDto(PriceType PriceType, string TermKey, decimal? CatalogPrice,
     decimal? OfferPrice, Guid? OfferId, decimal? Margin);
 public sealed record PricingMarketDto(decimal? MinimumUsd, decimal? AverageUsd, decimal? MedianUsd,
-    DateTime? CheckedAtUtc, bool IsStale, string? LastError);
+    DateTime? CheckedAtUtc, bool IsStale, string? LastError, DateTime? RetryAfterUtc, bool CanRefresh);
 public sealed record PricingSiteDto(string Domain, bool IsQuarantined, string Version,
     IReadOnlyList<PricingTermDto> Terms, bool HasInvalidTerms, UpdateSitePricingRequest Pricing,
     IReadOnlyList<PricingPriceDto> Prices, PricingMarketDto? Market);

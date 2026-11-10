@@ -145,4 +145,5 @@ export interface LinkDetectivePrices {
   isStale: boolean;
   message: string | null;
   retryAfterUtc: string | null;
+  lastError?: string | null;
 }

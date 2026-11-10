@@ -45,13 +45,18 @@ export function createPricingDraft(site: PricingSite): CatalogPricingDraft {
   };
 }
 
-export function isPricingDraftDirty(site: PricingSite, draft: CatalogPricingDraft): boolean {
+export function getPricingChangeSummary(site: PricingSite, draft: CatalogPricingDraft) {
   const original = createPricingDraft(site);
-  return (
-    Object.keys({ ...original.amounts, ...draft.amounts }).some(
-      (key) => (original.amounts[key] ?? "") !== (draft.amounts[key] ?? "")
-    ) || OPTIONAL_PRICE_TYPES.some((type) => original.statuses[type] !== draft.statuses[type])
+  const changedPrices = Object.keys({ ...original.amounts, ...draft.amounts }).filter(
+    (key) => (original.amounts[key] ?? "") !== (draft.amounts[key] ?? "")
   );
+  return {
+    priceCount: changedPrices.length,
+    termCount: new Set(changedPrices.map((key) => key.slice(key.indexOf(":") + 1))).size,
+    availabilityCount: OPTIONAL_PRICE_TYPES.filter(
+      (type) => original.statuses[type] !== draft.statuses[type]
+    ).length,
+  };
 }
 
 export function hasServicePrices(draft: CatalogPricingDraft, type: PriceTypeValue): boolean {

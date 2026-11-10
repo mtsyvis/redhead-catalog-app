@@ -5,8 +5,10 @@ Internal web application for Redhead Digital Agency to manage a large catalog of
 The app is used to browse, search, filter, import, edit, and export sites data. It also includes user management, role-based access, export limits, and production deployment via Docker Compose.
 
 Admin and SuperAdmin can use the separate **Pricing** workspace to review catalog selling prices,
-filter and sort USD margins against Active webmaster offers, compare saved LinkDetective prices,
-and edit catalog prices in a dialog. Its migration enables a separate `pricing` key in the existing table-view preferences.
+filter and sort exact-term USD margins against Active webmaster offers, compare saved LinkDetective prices,
+and edit catalog prices in a dialog. Each domain/term pair has its own row, with links to the domain's
+Webmaster Offers and an explicit LinkDetective refresh in the editor. Pricing has a separate `pricing`
+key in the existing table-view preferences.
 
 ## Documentation
 

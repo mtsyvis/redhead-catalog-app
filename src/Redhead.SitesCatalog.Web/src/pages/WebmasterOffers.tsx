@@ -1,6 +1,6 @@
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.constants';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -49,6 +49,8 @@ function pluralizeOffers(count: number) {
 }
 
 export function WebmasterOffers() {
+  const [searchParams] = useSearchParams();
+  const initialDomain = searchParams.get('domain')?.trim() ?? '';
   const { user } = useAuth();
   const { canReadWebmasterOffers, canReadWebmasterOffersSummary, canReadWebmasterPriceComparison } =
     useUserRoles();
@@ -57,9 +59,10 @@ export function WebmasterOffers() {
   const access = canReadWebmasterOffers ? 'full' : 'summary';
   return (
     <WebmasterOffersPage
-      key={`${user.id}:${access}:${canReadWebmasterPriceComparison}`}
+      key={`${user.id}:${access}:${canReadWebmasterPriceComparison}:${initialDomain}`}
       userId={user.id}
       access={access}
+      initialDomain={initialDomain}
     />
   );
 }
@@ -68,16 +71,20 @@ function isFullOffers(offers: WebmasterOfferSummaryRow[]): offers is WebmasterOf
   return offers.every((offer) => 'prices' in offer && 'contactRawText' in offer);
 }
 
-function WebmasterOffersPage({ userId, access }: WebmasterOffersCacheScope) {
+function WebmasterOffersPage({
+  userId, access, initialDomain,
+}: WebmasterOffersCacheScope & { initialDomain: string }) {
   const {
     canReadWebmasterOffers,
     canManageWebmasterOffers,
     canExportWebmasterOffers,
     canReadWebmasterPriceComparison,
   } = useUserRoles();
-  const [cachedSearch] = useState(() => readCachedWebmasterOffersSearch({ userId, access }));
+  const [cachedSearch] = useState(() =>
+    initialDomain ? null : readCachedWebmasterOffersSearch({ userId, access })
+  );
   const [multiSearchMode, setMultiSearchMode] = useState(cachedSearch?.mode === 'multi');
-  const [domain, setDomain] = useState(cachedSearch?.query ?? '');
+  const [domain, setDomain] = useState(initialDomain || cachedSearch?.query || '');
   const [result, setResult] = useState<WebmasterOffersResult | null>(cachedSearch?.result ?? null);
   const [expandedOfferIds, setExpandedOfferIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(false);

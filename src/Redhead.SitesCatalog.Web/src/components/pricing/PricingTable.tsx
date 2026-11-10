@@ -3,10 +3,8 @@ import type { ReactNode } from 'react';
 import type { TableViewDensity } from '../../types/tableViews.types';
 import {
   Box,
-  Chip,
   IconButton,
   LinearProgress,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -19,6 +17,7 @@ import {
   Typography,
 } from '@mui/material';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import { WebmasterOffersLink } from '../webmaster-offers/WebmasterOffersLink';
 import type { PricingPage, PricingQuery, PricingSite } from '../../types/pricing.types';
 import { pricingColumns } from './pricingColumns';
 import { marketDescription } from '../../utils/pricingDisplay';
@@ -34,12 +33,6 @@ import {
 } from '../../theme/tableStyles';
 
 function CatalogPrice({ site, type }: { site: PricingSite; type: PriceTypeValue }) {
-  if (site.terms.length > 1)
-    return (
-      <Tooltip title="Multiple catalog terms. Review exact-term prices in Edit prices.">
-        <span tabIndex={0}>—</span>
-      </Tooltip>
-    );
   const price = site.prices.find(
     (row) => row.priceType === type && row.termKey === site.terms[0]?.termKey
   );
@@ -91,7 +84,7 @@ export function PricingTable({
   density: TableViewDensity;
   columnWidths: Record<string, number>;
   onQuery: (next: Partial<PricingQuery>) => void;
-  onEdit: (domain: string) => void;
+  onEdit: (domain: string, termKey?: string) => void;
 }) {
   const columns = columnIds
     .map((id) => pricingColumns.find((column) => column.id === id)!)
@@ -126,7 +119,7 @@ export function PricingTable({
               <TableCell
                 sx={(theme) => ({
                   ...getPinnedTableCellStyles(theme, true),
-                  minWidth: columnWidths.domain ?? 220,
+                  minWidth: columnWidths.domain ?? 300,
                 })}
               >
                 <TableSortLabel
@@ -137,7 +130,7 @@ export function PricingTable({
                   Domain
                 </TableSortLabel>
               </TableCell>
-              <TableCell sx={{ minWidth: columnWidths.term ?? 160 }}>Term</TableCell>
+              <TableCell sx={{ width: columnWidths.term ?? 100, minWidth: columnWidths.term ?? 100 }}>Term</TableCell>
               {columns.map((column) => (
                 <TableCell
                   key={column.id}
@@ -168,7 +161,7 @@ export function PricingTable({
           <TableBody>
             {data?.items.map((site) => (
               <TableRow
-                key={site.domain}
+                key={`${site.domain}:${site.terms[0]?.termKey ?? ''}`}
                 hover
                 sx={
                   site.isQuarantined
@@ -187,7 +180,7 @@ export function PricingTable({
                   className="PricingTable-domainCell"
                   sx={(theme) => ({
                     ...getPinnedTableCellStyles(theme),
-                    minWidth: columnWidths.domain ?? 220,
+                    minWidth: columnWidths.domain ?? 300,
                     // Keep the divider inside the sticky cell when row coordinates are fractional.
                     borderBottom: 0,
                     '&::after': {
@@ -215,24 +208,18 @@ export function PricingTable({
                         <IconButton
                           disabled={!canEdit}
                           aria-label={`Edit prices for ${site.domain}`}
-                          onClick={() => onEdit(site.domain)}
+                          onClick={() => onEdit(site.domain, site.terms[0]?.termKey)}
                           sx={{ width: 36, height: 36 }}
                         >
                           <EditOutlinedIcon fontSize="small" />
                         </IconButton>
                       </Box>
                     </Tooltip>
+                    <WebmasterOffersLink domain={site.domain} />
                   </Box>
                 </TableCell>
                 <TableCell>
-                  <Stack spacing={0.5} alignItems="flex-start">
-                    <Typography variant="body2">
-                      {site.terms.map((term) => term.label).join(', ') || '—'}
-                    </Typography>
-                    {(site.terms.length > 1 || site.hasInvalidTerms) && (
-                      <Chip label="Needs review" color="warning" size="small" variant="outlined" />
-                    )}
-                  </Stack>
+                  <Typography variant="body2">{site.terms[0]?.label ?? '—'}</Typography>
                 </TableCell>
                 {columns.map((column) => (
                   <TableCell key={column.id} align="right">
@@ -256,7 +243,7 @@ export function PricingTable({
                 ))}
               </TableRow>
             ))}
-            {!data?.items.length && !loading && (
+            {data?.items.length === 0 && !loading && (
               <TableRow>
                 <TableCell colSpan={columns.length + 2} align="center">
                   No sites match these filters.

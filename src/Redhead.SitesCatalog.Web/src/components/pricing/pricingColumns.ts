@@ -33,8 +33,8 @@ export const pricingTableColumns: TableColumnMetadata[] = [
     group: 'Main',
     required: true,
     includeInViews: true,
-    width: 220,
-    minWidth: 220,
+    width: 300,
+    minWidth: 300,
   },
   {
     id: 'term',
@@ -42,8 +42,8 @@ export const pricingTableColumns: TableColumnMetadata[] = [
     group: 'Main',
     required: true,
     includeInViews: true,
-    width: 160,
-    minWidth: 160,
+    width: 100,
+    minWidth: 100,
   },
   ...pricingColumns.map((column) => ({
     id: column.id,

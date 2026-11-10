@@ -1,5 +1,5 @@
 import { DEFAULT_PAGE_SIZE } from "../constants/pagination.constants";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import {
   Alert,
@@ -25,13 +25,13 @@ import { formatInteger } from "../utils/numberFormat";
 import { usePricingTableViews } from "../components/pricing/usePricingTableViews";
 import { useUserRoles } from "../hooks/useUserRoles";
 import { pricingService } from "../services/pricing.service";
-import type { PricingPage, PricingQuery, PricingTerm } from "../types/pricing.types";
+import type { PricingMarket, PricingPage, PricingQuery, PricingTerm } from "../types/pricing.types";
 import { PRICE_TYPE_LABELS, PRICING_SECTION_ORDER, type PriceTypeValue } from "../utils/pricing";
 
 const defaultQuery: PricingQuery = {
   domain: "",
   termKey: "",
-  needsReview: false,
+  multipleTerms: false,
   priceType: 0,
   margin: "all",
   sortBy: "domain",
@@ -53,10 +53,13 @@ export function Pricing() {
   const [termsError, setTermsError] = useState<string | null>(null);
   const [termsRefresh, setTermsRefresh] = useState(0);
   const [refresh, setRefresh] = useState(0);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ domain: string; termKey?: string } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [minText, setMinText] = useState("");
   const [maxText, setMaxText] = useState("");
+  const searchTimer = useRef<number | undefined>(undefined);
+  const rangeTimer = useRef<number | undefined>(undefined);
+  const searchRequestId = useRef(0);
   const minMargin = minText.trim() === "" ? undefined : Number(minText);
   const maxMargin = maxText.trim() === "" ? undefined : Number(maxText);
   const minError =
@@ -75,13 +78,41 @@ export function Pricing() {
     ? null
     : query.margin === "missing" && hasRange
       ? "Missing margins cannot match a numeric range. Clear the range or choose another margin filter."
-      : query.needsReview && (query.margin === "nonPositive" || hasRange)
-        ? "Sites with multiple terms have no calculated margin. These margin filters cannot match them."
-        : query.margin === "nonPositive" && minMargin !== undefined && minMargin > 0
-          ? "Negative & Zero cannot match a range above $0. Adjust the range or choose another margin filter."
-          : null;
+      : query.margin === "nonPositive" && minMargin !== undefined && minMargin > 0
+        ? "Negative & Zero cannot match a range above $0. Adjust the range or choose another margin filter."
+        : null;
   const changeQuery = (next: Partial<PricingQuery>) =>
     setQuery((current) => ({ ...current, ...next }));
+  const updateMarket = (domain: string, market: PricingMarket) => {
+    setData(
+      (current) =>
+        current && {
+          ...current,
+          items: current.items.map((site) => (site.domain === domain ? { ...site, market } : site)),
+        }
+    );
+    searchRequestId.current += 1;
+    setRefresh((value) => value + 1);
+  };
+  const clearFilters = () => {
+    // Invalidate pending work before resetting the inputs and the applied query.
+    window.clearTimeout(searchTimer.current);
+    window.clearTimeout(rangeTimer.current);
+    searchRequestId.current += 1;
+    setSearch("");
+    setMinText("");
+    setMaxText("");
+    setData(null);
+    setError(null);
+    setLoading(true);
+    setQuery((current) => ({
+      ...defaultQuery,
+      sortBy: current.sortBy,
+      sortPriceType: current.sortPriceType,
+      descending: current.descending,
+      pageSize: current.pageSize,
+    }));
+  };
 
   useEffect(() => {
     if (!canReadPricing) return;
@@ -94,6 +125,7 @@ export function Pricing() {
         ),
       300
     );
+    searchTimer.current = timer;
     return () => window.clearTimeout(timer);
   }, [search, canReadPricing]);
   useEffect(() => {
@@ -107,17 +139,20 @@ export function Pricing() {
         }),
       300
     );
+    rangeTimer.current = timer;
     return () => window.clearTimeout(timer);
   }, [minMargin, maxMargin, invalidRange, canReadPricing]);
   useEffect(() => {
     if (!canReadPricing) return;
     let active = true;
+    const requestId = ++searchRequestId.current;
+    const isCurrentRequest = () => active && requestId === searchRequestId.current;
     const timer = window.setTimeout(() => {
       setLoading(true);
       pricingService
         .search(query)
         .then((result) => {
-          if (!active) return;
+          if (!isCurrentRequest()) return;
           const lastPage = Math.max(1, Math.ceil(result.totalCount / query.pageSize));
           if (query.page > lastPage) {
             setQuery((current) => ({ ...current, page: lastPage }));
@@ -127,11 +162,11 @@ export function Pricing() {
           setError(null);
         })
         .catch((reason) => {
-          if (active)
+          if (isCurrentRequest())
             setError(reason instanceof Error ? reason.message : "Failed to load catalog pricing.");
         })
         .finally(() => {
-          if (active) setLoading(false);
+          if (isCurrentRequest()) setLoading(false);
         });
     }, 0);
     return () => {
@@ -230,32 +265,14 @@ export function Pricing() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={query.needsReview}
-                    onChange={(_, checked) => changeQuery({ needsReview: checked, page: 1 })}
+                    checked={query.multipleTerms}
+                    onChange={(_, checked) => changeQuery({ multipleTerms: checked, page: 1 })}
                   />
                 }
                 label="Multiple terms"
                 sx={{ m: 0, whiteSpace: { sm: "nowrap" } }}
               />
-              <BrandButton
-                sx={{ ml: { sm: "auto" }, justifySelf: "end" }}
-                onClick={() => {
-                  setSearch("");
-                  setMinText("");
-                  setMaxText("");
-                  changeQuery({
-                    domain: defaultQuery.domain,
-                    isQuarantined: undefined,
-                    termKey: defaultQuery.termKey,
-                    needsReview: defaultQuery.needsReview,
-                    priceType: defaultQuery.priceType,
-                    margin: defaultQuery.margin,
-                    minMargin: undefined,
-                    maxMargin: undefined,
-                    page: 1,
-                  });
-                }}
-              >
+              <BrandButton sx={{ ml: { sm: "auto" }, justifySelf: "end" }} onClick={clearFilters}>
                 Clear all filters
               </BrandButton>
             </Box>
@@ -374,20 +391,26 @@ export function Pricing() {
             <TableViewToolbar
               tableViews={columns}
               columnGroups={pricingColumnGroups}
-              resultLabel={`${formatInteger(data?.totalCount ?? 0)} ${(data?.totalCount ?? 0) === 1 ? "result" : "results"}`}
+              resultLabel={
+                query.termKey
+                  ? `${formatInteger(data?.totalCount ?? 0)} ${(data?.totalCount ?? 0) === 1 ? "result" : "results"}`
+                  : `${formatInteger(data?.domainCount ?? 0)} domains · ${formatInteger(data?.totalCount ?? 0)} rows`
+              }
               resultLoading={loading}
               onSuccess={setNotice}
               onError={setError}
             />
           }
           onQuery={changeQuery}
-          onEdit={setEditing}
+          onEdit={(domain, termKey) => setEditing({ domain, termKey })}
         />
       </Stack>
       {editing && (
         <EditCatalogPricesDialog
-          key={editing}
-          domain={editing}
+          key={editing.domain}
+          domain={editing.domain}
+          initialTermKey={editing.termKey}
+          onMarketUpdated={(market) => updateMarket(editing.domain, market)}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);

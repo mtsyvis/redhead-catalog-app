@@ -22,26 +22,34 @@ public sealed class PricingService(ApplicationDbContext context, IOptions<LinkDe
         var margins = CalculateMargins(sites, request.PriceType);
         var filteredMargins = FilterMargins(margins, request);
         var totalCount = await filteredMargins.CountAsync(cancellationToken);
+        var domainCount = string.IsNullOrWhiteSpace(request.TermKey)
+            ? await filteredMargins.Select(row => row.Domain).Distinct().CountAsync(cancellationToken)
+            : totalCount;
         var sortedMargins = SortMargins(sites, filteredMargins, request);
 
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, PaginationDefaults.MaxTablePageSize);
         var offset = (int)Math.Min((long)(page - 1) * pageSize, int.MaxValue);
 
-        // Page domains in SQL before loading details, then preserve that order in the response.
-        var domains = await sortedMargins
+        // Page domain/term rows in SQL before loading their catalog details.
+        var pageRows = await sortedMargins
             .Skip(offset)
             .Take(pageSize)
-            .Select(row => row.Domain)
-            .ToArrayAsync(cancellationToken);
+            .Select(row => new { row.Domain, row.TermKey })
+            .ToListAsync(cancellationToken);
+        var domains = pageRows.Select(row => row.Domain).Distinct().ToArray();
         var rows = await LoadSitesAsync(domains, cancellationToken);
         var rowsByDomain = rows.ToDictionary(row => row.Domain);
-        var items = domains
-            .Where(rowsByDomain.ContainsKey)
-            .Select(domain => rowsByDomain[domain])
+        var items = pageRows
+            .Where(row => rowsByDomain.ContainsKey(row.Domain))
+            .Select(row => rowsByDomain[row.Domain] with
+            {
+                Terms = rowsByDomain[row.Domain].Terms.Where(term => term.TermKey == row.TermKey).ToList(),
+                Prices = rowsByDomain[row.Domain].Prices.Where(price => price.TermKey == row.TermKey).ToList()
+            })
             .ToList();
 
-        return new PricingPage(items, totalCount, page, pageSize);
+        return new PricingPage(items, totalCount, domainCount, page, pageSize);
     }
 
     public async Task<PricingSiteDto?> GetAsync(string domain, CancellationToken cancellationToken)
@@ -78,10 +86,11 @@ public sealed class PricingService(ApplicationDbContext context, IOptions<LinkDe
         {
             sites = sites.Where(site => site.IsQuarantined == quarantined);
         }
-        if (!string.IsNullOrWhiteSpace(request.TermKey))
+        if (request.MultipleTerms)
         {
-            sites = sites.Where(site => context.SitePriceOptions.Any(price =>
-                price.SiteDomain == site.Domain && price.TermKey == request.TermKey));
+            sites = sites.Where(site => context.SitePriceOptions
+                .Where(price => price.SiteDomain == site.Domain)
+                .Select(price => price.TermKey).Distinct().Count() > 1);
         }
 
         return sites;
@@ -89,9 +98,9 @@ public sealed class PricingService(ApplicationDbContext context, IOptions<LinkDe
 
     private static IQueryable<MarginRow> FilterMargins(IQueryable<MarginRow> margins, PricingQuery request)
     {
-        if (request.NeedsReview)
+        if (!string.IsNullOrWhiteSpace(request.TermKey))
         {
-            margins = margins.Where(row => row.TermCount > 1);
+            margins = margins.Where(row => row.TermKey == request.TermKey);
         }
 
         margins = request.Margin switch
@@ -120,18 +129,20 @@ public sealed class PricingService(ApplicationDbContext context, IOptions<LinkDe
     {
         if (request.SortBy == "domain")
         {
-            return request.Descending
+            var byDomain = request.Descending
                 ? filteredMargins.OrderByDescending(row => row.Domain)
                 : filteredMargins.OrderBy(row => row.Domain);
+            return SortTerms(byDomain);
         }
 
         var sortPriceType = request.SortPriceType ?? request.PriceType;
         if (sortPriceType != request.PriceType)
         {
-            // Join back to the filtered domains so sorting by another service cannot change membership.
+            // Keep the filtered domain/term pairs when sorting by another service.
             var sortMargins = CalculateMargins(sites, sortPriceType);
             filteredMargins = from filtered in filteredMargins
-                              join sorted in sortMargins on filtered.Domain equals sorted.Domain
+                              join sorted in sortMargins
+                                  on new { filtered.Domain, filtered.TermKey } equals new { sorted.Domain, sorted.TermKey }
                               select sorted;
         }
 
@@ -140,8 +151,12 @@ public sealed class PricingService(ApplicationDbContext context, IOptions<LinkDe
             ? knownMarginsFirst.ThenByDescending(row => row.Margin)
             : knownMarginsFirst.ThenBy(row => row.Margin);
 
-        return ordered.ThenBy(row => row.Domain);
+        return SortTerms(ordered.ThenBy(row => row.Domain));
     }
+
+    private static IOrderedQueryable<MarginRow> SortTerms(IOrderedQueryable<MarginRow> rows) =>
+        rows.ThenBy(row => row.TermKey == PricingTerm.UnknownKey ? 0 : row.TermType == TermType.Finite ? 1 : 2)
+            .ThenBy(row => row.TermValue).ThenBy(row => row.TermKey);
 
     private IQueryable<MarginRow> CalculateMargins(IQueryable<Site> sites, PriceType priceType)
     {
@@ -153,42 +168,33 @@ public sealed class PricingService(ApplicationDbContext context, IOptions<LinkDe
                 status.Status != ServiceAvailabilityStatus.Available)));
 
         var offerType = CatalogPriceMapping.ToOfferType(priceType);
-        var matchingOffers =
-            from price in selectedPrices
-            from offer in context.WebmasterOfferPrices
-            where offer.SiteWebmasterOffer.SiteDomain == price.SiteDomain &&
-                  offer.SiteWebmasterOffer.Status == SiteWebmasterOfferStatus.Active &&
-                  offer.PriceType == offerType &&
-                  offer.AvailabilityStatus == ServiceAvailabilityStatus.Available &&
-                  offer.WebmasterPriceUsd > 0 &&
-                  offer.TermType == price.TermType &&
-                  offer.TermValue == price.TermValue &&
-                  offer.TermUnit == price.TermUnit
-            select new { price.SiteDomain, Amount = offer.WebmasterPriceUsd };
+        var offers = context.WebmasterOfferPrices.Where(offer =>
+            offer.SiteWebmasterOffer.Status == SiteWebmasterOfferStatus.Active &&
+            offer.PriceType == offerType &&
+            offer.AvailabilityStatus == ServiceAvailabilityStatus.Available &&
+            offer.WebmasterPriceUsd > 0);
+        var terms = context.SitePriceOptions
+            .Select(price => new { price.SiteDomain, price.TermKey, price.TermType, price.TermValue })
+            .Distinct();
 
-        return sites.Select(site => new
-        {
-            site.Domain,
-            TermCount = context.SitePriceOptions
-                .Where(price => price.SiteDomain == site.Domain)
-                .Select(price => price.TermKey)
-                .Distinct()
-                .Count(),
-            Price = selectedPrices
-                .Where(price => price.SiteDomain == site.Domain)
-                .Select(price => (decimal?)price.AmountUsd)
-                .FirstOrDefault(),
-            Offer = matchingOffers
-                .Where(offer => offer.SiteDomain == site.Domain)
-                .Select(offer => offer.Amount)
-                .Min()
-        }).Select(site => new MarginRow
-        {
-            Domain = site.Domain,
-            TermCount = site.TermCount,
-            // Multiple terms require manual review; never combine their prices into one margin.
-            Margin = site.TermCount == 1 ? site.Price - site.Offer : null
-        });
+        return from site in sites
+               join term in terms on site.Domain equals term.SiteDomain into siteTerms
+               from term in siteTerms.DefaultIfEmpty()
+               select new MarginRow
+               {
+                   Domain = site.Domain,
+                   TermKey = term.TermKey ?? "",
+                   TermType = term.TermType,
+                   TermValue = term.TermValue,
+                   Margin = selectedPrices
+                       .Where(price => price.SiteDomain == site.Domain && price.TermKey == (term.TermKey ?? ""))
+                       .Select(price => (decimal?)price.AmountUsd - offers
+                           .Where(offer => offer.SiteWebmasterOffer.SiteDomain == site.Domain &&
+                               offer.TermType == price.TermType && offer.TermValue == price.TermValue &&
+                               offer.TermUnit == price.TermUnit)
+                           .Select(offer => offer.WebmasterPriceUsd).Min())
+                       .FirstOrDefault()
+               };
     }
 
     private async Task<List<PricingSiteDto>> LoadSitesAsync(string[] domains, CancellationToken cancellationToken)
@@ -213,7 +219,8 @@ public sealed class PricingService(ApplicationDbContext context, IOptions<LinkDe
         return sites.Select(site =>
         {
             marketCaches.TryGetValue(site.Domain, out var marketCache);
-            return CreateSiteDto(site, offersByDomain[site.Domain], marketCache, freshnessCutoff);
+            return CreateSiteDto(site, offersByDomain[site.Domain], marketCache, freshnessCutoff,
+                !string.IsNullOrWhiteSpace(options.Value.ApiToken));
         }).ToList();
     }
 
@@ -239,7 +246,8 @@ public sealed class PricingService(ApplicationDbContext context, IOptions<LinkDe
         Site site,
         IEnumerable<OfferRow> offers,
         LinkDetectivePriceCache? marketCache,
-        DateTime freshnessCutoff)
+        DateTime freshnessCutoff,
+        bool canRefreshMarket)
     {
         var terms = GetSiteTerms(site);
         var hasInvalidTerms = site.PriceOptions.Any(price => !PricingTerm.TryCreate(
@@ -254,13 +262,15 @@ public sealed class PricingService(ApplicationDbContext context, IOptions<LinkDe
             }
         }
 
-        var market = marketCache is null ? null : new PricingMarketDto(
-            marketCache.MinimumUsd,
-            marketCache.AverageUsd,
-            marketCache.MedianUsd,
-            marketCache.CheckedAtUtc,
-            marketCache.CheckedAtUtc < freshnessCutoff,
-            marketCache.LastError);
+        var market = new PricingMarketDto(
+            marketCache?.MinimumUsd,
+            marketCache?.AverageUsd,
+            marketCache?.MedianUsd,
+            marketCache?.CheckedAtUtc,
+            marketCache?.CheckedAtUtc < freshnessCutoff,
+            marketCache?.LastError,
+            marketCache?.RetryAfterUtc,
+            canRefreshMarket);
 
         return new PricingSiteDto(
             site.Domain,
@@ -340,7 +350,9 @@ public sealed class PricingService(ApplicationDbContext context, IOptions<LinkDe
     private sealed class MarginRow
     {
         public string Domain { get; init; } = string.Empty;
-        public int TermCount { get; init; }
+        public string TermKey { get; init; } = string.Empty;
+        public TermType? TermType { get; init; }
+        public int? TermValue { get; init; }
         public decimal? Margin { get; init; }
     }
 
