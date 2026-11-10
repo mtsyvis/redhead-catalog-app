@@ -199,7 +199,7 @@ Affected components: frontend build tooling bundled with npm, `postgres:16-alpin
 `caddy:2-alpine`. The app Dockerfile upgrades Alpine packages in all stages and pins npm 11.21.2.
 The database and proxy still run unmodified upstream images.
 
-Production follow-up on 2026-11-10 (reported by the owner):
+Production follow-up on 2026-11-10:
 
 * Application security commit `fc40875` was deployed; the owner confirmed the application works.
 * Caddy was updated from 2.11.2 to 2.11.9 after validating the existing configuration. The external
@@ -207,9 +207,17 @@ Production follow-up on 2026-11-10 (reported by the owner):
 * PostgreSQL remains on 16.13. The owner explicitly deferred its update; no maintenance date is
   set. PostgreSQL image updates and container replacement are excluded from the current work
   unless the owner changes this instruction. The database findings remain open.
-* Reported host versions: Ubuntu 22.04.5 LTS, Docker Engine 29.5.3 and Compose 5.1.4. Host package
-  updates have not yet been reviewed or applied in this maintenance session. Docker daemon or
-  host restarts may interrupt containers even without changing the PostgreSQL image version.
+* Host versions: Ubuntu 22.04.5 LTS, Docker Engine 29.5.3 and Compose 5.1.4. APT simulation showed
+  41 upgrades, four new kernel packages and no removals. About 200 MB of packages were downloaded
+  to the VPS package cache only; no package installation or reboot was performed in this session.
+* The owner explicitly postponed host maintenance, including installation and reboot. Resume
+  those actions only after a new instruction. A fresh maintenance backup was not created.
+  Docker daemon or host restarts may interrupt containers without changing PostgreSQL's version.
+* Read-only SSH checks found Swarm inactive and Docker API access through a local Unix socket,
+  with no dockerd/containerd/BuildKit TCP listeners detected. This is not a full reachability audit.
+  Docker 29.5.3 is still in the affected range for the registry DNS/TLS issue
+  [GHSA-7cfq-22r6-qp73](https://github.com/moby/moby/security/advisories/GHSA-7cfq-22r6-qp73),
+  fixed in 29.8.2; local API access alone does not mitigate that image-pull risk.
 
 Verification on 2026-11-09, Linux amd64, Trivy 0.76.2 with a freshly downloaded vulnerability DB:
 
