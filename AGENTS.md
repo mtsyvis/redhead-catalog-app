@@ -53,8 +53,9 @@ Use this priority order:
 4. `docs/deployment.md` for VPS, Docker, Caddy, PostgreSQL, backups, and production operations.
 5. Existing code and tests.
 
-Read `docs/data-migrations.md` only when the task concerns data migrations, historical
-backfills, or their deployment/rollback. It records technical history, not current product rules.
+Read relevant entries in `docs/data-migrations.md` when investigating a recurring data issue,
+preparing a data repair/backfill, or changing behavior related to a recorded correction.
+Do not read the whole journal at session startup; it provides history, not current product rules.
 
 Do not treat legacy specs, old planning notes, old commit summaries, or archived documents as current source of truth unless the task explicitly references them.
 
@@ -120,18 +121,21 @@ When a task changes product behavior, permissions, imports, exports, UI rules, d
 Use this mapping:
 
 * Product behavior and business rules -> `docs/business-requirements.md`
-* Data-migration history, verification results, preflight checks, and rollback details -> `docs/data-migrations.md`
+* Significant data corrections and their reasons -> `docs/data-migrations.md`
 * Setup, commands, repository structure, general project overview -> `README.md`
 * Production, Docker, VPS, Caddy, PostgreSQL, backups -> `docs/deployment.md`
 * AI-agent workflow and repository instructions -> `AGENTS.md`
 * Technical debt and deferred maintenance -> `docs/technical-debt.md`; follow its recording and maintenance instructions.
 * Role or permission changes -> also update the English Users `Roles & permissions` guide in `src/Redhead.SitesCatalog.Web/src/components/admin/RoleGuideDialog.tsx` in the same change.
 
-Keep business requirements concise and declarative. Put migration IDs, one-off audit counts,
-implementation details, and historical rollout notes in the technical history, without duplicating
-them in business requirements or deployment instructions.
-For a data migration, update its technical record; update business requirements only when
-current product behavior changes.
+Keep business requirements concise and declarative; update them only when product behavior changes.
+
+* Log significant data repairs, backfills, scripts, and bulk corrections chronologically in
+  `docs/data-migrations.md`; omit schema-only work.
+* Each entry: 2–4 sentences covering date, problem/reason, change, confirmed result or status,
+  and a code/commit link. Mark prepared work explicitly; never imply unconfirmed production use.
+* Use `[DATA]`, adding `[SCHEMA]` for mixed migrations. Keep SQL, commands, implementation
+  details, and test reports in code, tests, and Git history.
 
 Do not update documentation for purely internal refactoring unless behavior, commands, or operational expectations changed.
 

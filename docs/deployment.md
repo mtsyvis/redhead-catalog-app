@@ -199,8 +199,8 @@ other confirmed domains in the same valid JSON response. Catalog price and offer
 
 Disable the worker by setting `LinkDetectiveSync__Enabled=false` and recreating the app container.
 Saved progress and market prices remain; enabling again resumes pending work. Deployment uses
-the normal startup migrations. The additive sync schema and rollback record are documented in
-[data-migrations.md](data-migrations.md#linkdetective-background-sync).
+the normal startup migrations. For schema and rollback details, see the
+[sync migration](../src/Redhead.SitesCatalog.Infrastructure/Data/Migrations/20261103080717_AddLinkDetectiveBackgroundSync.cs).
 
 ## Production environment variables
 
@@ -243,7 +243,7 @@ Email__SendTimeoutSeconds=10
 
 Ahrefs sync is inactive by default and no longer part of the active production workflow. The
 current Traffic/DR history is saved through Sites update import. Historical backfill details are
-in [Data migration history](data-migrations.md#historical-metric-baseline).
+in [Data change history](data-migrations.md#historical-metric-baseline).
 
 `EmergencySitesExport__ScheduleCron` uses standard five-field cron in UTC: `minute hour day-of-month month day-of-week`.
 `ExportedDomainAccessCleanup__RetentionDays` must be at least `7` because client weekly unique-domain limits use a rolling 7-day window.
@@ -469,9 +469,9 @@ containers. Reboots and daemon/database restarts can interrupt the application.
 ## Data migrations
 
 API startup applies pending EF migrations once. Before deploying a release with a data migration,
-take a fresh backup and review its preflight checks, verification evidence, and rollback constraints
-in [Data migration history](data-migrations.md). After startup, verify API health and the relevant
-migration record. Historical counts and migration-specific SQL live in that document.
+take a fresh backup and review its purpose and essential restrictions in
+[Data change history](data-migrations.md), with technical details in migration code and tests.
+After startup, verify API health and the relevant migration record.
 
 ## Logs and status
 
