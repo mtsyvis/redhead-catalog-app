@@ -6,6 +6,7 @@ using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Locations;
 
@@ -443,6 +444,17 @@ public class SitesService : ISitesService
             SitePricingUpdater.Apply(_context, site, request.Pricing, now);
         }
 
+        if (site.IsQuarantined)
+        {
+            await QuarantineWebmasterOffersUpdater.DeactivateAsync(
+                _context,
+                [site.Domain],
+                now,
+                userEmail,
+                recordManualHistory: true,
+                cancellationToken);
+        }
+
         site.UpdatedAtUtc = now;
         site.UpdatedBy = AuditUserFormatter.Format(userEmail);
         var historyAfter = EntityChangeHistoryRecorder.CaptureSite(site);
@@ -455,7 +467,17 @@ public class SitesService : ISitesService
             EntityChangeHistoryConstants.ManualSource,
             userEmail,
             now);
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception) when (
+            site.IsQuarantined &&
+            exception.Entries.Any(entry => entry.Entity is SiteWebmasterOffer))
+        {
+            _context.ChangeTracker.Clear();
+            throw new QuarantineConcurrencyException(exception);
+        }
         SiteUpdateCacheInvalidation.InvalidateAfterSiteUpdate(
             _sitesCatalogCache,
             previousCacheSnapshot,

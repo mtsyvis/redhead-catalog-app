@@ -6,6 +6,7 @@ using Redhead.SitesCatalog.Application.Services.Import.Artifacts;
 using Redhead.SitesCatalog.Application.Services.Import.Quarantine;
 using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Entities;
+using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using System.Text;
@@ -594,6 +595,156 @@ public sealed class QuarantineImportServiceTests : IDisposable
         Assert.Equal(0, log.Unmatched);
         Assert.Equal(0, log.ErrorsCount);
         Assert.Equal(0, log.Duplicates);
+    }
+
+    [Theory]
+    [InlineData("example.com")]
+    [InlineData("unavailable.com")]
+    public async Task ImportAsync_MarkUnavailable_DeactivatesAllActiveOffersForMatchedDomain(string domain)
+    {
+        // Arrange
+        var first = CreateOffer(domain);
+        var second = CreateOffer(domain);
+        var inactive = CreateOffer(domain, SiteWebmasterOfferStatus.Inactive);
+        var unrelated = CreateOffer("test.com");
+        var inactiveUpdatedAt = inactive.UpdatedAtUtc;
+        var unrelatedUpdatedAt = unrelated.UpdatedAtUtc;
+        _context.SiteWebmasterOffers.AddRange(first, second, inactive, unrelated);
+        await _context.SaveChangesAsync();
+        using var stream = Utf8Csv($"Domain,Reason\nhttps://www.{domain}/path,First\n{domain},Final\nmissing.com,Unknown\n");
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        _context.ChangeTracker.Clear();
+        var site = await GetSiteAsync(domain);
+        Assert.True(site.IsQuarantined);
+        Assert.Equal("Final", site.QuarantineReason);
+        Assert.Equal(1, result.UpdatedCount);
+        Assert.Equal(1, result.DuplicateDomainsCount);
+        Assert.Equal(1, result.UnmatchedRowsCount);
+        var changed = await _context.SiteWebmasterOffers
+            .Where(offer => offer.Id == first.Id || offer.Id == second.Id).ToListAsync();
+        Assert.Equal(2, changed.Count);
+        Assert.All(changed, offer =>
+        {
+            Assert.Equal(SiteWebmasterOfferStatus.Inactive, offer.Status);
+            Assert.Equal(site.UpdatedAtUtc, offer.UpdatedAtUtc);
+            Assert.Equal(UserEmail, offer.UpdatedBy);
+            Assert.Equal(first.CreatedAtUtc, offer.CreatedAtUtc);
+            Assert.Equal("Preserved note", offer.CommentText);
+        });
+        var savedInactive = await _context.SiteWebmasterOffers.FindAsync(inactive.Id);
+        Assert.Equal(inactiveUpdatedAt, savedInactive!.UpdatedAtUtc);
+        Assert.Equal("previous@test.com", savedInactive.UpdatedBy);
+        var savedUnrelated = await _context.SiteWebmasterOffers.FindAsync(unrelated.Id);
+        Assert.Equal(SiteWebmasterOfferStatus.Active, savedUnrelated!.Status);
+        Assert.Equal(unrelatedUpdatedAt, savedUnrelated.UpdatedAtUtc);
+        Assert.Empty(await _context.EntityChangeHistories.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ImportAsync_MarkUnavailable_MultipleBatches_DeactivatesOffersForEveryMatchedDomain()
+    {
+        // Arrange
+        const int domainCount = 1001;
+        var csv = new StringBuilder("Domain,Reason\n");
+        for (var i = 0; i < domainCount; i++)
+        {
+            var domain = $"batch-{i}.example";
+            _context.Sites.Add(new Site { Domain = domain });
+            _context.SiteWebmasterOffers.Add(CreateOffer(domain));
+            csv.AppendLine($"{domain},Policy review");
+        }
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+        using var stream = Utf8Csv(csv.ToString());
+
+        // Act
+        var result = await ImportAsync(stream);
+
+        // Assert
+        _context.ChangeTracker.Clear();
+        Assert.Equal(domainCount, result.UpdatedCount);
+        Assert.Equal(domainCount, await _context.SiteWebmasterOffers.CountAsync());
+        Assert.All(await _context.SiteWebmasterOffers.Include(offer => offer.Site).ToListAsync(), offer =>
+        {
+            Assert.True(offer.Site.IsQuarantined);
+            Assert.Equal(SiteWebmasterOfferStatus.Inactive, offer.Status);
+            Assert.Equal(offer.Site.UpdatedAtUtc, offer.UpdatedAtUtc);
+            Assert.Equal(UserEmail, offer.UpdatedBy);
+        });
+    }
+
+    [Fact]
+    public async Task ImportAsync_MarkUnavailable_RepeatedImport_DoesNotUpdateAlreadyInactiveOffers()
+    {
+        // Arrange
+        var offer = CreateOffer("example.com");
+        _context.SiteWebmasterOffers.Add(offer);
+        await _context.SaveChangesAsync();
+        using var firstStream = Utf8Csv("Domain,Reason\nexample.com,First\n");
+        await ImportAsync(firstStream);
+        var firstUpdatedAt = offer.UpdatedAtUtc;
+        using var secondStream = Utf8Csv("Domain,Reason\nexample.com,Second\n");
+
+        // Act
+        await _sut.ImportAsync(secondStream, CsvFileName, CsvContentType, UserId, "other@test.com",
+            SiteAvailabilityImportAction.MarkUnavailable);
+
+        // Assert
+        _context.ChangeTracker.Clear();
+        var saved = await _context.SiteWebmasterOffers.SingleAsync();
+        Assert.Equal(SiteWebmasterOfferStatus.Inactive, saved.Status);
+        Assert.Equal(firstUpdatedAt, saved.UpdatedAtUtc);
+        Assert.Equal(UserEmail, saved.UpdatedBy);
+        Assert.Equal("other@test.com", (await GetSiteAsync("example.com")).UpdatedBy);
+    }
+
+    [Fact]
+    public async Task ImportAsync_RestoreAvailable_LeavesAllOfferStatusesAndAuditFieldsUnchanged()
+    {
+        // Arrange
+        var active = CreateOffer("unavailable.com");
+        var inactive = CreateOffer("unavailable.com", SiteWebmasterOfferStatus.Inactive);
+        var updatedAt = active.UpdatedAtUtc;
+        _context.SiteWebmasterOffers.AddRange(active, inactive);
+        await _context.SaveChangesAsync();
+        using var stream = Utf8Csv("Domain\nunavailable.com\n");
+
+        // Act
+        await ImportAsync(stream, SiteAvailabilityImportAction.RestoreAvailable);
+
+        // Assert
+        _context.ChangeTracker.Clear();
+        Assert.False((await GetSiteAsync("unavailable.com")).IsQuarantined);
+        Assert.Equal(SiteWebmasterOfferStatus.Active, (await _context.SiteWebmasterOffers.FindAsync(active.Id))!.Status);
+        Assert.Equal(SiteWebmasterOfferStatus.Inactive, (await _context.SiteWebmasterOffers.FindAsync(inactive.Id))!.Status);
+        Assert.All(await _context.SiteWebmasterOffers.ToListAsync(), offer =>
+        {
+            Assert.Equal(updatedAt, offer.UpdatedAtUtc);
+            Assert.Equal("previous@test.com", offer.UpdatedBy);
+        });
+        Assert.Empty(await _context.EntityChangeHistories.ToListAsync());
+    }
+
+    private static SiteWebmasterOffer CreateOffer(
+        string domain, SiteWebmasterOfferStatus status = SiteWebmasterOfferStatus.Active)
+    {
+        var now = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var contact = $"{Guid.NewGuid():N}@test.com";
+        return new SiteWebmasterOffer
+        {
+            Id = Guid.NewGuid(), SiteDomain = domain, Status = status,
+            ImportFingerprint = Guid.NewGuid().ToString("N"), ContactRawText = contact,
+            CommentText = "Preserved note", CreatedAtUtc = now, UpdatedAtUtc = now, UpdatedBy = "previous@test.com",
+            Webmaster = new Webmaster
+            {
+                Id = Guid.NewGuid(), ContactRawText = contact, NormalizedContactRawText = contact,
+                PrimaryEmail = contact, CreatedAtUtc = now, UpdatedAtUtc = now
+            }
+        };
     }
 
     private async Task<SitesUpdateImportResult> ImportAsync(

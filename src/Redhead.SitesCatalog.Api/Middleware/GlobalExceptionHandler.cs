@@ -78,6 +78,9 @@ public class GlobalExceptionHandler : IExceptionHandler
             ImportConcurrencyException ex
                 => (HttpStatusCode.Conflict, ex.Message),
 
+            QuarantineConcurrencyException ex
+                => (HttpStatusCode.Conflict, ex.Message),
+
             ExportDisabledException ex
                 => (HttpStatusCode.Forbidden, ex.Message),
 

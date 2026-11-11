@@ -5,16 +5,24 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Npgsql;
 using Redhead.SitesCatalog.Api.Controllers;
+using Redhead.SitesCatalog.Api.Middleware;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
+using Redhead.SitesCatalog.Application.Models.Import;
+using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.Import.Artifacts;
+using Redhead.SitesCatalog.Application.Services.Import.Quarantine;
 using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
+using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
+using Redhead.SitesCatalog.Infrastructure.Locations;
 
 namespace Redhead.SitesCatalog.Tests.Integration;
 
@@ -353,6 +361,159 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
             WHERE indexrelid = '"IX_WebmasterOfferPrices_SiteWebmasterOfferId_PriceType"'::regclass
             """, connection);
         Assert.Equal(false, await indexCommand.ExecuteScalarAsync());
+    }
+
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Quarantine_SavesSiteAndAllOffersTogetherAndAdvancesOfferVersions(bool manualEdit)
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
+        setup.Set<CanonicalLocation>().Add(new CanonicalLocation { Key = "US", DisplayName = "United States", IsActive = true });
+        var offer = await SeedOfferAsync(setup, "remove-mailbox");
+        var second = new SiteWebmasterOffer
+        {
+            Id = Guid.NewGuid(), Site = offer.Site, Webmaster = offer.Webmaster,
+            ImportFingerprint = new string('b', 64), ContactRawText = offer.ContactRawText,
+            CreatedAtUtc = offer.CreatedAtUtc, UpdatedAtUtc = offer.UpdatedAtUtc
+        };
+        setup.SiteWebmasterOffers.Add(second);
+        await setup.SaveChangesAsync();
+        var firstVersion = offer.Version;
+        var secondVersion = second.Version;
+        await using var context = CreateContext();
+
+        // Act
+        await MarkUnavailableAsync(context, manualEdit);
+
+        // Assert
+        await using var verification = CreateContext();
+        var site = await verification.Sites.SingleAsync();
+        Assert.True(site.IsQuarantined);
+        var saved = await verification.SiteWebmasterOffers.Include(item => item.Prices)
+            .Include(item => item.LinkbuilderMailboxes).ToListAsync();
+        Assert.Equal(2, saved.Count);
+        Assert.All(saved, item =>
+        {
+            Assert.Equal(SiteWebmasterOfferStatus.Inactive, item.Status);
+            Assert.Equal(site.UpdatedAtUtc, item.UpdatedAtUtc);
+            Assert.Equal("quarantine@example.com", item.UpdatedBy);
+        });
+        var firstSaved = Assert.Single(saved, item => item.Id == offer.Id);
+        Assert.NotEqual(firstVersion, firstSaved.Version);
+        Assert.NotEqual(secondVersion, Assert.Single(saved, item => item.Id == second.Id).Version);
+        Assert.Equal(100m, Assert.Single(firstSaved.Prices).WebmasterPriceUsd);
+        Assert.Single(firstSaved.LinkbuilderMailboxes);
+        Assert.Equal(manualEdit ? 3 : 0, await verification.EntityChangeHistories.CountAsync());
+        Assert.Equal(manualEdit ? 0 : 1, await verification.ImportLogs.CountAsync());
+    }
+
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Quarantine_ConcurrentOfferEdit_ReturnsConflictAndRollsBackSiteOffersAndLogs(bool manualEdit)
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
+        setup.Set<CanonicalLocation>().Add(new CanonicalLocation { Key = "US", DisplayName = "United States", IsActive = true });
+        var offer = await SeedOfferAsync(setup, "details");
+        var interceptor = new BeforeSaveInterceptor(async () =>
+        {
+            await using var winner = CreateContext();
+            var current = await winner.SiteWebmasterOffers.SingleAsync();
+            current.CommentText = "Concurrent edit";
+            await winner.SaveChangesAsync();
+        });
+        await using var context = CreateContext(interceptor);
+        using var responseBody = new MemoryStream();
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Path = manualEdit ? "/api/sites/concurrent.example" : "/api/imports/availability";
+        httpContext.Request.Method = manualEdit ? "PUT" : "POST";
+        httpContext.Response.Body = responseBody;
+        var exceptionHandler = new GlobalExceptionHandler(NullLogger<GlobalExceptionHandler>.Instance);
+
+        // Act
+        var exception = await Assert.ThrowsAsync<QuarantineConcurrencyException>(() => MarkUnavailableAsync(context, manualEdit));
+        await exceptionHandler.TryHandleAsync(httpContext, exception, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<DbUpdateConcurrencyException>(exception.InnerException);
+        Assert.Empty(context.ChangeTracker.Entries());
+        Assert.Equal(0, await context.SaveChangesAsync());
+        Assert.Equal(StatusCodes.Status409Conflict, httpContext.Response.StatusCode);
+        responseBody.Position = 0;
+        using var response = await System.Text.Json.JsonDocument.ParseAsync(responseBody);
+        Assert.Equal("The data was changed by another user. Refresh the data and try again.",
+            response.RootElement.GetProperty("message").GetString());
+        await using var verification = CreateContext();
+        Assert.False((await verification.Sites.SingleAsync()).IsQuarantined);
+        var saved = await verification.SiteWebmasterOffers.SingleAsync();
+        Assert.Equal(offer.Id, saved.Id);
+        Assert.Equal(SiteWebmasterOfferStatus.Active, saved.Status);
+        Assert.Equal("Concurrent edit", saved.CommentText);
+        Assert.Empty(await verification.ImportLogs.ToListAsync());
+        Assert.Empty(await verification.EntityChangeHistories.ToListAsync());
+    }
+
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Quarantine_ConcurrentSiteDeletion_DoesNotTranslateUnrelatedConcurrency(bool manualEdit)
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
+        setup.Set<CanonicalLocation>().Add(new CanonicalLocation { Key = "US", DisplayName = "United States", IsActive = true });
+        setup.Sites.Add(new Site
+        {
+            Domain = "concurrent.example", Location = "US",
+            CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow
+        });
+        await setup.SaveChangesAsync();
+        var interceptor = new BeforeSaveInterceptor(async () =>
+        {
+            await using var concurrent = CreateContext();
+            concurrent.Sites.Remove(await concurrent.Sites.SingleAsync());
+            await concurrent.SaveChangesAsync();
+        });
+        await using var context = CreateContext(interceptor);
+
+        // Act
+        var exception = await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => MarkUnavailableAsync(context, manualEdit));
+
+        // Assert
+        Assert.IsType<Site>(Assert.Single(exception.Entries).Entity);
+        await using var verification = CreateContext();
+        Assert.Empty(await verification.Sites.ToListAsync());
+        Assert.Empty(await verification.ImportLogs.ToListAsync());
+        Assert.Empty(await verification.EntityChangeHistories.ToListAsync());
+    }
+
+    private static async Task MarkUnavailableAsync(ApplicationDbContext context, bool manualEdit)
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        if (manualEdit)
+        {
+            var service = new SitesService(context, new SitesQueryBuilder(context),
+                new SitesCatalogCache(cache), new LocationNormalizer());
+            await service.UpdateSiteAsync("https://www.concurrent.example/",
+                new Redhead.SitesCatalog.Application.Models.UpdateSiteRequest
+                {
+                    Location = "US", IsQuarantined = true, QuarantineReason = "Policy review"
+                }, "quarantine@example.com");
+        }
+        else
+        {
+            var service = new QuarantineImportService(context, NullLogger<QuarantineImportService>.Instance,
+                new ImportArtifactStorageService(cache));
+            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
+                "Domain,Reason\nhttps://www.concurrent.example/,Policy review\n"));
+            await service.ImportAsync(stream, "quarantine.csv", "text/csv", "user-1", "quarantine@example.com",
+                SiteAvailabilityImportAction.MarkUnavailable);
+        }
     }
 
     private ApplicationDbContext CreateContext(IInterceptor? interceptor = null)

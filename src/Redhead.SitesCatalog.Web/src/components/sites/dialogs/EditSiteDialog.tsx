@@ -546,6 +546,11 @@ export function EditSiteDialog({ open, site, onClose, onSaved }: Readonly<Props>
                   )}
                   label="Unavailable (quarantined)"
                 />
+                <Typography variant="body2" color="text.secondary">
+                  {form.isQuarantined
+                    ? 'Saving will also deactivate all active Webmaster Offers for this domain.'
+                    : 'Restoring availability does not reactivate Webmaster Offers.'}
+                </Typography>
               </Box>
               {form.isQuarantined && (
                 <TextField

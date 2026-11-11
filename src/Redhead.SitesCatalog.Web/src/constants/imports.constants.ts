@@ -146,7 +146,8 @@ export const WEBMASTER_OFFERS_IMPORT_INSTRUCTIONS = {
 
 export const AVAILABILITY_IMPORT_INSTRUCTIONS = {
   markUnavailable: {
-    description: 'Upload a CSV file to mark existing sites as unavailable and optionally save a reason.',
+    description:
+      'Upload a CSV file to mark existing sites as unavailable and optionally save a reason. All active Webmaster Offers for matched domains will also become inactive.',
     requiredColumns: ['Domain', 'Reason'],
     optionalNote: 'Reason may be empty.',
   },
@@ -154,7 +155,7 @@ export const AVAILABILITY_IMPORT_INSTRUCTIONS = {
     description:
       'Upload a CSV file to restore existing sites as available. This will clear quarantine status and remove the quarantine reason.',
     requiredColumns: ['Domain'],
-    optionalNote: 'Quarantine reason will be cleared for matched sites.',
+    optionalNote: 'Quarantine reason will be cleared for matched sites. Webmaster Offers will not be reactivated.',
   },
 };
 

@@ -261,3 +261,35 @@ Required follow-up:
   any dependency/image change. Do not silently replace upstream Go dependency majors.
 * Scan the deployed VPS images and maintain its OS/Docker separately using
   [the deployment runbook](deployment.md#security-maintenance-and-version-checks).
+
+## TD-006: Simplify and unify optimistic concurrency handling
+
+Status: deferred. Consolidate handling in a separate focused change after reviewing the
+existing save paths together; the current quarantine feature keeps its local handling.
+
+Affected components: `GlobalExceptionHandler`, Sites and quarantine-import services,
+webmaster-offer editing, catalog pricing, conflict exceptions/results, and their tests.
+
+Concurrency handling currently mixes local catches, entity-specific exception filters,
+dedicated exceptions such as `QuarantineConcurrencyException`, and conflict result objects.
+This duplicates error translation and makes ordinary saves harder to follow. The application
+is small, with only a couple of people editing data; the implementation should reflect that
+low contention instead of accumulating infrastructure for each feature.
+
+Planned work:
+
+* Prefer a small shared API mapping of optimistic concurrency failures to `409 Conflict`,
+  with a consistent response and a clear instruction to refresh data and retry. A centralized
+  `DbUpdateConcurrencyException` mapping is the preferred starting point.
+* Remove feature-specific wrappers and catches that only duplicate this translation.
+  Keep local handling where it performs necessary rollback, tracked-state cleanup, or
+  operation-specific business work. Review existing conflict result contracts together.
+* Preserve database version checks and atomic saves. Keep known unique-constraint conflicts
+  explicit; unrelated database failures must not be classified as concurrency conflicts.
+* Use a refresh-and-retry workflow for rare conflicts. Avoid automatic retries that overwrite
+  another editor's changes, new locking infrastructure, or a generic concurrency framework.
+
+Verify successful saves, stale-version conflicts, consistent HTTP responses, and rollback of
+all losing-request entity, price, mailbox, import-log, and history changes. Confirm independent
+edits still succeed and unrelated database errors retain their existing handling. Update the
+affected tests and business requirements with the implementation.

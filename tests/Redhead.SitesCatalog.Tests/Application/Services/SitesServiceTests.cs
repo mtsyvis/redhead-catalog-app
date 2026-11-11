@@ -2529,6 +2529,115 @@ public class SitesServiceTests : IDisposable
         };
     }
 
+    [Theory]
+    [InlineData("example.com")]
+    [InlineData("gambling.com")]
+    public async Task UpdateSiteAsync_Quarantine_DeactivatesAllActiveOffersAndRecordsStatusHistory(string domain)
+    {
+        // Arrange
+        var first = CreateQuarantineOffer(domain);
+        var second = CreateQuarantineOffer(domain);
+        var inactive = CreateQuarantineOffer(domain, SiteWebmasterOfferStatus.Inactive);
+        var unrelated = CreateQuarantineOffer("test.com");
+        var previousUpdatedAt = inactive.UpdatedAtUtc;
+        _context.SiteWebmasterOffers.AddRange(first, second, inactive, unrelated);
+        await _context.SaveChangesAsync();
+        var site = await _context.Sites.SingleAsync(item => item.Domain == domain);
+        var request = RequestFrom(site, isQuarantined: true, "Policy violation");
+
+        // Act
+        var result = await _service.UpdateSiteAsync($"https://www.{domain}/", request, TestAuditUserEmail);
+
+        // Assert
+        Assert.NotNull(result);
+        _context.ChangeTracker.Clear();
+        var savedSite = await _context.Sites.SingleAsync(item => item.Domain == domain);
+        Assert.True(savedSite.IsQuarantined);
+        var changed = await _context.SiteWebmasterOffers
+            .Where(offer => offer.Id == first.Id || offer.Id == second.Id).ToListAsync();
+        Assert.Equal(2, changed.Count);
+        Assert.All(changed, offer =>
+        {
+            Assert.Equal(SiteWebmasterOfferStatus.Inactive, offer.Status);
+            Assert.Equal(savedSite.UpdatedAtUtc, offer.UpdatedAtUtc);
+            Assert.Equal(TestAuditUserEmail, offer.UpdatedBy);
+            Assert.Equal("Preserved note", offer.CommentText);
+            Assert.Equal(first.CreatedAtUtc, offer.CreatedAtUtc);
+        });
+        var savedInactive = await _context.SiteWebmasterOffers.FindAsync(inactive.Id);
+        Assert.Equal(previousUpdatedAt, savedInactive!.UpdatedAtUtc);
+        Assert.Equal("previous@test.com", savedInactive.UpdatedBy);
+        var savedUnrelated = await _context.SiteWebmasterOffers.FindAsync(unrelated.Id);
+        Assert.Equal(SiteWebmasterOfferStatus.Active, savedUnrelated!.Status);
+        Assert.Equal(previousUpdatedAt, savedUnrelated.UpdatedAtUtc);
+        var history = await _context.EntityChangeHistories
+            .Where(entry => entry.EntityType == EntityChangeHistoryConstants.WebmasterOfferEntityType).ToListAsync();
+        Assert.Equal(2, history.Count);
+        Assert.Equal(changed.Select(offer => offer.Id.ToString()).Order(), history.Select(entry => entry.EntityId).Order());
+        var siteHistory = Assert.Single(await _service.GetSiteHistoryAsync(domain));
+        Assert.Equal(TestAuditUserEmail, siteHistory.ChangedBy);
+        foreach (var offer in changed)
+        {
+            var offerHistory = Assert.Single(history, item => item.EntityId == offer.Id.ToString());
+            Assert.Equal(EntityChangeHistoryConstants.ManualSource, offerHistory.Source);
+            Assert.Equal(savedSite.UpdatedAtUtc, offerHistory.ChangedAtUtc);
+            Assert.Equal(TestAuditUserEmail, offerHistory.ChangedBy);
+            using var json = System.Text.Json.JsonDocument.Parse(offerHistory.ChangesJson);
+            var change = Assert.Single(json.RootElement.EnumerateArray());
+            Assert.Equal("Status", change.GetProperty("field").GetString());
+            Assert.Equal("Active", change.GetProperty("oldValue").GetString());
+            Assert.Equal("Inactive", change.GetProperty("newValue").GetString());
+        }
+    }
+
+    [Theory]
+    [InlineData("example.com")]
+    [InlineData("gambling.com")]
+    public async Task UpdateSiteAsync_Available_LeavesOfferStatusesAndAuditFieldsUnchanged(string domain)
+    {
+        // Arrange
+        var active = CreateQuarantineOffer(domain);
+        var inactive = CreateQuarantineOffer(domain, SiteWebmasterOfferStatus.Inactive);
+        var previousUpdatedAt = active.UpdatedAtUtc;
+        _context.SiteWebmasterOffers.AddRange(active, inactive);
+        await _context.SaveChangesAsync();
+        var request = RequestFrom(await _context.Sites.SingleAsync(site => site.Domain == domain));
+
+        // Act
+        await _service.UpdateSiteAsync(domain, request, TestAuditUserEmail);
+
+        // Assert
+        _context.ChangeTracker.Clear();
+        Assert.False((await _context.Sites.SingleAsync(site => site.Domain == domain)).IsQuarantined);
+        Assert.Equal(SiteWebmasterOfferStatus.Active, (await _context.SiteWebmasterOffers.FindAsync(active.Id))!.Status);
+        Assert.Equal(SiteWebmasterOfferStatus.Inactive, (await _context.SiteWebmasterOffers.FindAsync(inactive.Id))!.Status);
+        Assert.All(await _context.SiteWebmasterOffers.ToListAsync(), offer =>
+        {
+            Assert.Equal(previousUpdatedAt, offer.UpdatedAtUtc);
+            Assert.Equal("previous@test.com", offer.UpdatedBy);
+        });
+        Assert.Empty(await _context.EntityChangeHistories
+            .Where(entry => entry.EntityType == EntityChangeHistoryConstants.WebmasterOfferEntityType).ToListAsync());
+    }
+
+    private static SiteWebmasterOffer CreateQuarantineOffer(
+        string domain, SiteWebmasterOfferStatus status = SiteWebmasterOfferStatus.Active)
+    {
+        var now = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var contact = $"{Guid.NewGuid():N}@test.com";
+        return new SiteWebmasterOffer
+        {
+            Id = Guid.NewGuid(), SiteDomain = domain, Status = status,
+            ImportFingerprint = Guid.NewGuid().ToString("N"), ContactRawText = contact,
+            CommentText = "Preserved note", CreatedAtUtc = now, UpdatedAtUtc = now, UpdatedBy = "previous@test.com",
+            Webmaster = new Webmaster
+            {
+                Id = Guid.NewGuid(), ContactRawText = contact, NormalizedContactRawText = contact,
+                PrimaryEmail = contact, CreatedAtUtc = now, UpdatedAtUtc = now
+            }
+        };
+    }
+
     [Fact]
     public async Task UpdateSiteAsync_ExistingDomain_TurnOnQuarantine_SetsQuarantineAndReason()
     {

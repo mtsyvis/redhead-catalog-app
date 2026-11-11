@@ -479,7 +479,7 @@ Storage rules:
 * `DfLinksRawText` and `SponsoredTagRawText` are optional raw-text fields stored on each webmaster offer. They are independent from the site's structured DF-link count and sponsored-tag fields.
 * `TermRawText` is preserved. Empty, invalid, or unsupported terms are stored as No term for phase 1.
 * Phase 1 supports No term, `permanent`, and positive finite year terms for parsed webmaster offer terms.
-* Webmaster offer status defaults to `Active`; `Inactive` is reserved for future cleanup.
+* Webmaster offer status defaults to `Active`. Marking a site unavailable through Availability import or manual site editing sets all its Active webmaster offers to `Inactive`.
 * Manual offer edits set `UpdatedAtUtc` and `UpdatedBy`. They may change `ContactRawText`, `PrimaryEmail`, and `WebmasterId` only through the Contact-relinking rules above, but do not change `SiteDomain`, `ImportFingerprint`, `CreatedAtUtc`, `TermRawText`, or imported `LinkbuilderMailboxRawText`.
 * Submitting a webmaster offer without any effective field changes does not update `UpdatedAtUtc` or `UpdatedBy` and does not create a change-history entry.
 * `ImportFingerprint` remains the immutable source identity after a manual edit so re-importing the original source row remains idempotent.
@@ -682,6 +682,9 @@ Rules:
 * `QuarantineReason` is optional.
 * `QuarantineUpdatedAtUtc` is updated when quarantine state is changed by import or edit.
 * When quarantine is turned off manually, `QuarantineReason` should be cleared.
+* Availability import and manual site edits that mark a site unavailable also deactivate all Active webmaster offers for its normalized domain, including when the site is already quarantined. Site and offer changes are saved atomically. Changed offers receive the same update time and actor as the site; already Inactive offers are unchanged.
+* If a concurrent offer change conflicts with quarantine deactivation through Availability import or manual site editing, the API returns `409 Conflict` with a message to refresh the data and retry. None of the losing operation's site, offer, import-log, or change-history updates are saved. This conflict handling is specific to quarantine deactivation and does not change other operations' error handling.
+* Restoring site availability through import or manual editing does not change webmaster offer statuses or reactivate offers.
 * Quarantined sites remain in the catalog and can still appear in filtered results depending on the selected quarantine filter.
 
 ### Manual change history
@@ -697,6 +700,7 @@ Rules:
 * Each entry shows the action, source, change time, actor, and field values before and after the change.
 * Site manual-edit history includes editable site fields, quarantine fields, term-aware prices, and service availability.
 * Webmaster-offer manual-edit history includes status, effective term, Contact, Primary email, editable raw offer fields, structured linkbuilder mailboxes, and raw webmaster prices.
+* Offer deactivation caused by a manual site edit records a status change in each affected offer's manual history. Availability imports do not create offer change-history entries.
 * History endpoints return the newest 100 entries and are available only to users with the corresponding edit permission.
 * Manual edits and audited automatic corrections create entries. Regular imports, Ahrefs sync, and other background updates do not create general entity-change-history entries.
 * Traffic/DR metric history remains a separate business history with its own snapshot rules.
@@ -1096,8 +1100,10 @@ Rules:
 * Updates existing sites only.
 * Domain is normalized and matched by exact equality.
 * `markUnavailable` matched rows set `IsQuarantined = true`.
+* `markUnavailable` also sets all Active webmaster offers for matched domains to `Inactive` in the same save; already quarantined sites are included. Import result counts remain site counts.
 * `markUnavailable` stores the optional `Reason` as `QuarantineReason`; an empty reason clears any previous reason.
 * `restoreAvailable` matched rows set `IsQuarantined = false` and clear `QuarantineReason`.
+* `restoreAvailable` leaves webmaster offer statuses unchanged.
 * `restoreAvailable` is idempotent; already available sites are processed without error.
 * `QuarantineUpdatedAtUtc` is updated for matched rows.
 * Unknown domains are reported as unmatched.

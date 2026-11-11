@@ -192,9 +192,30 @@ public sealed class QuarantineImportService : IQuarantineImportService
             result.UpdatedCount++;
         }
 
+        if (action == SiteAvailabilityImportAction.MarkUnavailable)
+        {
+            await QuarantineWebmasterOffersUpdater.DeactivateAsync(
+                _context,
+                sitesByDomain.Keys,
+                now,
+                userEmail,
+                recordManualHistory: false,
+                cancellationToken);
+        }
+
         AddImportLog(result.UpdatedCount, unmatchedDomainsCount, invalidRowsCount, duplicateRowsCount, userId, userEmail);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception) when (
+            action == SiteAvailabilityImportAction.MarkUnavailable &&
+            exception.Entries.Any(entry => entry.Entity is SiteWebmasterOffer))
+        {
+            _context.ChangeTracker.Clear();
+            throw new QuarantineConcurrencyException(exception);
+        }
 
         _logger.LogInformation(
             "Availability import completed. Action={Action}, Matched={Matched}, Unmatched={Unmatched}, Errors={Errors}, Duplicates={Duplicates}, UserId={UserId}",
