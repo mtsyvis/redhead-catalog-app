@@ -135,10 +135,8 @@ Set the optional `ExchangeRateApi__ApiKey` in the private deployment environment
 ExchangeRate-API requests. Compose forwards it to the app container; recreate the container after changes.
 Keep the key out of source, frontend configuration and logs. Without a key, the worker makes no requests.
 
-The worker runs within the single app instance and persists its next attempt before the HTTP request.
-Attempts are spaced 24 hours apart, including after failures and restarts. Failures preserve the last
-successful rate table. `CurrencyReferenceRefreshStates` contains the last attempt time/outcome and next
-eligible attempt; `CurrencyReferenceSnapshots` contains the current table.
+For refresh diagnostics, inspect `LastAttemptAtUtc`, `LastAttemptSucceeded` and `NextAttemptAtUtc`
+in `CurrencyReferenceRefreshStates`. The cached provider response is in `CurrencyReferenceSnapshots`.
 The HTTP timeout is 20 seconds. Request logging and redirects are disabled because the provider key
 is part of the URL; never log full request URLs, response bodies or provider exception details.
 
@@ -147,7 +145,7 @@ that metadata before rollback. Roll back schema and app binaries together; older
 with the currency write contract and constraints.
 
 Currency conversion, price metadata and editor behavior are defined in
-[business requirements](business-requirements.md#webmaster-offers-and-raw-webmaster-prices).
+[business requirements](business-requirements.md#webmaster-quote-currencies).
 
 ## LinkDetective market prices
 

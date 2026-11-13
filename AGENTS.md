@@ -50,7 +50,8 @@ Use this priority order:
 1. The current task prompt.
 2. `docs/business-requirements.md` for product behavior and business rules.
 3. `README.md` for setup, commands, repository structure, and general technical context.
-4. `docs/deployment.md` for VPS, Docker, Caddy, PostgreSQL, backups, and production operations.
+4. `docs/deployment.md` for VPS, Docker, Caddy, PostgreSQL, and production operations;
+   `docs/backup-restore.md` for backup and restore procedures.
 5. Existing code and tests.
 
 Read relevant entries in `docs/data-migrations.md` when investigating a recurring data issue,
@@ -116,19 +117,36 @@ Disabled users must not be able to log in or access protected API endpoints.
 
 Documentation is part of the definition of done when behavior changes.
 
-When a task changes product behavior, permissions, imports, exports, UI rules, deployment, or setup commands, update the relevant documentation in the same change.
+Update only the documentation whose subject changed. Before editing, find the existing rule or
+instruction and update it in place. The mapping below selects the owner of a fact; it is not a
+checklist of files to update for every feature.
 
 Use this mapping:
 
 * Product behavior and business rules -> `docs/business-requirements.md`
 * Significant data corrections and their reasons -> `docs/data-migrations.md`
 * Setup, commands, repository structure, general project overview -> `README.md`
-* Production, Docker, VPS, Caddy, PostgreSQL, backups -> `docs/deployment.md`
+* Production configuration, deployment, and diagnostics -> `docs/deployment.md`
+* Backup and restore procedures -> `docs/backup-restore.md`; link there from deployment documentation.
 * AI-agent workflow and repository instructions -> `AGENTS.md`
 * Technical debt and deferred maintenance -> `docs/technical-debt.md`; follow its recording and maintenance instructions.
 * Role or permission changes -> also update the English Users `Roles & permissions` guide in `src/Redhead.SitesCatalog.Web/src/components/admin/RoleGuideDialog.tsx` in the same change.
 
-Keep business requirements concise and declarative; update them only when product behavior changes.
+Each rule, setting, or procedure has one canonical home. Other documents should link to the relevant
+section instead of restating it. The required user-facing role guide above is an explicit exception.
+
+* Keep business requirements concise and declarative; change them only when product behavior changes.
+* Keep README an entry point for setup and development commands. Do not add a feature walkthrough,
+  business rules, production configuration, or a test-case inventory for each change.
+* Keep deployment documentation operational: configuration, deploy/restart steps, diagnostics,
+  backups, and rollback constraints. Link to business rules instead of explaining the feature again.
+* Do not create a feature document by default. `docs/features/` may hold explicitly requested plans
+  for unimplemented work; implemented rules belong in the canonical documents above. Retire completed
+  briefs or replace their content with links, rather than maintaining a second specification.
+* Keep implementation progress, decision history, intermediate designs, test counts and run reports
+  in the task/PR or Git history, not in permanent project documentation.
+
+For the data journal:
 
 * Log significant data repairs, backfills, scripts, and bulk corrections chronologically in
   `docs/data-migrations.md`; omit schema-only work.
@@ -136,8 +154,13 @@ Keep business requirements concise and declarative; update them only when produc
   and a code/commit link. Mark prepared work explicitly; never imply unconfirmed production use.
 * Use `[DATA]`, adding `[SCHEMA]` for mixed migrations. Keep SQL, commands, implementation
   details, and test reports in code, tests, and Git history.
+* Keep one entry for an unpublished migration/data correction and update it to describe the final
+  result. Local rollback/reapply cycles and implementation revisions are not separate journal entries.
 
-Do not update documentation for purely internal refactoring unless behavior, commands, or operational expectations changed.
+Do not update documentation for purely internal refactoring unless behavior, commands, or operational
+expectations changed, or an existing reference became invalid. Before finishing, check the documentation
+diff for duplicated facts, obsolete wording, and broken links; remove superseded text instead of appending
+another version below it.
 
 At the end of each task, explicitly state whether documentation was updated. If it was not updated, state why.
 

@@ -259,9 +259,6 @@ Without this environment variable, these PostgreSQL tests are skipped; ordinary 
 
 ### LinkDetective market prices
 
-API investigation, measured batch/quota results, and notes for a future background job:
-[LinkDetective API investigation](docs/linkdetective-api-investigation.md).
-
 For Admin and SuperAdmin only, the **Price comparison** view in Webmaster Offers Single search
 shows catalog versus webmaster prices and optionally the provider's minimum, average, and median
 prices. Successful snapshots (including no-price results) are stored in PostgreSQL, reused
