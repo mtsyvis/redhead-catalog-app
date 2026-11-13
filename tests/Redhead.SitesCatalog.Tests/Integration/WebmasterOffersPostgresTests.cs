@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Npgsql;
@@ -18,11 +19,13 @@ using Redhead.SitesCatalog.Application.Services;
 using Redhead.SitesCatalog.Application.Services.Import.Artifacts;
 using Redhead.SitesCatalog.Application.Services.Import.Quarantine;
 using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
+using Redhead.SitesCatalog.Application.Services.Currencies;
 using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Domain.Exceptions;
 using Redhead.SitesCatalog.Infrastructure.Data;
 using Redhead.SitesCatalog.Infrastructure.Locations;
+using Redhead.SitesCatalog.Infrastructure.Options;
 
 namespace Redhead.SitesCatalog.Tests.Integration;
 
@@ -51,7 +54,11 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (string.IsNullOrEmpty(_connectionString)) return;
+        if (string.IsNullOrEmpty(_connectionString))
+        {
+            return;
+        }
+
         await using var context = CreateContext();
         await context.Database.EnsureDeletedAsync();
     }
@@ -69,7 +76,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         await setup.SaveChangesAsync();
         var recorder = new ReadCommandRecorder();
         await using var context = CreateContext(recorder);
-        var service = new WebmasterOffersService(context);
+        var service = CreateService(context);
 
         // Act
         var result = await service.GetSummaryByDomainAsync("https://www.concurrent.example/path");
@@ -118,7 +125,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         await setup.SaveChangesAsync();
         var recorder = new ReadCommandRecorder();
         await using var context = CreateContext(recorder);
-        var service = new WebmasterOffersService(context);
+        var service = CreateService(context);
         const string query = "empty.example https://www.CONCURRENT.example/path missing.example concurrent.example";
 
         // Act
@@ -160,6 +167,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
     [InlineData("add-mailbox")]
     [InlineData("remove-mailbox")]
     [InlineData("details")]
+    [InlineData("currency")]
     public async Task Update_OverlappingSaves_Returns409AndRollsBackAllLosingChanges(string scenario)
     {
         // Arrange
@@ -173,11 +181,11 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         var interceptor = new BeforeSaveInterceptor(async () =>
         {
             await using var winnerContext = CreateContext();
-            winnerResult = await new WebmasterOffersService(winnerContext)
+            winnerResult = await CreateService(winnerContext)
                 .UpdateAsync(offer.Id, winnerRequest, "winner@example.com");
         });
         await using var loserContext = CreateContext(interceptor);
-        var controller = new WebmasterOffersController(new WebmasterOffersService(loserContext),
+        var controller = new WebmasterOffersController(CreateService(loserContext),
             NullLogger<WebmasterOffersController>.Instance, Mock.Of<IGoogleDriveExportService>())
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
@@ -204,6 +212,12 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
             Assert.Equal(expected.WebmasterPriceUsd, price.WebmasterPriceUsd);
             Assert.Equal(expected.AvailabilityStatus, price.AvailabilityStatus);
             Assert.Equal(expected.WebmasterPriceDetails, price.WebmasterPriceDetails);
+            if (scenario == "currency")
+            {
+                Assert.Equal(expected.SourceCurrency, price.SourceCurrency);
+                Assert.Equal(expected.SourceAmount, price.SourceAmount);
+                Assert.Equal(OfferCurrencyService.FixedEurUsdRate, price.AppliedUsdRate);
+            }
         }
         Assert.Equal(winnerRequest.LinkbuilderMailboxIds.Order(), saved.LinkbuilderMailboxes.Select(item => item.LinkbuilderMailboxId).Order());
         var history = Assert.Single(await verification.EntityChangeHistories.ToListAsync());
@@ -238,17 +252,21 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         winnerRequest.PrimaryEmail = "winner@example.com";
         var loserRequest = CreateRequest(selectedOffer, "details", mailboxId, "Loser", 100m);
         loserRequest.PrimaryEmail = "loser@example.com";
+        loserRequest.Prices[0].SourceCurrency = "EUR";
+        loserRequest.Prices[0].SourceAmount = 25m;
+        loserRequest.Prices[0].WebmasterPriceUsd = 31m;
+        loserRequest.Prices[0].RateReference = OfferCurrencyService.FixedEurReference;
         WebmasterOfferUpdateResult? winnerResult = null;
         var interceptor = new BeforeSaveInterceptor(async () =>
         {
             await using var winnerContext = CreateContext();
-            winnerResult = await new WebmasterOffersService(winnerContext)
+            winnerResult = await CreateService(winnerContext)
                 .UpdateAsync(siblingOffer.Id, winnerRequest, "winner@example.com");
         });
         await using var loserContext = CreateContext(interceptor);
 
         // Act
-        var loserResult = await new WebmasterOffersService(loserContext)
+        var loserResult = await CreateService(loserContext)
             .UpdateAsync(selectedOffer.Id, loserRequest, "loser@example.com");
 
         // Assert
@@ -262,6 +280,9 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         Assert.Equal("Winner", (await verification.SiteWebmasterOffers.SingleAsync(item => item.Id == siblingOffer.Id)).CommentText);
         var history = Assert.Single(await verification.EntityChangeHistories.ToListAsync());
         Assert.Equal("winner@example.com", history.ChangedBy);
+        var unchangedPrice = await verification.WebmasterOfferPrices.SingleAsync(x => x.SiteWebmasterOfferId == selectedOffer.Id);
+        Assert.Equal("USD", unchangedPrice.SourceCurrency);
+        Assert.Equal("USD", unchangedPrice.SourceCurrency);
     }
 
     [PostgresFact]
@@ -293,13 +314,13 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         var interceptor = new BeforeSaveInterceptor(async () =>
         {
             await using var concurrentContext = CreateContext();
-            concurrentResult = await new WebmasterOffersService(concurrentContext)
+            concurrentResult = await CreateService(concurrentContext)
                 .UpdateAsync(secondOffer.Id, concurrentRequest, "second@example.com");
         });
         await using var selectedContext = CreateContext(interceptor);
 
         // Act
-        var selectedResult = await new WebmasterOffersService(selectedContext)
+        var selectedResult = await CreateService(selectedContext)
             .UpdateAsync(firstOffer.Id, selectedRequest, "first@example.com");
 
         // Assert
@@ -340,10 +361,13 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         // Arrange
         await using var context = CreateContext();
         await context.GetService<IMigrator>().MigrateAsync(PreviousMigration);
-        var offer = await SeedOfferAsync(context, "details");
+        var offer = await SeedOfferAsync(context, "details", includePrices: false);
         var duplicate = CreatePrice(offer.Id, WebmasterOfferPriceType.Main, 200m);
-        context.WebmasterOfferPrices.Add(duplicate);
-        await context.SaveChangesAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "WebmasterOfferPrices" ("Id", "SiteWebmasterOfferId", "PriceType", "AvailabilityStatus", "WebmasterPriceUsd", "CreatedAtUtc", "UpdatedAtUtc")
+            VALUES ({Guid.NewGuid()}, {offer.Id}, 0, 1, 100, {offer.CreatedAtUtc}, {offer.UpdatedAtUtc}),
+                   ({duplicate.Id}, {offer.Id}, 0, 1, 200, {offer.CreatedAtUtc}, {offer.UpdatedAtUtc})
+            """);
 
         // Act
         var exception = await Assert.ThrowsAsync<PostgresException>(() => context.Database.MigrateAsync());
@@ -516,14 +540,249 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         }
     }
 
+    [PostgresFact]
+    public async Task CurrencySave_NoOpKeepsXminAndUnrelatedEditsKeepSavedConversion()
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
+        var offer = await SeedOfferAsync(setup, "details");
+        var request = CreateRequest(offer, "currency", Guid.Empty, null!, 25m);
+        var first = await CreateService(setup).UpdateAsync(offer.Id, request, "editor@example.com");
+        await setup.Entry(offer).ReloadAsync();
+        await setup.Entry(offer.Prices.Single()).ReloadAsync();
+        var savedTime = offer.UpdatedAtUtc;
+        var savedPriceTime = offer.Prices.Single().UpdatedAtUtc;
+        request.ExpectedVersion = first.Offer!.Version;
+
+        // Act
+        var noOp = await CreateService(setup).UpdateAsync(offer.Id, request, "editor@example.com");
+        await using var read = CreateContext();
+        var unchanged = await read.SiteWebmasterOffers.Include(x => x.Prices).SingleAsync();
+        request.CommentText = "Unrelated edit";
+        var changed = await CreateService(setup).UpdateAsync(offer.Id, request, "editor@example.com");
+
+        // Assert
+        Assert.Equal(first.Offer.Version, noOp.Offer!.Version);
+        Assert.Equal(savedTime, unchanged.UpdatedAtUtc);
+        Assert.Equal(savedPriceTime, unchanged.Prices.Single().UpdatedAtUtc);
+        Assert.NotEqual(noOp.Offer.Version, changed.Offer!.Version);
+        Assert.Equal(savedPriceTime, offer.Prices.Single().UpdatedAtUtc);
+        Assert.Equal(2, await read.EntityChangeHistories.CountAsync());
+    }
+
+    [PostgresTheory]
+    [InlineData("null-source")]
+    [InlineData("zero-rate")]
+    [InlineData("null-rate")]
+    [InlineData("inconsistent-usd")]
+    [InlineData("non-numeric")]
+    public async Task CurrencyConstraints_RejectInconsistentQuotes(string scenario)
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
+        var offer = await SeedOfferAsync(setup, "details");
+        await CreateService(setup).UpdateAsync(offer.Id,
+            CreateRequest(offer, "currency", Guid.Empty, "Foreign", 25m), null);
+        var price = offer.Prices.Single();
+        switch (scenario)
+        {
+            case "null-source": price.SourceAmount = null; break;
+            case "zero-rate": price.AppliedUsdRate = 0; break;
+            case "null-rate": price.AppliedUsdRate = null; break;
+            case "inconsistent-usd": price.WebmasterPriceUsd = 1; break;
+            case "non-numeric": price.AvailabilityStatus = ServiceAvailabilityStatus.Unknown; price.WebmasterPriceUsd = null; break;
+        }
+
+        // Act
+        var exception = await Assert.ThrowsAsync<DbUpdateException>(() => setup.SaveChangesAsync());
+
+        // Assert
+        Assert.Equal(PostgresErrorCodes.CheckViolation, Assert.IsType<PostgresException>(exception.InnerException).SqlState);
+        await using var verification = CreateContext();
+        Assert.Equal(31m, (await verification.WebmasterOfferPrices.SingleAsync()).WebmasterPriceUsd);
+        Assert.Single(await verification.EntityChangeHistories.ToListAsync());
+    }
+
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CurrencyRefresh_SkipsRepeatedTicksAndPreservesOffersAcrossRestart(bool fail)
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
+        var offer = await SeedOfferAsync(setup, "details");
+        var originalVersion = offer.Version;
+        setup.CurrencyReferenceSnapshots.Add(new CurrencyReferenceSnapshot
+        {
+            Id = Guid.NewGuid(), ProviderAsOfUtc = DateTime.UtcNow.AddDays(-1),
+            FetchedAtUtc = DateTime.UtcNow.AddDays(-1), UsdRatesJson = "{\"CAD\":0.75}"
+        });
+        await setup.SaveChangesAsync();
+        var client = new Mock<Redhead.SitesCatalog.Infrastructure.Integrations.Currencies.ICurrencyReferenceRateClient>();
+        if (fail)
+        {
+            client.Setup(x => x.FetchAsync(It.IsAny<CancellationToken>())).ThrowsAsync(new FormatException("Synthetic provider failure"));
+        }
+        else
+        {
+            client.Setup(x => x.FetchAsync(It.IsAny<CancellationToken>())).ReturnsAsync(
+            new Redhead.SitesCatalog.Infrastructure.Integrations.Currencies.CurrencyRateTable(DateTime.UtcNow,
+                new Dictionary<string, decimal> { ["CAD"] = 0.8m }));
+        }
+
+        var options = Microsoft.Extensions.Options.Options.Create(new Redhead.SitesCatalog.Infrastructure.Options.ExchangeRateApiOptions
+            { ApiKey = "synthetic-test-key" });
+        await using var first = CreateContext();
+        var worker = new CurrencyReferenceRefreshService(first, client.Object, options, TimeProvider.System);
+
+        // Act
+        await worker.TickAsync(CancellationToken.None);
+        await worker.TickAsync(CancellationToken.None);
+        await using var restarted = CreateContext();
+        await new CurrencyReferenceRefreshService(restarted, client.Object, options, TimeProvider.System).TickAsync(CancellationToken.None);
+
+        // Assert
+        client.Verify(x => x.FetchAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(1, await restarted.CurrencyReferenceSnapshots.CountAsync());
+        Assert.Equal(!fail, (await restarted.CurrencyReferenceRefreshStates.SingleAsync()).LastAttemptSucceeded);
+        var saved = await restarted.SiteWebmasterOffers.Include(x => x.Prices).SingleAsync();
+        Assert.Equal(originalVersion, saved.Version);
+        Assert.Equal(offer.UpdatedAtUtc, saved.UpdatedAtUtc);
+        Assert.Equal(100m, saved.Prices.Single().WebmasterPriceUsd);
+        Assert.Empty(await restarted.EntityChangeHistories.ToListAsync());
+    }
+
+    [PostgresFact]
+    public async Task CurrencyRefresh_SnapshotSaveFailureDoesNotRepeatProviderRequestAfterRestart()
+    {
+        // Arrange
+        await using var setup = CreateContext();
+        await setup.Database.MigrateAsync();
+        var offer = await SeedOfferAsync(setup, "unchanged");
+        setup.CurrencyReferenceSnapshots.Add(new CurrencyReferenceSnapshot
+        {
+            Id = Guid.NewGuid(), ProviderAsOfUtc = DateTime.UtcNow.AddDays(-1),
+            FetchedAtUtc = DateTime.UtcNow.AddDays(-1), UsdRatesJson = "{\"CAD\":0.75}"
+        });
+        await setup.SaveChangesAsync();
+        var client = new Mock<Redhead.SitesCatalog.Infrastructure.Integrations.Currencies.ICurrencyReferenceRateClient>();
+        client.Setup(x => x.FetchAsync(It.IsAny<CancellationToken>())).Returns(async () =>
+        {
+            await using var persisted = CreateContext();
+            var claim = await persisted.CurrencyReferenceRefreshStates.SingleAsync();
+            Assert.True(claim.NextAttemptAtUtc > DateTime.UtcNow);
+            return new Redhead.SitesCatalog.Infrastructure.Integrations.Currencies.CurrencyRateTable(
+                DateTime.UtcNow, new Dictionary<string, decimal> { ["CAD"] = 0.8m });
+        });
+        var options = Options.Create(new ExchangeRateApiOptions { ApiKey = "synthetic-test-key" });
+        await using var failing = CreateContext(new FailCurrencySnapshotSaveInterceptor());
+
+        // Act
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            new CurrencyReferenceRefreshService(failing, client.Object, options, TimeProvider.System).TickAsync(CancellationToken.None));
+        await using var restarted = CreateContext();
+        await new CurrencyReferenceRefreshService(restarted, client.Object, options, TimeProvider.System).TickAsync(CancellationToken.None);
+
+        // Assert
+        client.Verify(x => x.FetchAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.False((await restarted.CurrencyReferenceRefreshStates.SingleAsync()).LastAttemptSucceeded);
+        var rates = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, decimal>>(
+            (await restarted.CurrencyReferenceSnapshots.SingleAsync()).UsdRatesJson);
+        Assert.Equal(0.75m, rates!["CAD"]);
+        var saved = await restarted.SiteWebmasterOffers.Include(x => x.Prices).SingleAsync();
+        Assert.Equal(offer.Version, saved.Version);
+        Assert.Equal(offer.UpdatedAtUtc, saved.UpdatedAtUtc);
+        Assert.Equal(100m, saved.Prices.Single().WebmasterPriceUsd);
+        Assert.Empty(await restarted.EntityChangeHistories.ToListAsync());
+    }
+
+    [PostgresTheory]
+    [InlineData("43.55", 54)]
+    [InlineData("43.56", 55)]
+    [InlineData("43.59", 55)]
+    [InlineData("43.60", 55)]
+    public async Task CurrencyRounding_PreviewAndPersistenceUsePoint45Threshold(string sourceAmount, int expectedUsd)
+    {
+        // Arrange
+        await using var context = CreateContext();
+        await context.Database.MigrateAsync();
+        var offer = await SeedOfferAsync(context, "details");
+        var amount = decimal.Parse(sourceAmount, System.Globalization.CultureInfo.InvariantCulture);
+        var currencies = new OfferCurrencyService(context);
+        var request = CreateRequest(offer, "currency", Guid.Empty, "Rounded quote", amount);
+        request.Prices[0].WebmasterPriceUsd = null;
+
+        // Act
+        var preview = await currencies.ConvertAsync(new OfferConversionRequest("EUR", amount), false);
+        await new WebmasterOffersService(context, currencies).UpdateAsync(offer.Id, request, null);
+        await using var verification = CreateContext();
+        var saved = await verification.WebmasterOfferPrices.SingleAsync();
+
+        // Assert
+        Assert.Equal(expectedUsd, preview.WebmasterPriceUsd);
+        Assert.Equal(preview.WebmasterPriceUsd, saved.WebmasterPriceUsd);
+        Assert.Equal(amount, saved.SourceAmount);
+        Assert.Single(await verification.EntityChangeHistories.ToListAsync());
+    }
+
+    [PostgresFact]
+    public async Task CurrencyRounding_PreservesHistoricalCeilingUntilSourceQuoteChanges()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        await context.Database.MigrateAsync();
+        var offer = await SeedOfferAsync(context, "details");
+        var price = offer.Prices.Single();
+        price.SourceCurrency = "EUR";
+        price.SourceAmount = 25m;
+        price.AppliedUsdRate = OfferCurrencyService.FixedEurUsdRate;
+        price.WebmasterPriceUsd = 32m;
+        await context.SaveChangesAsync();
+        var request = CreateRequest(offer, "details", Guid.Empty, "Notes only", 100m);
+        request.Prices[0].SourceCurrency = "EUR";
+        request.Prices[0].SourceAmount = 25m;
+        request.Prices[0].WebmasterPriceUsd = 32m;
+        var service = CreateService(context);
+
+        // Act
+        var notesOnly = await service.UpdateAsync(offer.Id, request, null);
+        var unchangedUsd = price.WebmasterPriceUsd;
+        var unchangedRate = price.AppliedUsdRate;
+        request.ExpectedVersion = notesOnly.Offer!.Version;
+        request.Prices[0].SourceCurrency = "EUR";
+        request.Prices[0].SourceAmount = 25.01m;
+        request.Prices[0].RateReference = OfferCurrencyService.FixedEurReference;
+        request.Prices[0].WebmasterPriceUsd = null;
+        await service.UpdateAsync(offer.Id, request, null);
+
+        // Assert
+        Assert.Equal(32m, unchangedUsd);
+        Assert.Equal(OfferCurrencyService.FixedEurUsdRate, unchangedRate);
+        await using var verification = CreateContext();
+        var saved = await verification.WebmasterOfferPrices.SingleAsync();
+        Assert.Equal(31m, saved.WebmasterPriceUsd);
+        Assert.Equal(25.01m, saved.SourceAmount);
+        Assert.Equal(2, await verification.EntityChangeHistories.CountAsync());
+    }
+
+    private static WebmasterOffersService CreateService(ApplicationDbContext context)
+        => new(context, new OfferCurrencyService(context));
+
     private ApplicationDbContext CreateContext(IInterceptor? interceptor = null)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_connectionString);
-        if (interceptor is not null) options.AddInterceptors(interceptor);
+        if (interceptor is not null)
+        {
+            options.AddInterceptors(interceptor);
+        }
+
         return new ApplicationDbContext(options.Options);
     }
 
-    private static async Task<SiteWebmasterOffer> SeedOfferAsync(ApplicationDbContext context, string scenario)
+    private static async Task<SiteWebmasterOffer> SeedOfferAsync(ApplicationDbContext context, string scenario, bool includePrices = true)
     {
         var now = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
         var mailbox = new LinkbuilderMailbox
@@ -543,13 +802,25 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
                 CreatedAtUtc = now, UpdatedAtUtc = now
             }
         };
-        offer.Prices.Add(CreatePrice(offer.Id, WebmasterOfferPriceType.Main, 100m));
-        if (scenario == "remove-price") offer.Prices.Add(CreatePrice(offer.Id, WebmasterOfferPriceType.Casino, 50m));
-        if (scenario == "remove-mailbox") offer.LinkbuilderMailboxes.Add(new SiteWebmasterOfferLinkbuilderMailbox
+        if (includePrices)
+        {
+            offer.Prices.Add(CreatePrice(offer.Id, WebmasterOfferPriceType.Main, 100m));
+        }
+
+        if (includePrices && scenario == "remove-price")
+        {
+            offer.Prices.Add(CreatePrice(offer.Id, WebmasterOfferPriceType.Casino, 50m));
+        }
+
+        if (scenario == "remove-mailbox")
+        {
+            offer.LinkbuilderMailboxes.Add(new SiteWebmasterOfferLinkbuilderMailbox
         {
             SiteWebmasterOfferId = offer.Id, LinkbuilderMailbox = mailbox, LinkbuilderMailboxId = mailbox.Id,
             CreatedAtUtc = now
         });
+        }
+
         context.LinkbuilderMailboxes.Add(mailbox);
         context.SiteWebmasterOffers.Add(offer);
         await context.SaveChangesAsync();
@@ -577,16 +848,31 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
             CommentText = comment,
             Prices = [new UpdateWebmasterOfferPriceRequest
             {
+                SourceCurrency = "USD",
+                SourceAmount = scenario == "update-price" ? amount : 100m,
                 PriceType = WebmasterOfferPriceType.Main, AvailabilityStatus = ServiceAvailabilityStatus.Available,
                 WebmasterPriceUsd = scenario == "update-price" ? amount : 100m
             }],
             LinkbuilderMailboxIds = scenario == "add-mailbox" ? [mailboxId] : []
         };
-        if (scenario == "add-price") request.Prices.Add(new UpdateWebmasterOfferPriceRequest
+        if (scenario == "add-price")
         {
+            request.Prices.Add(new UpdateWebmasterOfferPriceRequest
+        {
+            SourceCurrency = "USD",
+            SourceAmount = amount,
             PriceType = WebmasterOfferPriceType.Casino, AvailabilityStatus = ServiceAvailabilityStatus.Available,
             WebmasterPriceUsd = amount
         });
+        }
+
+        if (scenario == "currency")
+        {
+            request.Prices[0].SourceCurrency = "EUR";
+            request.Prices[0].SourceAmount = amount;
+            request.Prices[0].RateReference = OfferCurrencyService.FixedEurReference;
+            request.Prices[0].WebmasterPriceUsd = OfferCurrencyService.ConvertToUsd(amount, "EUR", OfferCurrencyService.FixedEurUsdRate);
+        }
         return request;
     }
 
@@ -599,6 +885,19 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
             InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
             Commands.Add(command.CommandText);
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class FailCurrencySnapshotSaveInterceptor : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context!.ChangeTracker.Entries<CurrencyReferenceSnapshot>().Any(x => x.State == EntityState.Added))
+            {
+                throw new DbUpdateException("Synthetic snapshot save failure");
+            }
             return ValueTask.FromResult(result);
         }
     }
@@ -624,7 +923,9 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         public PostgresFactAttribute()
         {
             if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(ConnectionVariable)))
+            {
                 Skip = $"Set {ConnectionVariable} to a disposable PostgreSQL server connection string.";
+            }
         }
     }
 
@@ -633,7 +934,9 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         public PostgresTheoryAttribute()
         {
             if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(ConnectionVariable)))
+            {
                 Skip = $"Set {ConnectionVariable} to a disposable PostgreSQL server connection string.";
+            }
         }
     }
 }

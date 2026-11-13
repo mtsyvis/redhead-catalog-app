@@ -20,7 +20,8 @@ public sealed class WebmasterOffersServiceTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        _sut = new WebmasterOffersService(_context);
+        var currencies = new OfferCurrencyService(_context);
+        _sut = new WebmasterOffersService(_context, currencies);
     }
 
     public void Dispose()
@@ -71,6 +72,7 @@ public sealed class WebmasterOffersServiceTests : IDisposable
         });
         _context.WebmasterOfferPrices.Add(new WebmasterOfferPrice
         {
+            SourceAmount = null,
             Id = Guid.NewGuid(),
             SiteWebmasterOfferId = offerId,
             PriceType = WebmasterOfferPriceType.Casino,
@@ -185,6 +187,7 @@ public sealed class WebmasterOffersServiceTests : IDisposable
         });
         _context.WebmasterOfferPrices.Add(new WebmasterOfferPrice
         {
+            SourceAmount = 100m,
             Id = Guid.NewGuid(),
             SiteWebmasterOfferId = offerId,
             PriceType = WebmasterOfferPriceType.Main,
@@ -251,6 +254,7 @@ public sealed class WebmasterOffersServiceTests : IDisposable
             CreatePrice(higherMainOfferId, WebmasterOfferPriceType.Casino, 50m, now),
             new WebmasterOfferPrice
             {
+                SourceAmount = null,
                 Id = Guid.NewGuid(),
                 SiteWebmasterOfferId = noNumericPriceOfferId,
                 PriceType = WebmasterOfferPriceType.Casino,
@@ -320,6 +324,7 @@ public sealed class WebmasterOffersServiceTests : IDisposable
         });
         _context.WebmasterOfferPrices.Add(new WebmasterOfferPrice
         {
+            SourceAmount = 100m,
             Id = Guid.NewGuid(),
             SiteWebmasterOfferId = offerId,
             PriceType = WebmasterOfferPriceType.Main,
@@ -345,6 +350,8 @@ public sealed class WebmasterOffersServiceTests : IDisposable
             [
                 new UpdateWebmasterOfferPriceRequest
                 {
+                    SourceCurrency = "USD",
+                    SourceAmount = 125m,
                     PriceType = WebmasterOfferPriceType.Main,
                     AvailabilityStatus = ServiceAvailabilityStatus.Available,
                     WebmasterPriceUsd = 125m,
@@ -889,6 +896,8 @@ public sealed class WebmasterOffersServiceTests : IDisposable
             [
                 new UpdateWebmasterOfferPriceRequest
                 {
+                    SourceCurrency = "USD",
+                    SourceAmount = amount,
                     PriceType = priceType,
                     AvailabilityStatus = availabilityStatus,
                     WebmasterPriceUsd = amount,
@@ -966,6 +975,7 @@ public sealed class WebmasterOffersServiceTests : IDisposable
         });
         _context.WebmasterOfferPrices.Add(new WebmasterOfferPrice
         {
+            SourceAmount = 100m,
             Id = Guid.NewGuid(),
             SiteWebmasterOfferId = offerId,
             PriceType = WebmasterOfferPriceType.Main,
@@ -986,6 +996,8 @@ public sealed class WebmasterOffersServiceTests : IDisposable
             [
                 new UpdateWebmasterOfferPriceRequest
                 {
+                    SourceCurrency = "USD",
+                    SourceAmount = 100m,
                     PriceType = WebmasterOfferPriceType.Main,
                     AvailabilityStatus = ServiceAvailabilityStatus.Available,
                     WebmasterPriceUsd = 100m

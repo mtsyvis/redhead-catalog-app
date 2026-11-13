@@ -21,3 +21,7 @@
 ## Deactivate existing offers for quarantined sites
 
 **2026-11-11 · [DATA]** Quarantined sites still had Active webmaster offers. Prepared a backfill to mark those offers Inactive and record the correction in history. Locally verified; production application not confirmed, and automatic rollback after data changes is unsupported. [Migration](../src/Redhead.SitesCatalog.Infrastructure/Data/Migrations/20261111051519_DeactivateQuarantinedWebmasterOffers.cs).
+
+## Initialize webmaster quote currencies
+
+**2026-11-12 · [DATA] [SCHEMA]** Existing numeric webmaster prices were confirmed to be operational USD equivalents, with no reliable structured historical quote currencies. Prepared USD metadata initialization that copies amounts exactly, preserves raw details and parent audit fields, and does not reprice offers or change catalog data. The migration has not been deployed to production. [Migration](../src/Redhead.SitesCatalog.Infrastructure/Data/Migrations/20261112060923_AddWebmasterOfferCurrencies.cs).

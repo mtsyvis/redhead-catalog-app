@@ -645,6 +645,57 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.ToTable("ClientCatalogRequests");
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.CurrencyReferenceRefreshState", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LastAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("LastAttemptSucceeded")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CurrencyReferenceRefreshStates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CurrencyRefresh_Singleton", "\"Id\" = 1");
+                        });
+                });
+
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.CurrencyReferenceSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FetchedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("ProviderAsOfUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ProviderNextUpdateUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UsdRatesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CurrencyReferenceSnapshots");
+                });
+
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.EntityChangeHistory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2115,6 +2166,9 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("AppliedUsdRate")
+                        .HasColumnType("numeric");
+
                     b.Property<short>("AvailabilityStatus")
                         .HasColumnType("smallint");
 
@@ -2124,8 +2178,22 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Property<short>("PriceType")
                         .HasColumnType("smallint");
 
+                    b.Property<DateOnly?>("RateDate")
+                        .HasColumnType("date");
+
                     b.Property<Guid>("SiteWebmasterOfferId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal?>("SourceAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("SourceCurrency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasDefaultValue("USD");
 
                     b.Property<short?>("TermType")
                         .HasColumnType("smallint");
@@ -2156,6 +2224,8 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.ToTable("WebmasterOfferPrices", null, t =>
                         {
                             t.HasCheckConstraint("CK_WebmasterOfferPrices_AvailabilityStatus_Consistency", "(\"AvailabilityStatus\" = 1 AND \"WebmasterPriceUsd\" IS NOT NULL AND \"WebmasterPriceUsd\" > 0) OR (\"AvailabilityStatus\" IN (0, 2, 3) AND \"WebmasterPriceUsd\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_WebmasterOfferPrices_SourceQuote", "\"SourceCurrency\" ~ '^[A-Z]{3}$' AND (\r\n    (\"WebmasterPriceUsd\" IS NULL AND \"SourceAmount\" IS NULL AND \"AppliedUsdRate\" IS NULL) OR\r\n    (\"WebmasterPriceUsd\" IS NOT NULL AND \"SourceCurrency\" = 'USD'\r\n        AND (\"SourceAmount\" IS NULL OR \"SourceAmount\" = \"WebmasterPriceUsd\")\r\n        AND (\"AppliedUsdRate\" IS NULL OR \"AppliedUsdRate\" = 1)) OR\r\n    (\"WebmasterPriceUsd\" IS NOT NULL AND \"SourceCurrency\" <> 'USD'\r\n        AND \"SourceAmount\" IS NOT NULL AND \"SourceAmount\" > 0\r\n        AND \"AppliedUsdRate\" IS NOT NULL AND \"AppliedUsdRate\" > 0\r\n        AND (\"WebmasterPriceUsd\" = CEIL(\"SourceAmount\" * \"AppliedUsdRate\")\r\n            OR \"WebmasterPriceUsd\" = FLOOR(\"SourceAmount\" * \"AppliedUsdRate\" + 0.55)))\r\n)");
 
                             t.HasCheckConstraint("CK_WebmasterOfferPrices_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
 

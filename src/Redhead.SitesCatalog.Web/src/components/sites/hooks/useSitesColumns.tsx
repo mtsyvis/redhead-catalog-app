@@ -1,3 +1,4 @@
+import { DEFAULT_CURRENCY } from '../../../constants/currency.constants';
 import { useMemo } from 'react';
 import { Box, Chip, IconButton, Tooltip, Typography } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -52,7 +53,7 @@ function formatNullableCurrency(row: GridRow, value: number | null): string {
       ? '—'
       : new Intl.NumberFormat('en-US', {
           style: 'currency',
-          currency: 'USD',
+          currency: DEFAULT_CURRENCY,
           maximumFractionDigits: 2,
         }).format(v)
   );

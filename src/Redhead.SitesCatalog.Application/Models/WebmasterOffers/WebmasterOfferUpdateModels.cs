@@ -40,6 +40,9 @@ public sealed class UpdateWebmasterOfferRequest
 
 public sealed class UpdateWebmasterOfferPriceRequest
 {
+    public string SourceCurrency { get; set; } = string.Empty;
+    public decimal? SourceAmount { get; set; }
+    public string? RateReference { get; set; }
     public WebmasterOfferPriceType PriceType { get; set; }
     public ServiceAvailabilityStatus AvailabilityStatus { get; set; }
     public decimal? WebmasterPriceUsd { get; set; }

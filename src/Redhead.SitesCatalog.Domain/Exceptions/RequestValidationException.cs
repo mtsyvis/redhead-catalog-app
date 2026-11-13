@@ -6,6 +6,7 @@ namespace Redhead.SitesCatalog.Domain.Exceptions;
 /// </summary>
 public sealed class RequestValidationException : Exception
 {
+    public IReadOnlyDictionary<string, string[]>? FieldErrors { get; init; }
     public RequestValidationException(string message)
         : base(message)
     {

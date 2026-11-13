@@ -6,6 +6,7 @@ import type { EntityChangeHistoryItem } from '../types/changeHistory.types';
 import type { WebmasterPriceComparison } from '../types/webmasterPriceComparison.types';
 import type {
   UpdateWebmasterOfferPayload,
+  OfferPriceConversion,
   LinkDetectivePrices,
   WebmasterOffer,
   WebmasterOfferEdit,
@@ -38,6 +39,12 @@ async function requestExport(payload: WebmasterOffersExportPayload, googleDrive:
 }
 
 export const webmasterOffersService = {
+  getCurrencies(): Promise<string[]> {
+    return apiClient.get('/api/webmaster-offers/currencies');
+  },
+  previewConversion(sourceCurrency: string, sourceAmount: string): Promise<OfferPriceConversion> {
+    return apiClient.post('/api/webmaster-offers/currencies/preview', { sourceCurrency, sourceAmount });
+  },
   getPriceComparison(domain: string): Promise<WebmasterPriceComparison> {
     return apiClient.get(`/api/webmaster-offers/price-comparison?domain=${encodeURIComponent(domain)}`);
   },

@@ -1,3 +1,4 @@
+import { DEFAULT_CURRENCY } from '../../constants/currency.constants';
 import { MarginAmount } from '../common/MarginAmount';
 import { useEffect, useState } from 'react';
 import {
@@ -51,7 +52,7 @@ const columns = [
 ] as const;
 const currency = new Intl.NumberFormat('en-US', {
   style: 'currency',
-  currency: 'USD',
+  currency: DEFAULT_CURRENCY,
   maximumFractionDigits: 2,
 });
 const hasType = (price: { priceType: WebmasterOfferPriceType }, column: (typeof columns)[number]) =>

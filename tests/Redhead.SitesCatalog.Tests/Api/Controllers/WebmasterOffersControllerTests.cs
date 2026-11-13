@@ -16,6 +16,21 @@ namespace Redhead.SitesCatalog.Tests.Api.Controllers;
 
 public sealed class WebmasterOffersControllerTests
 {
+    [Fact]
+    public void CurrencyEndpoints_RequireExistingOfferManagePermissionAndDisableResponseCaching()
+    {
+        // Arrange
+        var controller = typeof(OfferCurrenciesController);
+
+        // Act
+        var authorization = controller.GetCustomAttributes(typeof(AuthorizeAttribute), false).Cast<AuthorizeAttribute>().Single();
+        var cache = controller.GetCustomAttributes(typeof(ResponseCacheAttribute), false).Cast<ResponseCacheAttribute>().Single();
+
+        // Assert
+        Assert.Equal(AppPolicies.WebmasterOffersManageAccess, authorization.Policy);
+        Assert.True(cache.NoStore);
+    }
+
     [Theory]
     [InlineData(AppRoles.Internal, false)]
     [InlineData(AppRoles.Linkbuilder, true)]

@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Models.WebmasterSearch;
-using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Constants;
+using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Infrastructure.Data;
 
@@ -206,6 +206,10 @@ public sealed class WebmasterSearchService : IWebmasterSearchService
                     PriceType = price.PriceType,
                     AvailabilityStatus = price.AvailabilityStatus,
                     WebmasterPriceUsd = price.WebmasterPriceUsd,
+                    SourceCurrency = price.SourceCurrency,
+                    SourceAmount = price.SourceAmount,
+                    AppliedUsdRate = price.AppliedUsdRate,
+                    RateDate = price.RateDate,
                     WebmasterPriceDetails = price.WebmasterPriceDetails,
                     TermType = price.TermType,
                     TermValue = price.TermValue,

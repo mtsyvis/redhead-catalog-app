@@ -20,6 +20,8 @@ Use this repository documentation in the following way:
 * `docs/deployment.md` — production deployment, VPS, Docker, Caddy, PostgreSQL, and backup notes.
 * `docs/backup-restore.md` — production PostgreSQL backup setup, manual backup checks, and restore guidance.
 * `docs/technical-debt.md` — deferred engineering work and known lifecycle gaps.
+* [`docs/features/bulk-webmaster-offer-price-update.md`](docs/features/bulk-webmaster-offer-price-update.md)
+  — planned bulk webmaster price-update workflow and acceptance criteria; not implemented yet.
 
 Old planning files, commit summaries, and legacy specs are historical context only. They should not be treated as current source of truth unless a task explicitly says so.
 

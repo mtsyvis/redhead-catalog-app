@@ -57,6 +57,7 @@ services:
       ExportedDomainAccessCleanup__BatchSize: ${ExportedDomainAccessCleanup__BatchSize:-1000}
       ExportedDomainAccessCleanup__IntervalHours: ${ExportedDomainAccessCleanup__IntervalHours:-24}
       LinkDetective__ApiToken: ${LinkDetective__ApiToken:-}
+      ExchangeRateApi__ApiKey: ${ExchangeRateApi__ApiKey:-}
       LinkDetective__CacheLifetimeDays: ${LinkDetective__CacheLifetimeDays:-30}
       LinkDetectiveSync__Enabled: ${LinkDetectiveSync__Enabled:-false}
       LinkDetectiveSync__DailySelectionTimeUtc: ${LinkDetectiveSync__DailySelectionTimeUtc:-00:10}

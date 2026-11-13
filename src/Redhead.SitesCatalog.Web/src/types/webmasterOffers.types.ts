@@ -93,9 +93,12 @@ export interface WebmasterOfferMailboxOption {
 }
 
 export interface UpdateWebmasterOfferPricePayload {
+  sourceCurrency: string;
+  sourceAmount: number | string | null;
+  rateReference?: string | null;
   priceType: number;
   availabilityStatus: number;
-  webmasterPriceUsd: number | null;
+  webmasterPriceUsd: number | string | null;
   webmasterPriceDetails: string | null;
 }
 
@@ -126,6 +129,10 @@ export interface WebmasterOfferMailbox {
 }
 
 export interface WebmasterOfferPrice {
+  sourceCurrency: string;
+  sourceAmount: number | string | null;
+  appliedUsdRate?: number | string | null;
+  rateDate?: string | null;
   id: string;
   priceType: WebmasterOfferPriceType;
   availabilityStatus: ServiceAvailabilityStatus;
@@ -146,4 +153,13 @@ export interface LinkDetectivePrices {
   message: string | null;
   retryAfterUtc: string | null;
   lastError?: string | null;
+}
+
+export interface OfferPriceConversion {
+  sourceCurrency: string;
+  sourceAmount: string;
+  webmasterPriceUsd: string;
+  appliedUsdRate: string;
+  rateReference: string | null;
+  rateDate: string | null;
 }

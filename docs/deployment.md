@@ -125,6 +125,30 @@ Current `Caddyfile` shape:
 }
 ```
 
+## Webmaster offer currencies
+
+Startup applies [AddWebmasterOfferCurrencies](../src/Redhead.SitesCatalog.Infrastructure/Data/Migrations/20261112060923_AddWebmasterOfferCurrencies.cs).
+Take a full database backup before deploying. The prepared data initialization is recorded in the
+[data change journal](data-migrations.md#initialize-webmaster-quote-currencies).
+
+Set the optional `ExchangeRateApi__ApiKey` in the private deployment environment to enable
+ExchangeRate-API requests. Compose forwards it to the app container; recreate the container after changes.
+Keep the key out of source, frontend configuration and logs. Without a key, the worker makes no requests.
+
+The worker runs within the single app instance and persists its next attempt before the HTTP request.
+Attempts are spaced 24 hours apart, including after failures and restarts. Failures preserve the last
+successful rate table. `CurrencyReferenceRefreshStates` contains the last attempt time/outcome and next
+eligible attempt; `CurrencyReferenceSnapshots` contains the current table.
+The HTTP timeout is 20 seconds. Request logging and redirects are disabled because the provider key
+is part of the URL; never log full request URLs, response bodies or provider exception details.
+
+Schema rollback is blocked while any non-USD `SourceCurrency` remains. Preserve and explicitly resolve
+that metadata before rollback. Roll back schema and app binaries together; older binaries are incompatible
+with the currency write contract and constraints.
+
+Currency conversion, price metadata and editor behavior are defined in
+[business requirements](business-requirements.md#webmaster-offers-and-raw-webmaster-prices).
+
 ## LinkDetective market prices
 
 Set `LinkDetective__ApiToken` in the private deployment environment to enable market-price

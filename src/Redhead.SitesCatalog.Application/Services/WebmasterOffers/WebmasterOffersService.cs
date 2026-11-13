@@ -16,10 +16,12 @@ namespace Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 public sealed class WebmasterOffersService : IWebmasterOffersService
 {
     private readonly ApplicationDbContext _context;
+    private readonly OfferCurrencyService _currencies;
 
-    public WebmasterOffersService(ApplicationDbContext context)
+    public WebmasterOffersService(ApplicationDbContext context, OfferCurrencyService currencies)
     {
         _context = context;
+        _currencies = currencies;
     }
 
     public async Task<WebmasterOffersSearchResult> GetByDomainAsync(string? domain, CancellationToken cancellationToken = default)
@@ -331,6 +333,8 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
 
         request.PrimaryEmail = WebmasterPrimaryEmailRepairParser.Normalize(request.PrimaryEmail)
             ?? throw new RequestValidationException("Primary email is required.");
+        // Resolve every quote before modifying tracked entities, so invalid rows cannot leave partial edits.
+        var conversions = await ResolveConversionsAsync(offer, request.Prices, cancellationToken);
         var historyBefore = EntityChangeHistoryRecorder.CaptureWebmasterOffer(offer);
         var sourceWebmasterId = offer.WebmasterId;
         var now = DateTime.UtcNow;
@@ -345,6 +349,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
             offer.Webmaster = targetWebmaster;
         }
 
+        var termChanged = offer.TermType != request.TermType || offer.TermValue != request.TermValue || offer.TermUnit != request.TermUnit;
         offer.Status = request.Status;
         offer.ContactRawText = request.ContactRawText;
         targetWebmaster.PrimaryEmail = request.PrimaryEmail;
@@ -358,7 +363,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
         offer.TermValue = request.TermValue;
         offer.TermUnit = request.TermUnit;
 
-        UpdatePrices(offer, request.Prices, now);
+        UpdatePrices(offer, request.Prices, conversions, termChanged, now);
         UpdateMailboxes(offer, requestedMailboxIds, requestedMailboxes, now);
 
         var historyAfter = EntityChangeHistoryRecorder.CaptureWebmasterOffer(offer);
@@ -440,6 +445,8 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
     private void UpdatePrices(
         SiteWebmasterOffer offer,
         IReadOnlyCollection<UpdateWebmasterOfferPriceRequest> requestedPrices,
+        IReadOnlyDictionary<WebmasterOfferPriceType, OfferPriceConversion?> conversions,
+        bool termChanged,
         DateTime now)
     {
         var existingPrices = offer.Prices.ToDictionary(price => price.PriceType);
@@ -453,6 +460,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
 
         foreach (var request in requestedPrices)
         {
+            var newPrice = !existingPrices.ContainsKey(request.PriceType);
             if (!existingPrices.TryGetValue(request.PriceType, out var price))
             {
                 price = new WebmasterOfferPrice
@@ -467,14 +475,95 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                 _context.WebmasterOfferPrices.Add(price);
             }
 
+            var previousCurrency = price.SourceCurrency;
+            var becomingNumeric = price.AvailabilityStatus != ServiceAvailabilityStatus.Available
+                && request.AvailabilityStatus == ServiceAvailabilityStatus.Available;
+            var quote = conversions[request.PriceType];
+            if (quote is not null)
+            {
+                price.SourceCurrency = quote.SourceCurrency;
+                price.SourceAmount = quote.SourceAmount;
+                price.AppliedUsdRate = quote.AppliedUsdRate;
+                price.RateDate = quote.RateDate;
+            }
+            if (request.AvailabilityStatus != ServiceAvailabilityStatus.Available)
+            {
+                price.SourceCurrency = request.SourceCurrency;
+                price.SourceAmount = null;
+                price.AppliedUsdRate = null;
+                price.RateDate = null;
+            }
+            var changed = price.AvailabilityStatus != request.AvailabilityStatus
+                || price.WebmasterPriceUsd != request.WebmasterPriceUsd
+                || price.WebmasterPriceDetails != request.WebmasterPriceDetails
+                || quote is not null || termChanged
+                || price.SourceCurrency != previousCurrency
+                || newPrice;
             price.AvailabilityStatus = request.AvailabilityStatus;
             price.WebmasterPriceUsd = request.WebmasterPriceUsd;
             price.WebmasterPriceDetails = request.WebmasterPriceDetails;
-            price.TermType = offer.TermType;
-            price.TermValue = offer.TermValue;
-            price.TermUnit = offer.TermUnit;
-            price.UpdatedAtUtc = now;
+            if (termChanged || newPrice || becomingNumeric)
+            {
+                price.TermType = offer.TermType;
+                price.TermValue = offer.TermValue;
+                price.TermUnit = offer.TermUnit;
+            }
+            if (changed)
+            {
+                price.UpdatedAtUtc = now;
+            }
         }
+    }
+
+    private async Task<Dictionary<WebmasterOfferPriceType, OfferPriceConversion?>> ResolveConversionsAsync(
+        SiteWebmasterOffer offer, IReadOnlyCollection<UpdateWebmasterOfferPriceRequest> requests, CancellationToken cancellationToken)
+    {
+        var results = new Dictionary<WebmasterOfferPriceType, OfferPriceConversion?>();
+        foreach (var request in requests)
+        {
+            var existing = offer.Prices.SingleOrDefault(x => x.PriceType == request.PriceType);
+            try
+            {
+                results.Add(request.PriceType, await ResolveConversionAsync(request, existing, cancellationToken));
+            }
+            catch (RequestValidationException exception)
+            {
+                throw new RequestValidationException(exception.Message)
+                {
+                    FieldErrors = new Dictionary<string, string[]> { [$"prices.{(short)request.PriceType}.sourceAmount"] = [exception.Message] }
+                };
+            }
+        }
+        return results;
+    }
+
+    private async Task<OfferPriceConversion?> ResolveConversionAsync(
+        UpdateWebmasterOfferPriceRequest request, WebmasterOfferPrice? existing, CancellationToken cancellationToken)
+    {
+        if (request.AvailabilityStatus != ServiceAvailabilityStatus.Available)
+        {
+            if (request.SourceCurrency is not (CurrencyConversionConstants.DefaultCurrency or "EUR" or "GBP")
+                && request.SourceCurrency != existing?.SourceCurrency
+                && !(await _currencies.GetCurrenciesAsync(cancellationToken)).Contains(request.SourceCurrency))
+            {
+                throw new RequestValidationException("No reference rate is available for this currency.");
+            }
+            return null;
+        }
+        var currency = request.SourceCurrency;
+        var amount = request.SourceAmount
+            ?? throw new RequestValidationException("Source amount is required for a numeric price.");
+        var unchanged = existing?.AvailabilityStatus == ServiceAvailabilityStatus.Available
+            && existing.SourceCurrency == currency && existing.SourceAmount == amount;
+        var conversion = unchanged ? null : await _currencies.ConvertAsync(
+            new OfferConversionRequest(currency, amount, request.RateReference), true, cancellationToken);
+        var usd = conversion?.WebmasterPriceUsd ?? existing?.WebmasterPriceUsd;
+        if (request.WebmasterPriceUsd.HasValue && request.WebmasterPriceUsd != usd)
+        {
+            throw new RequestValidationException("USD amount does not match the source quote. Refresh the conversion preview.");
+        }
+        request.WebmasterPriceUsd = usd;
+        return conversion;
     }
 
     private void UpdateMailboxes(
@@ -550,6 +639,10 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                     PriceType = price.PriceType,
                     AvailabilityStatus = price.AvailabilityStatus,
                     WebmasterPriceUsd = price.WebmasterPriceUsd,
+                    SourceCurrency = price.SourceCurrency,
+                    SourceAmount = price.SourceAmount,
+                    AppliedUsdRate = price.AppliedUsdRate,
+                    RateDate = price.RateDate,
                     WebmasterPriceDetails = price.WebmasterPriceDetails,
                     TermType = price.TermType,
                     TermValue = price.TermValue,

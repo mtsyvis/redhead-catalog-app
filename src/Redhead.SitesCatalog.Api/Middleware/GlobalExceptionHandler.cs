@@ -41,6 +41,13 @@ public class GlobalExceptionHandler : IExceptionHandler
             return true;
         }
 
+        if (exception is RequestValidationException { FieldErrors: not null } validation)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await httpContext.Response.WriteAsJsonAsync(new { message = validation.Message, fieldErrors = validation.FieldErrors }, cancellationToken);
+            return true;
+        }
+
         _logger.LogError(
             exception,
             "An unhandled exception occurred. Path: {Path}, Method: {Method}",

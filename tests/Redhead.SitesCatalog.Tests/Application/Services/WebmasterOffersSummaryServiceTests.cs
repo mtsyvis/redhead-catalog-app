@@ -44,7 +44,7 @@ public sealed class WebmasterOffersSummaryServiceTests : IDisposable
         _context.SiteWebmasterOffers.Add(offer);
         await _context.SaveChangesAsync();
         _context.ChangeTracker.Clear();
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
 
         // Act
         var result = await service.GetSummaryByDomainAsync("https://www.EXAMPLE.org/path");
@@ -98,7 +98,7 @@ public sealed class WebmasterOffersSummaryServiceTests : IDisposable
             CreateOffer(oldId, CreatedAt, 0.5m),
             CreateOffer(earlierId, CreatedAt.AddDays(1), 1000m));
         await _context.SaveChangesAsync();
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
 
         // Act
         var result = await service.GetSummaryByDomainAsync("example.org");
@@ -115,7 +115,7 @@ public sealed class WebmasterOffersSummaryServiceTests : IDisposable
     public async Task GetSummaryByDomainAsync_MissingOrEmptyDomain_ReturnsNotFound(string? input, string expectedDomain)
     {
         // Arrange
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
 
         // Act
         var result = await service.GetSummaryByDomainAsync(input);
@@ -132,7 +132,7 @@ public sealed class WebmasterOffersSummaryServiceTests : IDisposable
         // Arrange
         _context.Sites.Add(CreateSite());
         await _context.SaveChangesAsync();
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
 
         // Act
         var result = await service.GetSummaryByDomainAsync("example.org");
@@ -141,6 +141,9 @@ public sealed class WebmasterOffersSummaryServiceTests : IDisposable
         Assert.True(result.SiteFound);
         Assert.Empty(result.Offers);
     }
+
+    private WebmasterOffersService CreateService()
+        => new(_context, new OfferCurrencyService(_context));
 
     private SiteWebmasterOffer CreateOffer(Guid id, DateTime createdAt, decimal price)
     {

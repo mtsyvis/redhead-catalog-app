@@ -1,11 +1,67 @@
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Validation;
+using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Tests.Application.Validation;
 
 public sealed class WebmasterOfferWriteValidatorTests
 {
+    [Fact]
+    public void Validator_AcceptsSourceInputWithoutClientUsd_AndKeepsMainAvailabilityRules()
+    {
+        // Arrange
+        var request = new UpdateWebmasterOfferRequest
+        {
+            ContactRawText = "contact@example.com", PrimaryEmail = "contact@example.com", Status = SiteWebmasterOfferStatus.Active,
+            Prices = [new() { PriceType = WebmasterOfferPriceType.Main, AvailabilityStatus = ServiceAvailabilityStatus.Available,
+                SourceCurrency = "EUR", SourceAmount = 25m, RateReference = OfferCurrencyService.FixedEurReference }]
+        };
+
+        // Act
+        var valid = WebmasterOfferWriteValidator.ValidateAndNormalize(request);
+        request.Prices[0].AvailabilityStatus = ServiceAvailabilityStatus.NotAvailable;
+        var invalid = WebmasterOfferWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.True(valid.IsValid);
+        Assert.Equal("EUR", valid.NormalizedRequest!.Prices.Single().SourceCurrency);
+        Assert.False(invalid.IsValid);
+        Assert.Contains("prices.0.availabilityStatus", invalid.FieldErrors.Keys);
+    }
+
+    [Theory]
+    [InlineData(null, "100", "sourceCurrency")]
+    [InlineData("", "100", "sourceCurrency")]
+    [InlineData("USD", null, "sourceAmount")]
+    [InlineData(null, null, "sourceAmount")]
+    public void ValidateAndNormalize_MissingSourceFields_RejectsUsdOnlyContract(
+        string? currency, string? amount, string field)
+    {
+        // Arrange
+        var request = new UpdateWebmasterOfferRequest
+        {
+            ContactRawText = "contact@example.com",
+            PrimaryEmail = "contact@example.com",
+            Status = SiteWebmasterOfferStatus.Active,
+            Prices = [new UpdateWebmasterOfferPriceRequest
+            {
+                PriceType = WebmasterOfferPriceType.Main,
+                AvailabilityStatus = ServiceAvailabilityStatus.Available,
+                SourceCurrency = currency!,
+                SourceAmount = amount is null ? null : decimal.Parse(amount),
+                WebmasterPriceUsd = 100m
+            }]
+        };
+
+        // Act
+        var result = WebmasterOfferWriteValidator.ValidateAndNormalize(request);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Contains($"prices.0.{field}", result.FieldErrors.Keys);
+    }
+
     [Fact]
     public void ValidateAndNormalize_ZeroVersions_DefersConcurrencyCheckToDatabase()
     {
@@ -42,6 +98,8 @@ public sealed class WebmasterOfferWriteValidatorTests
             [
                 new UpdateWebmasterOfferPriceRequest
                 {
+                    SourceCurrency = "USD",
+                    SourceAmount = 100.25m,
                     PriceType = WebmasterOfferPriceType.Main,
                     AvailabilityStatus = ServiceAvailabilityStatus.Available,
                     WebmasterPriceUsd = 100.25m,
@@ -49,6 +107,7 @@ public sealed class WebmasterOfferWriteValidatorTests
                 },
                 new UpdateWebmasterOfferPriceRequest
                 {
+                    SourceCurrency = "USD",
                     PriceType = WebmasterOfferPriceType.Crypto,
                     AvailabilityStatus = ServiceAvailabilityStatus.Unknown
                 }
@@ -83,6 +142,7 @@ public sealed class WebmasterOfferWriteValidatorTests
             [
                 new UpdateWebmasterOfferPriceRequest
                 {
+                    SourceCurrency = "USD",
                     PriceType = WebmasterOfferPriceType.Main,
                     AvailabilityStatus = ServiceAvailabilityStatus.AvailableWithUnknownPrice
                 }
@@ -136,6 +196,8 @@ public sealed class WebmasterOfferWriteValidatorTests
             [
                 new UpdateWebmasterOfferPriceRequest
                 {
+                    SourceCurrency = "USD",
+                    SourceAmount = amount,
                     PriceType = WebmasterOfferPriceType.Casino,
                     AvailabilityStatus = ServiceAvailabilityStatus.Available,
                     WebmasterPriceUsd = amount
@@ -148,7 +210,7 @@ public sealed class WebmasterOfferWriteValidatorTests
 
         // Assert
         Assert.False(result.IsValid);
-        Assert.Contains("prices.1.webmasterPriceUsd", result.FieldErrors.Keys);
+        Assert.Contains("prices.1.sourceAmount", result.FieldErrors.Keys);
     }
 
     [Theory]

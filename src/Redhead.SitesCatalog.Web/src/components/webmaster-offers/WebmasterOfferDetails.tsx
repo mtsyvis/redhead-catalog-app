@@ -45,7 +45,8 @@ export function WebmasterOfferDetails({ offer }: { readonly offer: WebmasterOffe
       <Stack spacing={1.5}>
         <WebmasterOfferTextBlock label="Contact" value={offer.contactRawText} />
         <WebmasterOfferTextBlock label="Outreach Sender" value={offer.outreachSenderRawText} />
-        {(offer.linkbuilderMailboxes.length > 0 || Boolean(offer.linkbuilderMailboxRawText?.trim())) && (
+        {(offer.linkbuilderMailboxes.length > 0 ||
+          Boolean(offer.linkbuilderMailboxRawText?.trim())) && (
           <Box>
             <Typography
               variant="caption"

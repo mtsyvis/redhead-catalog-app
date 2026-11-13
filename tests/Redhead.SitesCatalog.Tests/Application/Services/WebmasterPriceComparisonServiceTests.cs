@@ -197,7 +197,7 @@ public sealed class WebmasterPriceComparisonServiceTests : IDisposable
 
         // Act
         var result = await CreateService().GetByDomainAsync("example.com");
-        var ordinary = await new WebmasterOffersService(_context).GetByDomainAsync("example.com");
+        var ordinary = await CreateOffersService().GetByDomainAsync("example.com");
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(result, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
 
         // Assert
@@ -238,7 +238,7 @@ public sealed class WebmasterPriceComparisonServiceTests : IDisposable
         AddOffer(WebmasterOfferPriceType.Main, 350m, PricingTerm.FiniteYears(1));
         AddOffer(WebmasterOfferPriceType.Banner, 1200m, PricingTerm.Unknown);
         await _context.SaveChangesAsync();
-        var ordinary = await new WebmasterOffersService(_context).GetByDomainAsync("example.com");
+        var ordinary = await CreateOffersService().GetByDomainAsync("example.com");
 
         // Act
         var result = await CreateService().GetByDomainAsync("example.com");
@@ -291,7 +291,10 @@ public sealed class WebmasterPriceComparisonServiceTests : IDisposable
         Assert.Null(empty.DefaultTermKey);
     }
 
-    private WebmasterPriceComparisonService CreateService() => new(_context, new WebmasterOffersService(_context));
+    private WebmasterOffersService CreateOffersService()
+        => new(_context, new OfferCurrencyService(_context));
+
+    private WebmasterPriceComparisonService CreateService() => new(_context, CreateOffersService());
 
     private static WebmasterComparisonMarginDto MainMargin(WebmasterPriceComparisonResult result, string termKey)
         => Assert.Single(result.Offers).Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Main)

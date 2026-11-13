@@ -47,6 +47,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<SiteWebmasterOffer> SiteWebmasterOffers => Set<SiteWebmasterOffer>();
     public DbSet<SiteWebmasterOfferLinkbuilderMailbox> SiteWebmasterOfferLinkbuilderMailboxes => Set<SiteWebmasterOfferLinkbuilderMailbox>();
     public DbSet<WebmasterOfferPrice> WebmasterOfferPrices => Set<WebmasterOfferPrice>();
+    public DbSet<CurrencyReferenceSnapshot> CurrencyReferenceSnapshots => Set<CurrencyReferenceSnapshot>();
+    public DbSet<CurrencyReferenceRefreshState> CurrencyReferenceRefreshStates => Set<CurrencyReferenceRefreshState>();
     public DbSet<EntityChangeHistory> EntityChangeHistories => Set<EntityChangeHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

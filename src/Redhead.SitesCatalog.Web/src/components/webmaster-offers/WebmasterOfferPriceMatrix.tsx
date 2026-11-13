@@ -1,3 +1,4 @@
+import { DEFAULT_CURRENCY } from '../../constants/currency.constants';
 import { Box, Typography } from '@mui/material';
 import { getTableCellStyles, getTableHeaderStyles } from '../../theme/tableStyles';
 import type {
@@ -49,7 +50,7 @@ function formatCurrency(value: number | null) {
 
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: DEFAULT_CURRENCY,
     maximumFractionDigits: 2,
   }).format(value);
 }

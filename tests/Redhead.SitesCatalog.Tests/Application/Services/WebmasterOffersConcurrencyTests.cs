@@ -24,7 +24,7 @@ public sealed class WebmasterOffersConcurrencyTests
         context.SaveException = constraint is null
             ? new DbUpdateConcurrencyException("Concurrent save")
             : CreateUniqueViolation(constraint);
-        var sut = new WebmasterOffersService(context);
+        var sut = CreateService(context);
 
         // Act
         var result = await sut.UpdateAsync(offer.Id, CreateRequest(offer), "editor@example.com");
@@ -48,7 +48,7 @@ public sealed class WebmasterOffersConcurrencyTests
         await using var context = CreateContext();
         var offer = await SeedOfferAsync(context);
         context.SaveException = CreateUniqueViolation("IX_UnrelatedTable_Key");
-        var sut = new WebmasterOffersService(context);
+        var sut = CreateService(context);
 
         // Act
         var exception = await Assert.ThrowsAsync<DbUpdateException>(() =>
@@ -68,7 +68,7 @@ public sealed class WebmasterOffersConcurrencyTests
         offer.UpdatedAtUtc = futureTimestamp;
         offer.Version = 7;
         await context.SaveChangesAsync();
-        var sut = new WebmasterOffersService(context);
+        var sut = CreateService(context);
 
         // Act
         var result = await sut.UpdateAsync(offer.Id, CreateRequest(offer), "editor@example.com");
@@ -106,6 +106,9 @@ public sealed class WebmasterOffersConcurrencyTests
             .SequenceEqual([nameof(WebmasterOfferPrice.SiteWebmasterOfferId), nameof(WebmasterOfferPrice.PriceType)]));
         Assert.True(index.IsUnique);
     }
+
+    private static WebmasterOffersService CreateService(ApplicationDbContext context)
+        => new(context, new OfferCurrencyService(context));
 
     private static FailingSaveContext CreateContext() => new(new DbContextOptionsBuilder<ApplicationDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

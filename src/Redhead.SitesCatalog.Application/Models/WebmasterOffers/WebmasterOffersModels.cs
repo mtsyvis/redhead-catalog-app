@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Domain.Constants;
 using Redhead.SitesCatalog.Domain.Enums;
 
 namespace Redhead.SitesCatalog.Application.Models.WebmasterOffers;
@@ -45,6 +46,12 @@ public sealed class WebmasterOfferMailboxDto
 
 public sealed class WebmasterOfferPriceDto
 {
+    public string SourceCurrency { get; init; } = CurrencyConversionConstants.DefaultCurrency;
+    [System.Text.Json.Serialization.JsonNumberHandling(System.Text.Json.Serialization.JsonNumberHandling.WriteAsString)]
+    public decimal? SourceAmount { get; init; }
+    [System.Text.Json.Serialization.JsonNumberHandling(System.Text.Json.Serialization.JsonNumberHandling.WriteAsString)]
+    public decimal? AppliedUsdRate { get; init; }
+    public DateOnly? RateDate { get; init; }
     public Guid Id { get; init; }
     public WebmasterOfferPriceType PriceType { get; init; }
     public ServiceAvailabilityStatus AvailabilityStatus { get; init; }

@@ -85,6 +85,9 @@ public static class EntityChangeHistoryRecorder
             values[$"{prefix} · availability"] = price.AvailabilityStatus.ToString();
             values[$"{prefix} · USD"] = Format(price.WebmasterPriceUsd);
             values[$"{prefix} · details"] = price.WebmasterPriceDetails;
+            values[$"{prefix} · source currency"] = price.SourceCurrency;
+            values[$"{prefix} · source amount"] = Format(price.SourceAmount);
+            values[$"{prefix} · applied USD rate"] = price.AppliedUsdRate?.ToString("G29", CultureInfo.InvariantCulture);
         }
 
         return values;

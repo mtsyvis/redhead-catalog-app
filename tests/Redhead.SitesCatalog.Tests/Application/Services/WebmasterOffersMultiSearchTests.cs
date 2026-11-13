@@ -27,7 +27,7 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
         _context.SiteWebmasterOffers.AddRange(expensive, cheap, CreateOffer("second.example", 100m));
         await _context.SaveChangesAsync();
         _context.ChangeTracker.Clear();
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
 
         // Act
         var result = await service.MultiSearchAsync(
@@ -56,7 +56,7 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
         _context.SiteWebmasterOffers.AddRange(cheap, newest);
         await _context.SaveChangesAsync();
         _context.ChangeTracker.Clear();
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
 
         // Act
         var result = await service.MultiSearchSummaryAsync("https://www.EXAMPLE.org/path empty.example missing.example example.org");
@@ -87,7 +87,7 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
     public async Task MultiSearch_EnforcesRawInputLimitBeforeDeduplication(bool summary)
     {
         // Arrange
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
         var query = string.Join('\n', Enumerable.Repeat("example.org", MultiSearchConstants.WebmasterOffersMaxInputs + 1));
 
         // Act
@@ -113,7 +113,7 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
         // Arrange
         _context.Sites.Add(CreateSite("prefix-site0.example"));
         await _context.SaveChangesAsync();
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
         var domains = Enumerable.Range(0, MultiSearchConstants.WebmasterOffersMaxInputs).Select(index => $"site{index}.example").ToArray();
 
         // Act
@@ -130,7 +130,7 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
     public async Task MultiSearchSummaryAsync_AcceptsFiftyThousandInputsBeforeDeduplication()
     {
         // Arrange
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
         var query = string.Join('\n', Enumerable.Repeat("example.org", 50000));
 
         // Act
@@ -157,7 +157,7 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
         _context.SiteWebmasterOffers.AddRange(expensive, cheap, CreateOffer("z.example", 100m), CreateOffer("orphan.example", 1m));
         await _context.SaveChangesAsync();
         _context.ChangeTracker.Clear();
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
 
         // Act
         var result = await service.GetExportDataAsync(new WebmasterOffersExportRequest
@@ -181,7 +181,7 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
     public async Task GetExportDataAsync_RejectsFullExportOutsideEmptySingleSearch(bool multiSearch, string query)
     {
         // Arrange
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
         var request = new WebmasterOffersExportRequest { ExportAll = true, MultiSearch = multiSearch, QueryText = query };
 
         // Act
@@ -201,7 +201,7 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
         _context.Sites.AddRange(CreateSite("a.example"), CreateSite("z.example"), CreateSite("other.example"));
         _context.SiteWebmasterOffers.AddRange(CreateOffer("a.example", 10m), CreateOffer("z.example", 20m), CreateOffer("other.example", 1m));
         await _context.SaveChangesAsync();
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
 
         // Act
         var result = await service.GetExportDataAsync(new WebmasterOffersExportRequest { QueryText = query, MultiSearch = multiSearch });
@@ -216,7 +216,7 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
     public async Task GetExportDataAsync_DoesNotImplicitlyExportAllForEmptySearch(bool multiSearch)
     {
         // Arrange
-        var service = new WebmasterOffersService(_context);
+        var service = CreateService();
 
         // Act
         var action = () => service.GetExportDataAsync(new WebmasterOffersExportRequest { MultiSearch = multiSearch });
@@ -224,6 +224,9 @@ public sealed class WebmasterOffersMultiSearchTests : IDisposable
         // Assert
         await Assert.ThrowsAsync<RequestValidationException>(action);
     }
+
+    private WebmasterOffersService CreateService()
+        => new(_context, new OfferCurrencyService(_context));
 
     private static Site CreateSite(string domain) => new() { Domain = domain, CreatedAtUtc = Now, UpdatedAtUtc = Now };
 

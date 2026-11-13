@@ -1,3 +1,4 @@
+using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Domain.Constants;
@@ -80,6 +81,9 @@ public static class WebmasterOfferWriteValidator
             {
                 PriceType = price.PriceType,
                 AvailabilityStatus = price.AvailabilityStatus,
+                SourceCurrency = price.SourceCurrency,
+                SourceAmount = price.SourceAmount,
+                RateReference = price.RateReference,
                 WebmasterPriceUsd = price.AvailabilityStatus == ServiceAvailabilityStatus.Available
                     ? price.WebmasterPriceUsd
                     : null,
@@ -154,17 +158,18 @@ public static class WebmasterOfferWriteValidator
 
         if (price.AvailabilityStatus == ServiceAvailabilityStatus.Available)
         {
-            if (price.WebmasterPriceUsd is null or <= 0)
+            var amount = price.SourceAmount;
+            if (amount is null or <= 0)
             {
-                AddError(errors, $"{prefix}.webmasterPriceUsd", "Price must be greater than 0.");
+                AddError(errors, $"{prefix}.sourceAmount", "Price must be greater than 0.");
             }
-            else if (price.WebmasterPriceUsd > WebmasterOfferFieldLimits.MaxPriceUsd)
+            else if (amount > WebmasterOfferFieldLimits.MaxPriceUsd)
             {
-                AddError(errors, $"{prefix}.webmasterPriceUsd", "Price is too large.");
+                AddError(errors, $"{prefix}.sourceAmount", "Price is too large.");
             }
-            else if (decimal.Round(price.WebmasterPriceUsd.Value, 2) != price.WebmasterPriceUsd.Value)
+            else if (decimal.Round(amount.Value, 2) != amount.Value)
             {
-                AddError(errors, $"{prefix}.webmasterPriceUsd", "Price may have at most 2 decimal places.");
+                AddError(errors, $"{prefix}.sourceAmount", "Price may have at most 2 decimal places.");
             }
         }
         else if (price.WebmasterPriceUsd.HasValue)
@@ -177,6 +182,16 @@ public static class WebmasterOfferWriteValidator
             WebmasterOfferFieldLimits.PriceDetailsMaxLength,
             $"{prefix}.webmasterPriceDetails",
             errors);
+
+        if (!CurrencyCodeValidator.IsValid(price.SourceCurrency))
+        {
+            AddError(errors, $"{prefix}.sourceCurrency", "Currency must be an uppercase three-letter code.");
+        }
+
+        if (price.AvailabilityStatus != ServiceAvailabilityStatus.Available && (price.SourceAmount.HasValue || price.RateReference is not null))
+        {
+            AddError(errors, $"{prefix}.sourceAmount", "Source amount and conversion reference must be empty unless availability is Numeric price.");
+        }
     }
 
     private static void ValidatePrimaryEmail(

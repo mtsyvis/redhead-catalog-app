@@ -13,6 +13,7 @@ using Redhead.SitesCatalog.Application.Ahrefs;
 using Redhead.SitesCatalog.Application.Exports;
 using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Services;
+using Redhead.SitesCatalog.Application.Services.Currencies;
 using Redhead.SitesCatalog.Application.Services.Analytics.CatalogCoverageAnalytics;
 using Redhead.SitesCatalog.Application.Services.Analytics.ExportAnalytics;
 using Redhead.SitesCatalog.Application.Services.Analytics.MissingDomainsAnalytics;
@@ -37,6 +38,7 @@ using Redhead.SitesCatalog.Infrastructure.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective;
 using Redhead.SitesCatalog.Infrastructure.Integrations.LinkDetective.Coordination;
 using Redhead.SitesCatalog.Infrastructure.Locations;
+using Redhead.SitesCatalog.Infrastructure.Integrations.Currencies;
 using Redhead.SitesCatalog.Infrastructure.Options;
 using Redhead.SitesCatalog.Infrastructure.Repositories;
 
@@ -48,6 +50,17 @@ builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache();
 builder.Services.AddClientCatalogProtection(builder.Configuration);
 builder.Services.AddHttpClient();
+builder.Services.AddOptions<ExchangeRateApiOptions>()
+    .Bind(builder.Configuration.GetSection(ExchangeRateApiOptions.SectionName));
+builder.Services.AddHttpClient(ExchangeRateApiClient.HttpClientName,
+    client => client.Timeout = TimeSpan.FromSeconds(20))
+    .RemoveAllLoggers()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddScoped<ICurrencyReferenceRateClient,
+    ExchangeRateApiClient>();
+builder.Services.AddScoped<OfferCurrencyService>();
+builder.Services.AddScoped<CurrencyReferenceRefreshService>();
+builder.Services.AddHostedService<Redhead.SitesCatalog.Api.BackgroundJobs.Currencies.CurrencyReferenceHostedService>();
 builder.Services.AddOptions<LinkDetectiveOptions>()
     .Bind(builder.Configuration.GetSection(LinkDetectiveOptions.SectionName))
     .Validate(LinkDetectiveOptions.IsValid,

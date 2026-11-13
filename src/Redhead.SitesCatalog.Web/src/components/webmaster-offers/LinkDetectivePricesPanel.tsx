@@ -1,3 +1,4 @@
+import { DEFAULT_CURRENCY } from '../../constants/currency.constants';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Box, CircularProgress, Stack, Typography } from '@mui/material';
 import { LinkDetectiveRefreshButton } from '../linkdetective/LinkDetectiveRefreshButton';
@@ -6,7 +7,7 @@ import type { LinkDetectivePrices } from '../../types/webmasterOffers.types';
 
 const currency = new Intl.NumberFormat('en-US', {
   style: 'currency',
-  currency: 'USD',
+  currency: DEFAULT_CURRENCY,
   maximumFractionDigits: 2,
 });
 

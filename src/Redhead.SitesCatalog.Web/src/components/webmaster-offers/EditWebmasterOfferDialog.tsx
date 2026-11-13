@@ -1,3 +1,4 @@
+import { DEFAULT_CURRENCY } from '../../constants/currency.constants';
 import { useEffect, useMemo, useState, type SyntheticEvent } from 'react';
 import {
   Alert,
@@ -27,6 +28,7 @@ import {
 } from './editWebmasterOfferForm';
 import { WebmasterOfferDetailsTab } from './WebmasterOfferDetailsTab';
 import { WebmasterOfferPricesTab } from './WebmasterOfferPricesTab';
+import { useOfferCurrencyPreviews } from './useOfferCurrencyPreviews';
 
 interface Props {
   readonly open: boolean;
@@ -57,6 +59,8 @@ export function EditWebmasterOfferDialog({ open, offerId, domain, onClose, onSav
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [currencies, setCurrencies] = useState<string[]>([DEFAULT_CURRENCY, 'EUR', 'GBP']);
+  const previews = useOfferCurrencyPreviews(open ? edit : null, open ? form : null);
   const history = useChangeHistory(open ? offerId : null, async () => {
     if (!offerId) return [];
     return webmasterOffersService.getHistory(offerId);
@@ -67,9 +71,14 @@ export function EditWebmasterOfferDialog({ open, offerId, domain, onClose, onSav
 
     let active = true;
     setLoading(true);
+    setEdit(null);
+    setForm(null);
+    setCurrencies([DEFAULT_CURRENCY, 'EUR', 'GBP']);
     setError(null);
     setFieldErrors({});
     setTab(0);
+    webmasterOffersService.getCurrencies().then((codes) => { if (active) setCurrencies(codes); })
+      .catch(() => { /* USD/EUR/GBP remain usable if the currency list request fails. */ });
     webmasterOffersService.getForEdit(offerId)
       .then((result) => {
         if (!active) return;
@@ -114,6 +123,7 @@ export function EditWebmasterOfferDialog({ open, offerId, domain, onClose, onSav
   };
 
   const updatePrice = (priceType: number, patch: Partial<PriceFormRow>) => {
+    setError(null);
     setForm((current) => current ? {
       ...current,
       prices: {
@@ -126,6 +136,8 @@ export function EditWebmasterOfferDialog({ open, offerId, domain, onClose, onSav
       delete next[`prices.${priceType}.availabilityStatus`];
       delete next[`prices.${priceType}.webmasterPriceUsd`];
       delete next[`prices.${priceType}.webmasterPriceDetails`];
+      delete next[`prices.${priceType}.sourceAmount`];
+      delete next[`prices.${priceType}.sourceCurrency`];
       delete next._form;
       return next;
     });
@@ -133,6 +145,7 @@ export function EditWebmasterOfferDialog({ open, offerId, domain, onClose, onSav
 
   const handleSave = async () => {
     if (!offerId || !edit || !form) return;
+    if (previews.pending || Object.values(previews.errors).some(Boolean)) { setTab(1); return; }
     const clientErrors = validateWebmasterOfferForm(form);
     if (Object.keys(clientErrors).length > 0) {
       setFieldErrors(clientErrors);
@@ -146,7 +159,7 @@ export function EditWebmasterOfferDialog({ open, offerId, domain, onClose, onSav
     try {
       await webmasterOffersService.update(
         offerId,
-        buildWebmasterOfferPayload(edit, form)
+        buildWebmasterOfferPayload(edit, form, previews.conversions)
       );
       onSaved();
     } catch (err) {
@@ -254,6 +267,9 @@ export function EditWebmasterOfferDialog({ open, offerId, domain, onClose, onSav
                 form={form}
                 fieldErrors={fieldErrors}
                 updatePrice={updatePrice}
+                edit={edit}
+                currencies={currencies}
+                previews={previews}
               />
             )}
             {tab === 2 && offerId && (
@@ -268,7 +284,7 @@ export function EditWebmasterOfferDialog({ open, offerId, domain, onClose, onSav
       </DialogContent>
       <DialogActions sx={{ borderTop: 1, borderColor: 'divider' }}>
         <BrandButton onClick={close} disabled={saving}>Cancel</BrandButton>
-        <BrandButton kind="primary" onClick={handleSave} disabled={loading || saving || !edit || !form || !isDirty}>
+        <BrandButton kind="primary" onClick={handleSave} disabled={loading || saving || !edit || !form || !isDirty || previews.pending || Object.values(previews.errors).some(Boolean)}>
           {saving ? <CircularProgress size={18} color="inherit" /> : 'Save changes'}
         </BrandButton>
       </DialogActions>

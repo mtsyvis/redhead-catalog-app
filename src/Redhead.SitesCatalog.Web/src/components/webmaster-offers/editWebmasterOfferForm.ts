@@ -1,9 +1,11 @@
+import { DEFAULT_CURRENCY } from '../../constants/currency.constants';
 import type {
   UpdateWebmasterOfferPayload,
   WebmasterOffer,
   WebmasterOfferEdit,
   WebmasterOfferMailboxOption,
   WebmasterOfferPrice,
+  OfferPriceConversion,
 } from '../../types/webmasterOffers.types';
 import {
   SERVICE_AVAILABILITY_STATUS,
@@ -40,6 +42,7 @@ const TERM_YEAR = 1;
 export type TermKind = 'none' | 'permanent' | 'finite';
 
 export interface PriceFormRow {
+  currency: string;
   availabilityStatus: number;
   amount: string;
   details: string;
@@ -90,7 +93,8 @@ export function createWebmasterOfferForm(edit: WebmasterOfferEdit): OfferFormSta
         type.value,
         {
           availabilityStatus: normalizeServiceAvailabilityStatus(price?.availabilityStatus),
-          amount: price?.webmasterPriceUsd == null ? '' : String(price.webmasterPriceUsd),
+          currency: price?.sourceCurrency ?? DEFAULT_CURRENCY,
+          amount: price?.sourceAmount == null ? '' : String(price.sourceAmount),
           details: price?.webmasterPriceDetails ?? '',
         },
       ];
@@ -123,9 +127,15 @@ export function normalizeWebmasterContact(value: string) {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+// Compare source decimals without losing cents on large amounts in JavaScript numbers.
+export function quoteAmountKey(value: string | number | null | undefined) {
+  return String(value ?? '').replace(/^0+(?=\d)/, '').replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+}
+
 export function buildWebmasterOfferPayload(
   edit: WebmasterOfferEdit,
-  form: OfferFormState
+  form: OfferFormState,
+  conversions: Record<number, OfferPriceConversion | undefined> = {}
 ): UpdateWebmasterOfferPayload {
   const termYears = form.termKind === 'finite' ? Number(form.termYears) : null;
   const prices = PRICE_TYPES.flatMap((type) => {
@@ -134,6 +144,7 @@ export function buildWebmasterOfferPayload(
       ? Number(row.amount)
       : null;
     const details = trimToNull(row.details);
+    const quote = conversions[type.value];
     if (
       row.availabilityStatus === SERVICE_AVAILABILITY_STATUS.Unknown &&
       amount == null &&
@@ -145,7 +156,11 @@ export function buildWebmasterOfferPayload(
     return [{
       priceType: type.value,
       availabilityStatus: row.availabilityStatus,
-      webmasterPriceUsd: amount,
+      sourceCurrency: row.currency,
+      sourceAmount: amount == null ? null : row.amount,
+      rateReference: amount == null || row.currency === DEFAULT_CURRENCY ? null : quote?.rateReference,
+      // The server recomputes and checks the exact USD amount reviewed in the preview.
+      webmasterPriceUsd: amount == null || row.currency === DEFAULT_CURRENCY ? null : quote?.webmasterPriceUsd ?? null,
       webmasterPriceDetails: details,
     }];
   });
