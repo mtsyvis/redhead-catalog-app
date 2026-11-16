@@ -33,6 +33,9 @@ const WebmasterOffers = React.lazy(() =>
 const Webmasters = React.lazy(() =>
   import('./pages/Webmasters').then((module) => ({ default: module.Webmasters }))
 );
+const BulkWebmasterPriceUpdate = React.lazy(() =>
+  import('./pages/BulkWebmasterPriceUpdate').then((module) => ({ default: module.BulkWebmasterPriceUpdate }))
+);
 const Imports = React.lazy(() => import('./pages/Imports').then((module) => ({ default: module.Imports })));
 const AdminUsers = React.lazy(() =>
   import('./pages/AdminUsers').then((module) => ({ default: module.AdminUsers }))
@@ -125,6 +128,10 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
+
+              <Route path="/webmaster-offers/update-prices" element={
+                <ProtectedRoute><AccountSetupRequiredRoute><BulkWebmasterPriceUpdate /></AccountSetupRequiredRoute></ProtectedRoute>
+              } />
 
               <Route
                 path="/imports"

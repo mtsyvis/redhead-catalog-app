@@ -59,6 +59,7 @@ builder.Services.AddHttpClient(ExchangeRateApiClient.HttpClientName,
 builder.Services.AddScoped<ICurrencyReferenceRateClient,
     ExchangeRateApiClient>();
 builder.Services.AddScoped<OfferCurrencyService>();
+builder.Services.AddScoped<BulkOfferPricePreviewService>();
 builder.Services.AddScoped<CurrencyReferenceRefreshService>();
 builder.Services.AddHostedService<Redhead.SitesCatalog.Api.BackgroundJobs.Currencies.CurrencyReferenceHostedService>();
 builder.Services.AddOptions<LinkDetectiveOptions>()

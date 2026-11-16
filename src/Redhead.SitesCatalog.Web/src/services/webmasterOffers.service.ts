@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import { apiClient, ApiClientError, API_BASE_URL } from './api.client';
 import type { GoogleDriveExportResponse } from '../types/sites.types';
 import { notifySessionExpired } from './sessionExpired';
+import type { BulkOfferPricePreview, BulkOfferPricePreviewRequest } from '../types/bulkOfferPricePreview.types';
 import type { EntityChangeHistoryItem } from '../types/changeHistory.types';
 import type { WebmasterPriceComparison } from '../types/webmasterPriceComparison.types';
 import type {
@@ -39,6 +40,9 @@ async function requestExport(payload: WebmasterOffersExportPayload, googleDrive:
 }
 
 export const webmasterOffersService = {
+  previewBulkPrices(payload: BulkOfferPricePreviewRequest, signal?: AbortSignal): Promise<BulkOfferPricePreview> {
+    return apiClient.post('/api/webmaster-offers/bulk-price-update/preview', payload, signal);
+  },
   getCurrencies(): Promise<string[]> {
     return apiClient.get('/api/webmaster-offers/currencies');
   },

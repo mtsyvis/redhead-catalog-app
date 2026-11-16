@@ -1,3 +1,4 @@
+import { PRICE_TYPES, STATUS_ACTIVE, STATUS_INACTIVE, TERM_PERMANENT, TERM_FINITE, TERM_YEAR } from '../../constants/webmasterOffers.constants';
 import { DEFAULT_CURRENCY } from '../../constants/currency.constants';
 import type {
   UpdateWebmasterOfferPayload,
@@ -12,18 +13,7 @@ import {
   normalizeServiceAvailabilityStatus,
 } from '../../utils/serviceAvailability';
 
-export const PRICE_TYPES = [
-  { value: 0, label: 'Price USD', enumName: 'Main' },
-  { value: 1, label: 'Casino', enumName: 'Casino' },
-  { value: 2, label: 'Crypto', enumName: 'Crypto' },
-  { value: 3, label: 'Dating', enumName: 'Dating' },
-  { value: 4, label: 'Link Insert', enumName: 'LinkInsertion' },
-  { value: 5, label: 'Link Insert 18+', enumName: 'LinkInsertion18Plus' },
-  { value: 6, label: 'Banner', enumName: 'Banner' },
-  { value: 7, label: 'Banner 18+', enumName: 'Banner18Plus' },
-  { value: 8, label: 'Homepage Text Link', enumName: 'HomepageTextLink' },
-  { value: 9, label: 'Homepage Text Link 18+', enumName: 'HomepageTextLink18Plus' },
-] as const;
+export { PRICE_TYPES, STATUS_ACTIVE, STATUS_INACTIVE } from '../../constants/webmasterOffers.constants';
 
 export const AVAILABILITY_OPTIONS = [
   { value: SERVICE_AVAILABILITY_STATUS.Available, label: 'Numeric price' },
@@ -31,13 +21,6 @@ export const AVAILABILITY_OPTIONS = [
   { value: SERVICE_AVAILABILITY_STATUS.NotAvailable, label: 'NO' },
   { value: SERVICE_AVAILABILITY_STATUS.Unknown, label: 'Unknown' },
 ] as const;
-
-export const STATUS_ACTIVE = 1;
-export const STATUS_INACTIVE = 2;
-
-const TERM_PERMANENT = 1;
-const TERM_FINITE = 2;
-const TERM_YEAR = 1;
 
 export type TermKind = 'none' | 'permanent' | 'finite';
 

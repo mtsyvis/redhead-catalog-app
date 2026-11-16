@@ -2,9 +2,10 @@
 
 Status: agreed product scope, awaiting implementation. Prepared on 2026-11-12.
 
-Dependency: first merge the currency implementation in its own branch/session. Its current rules
-are defined in [business requirements](../business-requirements.md#webmaster-quote-currencies).
-Reuse that functionality; do not implement it twice or include the bulk workflow in the currency-only change.
+The currency prerequisite is implemented and merged. Its current rules are defined in
+[business requirements](../business-requirements.md#webmaster-quote-currencies).
+Reuse `OfferCurrencyService` and the existing conversion-reference contract; do not rebuild
+currency handling or restore conversion rules from an older planning brief.
 
 This bulk workflow uses the persisted USD contract and conversion functionality from that
 prerequisite. Currency-related clauses below describe integration points, not another FX
@@ -58,6 +59,7 @@ Inspect these areas rather than recreating their capabilities:
 | Offer loading, manual edits, audit and concurrency | [WebmasterOffersService.cs](../../src/Redhead.SitesCatalog.Application/Services/WebmasterOffers/WebmasterOffersService.cs) |
 | Versioned edit contract | [WebmasterOfferUpdateModels.cs](../../src/Redhead.SitesCatalog.Application/Models/WebmasterOffers/WebmasterOfferUpdateModels.cs) |
 | Amount, availability and term validation | [WebmasterOfferWriteValidator.cs](../../src/Redhead.SitesCatalog.Application/Validation/WebmasterOfferWriteValidator.cs) |
+| Implemented currency conversion and reference checks | [OfferCurrencyService.cs](../../src/Redhead.SitesCatalog.Application/Services/WebmasterOffers/OfferCurrencyService.cs) |
 | Current minimum-purchase matching | [PricingService.cs](../../src/Redhead.SitesCatalog.Application/Services/Pricing/PricingService.cs) |
 | Catalog-to-offer service mapping | [CatalogPriceMapping.cs](../../src/Redhead.SitesCatalog.Domain/CatalogPriceMapping.cs) |
 | Existing Excel generation | [WebmasterOffersExcelExportGenerator.cs](../../src/Redhead.SitesCatalog.Application/Exports/WebmasterOffersExcelExportGenerator.cs), [XlsxWorkbookWriter.cs](../../src/Redhead.SitesCatalog.Application/Services/XlsxWorkbookWriter.cs) |
@@ -138,8 +140,11 @@ every row into the DOM. Reuse existing request limits and cancellation patterns 
 
 `Check changes` performs a preview without mutating offers, webmasters, Sites or edit history.
 Changing the contact, term, selected columns or pasted values invalidates the previous preview.
-Changing the price-list currency also invalidates it. Use one rate snapshot for preview and
-Apply and retain its provenance in the saved result; do not use different rates per row.
+Changing the price-list currency also invalidates it. Reuse the current currency reference
+for the whole preview; Apply checks it through the existing currency contract. If that reference
+changed, require a new preview instead of saving a conversion the user did not review.
+Retain the applied rate/date as report data, without adding archived FX snapshots or a second
+currency-versioning system. Do not issue an external rate request for every pasted price.
 
 ## 5. Matching and exception rules
 
@@ -374,21 +379,110 @@ in this calculation workbook mean no recalculation input, not a command to clear
 Preparing a correct existing Sites update-import file is the administrator's responsibility.
 Do not alter that import's blank-cell or repeated-domain rules in this feature.
 
-The operation report stays historical. When reopening/downloading calculation inputs, detect and
-show that relevant purchase data changed again since the operation; offer a refreshed calculation
-view/export with a new as-of time rather than silently presenting stale figures as current.
-Keep that refresh separate from the immutable operation report; it must not apply price updates.
-Refresh only the originally affected keys, keeping the original affected-service mask; later
-unrelated changes belong to their own operations. Recompute their current minima and put newly
-missing values on the No purchase price sheet, never in numeric cells as zero.
+Both downloads are immutable snapshots of this operation, labelled with its time. Reopening
+or downloading them does not recalculate purchase minima from later data. New price updates
+have their own results; the administrator is responsible for using the appropriate operation.
+Dynamic stale-data detection, refreshed calculation views and regenerated exports are outside
+the first release. Do not add a refresh workflow to complete this feature.
 
-## 11. Suggested implementation sequence and limits
+## 11. Delivery plan: three reviewable coding sessions
 
-1. Implement server-side normalization, matching, preview classification and focused patching.
-2. Add atomic Apply, concurrency, history and persisted results/retry protection.
-3. Add the three-step UI, exception counters, copying and conflict recovery.
-4. Add before/after purchase comparison and both report downloads.
-5. Update current product documentation once the feature is implemented and verified.
+Implement three sequential vertical slices, each with real backend behavior and usable UI.
+Do not implement all backend layers first and defer UI review until the end. Each session
+must stop after its slice and verification, allowing the user to review code and the running UI
+before starting the next slice. These are delivery checkpoints, not three production releases.
+Intermediate omissions below are intentional; do not add misleading placeholder results.
+
+Use one feature branch, suggested name `codex/bulk-webmaster-price-update`, with a reviewed
+checkpoint/commit for each slice. Continue from the accepted previous slice in a new session.
+Do not run these slices in parallel or restart the feature from scratch. Deploy the complete
+workflow only after the final slice is accepted; do not add a feature-flag framework for staging.
+
+### Slice 1 — input and read-only preview
+
+Deliver:
+
+- The Update prices entry point and full-width input screen: primary contact, price-list term,
+  common currency, selected service columns, paste and corrections.
+- A real server preview using current data: normalization, matching, duplicate handling,
+  amount/conversion validation, proposed term correction/reactivation and no-op detection.
+- The second screen with Ready / No changes / Exceptions counters, reasons, category filtering
+  and copy-all/copy-category domain actions. Preserve input when returning to the first step.
+- Reuse current currency calculation and reference checks. Do not introduce another rate API,
+  cache, rounding policy or conversion-history model.
+
+Limits: no offer writes, Apply endpoint, operation persistence/migration, result-history page,
+catalog-minimum indicator, or downloads yet. Hide unfinished actions rather than implement
+dummy Apply/export buttons. The complete preview is the reviewable outcome of this slice.
+
+Review checkpoint:
+
+1. Paste a small list with a unique match, No term correction, unchanged quote, missing offer,
+   duplicate match and invalid selected cell; inspect counters and proposed values.
+2. Verify category/all copying, input preservation, ordinary USD and existing foreign conversion.
+3. Confirm preview changes no offers, audit history or catalog data; test server authorization.
+
+Session prompt: implement only Slice 1 of this section, follow current AGENTS.md, run relevant
+checks and provide the local page/verification instructions. Do not proceed to Slice 2 or 3.
+
+### Slice 2 — apply and a saved operation result
+
+Deliver:
+
+- Apply N updates through a focused selected-price patch path, preserving unselected prices,
+  payment details, currency metadata and unrelated offer fields.
+- Actual No term correction, numeric-input reactivation, unchanged quarantine, existing history,
+  optimistic concurrency and atomic failure handling as defined above.
+- A minimal persisted operation result, retry-safe Apply and a result URL that survives refresh.
+  Use the simplest existing database/DTO patterns; this is an operation record, not a task system.
+- The third screen with actual before/after offer values, term/status changes, input exceptions
+  and no-op information. Keep a simple way to reopen a recent operation.
+- Capture actual before/after minimum-purchase values for affected service/term keys in the
+  operation transaction. This factual snapshot is needed by Slice 3; it must not be reconstructed
+  later from changed suppliers. Do not build report UI or a generic pricing engine for this.
+
+Limits: no Excel generation or catalog writes. The catalog indicator/minimum display can wait
+until Slice 3, but save the correct data needed for it. Do not weaken transactional/version checks
+or postpone preservation of unselected data as a later polish task.
+
+Review checkpoint:
+
+1. Apply a small batch; check the existing single-offer UI and history for exact saved values.
+2. Verify No term correction, reactivation, YES/NO, unselected fields and unchanged quarantine.
+3. Edit a target offer between preview and Apply; verify clear conflict and no partial writes.
+4. Refresh the result, retry an Apply request and resubmit identical values; verify stable
+   results, no duplicate history and correct no-op behavior.
+
+Session prompt: continue accepted Slice 1 on the same feature branch; implement only Slice 2,
+run relevant checks, show the saved-result UI and stop for review. Do not implement downloads.
+
+### Slice 3 — catalog impact and two Excel reports
+
+Deliver:
+
+- Show the catalog-recalculation boolean on preview and saved results, plus minimum before/after
+  values where specified. Use the same small purchase-minimum calculation for preview and Apply.
+- Download update report, including exceptions/no changes and operation context.
+- Download catalog calculation data, populating only affected services and separating missing
+  purchase-price keys. Use the existing XLSX writer, not a new spreadsheet library.
+- Export permission checks, disabled/empty states, complete cross-page exports and final UI polish.
+- Complete integration verification and update only the documentation whose shipped subject changed.
+
+Limits: fixed operation snapshots only; no stale-export detector, regenerated calculations,
+catalog editing screen, markup formula, tasks or automatic repricing.
+
+Review checkpoint:
+
+1. Update a non-cheapest supplier and confirm an unchanged minimum does not flag that service.
+2. Raise/lower the cheapest price, reactivate an offer and correct No term; inspect affected keys.
+3. Set the only numeric service quote to NO; verify successful update and missing-purchase output.
+4. Open both XLSX files and inspect domains/terms, typed USD values, affected-only columns,
+   metadata, exception lists and behavior for Editor versus Admin.
+5. Run final required checks and confirm the existing single-offer editor/currency behavior,
+   normal search/exports and catalog values have no unintended changes.
+
+Session prompt: continue accepted Slices 1–2; implement only Slice 3 and finish acceptance
+verification. Do not broaden the scope to catalog automation or rebuild earlier accepted UI.
 
 Keep this within the existing ASP.NET/EF/PostgreSQL and React/MUI architecture. Exact entity,
 DTO and route names are implementation choices. Do not introduce a scheduler, message broker,
@@ -431,8 +525,8 @@ style; use PostgreSQL integration tests for actual concurrency and transaction g
 - [ ] A new conflicting match, stale offer version, changed contact membership or concurrent
   quarantine operation cannot produce partial writes or a misleading committed report.
 - [ ] Retry after commit returns the original operation without duplicate history or writes.
-- [ ] Persisted results survive a new session/process; later changes are signalled on calculation
-  download without rewriting historical reports or changing business data.
+- [ ] Persisted results survive a new session/process; both downloads retain their operation-time
+  values and labelled timestamp without live recalculation or changes to business data.
 - [ ] Reopen generated workbooks and assert sheets, types, service columns, exact before/after
   values, affected-only numeric population, missing-purchase cases and operation metadata.
 - [ ] Authorization separately protects preview/apply/result reads and all report downloads;

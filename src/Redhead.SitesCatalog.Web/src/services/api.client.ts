@@ -113,7 +113,7 @@ export class ApiClient {
   /**
    * Perform POST request
    */
-  static async post<T, D = unknown>(endpoint: string, data?: D): Promise<T> {
+  static async post<T, D = unknown>(endpoint: string, data?: D, signal?: AbortSignal): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       credentials: 'include',
@@ -121,6 +121,7 @@ export class ApiClient {
         'Content-Type': 'application/json',
       },
       body: data ? JSON.stringify(data) : undefined,
+      signal,
     });
 
     return this.handleResponse<T>(response, endpoint);

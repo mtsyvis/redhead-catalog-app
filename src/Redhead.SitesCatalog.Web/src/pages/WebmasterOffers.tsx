@@ -1,6 +1,6 @@
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants/pagination.constants';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -74,6 +74,7 @@ function isFullOffers(offers: WebmasterOfferSummaryRow[]): offers is WebmasterOf
 function WebmasterOffersPage({
   userId, access, initialDomain,
 }: WebmasterOffersCacheScope & { initialDomain: string }) {
+  const navigate = useNavigate();
   const {
     canReadWebmasterOffers,
     canManageWebmasterOffers,
@@ -346,17 +347,22 @@ function WebmasterOffersPage({
         <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
           Webmaster Offers
         </Typography>
-        {canExportWebmasterOffers && (
-          <Box sx={{ ml: 'auto', flexShrink: 0 }}>
-            <WebmasterOffersExportMenu
-              key={`${multiSearchMode}:${searchVersion}:${exportAll}:${canExport}`}
-              exporting={exporting}
-              disabled={!canExport}
-              resultCount={exportAll ? null : offers.length}
-              onExport={(googleDrive) => void handleExport(googleDrive)}
-            />
-          </Box>
-        )}
+        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ ml: 'auto' }}>
+          {canReadWebmasterOffers && canManageWebmasterOffers && (
+            <BrandButton size="small" sx={{ color: 'primary.main', borderColor: 'primary.main' }} onClick={() => navigate('/webmaster-offers/update-prices')}>Update prices</BrandButton>
+          )}
+          {canExportWebmasterOffers && (
+            <Box sx={{ ml: 'auto', flexShrink: 0 }}>
+              <WebmasterOffersExportMenu
+                key={`${multiSearchMode}:${searchVersion}:${exportAll}:${canExport}`}
+                exporting={exporting}
+                disabled={!canExport}
+                resultCount={exportAll ? null : offers.length}
+                onExport={(googleDrive) => void handleExport(googleDrive)}
+              />
+            </Box>
+          )}
+        </Stack>
       </Box>
       <Box sx={{ mb: 1.5 }}>
         <Box sx={{ mb: 1 }}>

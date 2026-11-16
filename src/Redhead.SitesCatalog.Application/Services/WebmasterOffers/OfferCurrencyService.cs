@@ -19,6 +19,16 @@ public sealed record OfferPriceConversion(
 
 public sealed record OfferConversionRequest(string SourceCurrency, decimal SourceAmount, string? RateReference = null);
 
+// A request-scoped view of the existing reference, shared by every quote in a bulk preview.
+public sealed record OfferCurrencyReference(string SourceCurrency,
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal AppliedUsdRate,
+    string? RateReference, DateOnly? RateDate, decimal AppliedUsdSurcharge = 0m)
+{
+    public OfferPriceConversion Convert(decimal amount) => new(SourceCurrency, amount,
+        OfferCurrencyService.ConvertToUsd(amount, SourceCurrency, AppliedUsdRate),
+        AppliedUsdRate, RateReference, RateDate, AppliedUsdSurcharge);
+}
+
 public sealed class OfferCurrencyService(ApplicationDbContext context)
 {
     public const decimal FixedEurUsdRate = 1.25m;
@@ -94,7 +104,13 @@ public sealed class OfferCurrencyService(ApplicationDbContext context)
     public async Task<OfferPriceConversion> ConvertAsync(OfferConversionRequest request, bool requireReference,
         CancellationToken cancellationToken = default)
     {
-        var currency = request.SourceCurrency;
+        var reference = await GetReferenceAsync(request.SourceCurrency, request.RateReference, requireReference, cancellationToken);
+        return reference.Convert(request.SourceAmount);
+    }
+
+    public async Task<OfferCurrencyReference> GetReferenceAsync(string currency, string? expectedReference = null,
+        bool requireReference = false, CancellationToken cancellationToken = default)
+    {
         if (!CurrencyCodeValidator.IsValid(currency))
         {
             throw new RequestValidationException("Currency must be an uppercase three-letter code.");
@@ -124,12 +140,11 @@ public sealed class OfferCurrencyService(ApplicationDbContext context)
                 break;
         }
 
-        if (requireReference && currency != CurrencyConversionConstants.DefaultCurrency && request.RateReference != reference)
+        if (requireReference && currency != CurrencyConversionConstants.DefaultCurrency && expectedReference != reference)
         {
             throw new RequestValidationException("Rates have changed. Refresh the conversion preview before saving.");
         }
 
-        return new OfferPriceConversion(currency, request.SourceAmount,
-            ConvertToUsd(request.SourceAmount, currency, rate), rate, reference, rateDate, GetSurchargeUsd(currency));
+        return new OfferCurrencyReference(currency, rate, reference, rateDate, GetSurchargeUsd(currency));
     }
 }

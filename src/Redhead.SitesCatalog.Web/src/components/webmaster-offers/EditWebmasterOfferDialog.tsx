@@ -1,4 +1,4 @@
-import { DEFAULT_CURRENCY } from '../../constants/currency.constants';
+import { FALLBACK_CURRENCIES } from '../../constants/currency.constants';
 import { useEffect, useMemo, useState, type SyntheticEvent } from 'react';
 import {
   Alert,
@@ -59,7 +59,7 @@ export function EditWebmasterOfferDialog({ open, offerId, domain, onClose, onSav
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
-  const [currencies, setCurrencies] = useState<string[]>([DEFAULT_CURRENCY, 'EUR', 'GBP']);
+  const [currencies, setCurrencies] = useState<string[]>(FALLBACK_CURRENCIES);
   const previews = useOfferCurrencyPreviews(open ? edit : null, open ? form : null);
   const history = useChangeHistory(open ? offerId : null, async () => {
     if (!offerId) return [];
@@ -73,7 +73,7 @@ export function EditWebmasterOfferDialog({ open, offerId, domain, onClose, onSav
     setLoading(true);
     setEdit(null);
     setForm(null);
-    setCurrencies([DEFAULT_CURRENCY, 'EUR', 'GBP']);
+    setCurrencies(FALLBACK_CURRENCIES);
     setError(null);
     setFieldErrors({});
     setTab(0);
