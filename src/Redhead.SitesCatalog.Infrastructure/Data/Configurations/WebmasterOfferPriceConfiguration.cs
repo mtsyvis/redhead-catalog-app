@@ -44,6 +44,7 @@ public sealed class WebmasterOfferPriceConfiguration : IEntityTypeConfiguration<
         builder.Property(price => price.SourceAmount).HasPrecision(18, 2);
         // Unconstrained PostgreSQL numeric preserves the entire .NET decimal rate.
         builder.Property(price => price.AppliedUsdRate).HasColumnType("numeric");
+        builder.Property(price => price.AppliedUsdSurcharge).HasPrecision(18, 2).HasDefaultValue(0m);
         builder.ToTable("WebmasterOfferPrices", table => table.HasCheckConstraint(
             "CK_WebmasterOfferPrices_SourceQuote",
             $$"""
@@ -54,9 +55,7 @@ public sealed class WebmasterOfferPriceConfiguration : IEntityTypeConfiguration<
                     AND ("AppliedUsdRate" IS NULL OR "AppliedUsdRate" = 1)) OR
                 ("WebmasterPriceUsd" IS NOT NULL AND "SourceCurrency" <> '{{CurrencyConversionConstants.DefaultCurrency}}'
                     AND "SourceAmount" IS NOT NULL AND "SourceAmount" > 0
-                    AND "AppliedUsdRate" IS NOT NULL AND "AppliedUsdRate" > 0
-                    AND ("WebmasterPriceUsd" = CEIL("SourceAmount" * "AppliedUsdRate")
-                        OR "WebmasterPriceUsd" = FLOOR("SourceAmount" * "AppliedUsdRate" + 0.55)))
+                    AND "AppliedUsdRate" IS NOT NULL AND "AppliedUsdRate" > 0)
             )
             """));
 

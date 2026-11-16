@@ -144,6 +144,11 @@ Schema rollback is blocked while any non-USD `SourceCurrency` remains. Preserve 
 that metadata before rollback. Roll back schema and app binaries together; older binaries are incompatible
 with the currency write contract and constraints.
 
+Startup also applies [AddWebmasterOfferCurrencySurcharge](../src/Redhead.SitesCatalog.Infrastructure/Data/Migrations/20261116023339_AddWebmasterOfferCurrencySurcharge.cs).
+This schema migration preserves existing prices and initializes `AppliedUsdSurcharge` to zero.
+Rollback restores the previous conversion constraint and fails if saved foreign quotes no longer satisfy it;
+resolve those quotes explicitly before rollback. Deploy the schema, backend and frontend together.
+
 Currency conversion, price metadata and editor behavior are defined in
 [business requirements](business-requirements.md#webmaster-quote-currencies).
 

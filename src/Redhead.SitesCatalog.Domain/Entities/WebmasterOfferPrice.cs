@@ -16,6 +16,7 @@ public class WebmasterOfferPrice
     public string SourceCurrency { get; set; } = CurrencyConversionConstants.DefaultCurrency;
     public decimal? SourceAmount { get; set; }
     public decimal? AppliedUsdRate { get; set; }
+    public decimal AppliedUsdSurcharge { get; set; }
     public DateOnly? RateDate { get; set; }
     public string? WebmasterPriceDetails { get; set; }
     public TermType? TermType { get; set; }

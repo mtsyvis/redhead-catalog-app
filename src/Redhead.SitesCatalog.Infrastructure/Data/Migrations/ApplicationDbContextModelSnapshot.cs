@@ -2169,6 +2169,12 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                     b.Property<decimal?>("AppliedUsdRate")
                         .HasColumnType("numeric");
 
+                    b.Property<decimal>("AppliedUsdSurcharge")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<short>("AvailabilityStatus")
                         .HasColumnType("smallint");
 
@@ -2225,7 +2231,7 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_WebmasterOfferPrices_AvailabilityStatus_Consistency", "(\"AvailabilityStatus\" = 1 AND \"WebmasterPriceUsd\" IS NOT NULL AND \"WebmasterPriceUsd\" > 0) OR (\"AvailabilityStatus\" IN (0, 2, 3) AND \"WebmasterPriceUsd\" IS NULL)");
 
-                            t.HasCheckConstraint("CK_WebmasterOfferPrices_SourceQuote", "\"SourceCurrency\" ~ '^[A-Z]{3}$' AND (\r\n    (\"WebmasterPriceUsd\" IS NULL AND \"SourceAmount\" IS NULL AND \"AppliedUsdRate\" IS NULL) OR\r\n    (\"WebmasterPriceUsd\" IS NOT NULL AND \"SourceCurrency\" = 'USD'\r\n        AND (\"SourceAmount\" IS NULL OR \"SourceAmount\" = \"WebmasterPriceUsd\")\r\n        AND (\"AppliedUsdRate\" IS NULL OR \"AppliedUsdRate\" = 1)) OR\r\n    (\"WebmasterPriceUsd\" IS NOT NULL AND \"SourceCurrency\" <> 'USD'\r\n        AND \"SourceAmount\" IS NOT NULL AND \"SourceAmount\" > 0\r\n        AND \"AppliedUsdRate\" IS NOT NULL AND \"AppliedUsdRate\" > 0\r\n        AND (\"WebmasterPriceUsd\" = CEIL(\"SourceAmount\" * \"AppliedUsdRate\")\r\n            OR \"WebmasterPriceUsd\" = FLOOR(\"SourceAmount\" * \"AppliedUsdRate\" + 0.55)))\r\n)");
+                            t.HasCheckConstraint("CK_WebmasterOfferPrices_SourceQuote", "\"SourceCurrency\" ~ '^[A-Z]{3}$' AND (\r\n    (\"WebmasterPriceUsd\" IS NULL AND \"SourceAmount\" IS NULL AND \"AppliedUsdRate\" IS NULL) OR\r\n    (\"WebmasterPriceUsd\" IS NOT NULL AND \"SourceCurrency\" = 'USD'\r\n        AND (\"SourceAmount\" IS NULL OR \"SourceAmount\" = \"WebmasterPriceUsd\")\r\n        AND (\"AppliedUsdRate\" IS NULL OR \"AppliedUsdRate\" = 1)) OR\r\n    (\"WebmasterPriceUsd\" IS NOT NULL AND \"SourceCurrency\" <> 'USD'\r\n        AND \"SourceAmount\" IS NOT NULL AND \"SourceAmount\" > 0\r\n        AND \"AppliedUsdRate\" IS NOT NULL AND \"AppliedUsdRate\" > 0)\r\n)");
 
                             t.HasCheckConstraint("CK_WebmasterOfferPrices_Term_Consistency", "(\"TermType\" IS NULL AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 1 AND \"TermValue\" IS NULL AND \"TermUnit\" IS NULL) OR (\"TermType\" = 2 AND \"TermValue\" IS NOT NULL AND \"TermValue\" > 0 AND \"TermUnit\" = 1)");
 

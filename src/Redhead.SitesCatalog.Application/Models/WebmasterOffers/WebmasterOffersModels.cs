@@ -51,6 +51,7 @@ public sealed class WebmasterOfferPriceDto
     public decimal? SourceAmount { get; init; }
     [System.Text.Json.Serialization.JsonNumberHandling(System.Text.Json.Serialization.JsonNumberHandling.WriteAsString)]
     public decimal? AppliedUsdRate { get; init; }
+    public decimal AppliedUsdSurcharge { get; init; }
     public DateOnly? RateDate { get; init; }
     public Guid Id { get; init; }
     public WebmasterOfferPriceType PriceType { get; init; }

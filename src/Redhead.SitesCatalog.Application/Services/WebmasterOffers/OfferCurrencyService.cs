@@ -14,7 +14,8 @@ public sealed record OfferPriceConversion(
     [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal SourceAmount,
     [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal WebmasterPriceUsd,
     [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal AppliedUsdRate, string? RateReference,
-    DateOnly? RateDate);
+    DateOnly? RateDate,
+    decimal AppliedUsdSurcharge = 0m);
 
 public sealed record OfferConversionRequest(string SourceCurrency, decimal SourceAmount, string? RateReference = null);
 
@@ -41,6 +42,10 @@ public sealed class OfferCurrencyService(ApplicationDbContext context)
 
     public static bool IsValidAmount(decimal amount)
         => amount > 0 && amount <= WebmasterOfferFieldLimits.MaxPriceUsd && decimal.Round(amount, 2) == amount;
+
+    private static decimal GetSurchargeUsd(string currency)
+        => currency is CurrencyConversionConstants.DefaultCurrency or "EUR" or "GBP"
+            ? 0m : CurrencyConversionConstants.OtherCurrencySurchargeUsd;
 
     public static decimal ConvertToUsd(decimal amount, string currency, decimal rate)
     {
@@ -77,11 +82,12 @@ public sealed class OfferCurrencyService(ApplicationDbContext context)
             throw new RequestValidationException("Converted USD price must be greater than 0 after rounding.");
         }
 
-        if (usd > WebmasterOfferFieldLimits.MaxPriceUsd)
+        var surcharge = GetSurchargeUsd(currency);
+        if (usd > WebmasterOfferFieldLimits.MaxPriceUsd - surcharge)
         {
             throw new RequestValidationException("Converted USD price is too large.");
         }
-        return usd;
+        return usd + surcharge;
     }
 
     // Preview and save both use this method. Save requires the reference reviewed in preview.
@@ -124,6 +130,6 @@ public sealed class OfferCurrencyService(ApplicationDbContext context)
         }
 
         return new OfferPriceConversion(currency, request.SourceAmount,
-            ConvertToUsd(request.SourceAmount, currency, rate), rate, reference, rateDate);
+            ConvertToUsd(request.SourceAmount, currency, rate), rate, reference, rateDate, GetSurchargeUsd(currency));
     }
 }

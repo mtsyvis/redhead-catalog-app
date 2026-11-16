@@ -575,7 +575,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
     [InlineData("null-source")]
     [InlineData("zero-rate")]
     [InlineData("null-rate")]
-    [InlineData("inconsistent-usd")]
+    [InlineData("negative-usd")]
     [InlineData("non-numeric")]
     public async Task CurrencyConstraints_RejectInconsistentQuotes(string scenario)
     {
@@ -591,7 +591,7 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
             case "null-source": price.SourceAmount = null; break;
             case "zero-rate": price.AppliedUsdRate = 0; break;
             case "null-rate": price.AppliedUsdRate = null; break;
-            case "inconsistent-usd": price.WebmasterPriceUsd = 1; break;
+            case "negative-usd": price.WebmasterPriceUsd = -1; break;
             case "non-numeric": price.AvailabilityStatus = ServiceAvailabilityStatus.Unknown; price.WebmasterPriceUsd = null; break;
         }
 
@@ -766,6 +766,40 @@ public sealed class WebmasterOffersPostgresTests : IAsyncLifetime
         Assert.Equal(31m, saved.WebmasterPriceUsd);
         Assert.Equal(25.01m, saved.SourceAmount);
         Assert.Equal(2, await verification.EntityChangeHistories.CountAsync());
+    }
+
+    [PostgresFact]
+    public async Task CurrencySurcharge_PreviewAndPersistenceIncludeFiveUsd()
+    {
+        // Arrange
+        await using var context = CreateContext();
+        await context.Database.MigrateAsync();
+        var offer = await SeedOfferAsync(context, "details");
+        context.CurrencyReferenceSnapshots.Add(new CurrencyReferenceSnapshot
+        {
+            Id = Guid.NewGuid(), ProviderAsOfUtc = DateTime.UtcNow, FetchedAtUtc = DateTime.UtcNow,
+            UsdRatesJson = "{\"CAD\":1}"
+        });
+        await context.SaveChangesAsync();
+        const decimal amount = 54.45m;
+        var preview = await new OfferCurrencyService(context).ConvertAsync(new OfferConversionRequest("CAD", amount), false);
+        var request = CreateRequest(offer, "details", Guid.Empty, "With surcharge", 100m);
+        request.Prices[0].SourceCurrency = "CAD";
+        request.Prices[0].SourceAmount = amount;
+        request.Prices[0].RateReference = preview.RateReference;
+        request.Prices[0].WebmasterPriceUsd = preview.WebmasterPriceUsd;
+
+        // Act
+        await CreateService(context).UpdateAsync(offer.Id, request, null);
+        await using var verification = CreateContext();
+        var saved = await verification.WebmasterOfferPrices.SingleAsync();
+
+        // Assert
+        Assert.Equal(60m, preview.WebmasterPriceUsd);
+        Assert.Equal(preview.WebmasterPriceUsd, saved.WebmasterPriceUsd);
+        Assert.Equal(5m, saved.AppliedUsdSurcharge);
+        Assert.Equal(1m, saved.AppliedUsdRate);
+        Assert.Equal(amount, saved.SourceAmount);
     }
 
     private static WebmasterOffersService CreateService(ApplicationDbContext context)

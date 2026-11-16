@@ -132,6 +132,7 @@ export interface WebmasterOfferPrice {
   sourceCurrency: string;
   sourceAmount: number | string | null;
   appliedUsdRate?: number | string | null;
+  appliedUsdSurcharge?: number;
   rateDate?: string | null;
   id: string;
   priceType: WebmasterOfferPriceType;
@@ -160,6 +161,7 @@ export interface OfferPriceConversion {
   sourceAmount: string;
   webmasterPriceUsd: string;
   appliedUsdRate: string;
+  appliedUsdSurcharge: number;
   rateReference: string | null;
   rateDate: string | null;
 }

@@ -163,6 +163,11 @@ export function WebmasterOfferPricesTab({
                     <Typography variant="caption" display="block">
                       Price USD: ${conversion.webmasterPriceUsd}
                     </Typography>
+                    {(conversion.appliedUsdSurcharge ?? 0) > 0 && (
+                      <Typography variant="caption" display="block" color="text.secondary">
+                        Includes ${conversion.appliedUsdSurcharge} company surcharge
+                      </Typography>
+                    )}
                     <Tooltip title={rateDetail}>
                       <Typography
                         variant="caption"

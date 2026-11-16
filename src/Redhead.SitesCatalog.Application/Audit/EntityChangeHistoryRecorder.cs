@@ -88,6 +88,7 @@ public static class EntityChangeHistoryRecorder
             values[$"{prefix} · source currency"] = price.SourceCurrency;
             values[$"{prefix} · source amount"] = Format(price.SourceAmount);
             values[$"{prefix} · applied USD rate"] = price.AppliedUsdRate?.ToString("G29", CultureInfo.InvariantCulture);
+            values[$"{prefix} · applied USD surcharge"] = price.AppliedUsdSurcharge == 0m ? null : Format(price.AppliedUsdSurcharge);
         }
 
         return values;

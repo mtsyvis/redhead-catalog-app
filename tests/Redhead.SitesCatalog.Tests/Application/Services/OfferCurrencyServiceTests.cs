@@ -63,6 +63,7 @@ public sealed class OfferCurrencyServiceTests : IDisposable
         // Assert
         Assert.Equal(expected, quote.WebmasterPriceUsd);
         Assert.Equal(currency, quote.SourceCurrency);
+        Assert.Equal(0m, quote.AppliedUsdSurcharge);
     }
 
     [Theory]
@@ -99,7 +100,7 @@ public sealed class OfferCurrencyServiceTests : IDisposable
         var result = OfferCurrencyService.ConvertToUsd(amount, "CAD", rate);
 
         // Assert
-        Assert.Equal(54m, result);
+        Assert.Equal(59m, result);
     }
 
     [Theory]
@@ -121,7 +122,55 @@ public sealed class OfferCurrencyServiceTests : IDisposable
         var result = OfferCurrencyService.ConvertToUsd(1m, "CAD", rate);
 
         // Assert
-        Assert.Equal(expected, result);
+        Assert.Equal(expected + 5m, result);
+    }
+
+    [Theory]
+    [InlineData("CAD", "0.75", "80")]
+    [InlineData("PLN", "0.25", "30")]
+    [InlineData("JPY", "0.006", "6")]
+    public async Task Conversion_AddsFiveUsdAfterRoundingForProviderCurrencies(string currency, string rateText, string expectedText)
+    {
+        // Arrange
+        var rate = decimal.Parse(rateText, System.Globalization.CultureInfo.InvariantCulture);
+        var expected = decimal.Parse(expectedText, System.Globalization.CultureInfo.InvariantCulture);
+        var snapshot = AddSnapshot(rate);
+        snapshot.UsdRatesJson = JsonSerializer.Serialize(new Dictionary<string, decimal> { [currency] = rate });
+        await _context.SaveChangesAsync();
+
+        // Act
+        var quote = await CreateCurrencies().ConvertAsync(new OfferConversionRequest(currency, 100m), false);
+
+        // Assert
+        Assert.Equal(expected, quote.WebmasterPriceUsd);
+        Assert.Equal(100m, quote.SourceAmount);
+        Assert.Equal(rate, quote.AppliedUsdRate);
+        Assert.Equal(5m, quote.AppliedUsdSurcharge);
+    }
+
+    [Theory]
+    [InlineData("9999999999999994", "9999999999999999")]
+    [InlineData("9999999999999995", null)]
+    [InlineData("79228162514264337593543950335", null)]
+    public void Conversion_ValidatesFinalUsdIncludingSurcharge(string rateText, string? expectedText)
+    {
+        // Arrange
+        var rate = decimal.Parse(rateText, System.Globalization.CultureInfo.InvariantCulture);
+
+        // Act
+        decimal? result = null;
+        var exception = Record.Exception(() => result = OfferCurrencyService.ConvertToUsd(1m, "CAD", rate));
+
+        // Assert
+        if (expectedText is null)
+        {
+            Assert.IsType<RequestValidationException>(exception);
+        }
+        else
+        {
+            Assert.Null(exception);
+            Assert.Equal(decimal.Parse(expectedText, System.Globalization.CultureInfo.InvariantCulture), result);
+        }
     }
 
     [Fact]

@@ -82,10 +82,63 @@ public sealed class WebmasterOfferCurrencyUpdateTests : IDisposable
         var price = Assert.Single(read!.Offer.Prices);
         Assert.Equal(new DateOnly(2026, 11, 11), preview.RateDate);
         Assert.Equal(preview.RateDate, price.RateDate);
-        Assert.Equal(80m, price.WebmasterPriceUsd);
+        Assert.Equal(85m, price.WebmasterPriceUsd);
+        Assert.Equal(5m, price.AppliedUsdSurcharge);
         Assert.Equal(0.8m, price.AppliedUsdRate);
         var json = JsonSerializer.Serialize(price, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.Contains("\"rateDate\":\"2026-11-11\"", json);
+    }
+
+    [Fact]
+    public async Task ChangedProviderQuote_AddsSurchargeOnceAndPreservesItOnUnrelatedSave()
+    {
+        // Arrange
+        var offer = await SeedForeignOfferAsync("CAD", 100m, 0.75m);
+        AddSnapshot(0.75m);
+        await _context.SaveChangesAsync();
+        var request = CreateRequest(offer);
+        request.Prices[0].SourceAmount = 101m;
+        var preview = await CreateCurrencies().ConvertAsync(new OfferConversionRequest("CAD", 101m), false);
+        request.Prices[0].RateReference = preview.RateReference;
+        request.Prices[0].WebmasterPriceUsd = preview.WebmasterPriceUsd;
+
+        // Act
+        await CreateService().UpdateAsync(offer.Id, request, "editor@example.com");
+        var history = await CreateService().GetHistoryAsync(offer.Id);
+        var unchanged = CreateRequest(offer);
+        unchanged.Prices[0].WebmasterPriceDetails = "Payment notes";
+        await CreateService().UpdateAsync(offer.Id, unchanged, "editor@example.com");
+        var read = await CreateService().GetForEditAsync(offer.Id);
+
+        // Assert
+        var price = Assert.Single(read!.Offer.Prices);
+        Assert.Equal(81m, preview.WebmasterPriceUsd);
+        Assert.Equal(preview.WebmasterPriceUsd, price.WebmasterPriceUsd);
+        Assert.Equal(5m, price.AppliedUsdSurcharge);
+        Assert.Contains(Assert.Single(history).Changes,
+            change => change.Field == "Price · Main · applied USD surcharge" && change.NewValue == "5");
+    }
+
+    [Fact]
+    public async Task ChangedProviderQuote_RejectsClientUsdWithoutSurcharge()
+    {
+        // Arrange
+        var offer = await SeedForeignOfferAsync("CAD", 100m, 0.75m);
+        var snapshot = AddSnapshot(0.75m);
+        await _context.SaveChangesAsync();
+        var request = CreateRequest(offer);
+        request.Prices[0].SourceAmount = 101m;
+        request.Prices[0].RateReference = snapshot.Id.ToString("D");
+        request.Prices[0].WebmasterPriceUsd = 76m;
+
+        // Act
+        var exception = await Record.ExceptionAsync(() => CreateService().UpdateAsync(offer.Id, request, null));
+
+        // Assert
+        Assert.IsType<RequestValidationException>(exception);
+        Assert.Equal(75m, offer.Prices.Single().WebmasterPriceUsd);
+        Assert.Equal(0m, offer.Prices.Single().AppliedUsdSurcharge);
+        Assert.Empty(_context.EntityChangeHistories);
     }
 
     [Theory]
@@ -251,6 +304,7 @@ public sealed class WebmasterOfferCurrencyUpdateTests : IDisposable
         Assert.Equal(25m, price.SourceAmount);
         Assert.Equal(rate, price.AppliedUsdRate);
         Assert.Equal(expectedUsd, price.WebmasterPriceUsd);
+        Assert.Equal(0m, price.AppliedUsdSurcharge);
         Assert.Equal("Payment instructions", price.WebmasterPriceDetails);
         Assert.Equal("Notes only", saved.CommentText);
         Assert.Equal(SiteWebmasterOfferStatus.Inactive, saved.Status);
@@ -327,8 +381,10 @@ public sealed class WebmasterOfferCurrencyUpdateTests : IDisposable
     public async Task NonNumericAvailability_ClearsConversionButKeepsDetails(ServiceAvailabilityStatus status)
     {
         // Arrange
-        var offer = await SeedForeignOfferAsync("EUR", 25m, 1.25m);
+        var offer = await SeedForeignOfferAsync("CAD", 25m, 0.75m);
         offer.Prices.Single().PriceType = WebmasterOfferPriceType.Casino;
+        offer.Prices.Single().AppliedUsdSurcharge = 5m;
+        offer.Prices.Single().WebmasterPriceUsd += 5m;
         await _context.SaveChangesAsync();
         var request = CreateRequest(offer);
         var priceRequest = request.Prices.Single();
@@ -345,8 +401,36 @@ public sealed class WebmasterOfferCurrencyUpdateTests : IDisposable
         Assert.Null(price.SourceAmount);
         Assert.Null(price.WebmasterPriceUsd);
         Assert.Null(price.AppliedUsdRate);
-        Assert.Equal("EUR", price.SourceCurrency);
+        Assert.Equal(0m, price.AppliedUsdSurcharge);
+        Assert.Equal("CAD", price.SourceCurrency);
         Assert.Equal("Keep payment notes", price.WebmasterPriceDetails);
+    }
+
+    [Theory]
+    [InlineData("USD")]
+    [InlineData("EUR")]
+    [InlineData("GBP")]
+    public async Task ChangingToExemptCurrency_RemovesPreviousSurcharge(string currency)
+    {
+        // Arrange
+        var offer = await SeedForeignOfferAsync("CAD", 25m, 0.75m);
+        offer.Prices.Single().AppliedUsdSurcharge = 5m;
+        offer.Prices.Single().WebmasterPriceUsd += 5m;
+        await _context.SaveChangesAsync();
+        var preview = await CreateCurrencies().ConvertAsync(new OfferConversionRequest(currency, 10m), false);
+        var request = CreateRequest(offer);
+        request.Prices[0].SourceCurrency = currency;
+        request.Prices[0].SourceAmount = 10m;
+        request.Prices[0].RateReference = preview.RateReference;
+        request.Prices[0].WebmasterPriceUsd = preview.WebmasterPriceUsd;
+
+        // Act
+        await CreateService().UpdateAsync(offer.Id, request, null);
+
+        // Assert
+        var price = offer.Prices.Single();
+        Assert.Equal(0m, price.AppliedUsdSurcharge);
+        Assert.Equal(preview.WebmasterPriceUsd, price.WebmasterPriceUsd);
     }
 
     [Fact]

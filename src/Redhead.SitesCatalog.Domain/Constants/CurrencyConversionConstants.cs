@@ -4,4 +4,5 @@ public static class CurrencyConversionConstants
 {
     public const string DefaultCurrency = "USD";
     public const decimal IdentityUsdRate = 1m;
+    public const decimal OtherCurrencySurchargeUsd = 5m;
 }

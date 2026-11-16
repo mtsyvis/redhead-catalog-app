@@ -484,6 +484,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                 price.SourceCurrency = quote.SourceCurrency;
                 price.SourceAmount = quote.SourceAmount;
                 price.AppliedUsdRate = quote.AppliedUsdRate;
+                price.AppliedUsdSurcharge = quote.AppliedUsdSurcharge;
                 price.RateDate = quote.RateDate;
             }
             if (request.AvailabilityStatus != ServiceAvailabilityStatus.Available)
@@ -491,6 +492,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                 price.SourceCurrency = request.SourceCurrency;
                 price.SourceAmount = null;
                 price.AppliedUsdRate = null;
+                price.AppliedUsdSurcharge = 0m;
                 price.RateDate = null;
             }
             var changed = price.AvailabilityStatus != request.AvailabilityStatus
@@ -642,6 +644,7 @@ public sealed class WebmasterOffersService : IWebmasterOffersService
                     SourceCurrency = price.SourceCurrency,
                     SourceAmount = price.SourceAmount,
                     AppliedUsdRate = price.AppliedUsdRate,
+                    AppliedUsdSurcharge = price.AppliedUsdSurcharge,
                     RateDate = price.RateDate,
                     WebmasterPriceDetails = price.WebmasterPriceDetails,
                     TermType = price.TermType,
