@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Redhead.SitesCatalog.Domain.Entities;
 using Redhead.SitesCatalog.Domain.Enums;
 using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 
@@ -20,11 +21,16 @@ public sealed record BulkOfferPriceInputRow(int RowNumber, string Domain, IReadO
 
 public sealed record BulkOfferPriceValue(
     ServiceAvailabilityStatus AvailabilityStatus,
-    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal? WebmasterPriceUsd,
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal? WebmasterPriceUsd,
     string SourceCurrency,
-    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal? SourceAmount,
-    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal? AppliedUsdRate,
-    DateOnly? RateDate, decimal AppliedUsdSurcharge = 0m);
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal? SourceAmount,
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal? AppliedUsdRate,
+    DateOnly? RateDate, decimal AppliedUsdSurcharge = 0m)
+{
+    internal static BulkOfferPriceValue FromPrice(WebmasterOfferPrice price) => new(price.AvailabilityStatus,
+        price.WebmasterPriceUsd, price.SourceCurrency, price.SourceAmount, price.AppliedUsdRate,
+        price.RateDate, price.AppliedUsdSurcharge);
+}
 
 public sealed record BulkOfferPriceChange(WebmasterOfferPriceType PriceType,
     BulkOfferPriceValue? Current, BulkOfferPriceValue Proposed, bool Changed);
@@ -39,4 +45,5 @@ public sealed record BulkOfferPricePreviewRow(
 public sealed record BulkOfferPricePreviewResult(
     string PrimaryEmail, string Term, string SourceCurrency, int InputCount, int DuplicateInputCount,
     int ReadyCount, int NoChangesCount, int ExceptionCount,
-    IReadOnlyList<BulkOfferPricePreviewRow> Rows, OfferCurrencyReference? ConversionReference);
+    IReadOnlyList<BulkOfferPricePreviewRow> Rows, OfferCurrencyReference? ConversionReference,
+    string PreviewVersion = "");

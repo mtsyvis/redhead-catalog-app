@@ -50,6 +50,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CurrencyReferenceSnapshot> CurrencyReferenceSnapshots => Set<CurrencyReferenceSnapshot>();
     public DbSet<CurrencyReferenceRefreshState> CurrencyReferenceRefreshStates => Set<CurrencyReferenceRefreshState>();
     public DbSet<EntityChangeHistory> EntityChangeHistories => Set<EntityChangeHistory>();
+    public DbSet<BulkOfferPriceOperation> BulkOfferPriceOperations => Set<BulkOfferPriceOperation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

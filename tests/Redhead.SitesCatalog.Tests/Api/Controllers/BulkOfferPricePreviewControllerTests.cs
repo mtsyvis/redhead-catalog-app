@@ -19,7 +19,7 @@ public sealed class BulkOfferPricePreviewControllerTests
     [InlineData(AppRoles.Lite, false)]
     [InlineData("Unknown", false)]
     [InlineData(null, false)]
-    public async Task Preview_RequiresFullReadAndManageAccess(string? role, bool allowed)
+    public async Task BulkWorkflow_RequiresFullReadAndManageAccess(string? role, bool allowed)
     {
         // Arrange
         var policies = typeof(BulkOfferPricePreviewController).GetCustomAttributes(typeof(AuthorizeAttribute), true)
@@ -48,5 +48,10 @@ public sealed class BulkOfferPricePreviewControllerTests
         var cache = Assert.Single(typeof(BulkOfferPricePreviewController).GetCustomAttributes(typeof(ResponseCacheAttribute), true).Cast<ResponseCacheAttribute>());
         Assert.True(cache.NoStore);
         Assert.Equal(ResponseCacheLocation.None, cache.Location);
+        foreach (var method in typeof(BulkOfferPricePreviewController).GetMethods()
+            .Where(method => method.DeclaringType == typeof(BulkOfferPricePreviewController)))
+        {
+            Assert.Empty(method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
+        }
     }
 }

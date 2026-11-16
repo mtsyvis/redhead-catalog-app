@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import { apiClient, ApiClientError, API_BASE_URL } from './api.client';
 import type { GoogleDriveExportResponse } from '../types/sites.types';
 import { notifySessionExpired } from './sessionExpired';
-import type { BulkOfferPricePreview, BulkOfferPricePreviewRequest } from '../types/bulkOfferPricePreview.types';
+import type { BulkOfferPricePreview, BulkOfferPricePreviewRequest, BulkOfferPriceApplyRequest, BulkOfferPriceOperation, BulkOfferPriceOperationSummary } from '../types/bulkOfferPricePreview.types';
 import type { EntityChangeHistoryItem } from '../types/changeHistory.types';
 import type { WebmasterPriceComparison } from '../types/webmasterPriceComparison.types';
 import type {
@@ -40,6 +40,15 @@ async function requestExport(payload: WebmasterOffersExportPayload, googleDrive:
 }
 
 export const webmasterOffersService = {
+  applyBulkPrices(payload: BulkOfferPriceApplyRequest, signal?: AbortSignal): Promise<BulkOfferPriceOperation> {
+    return apiClient.post('/api/webmaster-offers/bulk-price-update/apply', payload, signal);
+  },
+  getBulkOperation(id: string, signal?: AbortSignal): Promise<BulkOfferPriceOperation> {
+    return apiClient.get(`/api/webmaster-offers/bulk-price-update/operations/${encodeURIComponent(id)}`, signal);
+  },
+  getRecentBulkOperations(signal?: AbortSignal): Promise<BulkOfferPriceOperationSummary[]> {
+    return apiClient.get('/api/webmaster-offers/bulk-price-update/operations', signal);
+  },
   previewBulkPrices(payload: BulkOfferPricePreviewRequest, signal?: AbortSignal): Promise<BulkOfferPricePreview> {
     return apiClient.post('/api/webmaster-offers/bulk-price-update/preview', payload, signal);
   },

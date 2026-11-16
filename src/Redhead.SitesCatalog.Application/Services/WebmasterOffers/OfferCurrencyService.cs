@@ -11,9 +11,9 @@ namespace Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 
 public sealed record OfferPriceConversion(
     string SourceCurrency,
-    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal SourceAmount,
-    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal WebmasterPriceUsd,
-    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal AppliedUsdRate, string? RateReference,
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal SourceAmount,
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal WebmasterPriceUsd,
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal AppliedUsdRate, string? RateReference,
     DateOnly? RateDate,
     decimal AppliedUsdSurcharge = 0m);
 
@@ -21,7 +21,7 @@ public sealed record OfferConversionRequest(string SourceCurrency, decimal Sourc
 
 // A request-scoped view of the existing reference, shared by every quote in a bulk preview.
 public sealed record OfferCurrencyReference(string SourceCurrency,
-    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)] decimal AppliedUsdRate,
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal AppliedUsdRate,
     string? RateReference, DateOnly? RateDate, decimal AppliedUsdSurcharge = 0m)
 {
     public OfferPriceConversion Convert(decimal amount) => new(SourceCurrency, amount,

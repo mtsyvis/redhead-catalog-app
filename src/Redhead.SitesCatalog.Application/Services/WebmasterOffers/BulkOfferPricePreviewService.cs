@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text.Json;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Services.Import.ValueParsers;
 using Redhead.SitesCatalog.Domain;
@@ -24,12 +26,14 @@ public sealed class BulkOfferPricePreviewService(ApplicationDbContext context, O
         var groups = inputs.GroupBy(row => DomainValidator.IsValidDnsDomain(row.Domain) ? row.Domain : row.Input.Domain,
             StringComparer.Ordinal).ToList();
         var domains = inputs.Where(row => DomainValidator.IsValidDnsDomain(row.Domain)).Select(row => row.Domain).Distinct().ToArray();
-        var sites = new HashSet<string>(await context.Sites.AsNoTracking()
-            .Where(site => domains.Contains(site.Domain)).Select(site => site.Domain).ToListAsync(cancellationToken), StringComparer.Ordinal);
+        var siteStates = await context.Sites.AsNoTracking().Where(site => domains.Contains(site.Domain))
+            .OrderBy(site => site.Domain).Select(site => new { site.Domain, site.IsQuarantined, site.QuarantineUpdatedAtUtc })
+            .ToListAsync(cancellationToken);
+        var sites = siteStates.Select(site => site.Domain).ToHashSet(StringComparer.Ordinal);
         // Match current primary contact, never imported Contact text or one chosen WebmasterId.
         var offers = (await context.SiteWebmasterOffers.AsNoTracking().AsSplitQuery()
             .Where(offer => domains.Contains(offer.SiteDomain) && offer.Webmaster.PrimaryEmail == contact)
-            .Include(offer => offer.Prices).ToListAsync(cancellationToken)).ToLookup(offer => offer.SiteDomain);
+            .Include(offer => offer.Webmaster).Include(offer => offer.Prices).ToListAsync(cancellationToken)).ToLookup(offer => offer.SiteDomain);
 
         OfferCurrencyReference? reference = null;
         string? referenceError = null;
@@ -107,7 +111,7 @@ public sealed class BulkOfferPricePreviewService(ApplicationDbContext context, O
                 {
                     var cell = first.Cells[index];
                     var saved = candidate.Prices.SingleOrDefault(price => price.PriceType == types[index]);
-                    var current = saved is null ? null : MapValue(saved);
+                    var current = saved is null ? null : BulkOfferPriceValue.FromPrice(saved);
                     BulkOfferPriceValue proposed;
                     if (cell.Amount is { } amount)
                     {
@@ -167,9 +171,24 @@ public sealed class BulkOfferPricePreviewService(ApplicationDbContext context, O
             await currencies.GetReferenceAsync(request.SourceCurrency, reference.RateReference, true, cancellationToken);
         }
 
-        return new(contact, Label(term), request.SourceCurrency, inputs.Count, duplicates,
+        var result = new BulkOfferPricePreviewResult(contact, Label(term), request.SourceCurrency, inputs.Count, duplicates,
             rows.Count(row => row.Outcome == BulkOfferPricePreviewOutcomes.Ready), rows.Count(row => row.Outcome == BulkOfferPricePreviewOutcomes.NoChanges),
             rows.Count(row => row.Outcome == BulkOfferPricePreviewOutcomes.Exceptions), rows, reference);
+        // Bind Apply to the reviewed input, matching membership, xmin versions, site state and exact conversions.
+        var version = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            request, result, sites = siteStates,
+            offers = offers.SelectMany(group => group).OrderBy(offer => offer.Id).Select(offer => new
+            {
+                offer.Id, offer.Version, offer.WebmasterId, WebmasterVersion = offer.Webmaster.Version,
+                prices = offer.Prices.OrderBy(price => price.PriceType).Select(price => new
+                {
+                    price.PriceType, price.TermType, price.TermValue, price.TermUnit,
+                    value = BulkOfferPriceValue.FromPrice(price), price.WebmasterPriceDetails, price.UpdatedAtUtc
+                })
+            })
+        }));
+        return result with { PreviewVersion = Convert.ToHexString(version) };
     }
 
     private static (SiteWebmasterOffer? Offer, PricingTerm? Term) FindCandidate(
@@ -204,7 +223,7 @@ public sealed class BulkOfferPricePreviewService(ApplicationDbContext context, O
         return (null, null);
     }
 
-    private static void ValidateRequest(BulkOfferPricePreviewRequest request)
+    internal static void ValidateRequest(BulkOfferPricePreviewRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.PrimaryEmail) || request.PrimaryEmail.Length > WebmasterOfferFieldLimits.PrimaryEmailMaxLength)
         {
@@ -259,15 +278,13 @@ public sealed class BulkOfferPricePreviewService(ApplicationDbContext context, O
         return new(null, null, "invalid:" + text);
     }
 
-    private static PricingTerm? GetTerm(TermType? type, int? value, TermUnit? unit)
+    internal static PricingTerm? GetTerm(TermType? type, int? value, TermUnit? unit)
     {
         var term = PricingTerm.FromTerm(type, value, unit);
         return PricingTerm.TryCreate(term.TermKey, type, value, unit, out var validTerm) ? validTerm : null;
     }
 
     private static string Label(PricingTerm term) => term == PricingTerm.Unknown ? "No term" : term.DisplayLabel;
-    private static BulkOfferPriceValue MapValue(WebmasterOfferPrice price) => new(price.AvailabilityStatus,
-        price.WebmasterPriceUsd, price.SourceCurrency, price.SourceAmount, price.AppliedUsdRate, price.RateDate, price.AppliedUsdSurcharge);
     private sealed record ParsedRow(BulkOfferPriceInputRow Input, string Domain, ParsedCell[] Cells);
     private sealed record ParsedCell(ServiceAvailabilityStatus? Status, decimal? Amount, string Key);
 }

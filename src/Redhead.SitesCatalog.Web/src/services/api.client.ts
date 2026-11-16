@@ -98,9 +98,10 @@ export class ApiClient {
   /**
    * Perform GET request
    */
-  static async get<T>(endpoint: string): Promise<T> {
+  static async get<T>(endpoint: string, signal?: AbortSignal): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'GET',
+      signal,
       credentials: 'include', // Important for cookie auth
       headers: {
         'Content-Type': 'application/json',

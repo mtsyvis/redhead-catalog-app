@@ -47,6 +47,7 @@ export interface BulkOfferPricePreviewRow {
 }
 
 export interface BulkOfferPricePreview {
+  previewVersion: string;
   primaryEmail: string;
   term: string;
   sourceCurrency: string;
@@ -63,4 +64,28 @@ export interface BulkOfferPricePreview {
     rateDate: string | null;
     appliedUsdSurcharge: number;
   } | null;
+}
+
+export interface BulkOfferPriceApplyRequest {
+  operationId: string;
+  input: BulkOfferPricePreviewRequest;
+  previewVersion: string;
+}
+
+export interface BulkOfferPriceOperation {
+  id: string;
+  actor: string;
+  appliedAtUtc: string;
+  priceTypes: number[];
+  result: BulkOfferPricePreview;
+}
+
+export interface BulkOfferPriceOperationSummary {
+  id: string;
+  actor: string;
+  appliedAtUtc: string;
+  primaryEmail: string;
+  updatedCount: number;
+  noChangesCount: number;
+  exceptionCount: number;
 }

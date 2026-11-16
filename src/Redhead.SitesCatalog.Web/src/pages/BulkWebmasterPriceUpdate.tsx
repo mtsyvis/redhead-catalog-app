@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Alert,
   Box,
@@ -8,9 +8,6 @@ import {
   IconButton,
   MenuItem,
   Stack,
-  Step,
-  StepLabel,
-  Stepper,
   Tooltip,
   Table,
   TableBody,
@@ -26,6 +23,7 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { useAuth } from "../contexts/AuthContext";
 import { useUserRoles } from "../hooks/useUserRoles";
 import { BrandButton } from "../components/common/BrandButton";
+import { BulkOfferPriceHeader } from "../components/webmaster-offers/BulkOfferPriceHeader";
 import { PageShell } from "../components/layout/PageShell";
 import { BulkOfferPricePreviewTable } from "../components/webmaster-offers/BulkOfferPricePreviewTable";
 import {
@@ -43,6 +41,12 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "../constants/pagination.co
 import { WEBMASTER_OFFERS_MULTI_SEARCH_LIMIT } from "../constants/search.constants";
 import { webmasterOffersService } from "../services/webmasterOffers.service";
 import type { BulkOfferPricePreview } from "../types/bulkOfferPricePreview.types";
+import type { BulkOfferPriceApplyRequest } from "../types/bulkOfferPricePreview.types";
+import { ApiClientError } from "../services/api.client";
+import {
+  BulkOfferPriceSavedResult,
+  RecentBulkOfferOperations,
+} from "../components/webmaster-offers/BulkOfferPriceSavedResult";
 
 interface InputRow {
   domain: string;
@@ -55,9 +59,15 @@ const TOO_MANY_ROWS_MESSAGE =
 export function BulkWebmasterPriceUpdate() {
   const { user } = useAuth();
   const { canReadWebmasterOffers, canManageWebmasterOffers } = useUserRoles();
+  const [params] = useSearchParams();
   if (!user || !canReadWebmasterOffers || !canManageWebmasterOffers)
     return <Navigate to="/webmaster-offers" replace />;
-  return <BulkPriceUpdatePage key={user.id} />;
+  const operationId = params.get("operation");
+  return operationId ? (
+    <BulkOfferPriceSavedResult key={`${user.id}:${operationId}`} id={operationId} />
+  ) : (
+    <BulkPriceUpdatePage key={user.id} />
+  );
 }
 
 function BulkPriceUpdatePage() {
@@ -74,6 +84,8 @@ function BulkPriceUpdatePage() {
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [rows, setRows] = useState<InputRow[]>([]);
   const [preview, setPreview] = useState<BulkOfferPricePreview | null>(null);
+  const [applyRequest, setApplyRequest] = useState<BulkOfferPriceApplyRequest | null>(null);
+  const [needsPreview, setNeedsPreview] = useState(false);
   const step = preview ? 1 : 0;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +160,8 @@ function BulkPriceUpdatePage() {
     request.current = null;
     setLoading(false);
     setPreview(null);
+    setApplyRequest(null);
+    setNeedsPreview(false);
     setError(null);
     setRowLimitError(null);
     setPasteError(null);
@@ -206,29 +220,64 @@ function BulkPriceUpdatePage() {
     setError(null);
     setPreview(null);
     try {
-      const result = await webmasterOffersService.previewBulkPrices(
-        {
-          primaryEmail,
-          termType:
-            termKind === "none" ? null : termKind === "permanent" ? TERM_PERMANENT : TERM_FINITE,
-          termValue: termKind === "finite" ? Number(years) : null,
-          termUnit: termKind === "finite" ? TERM_YEAR : null,
-          sourceCurrency: currency,
-          priceTypes: types.map((type) => type.value),
-          rows: rows.map((row, index) => ({
-            rowNumber: index + 1,
-            domain: row.domain,
-            values: types.map((type) => row.values[type.value] ?? ""),
-          })),
-        },
-        controller.signal
-      );
+      const input = {
+        primaryEmail,
+        termType:
+          termKind === "none" ? null : termKind === "permanent" ? TERM_PERMANENT : TERM_FINITE,
+        termValue: termKind === "finite" ? Number(years) : null,
+        termUnit: termKind === "finite" ? TERM_YEAR : null,
+        sourceCurrency: currency,
+        priceTypes: types.map((type) => type.value),
+        rows: rows.map((row, index) => ({
+          rowNumber: index + 1,
+          domain: row.domain,
+          values: types.map((type) => row.values[type.value] ?? ""),
+        })),
+      };
+      const result = await webmasterOffersService.previewBulkPrices(input, controller.signal);
       if (!controller.signal.aborted) {
         setPreview(result);
+        setApplyRequest({
+          operationId: crypto.randomUUID(),
+          input,
+          previewVersion: result.previewVersion,
+        });
+        setNeedsPreview(false);
       }
     } catch (cause) {
       if (!controller.signal.aborted)
         setError(cause instanceof Error ? cause.message : "Could not check changes. Try again.");
+    } finally {
+      if (request.current === controller) {
+        request.current = null;
+        setLoading(false);
+      }
+    }
+  };
+  const applyChanges = async () => {
+    if (request.current || !applyRequest || needsPreview) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await webmasterOffersService.applyBulkPrices(applyRequest, controller.signal);
+      if (!controller.signal.aborted) {
+        navigate(`?operation=${encodeURIComponent(result.id)}&view=result`, {
+          state: { appliedOperationId: result.id },
+        });
+      }
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        setError(
+          cause instanceof Error ? cause.message : "Could not apply changes. Retry this request."
+        );
+        if (
+          cause instanceof ApiClientError &&
+          (cause.statusCode === 409 || cause.statusCode === 400)
+        )
+          setNeedsPreview(true);
+      }
     } finally {
       if (request.current === controller) {
         request.current = null;
@@ -254,28 +303,11 @@ function BulkPriceUpdatePage() {
   return (
     <PageShell maxWidth={false}>
       <Stack spacing={2}>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 2,
-            flexWrap: "wrap",
-          }}
-        >
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
-            Update webmaster prices
-          </Typography>
-          <BrandButton onClick={() => navigate("/webmaster-offers")}>Back to offers</BrandButton>
-        </Box>
-        <Stepper activeStep={step} sx={{ maxWidth: 650 }}>
-          <Step>
-            <StepLabel>Enter price list</StepLabel>
-          </Step>
-          <Step>
-            <StepLabel>Preview changes</StepLabel>
-          </Step>
-        </Stepper>
+        <BulkOfferPriceHeader
+          step={step}
+          busy={loading}
+          actions={<RecentBulkOfferOperations disabled={loading} />}
+        />
         {error && <Alert severity="error">{error}</Alert>}
         {step === 0 ? (
           <>
@@ -543,12 +575,33 @@ function BulkPriceUpdatePage() {
           </>
         ) : (
           preview && (
-            <BulkOfferPricePreviewTable
-              preview={preview}
-              onEditInput={() => {
-                setPreview(null);
-              }}
-            />
+            <>
+              <BulkOfferPricePreviewTable
+                preview={preview}
+                busy={loading}
+                onEditInput={() => {
+                  setPreview(null);
+                  setError(null);
+                  setApplyRequest(null);
+                }}
+              />
+              <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                {needsPreview && (
+                  <BrandButton disabled={loading} onClick={() => void checkChanges()}>
+                    Refresh preview
+                  </BrandButton>
+                )}
+                <BrandButton
+                  kind="primary"
+                  disabled={loading || needsPreview || !preview.readyCount}
+                  onClick={() => void applyChanges()}
+                >
+                  {loading
+                    ? "Applying…"
+                    : `Apply ${preview.readyCount.toLocaleString("en-US")} updates`}
+                </BrandButton>
+              </Stack>
+            </>
           )
         )}
       </Stack>

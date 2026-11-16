@@ -6,7 +6,7 @@ import {
 import { BULK_PRICE_TYPES, STATUS_ACTIVE } from "../../constants/webmasterOffers.constants";
 import { DEFAULT_CURRENCY } from "../../constants/currency.constants";
 import { SERVICE_AVAILABILITY_STATUS } from "../../utils/serviceAvailability";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -255,9 +255,15 @@ const ISSUE_GUIDANCE: Record<string, string> = {
 export function BulkOfferPricePreviewTable({
   preview,
   onEditInput,
+  saved = false,
+  busy = false,
+  operationDetails,
 }: {
   preview: BulkOfferPricePreview;
-  onEditInput: () => void;
+  onEditInput?: () => void;
+  saved?: boolean;
+  busy?: boolean;
+  operationDetails?: ReactNode;
 }) {
   const [filter, setFilter] = useState<BulkOfferPricePreviewRow["outcome"]>(
     BULK_PREVIEW_OUTCOME.Ready
@@ -340,71 +346,94 @@ export function BulkOfferPricePreviewTable({
           <Chip size="small" label={preview.term} />
           <Chip size="small" label={preview.sourceCurrency} />
         </Stack>
-        <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap" alignItems="center">
-          <BrandButton size="small" startIcon={<ArrowBackIcon />} onClick={onEditInput}>
-            Edit input
-          </BrandButton>
+        <Stack
+          direction="row"
+          spacing={1.5}
+          useFlexGap
+          flexWrap="wrap"
+          alignItems="center"
+          sx={{ maxWidth: "100%" }}
+        >
+          {operationDetails}
+          {onEditInput && (
+            <BrandButton
+              disabled={busy}
+              size="small"
+              startIcon={<ArrowBackIcon />}
+              onClick={onEditInput}
+            >
+              Edit input
+            </BrandButton>
+          )}
         </Stack>
       </Stack>
-      <Typography variant="caption" color="text.secondary">
-        {preview.inputCount.toLocaleString("en-US")} input rows
-        {preview.duplicateInputCount > 0 && (
-          <>
-            {" "}
-            · {preview.duplicateInputCount.toLocaleString("en-US")} identical{" "}
-            {preview.duplicateInputCount === 1 ? "duplicate" : "duplicates"} removed
-          </>
-        )}
-      </Typography>
-      <Tabs
-        value={filter}
-        aria-label="Preview categories"
-        variant="scrollable"
-        scrollButtons="auto"
-        textColor="primary"
-        onChange={(_, value: BulkOfferPricePreviewRow["outcome"]) => {
-          setFilter(value);
-          setPage(0);
-          setCopyError(false);
-        }}
-        sx={{
-          minHeight: 42,
-          borderBottom: 1,
-          borderColor: "divider",
-          "& .MuiTab-root": { minHeight: 42, px: 1.5, color: "text.secondary", opacity: 1 },
-          "& .MuiTab-root.Mui-selected": { color: "primary.main", fontWeight: 600, opacity: 1 },
-        }}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        alignItems={{ xs: "stretch", sm: "center" }}
+        spacing={1}
+        sx={{ borderBottom: 1, borderColor: "divider" }}
       >
-        {BULK_PREVIEW_TABS.map(({ value, label, countKey, id }) => (
-          <Tab
-            key={value}
-            value={value}
-            id={id}
-            aria-controls="bulk-preview-results"
-            aria-label={`${label}: ${preview[countKey]}`}
-            label={
-              <Stack component="span" direction="row" spacing={0.75} alignItems="center">
-                <Typography component="span" variant="body2">
-                  {label}
-                </Typography>
-                <Box
-                  component="span"
-                  sx={{
-                    px: 0.75,
-                    minWidth: 24,
-                    borderRadius: 999,
-                    bgcolor: "action.hover",
-                    fontSize: "0.75rem",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {preview[countKey].toLocaleString("en-US")}
-                </Box>
-              </Stack>
-            }
-          />
-        ))}
-      </Tabs>
+        <Tabs
+          value={filter}
+          aria-label={saved ? "Saved result categories" : "Preview categories"}
+          variant="scrollable"
+          scrollButtons="auto"
+          textColor="primary"
+          onChange={(_, value: BulkOfferPricePreviewRow["outcome"]) => {
+            setFilter(value);
+            setPage(0);
+            setCopyError(false);
+          }}
+          sx={{
+            minHeight: 42,
+            flex: 1,
+            minWidth: 0,
+            borderBottom: 0,
+            borderColor: "divider",
+            "& .MuiTab-root": { minHeight: 42, px: 1.5, color: "text.secondary", opacity: 1 },
+            "& .MuiTab-root.Mui-selected": { color: "primary.main", fontWeight: 600, opacity: 1 },
+          }}
+        >
+          {BULK_PREVIEW_TABS.map(({ value, label, countKey, id }) => (
+            <Tab
+              key={value}
+              value={value}
+              id={id}
+              aria-controls="bulk-preview-results"
+              aria-label={`${saved && value === BULK_PREVIEW_OUTCOME.Ready ? "Updated" : label}: ${preview[countKey]}`}
+              label={
+                <Stack component="span" direction="row" spacing={0.75} alignItems="center">
+                  <Typography component="span" variant="body2">
+                    {saved && value === BULK_PREVIEW_OUTCOME.Ready ? "Updated" : label}
+                  </Typography>
+                  <Box
+                    component="span"
+                    sx={{
+                      px: 0.75,
+                      minWidth: 24,
+                      borderRadius: 999,
+                      bgcolor: "action.hover",
+                      fontSize: "0.75rem",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {preview[countKey].toLocaleString("en-US")}
+                  </Box>
+                </Stack>
+              }
+            />
+          ))}
+        </Tabs>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ textAlign: "right", flexShrink: 0, pb: { xs: 1, sm: 0 } }}
+        >
+          {preview.inputCount.toLocaleString("en-US")} input rows
+          {preview.duplicateInputCount > 0 &&
+            ` · ${preview.duplicateInputCount.toLocaleString("en-US")} identical ${preview.duplicateInputCount === 1 ? "duplicate" : "duplicates"} removed`}
+        </Typography>
+      </Stack>
       <Stack spacing={2} role="tabpanel" id="bulk-preview-results" aria-labelledby={activeTabId}>
         {filter === BULK_PREVIEW_OUTCOME.Ready &&
           visible.length > 0 &&
@@ -487,7 +516,10 @@ export function BulkOfferPricePreviewTable({
                 bgcolor: "background.paper",
               }}
             >
-              <Table size="small" aria-label="Price update preview">
+              <Table
+                size="small"
+                aria-label={saved ? "Saved price update result" : "Price update preview"}
+              >
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ width: "31%" }}>Domain</TableCell>
@@ -496,8 +528,8 @@ export function BulkOfferPricePreviewTable({
                     ) : (
                       <>
                         <TableCell>Service</TableCell>
-                        <TableCell>Current · USD</TableCell>
-                        <TableCell>Proposed · USD</TableCell>
+                        <TableCell>{saved ? "Before · USD" : "Current · USD"}</TableCell>
+                        <TableCell>{saved ? "After · USD" : "Proposed · USD"}</TableCell>
                       </>
                     )}
                   </TableRow>

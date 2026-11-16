@@ -468,6 +468,43 @@ namespace Redhead.SitesCatalog.Infrastructure.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.BulkOfferPriceOperation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<DateTime>("AppliedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PrimaryEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("UpdatedCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppliedAtUtc");
+
+                    b.ToTable("BulkOfferPriceOperations");
+                });
+
             modelBuilder.Entity("Redhead.SitesCatalog.Domain.Entities.CanonicalLocation", b =>
                 {
                     b.Property<string>("Key")

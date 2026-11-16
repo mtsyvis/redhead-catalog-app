@@ -1,6 +1,7 @@
 # Bulk webmaster offer price update — first release
 
-Status: agreed product scope, awaiting implementation. Prepared on 2026-11-12.
+Status: agreed delivery brief. Prepared on 2026-11-12. Current implemented rules live in
+[business requirements](../business-requirements.md#bulk-webmaster-price-list-preview); this brief retains the remaining scope and review checkpoints.
 
 The currency prerequisite is implemented and merged. Its current rules are defined in
 [business requirements](../business-requirements.md#webmaster-quote-currencies).
@@ -12,7 +13,7 @@ prerequisite. Currency-related clauses below describe integration points, not an
 implementation. Catalog writes, automatic repricing and tasks remain out of scope.
 
 This document is the implementation brief for a separate coding session. It describes
-planned behavior, not functionality already shipped. Read `AGENTS.md` and the relevant
+the full intended scope; use business requirements for implemented behavior. Read `AGENTS.md` and the relevant
 sections of [business requirements](../business-requirements.md) before implementing.
 The specific workflow changes below are intentional; unrelated existing behavior stays intact.
 

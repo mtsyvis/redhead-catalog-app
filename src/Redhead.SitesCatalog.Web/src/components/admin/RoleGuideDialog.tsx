@@ -14,19 +14,19 @@ import { BrandButton } from '../common/BrandButton';
 const ROLE_GUIDE: Record<AppRole, { access: string; limits: string }> = {
   SuperAdmin: {
     access:
-      'Full access. Manage users, roles, account access, export limits, application settings, and all catalog tools. Preview bulk webmaster price lists. Compare margins and edit catalog selling prices in Pricing. Monitor LinkDetective background sync.',
+      'Full access. Manage users, roles, account access, export limits, application settings, and all catalog tools. Preview and apply bulk webmaster price lists; reopen shared saved results. Compare margins and edit catalog selling prices in Pricing. Monitor LinkDetective background sync.',
     limits:
       'Catalog exports are unlimited. Super Admin is a protected role and cannot be assigned through role changes.',
   },
   Admin: {
     access:
-      'Browse, edit, import, and export sites and webmaster offers. Preview bulk webmaster price lists. View webmaster contacts and prices, analytics, users, and settings. Compare margins and edit catalog selling prices in Pricing. Manage Ahrefs sync and monitor LinkDetective background sync.',
+      'Browse, edit, import, and export sites and webmaster offers. Preview and apply bulk webmaster price lists; reopen shared saved results. View webmaster contacts and prices, analytics, users, and settings. Compare margins and edit catalog selling prices in Pricing. Manage Ahrefs sync and monitor LinkDetective background sync.',
     limits:
       'Cannot create or change user accounts, reset passwords, change roles or limits, or edit application settings.',
   },
   Editor: {
     access:
-      'Browse and edit sites and webmaster offers. Preview bulk webmaster price lists. View internal site fields, webmaster contacts, and webmaster prices.',
+      'Browse and edit sites and webmaster offers. Preview and apply bulk webmaster price lists; reopen shared saved results. View internal site fields, webmaster contacts, and webmaster prices.',
     limits: 'No Pricing workspace, imports, exports, analytics, user management, or settings.',
   },
   Linkbuilder: {
