@@ -76,6 +76,18 @@ Before changing code:
 
 Avoid broad refactors mixed with feature work. This is a small business app; pragmatic and readable code is preferred over enterprise overengineering.
 
+## Code Review Rules
+
+For code review requests, read and follow [`docs/backend-code-review.md`](docs/backend-code-review.md).
+An unqualified request such as "сделай code review" means a general backend review of the current
+branch, including local uncommitted changes. The procedure defines comparison-base selection,
+review focuses, evidence requirements, and reporting. Explicit task scope takes precedence.
+
+Review without editing source, tests, or documentation unless fixes are explicitly requested.
+Report actionable correctness, security, performance, and maintainability concerns; distinguish
+defects from refactoring suggestions and existing technical debt. Do not invent findings or
+recommend abstractions based only on file size or superficial similarity.
+
 ## Business-critical areas
 
 Be extra careful when touching:
@@ -128,7 +140,7 @@ Use this mapping:
 * Setup, commands, repository structure, general project overview -> `README.md`
 * Production configuration, deployment, and diagnostics -> `docs/deployment.md`
 * Backup and restore procedures -> `docs/backup-restore.md`; link there from deployment documentation.
-* AI-agent workflow and repository instructions -> `AGENTS.md`
+* AI-agent workflow and repository instructions -> `AGENTS.md`; detailed backend review procedure -> `docs/backend-code-review.md`.
 * Technical debt and deferred maintenance -> `docs/technical-debt.md`; follow its recording and maintenance instructions.
 * Role or permission changes -> also update the English Users `Roles & permissions` guide in `src/Redhead.SitesCatalog.Web/src/components/admin/RoleGuideDialog.tsx` in the same change.
 
@@ -195,9 +207,22 @@ If a command cannot be run, explain why and provide the exact command the user s
 
 Follow the existing backend architecture and coding patterns.
 
-Do not introduce new layers, abstractions, packages, or architectural patterns unless the task clearly requires it.
+Do not introduce new layers, packages, or architectural patterns unless the task clearly requires it.
+Small extractions within the existing architecture are appropriate when they clarify a responsibility
+or give an already repeated business rule one owner. Explain the concrete benefit; avoid speculative abstractions.
 
 Keep changes understandable, maintainable, and consistent with the surrounding code.
+
+Before adding a service, validator, normalizer, query, constant, or helper, search for existing
+implementations and their callers. Reuse or extend them when the business meaning and reasons
+for change match. A second occurrence calls for comparison, not automatic generalization.
+
+Keep methods readable with clear names, a consistent level of detail, and explicit control flow.
+Extract a coherent operation when it simplifies understanding; use a private method when a
+separate class is unnecessary. Split or merge services by responsibility, not by line count.
+
+Name non-obvious limits and identifiers and keep them with their owner. Use configuration for
+operationally adjustable values; avoid a catch-all constants or utilities file.
 
 When changing backend behavior, verify authorization, validation, persistence, and tests where relevant.
 
@@ -223,6 +248,14 @@ Do not delete or weaken tests just to make a task pass.
 When a task changes observable behavior, update or add relevant tests.
 
 Use the existing test style unless there is a clear reason to change it.
+
+Each new backend test should protect a distinct behavior, boundary, failure mode, or regression.
+Extend existing coverage or use a theory for the same rule with different inputs. Do not add
+tests merely for each extracted method or delete coverage merely to reduce test counts.
+
+Keep backend tests under the existing layer folders, grouping larger areas by feature.
+Split large test classes by behavior when useful; keep important scenario data visible and
+avoid copying large unrelated seed datasets into new tests.
 
 New unit tests must follow the Arrange, Act, Assert structure and include explicit comments:
 
