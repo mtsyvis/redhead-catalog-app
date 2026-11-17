@@ -36,4 +36,21 @@ public sealed class BulkOfferPricePreviewController(BulkOfferPricePreviewService
         var result = await operations.GetAsync(id, cancellationToken);
         return result is null ? NotFound() : Ok(result);
     }
+
+    [HttpGet("operations/{id:guid}/update-report.xlsx")]
+    [Authorize(Policy = AppPolicies.WebmasterOffersExportAccess)]
+    public async Task<IActionResult> UpdateReport(Guid id, CancellationToken cancellationToken)
+        => await Download(id, false, cancellationToken);
+
+    [HttpGet("operations/{id:guid}/catalog-calculation.xlsx")]
+    [Authorize(Policy = AppPolicies.WebmasterOffersExportAccess)]
+    public async Task<IActionResult> CatalogCalculation(Guid id, CancellationToken cancellationToken)
+        => await Download(id, true, cancellationToken);
+
+    private async Task<IActionResult> Download(Guid id, bool calculation, CancellationToken cancellationToken)
+    {
+        var bytes = await operations.DownloadAsync(id, calculation, cancellationToken);
+        return bytes is null ? NotFound() : File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"{(calculation ? "catalog-calculation" : "price-update")}-{id:D}.xlsx");
+    }
 }

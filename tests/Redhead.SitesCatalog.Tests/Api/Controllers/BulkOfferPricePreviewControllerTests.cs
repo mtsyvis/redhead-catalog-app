@@ -12,6 +12,50 @@ public sealed class BulkOfferPricePreviewControllerTests
     [Theory]
     [InlineData(AppRoles.SuperAdmin, true)]
     [InlineData(AppRoles.Admin, true)]
+    [InlineData(AppRoles.Editor, false)]
+    [InlineData(AppRoles.Linkbuilder, false)]
+    [InlineData(AppRoles.Internal, false)]
+    [InlineData(AppRoles.Client, false)]
+    [InlineData(AppRoles.Lite, false)]
+    [InlineData(null, false)]
+    public async Task Downloads_RequireExportInAdditionToWorkflowPolicies_EvenForDirectOperationIds(string? role, bool allowed)
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAuthorization(options =>
+        {
+            foreach (var (permission, policy) in AppPolicies.PermissionPolicies)
+            {
+                options.AddPolicy(policy, builder => builder.RequireRole(RolePermissionMatrix.GetRolesForPermission(permission)));
+            }
+        });
+        using var provider = services.BuildServiceProvider();
+        var principal = new ClaimsPrincipal(role is null ? new ClaimsIdentity()
+            : new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "Test"));
+        var controller = typeof(BulkOfferPricePreviewController);
+        var methods = new[] { nameof(BulkOfferPricePreviewController.UpdateReport), nameof(BulkOfferPricePreviewController.CatalogCalculation) };
+
+        // Act
+        foreach (var method in methods)
+        {
+            var policies = controller.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>()
+                .Concat(controller.GetMethod(method)!.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>())
+                .Select(attribute => attribute.Policy!).ToArray();
+            var results = await Task.WhenAll(policies.Select(policy => provider.GetRequiredService<IAuthorizationService>()
+                .AuthorizeAsync(principal, null, policy)));
+
+            // Assert
+            Assert.Contains(AppPolicies.WebmasterOffersReadAccess, policies);
+            Assert.Contains(AppPolicies.WebmasterOffersManageAccess, policies);
+            Assert.Contains(AppPolicies.WebmasterOffersExportAccess, policies);
+            Assert.Equal(allowed, results.All(result => result.Succeeded));
+        }
+    }
+
+    [Theory]
+    [InlineData(AppRoles.SuperAdmin, true)]
+    [InlineData(AppRoles.Admin, true)]
     [InlineData(AppRoles.Editor, true)]
     [InlineData(AppRoles.Linkbuilder, false)]
     [InlineData(AppRoles.Internal, false)]

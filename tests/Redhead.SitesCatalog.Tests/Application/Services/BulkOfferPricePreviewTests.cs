@@ -19,6 +19,93 @@ public sealed class BulkOfferPricePreviewTests : IDisposable
     public void Dispose() => _context.Dispose();
     private BulkOfferPricePreviewService CreateService() => new(_context, new OfferCurrencyService(_context));
 
+    [Theory]
+    [InlineData("120", 70, 70, false)]
+    [InlineData("60", 70, 60, true)]
+    [InlineData("100", 0, 100, false)]
+    public async Task Preview_ComparesPersistedExactTermMinimaAcrossSuppliers(string amount, int competing, int after, bool needed)
+    {
+        // Arrange
+        AddOffer("minimum.example", PricingTerm.Unknown, amount: 100);
+        if (competing > 0) AddOffer("minimum.example", PricingTerm.Unknown, "competitor@example.com", competing);
+        AddOffer("minimum.example", PricingTerm.Permanent, "different-term@example.com", 1);
+        var malformed = AddOffer("minimum.example", PricingTerm.Unknown, "malformed@example.com", 2);
+        malformed.Prices.Single().TermValue = 2;
+        var inactive = AddOffer("minimum.example", PricingTerm.Unknown, "inactive@example.com", 3);
+        inactive.Status = SiteWebmasterOfferStatus.Inactive;
+        await _context.SaveChangesAsync();
+        var before = await SnapshotAsync();
+
+        // Act
+        var result = await CreateService().PreviewAsync(Request(PricingTerm.Unknown, [0], ("minimum.example", [amount])));
+
+        // Assert
+        var row = Assert.Single(result.Rows);
+        Assert.Equal(needed, row.CatalogRecalculationNeeded);
+        if (amount != "100")
+        {
+            var minimum = Assert.Single(row.PurchaseMinima!);
+            Assert.Equal(competing, minimum.BeforeUsd);
+            Assert.Equal(after, minimum.AfterUsd);
+        }
+        Assert.Equal(before, await SnapshotAsync());
+    }
+
+    [Fact]
+    public async Task Preview_TermCorrectionAndReactivationIncludeUnselectedServicesAndBothTermKeys()
+    {
+        // Arrange
+        var offer = AddOffer("terms.example", PricingTerm.Unknown, amount: 100);
+        offer.Site.IsQuarantined = true;
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.LinkInsertion18Plus,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 50, SourceCurrency = "USD", SourceAmount = 50, AppliedUsdRate = 1 });
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Banner,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 10 });
+        await _context.SaveChangesAsync();
+
+        // Act
+        var correction = await CreateService().PreviewAsync(Request(PricingTerm.FiniteYears(1), [0], ("terms.example", ["100"])));
+        offer.Status = SiteWebmasterOfferStatus.Inactive;
+        await _context.SaveChangesAsync();
+        var reactivation = await CreateService().PreviewAsync(Request(PricingTerm.Unknown, [0], ("terms.example", ["100"])));
+
+        // Assert
+        var corrected = Assert.Single(correction.Rows);
+        Assert.True(corrected.CatalogRecalculationNeeded);
+        Assert.Equal(4, corrected.PurchaseMinima!.Count);
+        Assert.Contains(corrected.PurchaseMinima, key => key.Service == PriceType.LinkInsertionCasino && key.Term == PricingTerm.Unknown && key.BeforeUsd == 50 && key.AfterUsd == null);
+        Assert.Contains(corrected.PurchaseMinima, key => key.Service == PriceType.LinkInsertionCasino && key.Term == PricingTerm.FiniteYears(1) && key.BeforeUsd == null && key.AfterUsd == 50);
+        Assert.All(corrected.PurchaseMinima, key => Assert.True(key.IsQuarantined));
+        var active = Assert.Single(reactivation.Rows);
+        Assert.True(active.CatalogRecalculationNeeded);
+        Assert.Equal(2, active.PurchaseMinima!.Count);
+        Assert.All(active.PurchaseMinima, key => Assert.Null(key.BeforeUsd));
+        Assert.Contains(active.PurchaseMinima, key => key.Service == PriceType.LinkInsertionCasino && key.AfterUsd == 50);
+    }
+
+    [Theory]
+    [InlineData(WebmasterOfferPriceType.LinkInsertion18Plus, 50, "NO", true)]
+    [InlineData(WebmasterOfferPriceType.Casino, null, "YES", false)]
+    [InlineData(WebmasterOfferPriceType.Banner, 50, "NO", false)]
+    public async Task Preview_NumericLossIsSuccessful_AndUnsupportedServicesNeverSetCatalogIndicator(WebmasterOfferPriceType type, int? before, string value, bool needed)
+    {
+        // Arrange
+        var offer = AddOffer("null.example", PricingTerm.Unknown);
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = type,
+            AvailabilityStatus = before.HasValue ? ServiceAvailabilityStatus.Available : ServiceAvailabilityStatus.Unknown,
+            WebmasterPriceUsd = before, SourceCurrency = "USD", SourceAmount = before, AppliedUsdRate = before.HasValue ? 1 : null });
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await CreateService().PreviewAsync(Request(PricingTerm.Unknown, [(int)type], ("null.example", [value])));
+
+        // Assert
+        var row = Assert.Single(result.Rows);
+        Assert.Equal("Ready", row.Outcome);
+        Assert.Equal(needed, row.CatalogRecalculationNeeded);
+        Assert.All(row.PurchaseMinima!, key => Assert.Null(key.AfterUsd));
+    }
+
     [Fact]
     public async Task Preview_UsesExactNormalizedContactAcrossTechnicalWebmasters_AndDoesNotWrite()
     {
@@ -402,6 +489,9 @@ public sealed class BulkOfferPricePreviewTests : IDisposable
         Assert.Equal("Ready", result.Rows[1].Outcome);
         Assert.Equal(13m, result.Rows[1].Prices[0].Proposed.WebmasterPriceUsd);
         Assert.True(result.Rows[1].Prices[0].Changed);
+        Assert.False(result.Rows[1].CatalogRecalculationNeeded);
+        Assert.Equal(13m, Assert.Single(result.Rows[1].PurchaseMinima!).BeforeUsd);
+        Assert.Equal(13m, Assert.Single(result.Rows[1].PurchaseMinima!).AfterUsd);
     }
 
     [Theory]

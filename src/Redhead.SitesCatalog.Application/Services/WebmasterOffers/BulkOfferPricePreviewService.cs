@@ -174,6 +174,14 @@ public sealed class BulkOfferPricePreviewService(ApplicationDbContext context, O
         var result = new BulkOfferPricePreviewResult(contact, Label(term), request.SourceCurrency, inputs.Count, duplicates,
             rows.Count(row => row.Outcome == BulkOfferPricePreviewOutcomes.Ready), rows.Count(row => row.Outcome == BulkOfferPricePreviewOutcomes.NoChanges),
             rows.Count(row => row.Outcome == BulkOfferPricePreviewOutcomes.Exceptions), rows, reference);
+        var readyDomains = rows.Where(row => row.Outcome == BulkOfferPricePreviewOutcomes.Ready).Select(row => row.Domain).ToArray();
+        if (readyDomains.Length > 0)
+        {
+            var suppliers = await context.SiteWebmasterOffers.AsNoTracking().AsSplitQuery()
+                .Where(offer => readyDomains.Contains(offer.SiteDomain)).Include(offer => offer.Prices).Include(offer => offer.Site)
+                .ToListAsync(cancellationToken);
+            result = BulkOfferPurchaseMinima.Attach(result, BulkOfferPurchaseMinima.Preview(rows, suppliers, term));
+        }
         // Bind Apply to the reviewed input, matching membership, xmin versions, site state and exact conversions.
         var version = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         {

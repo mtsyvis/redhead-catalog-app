@@ -40,7 +40,11 @@ public sealed record BulkOfferPricePreviewRow(
     string Outcome, string? Category, IReadOnlyList<string> Reasons,
     Guid? OfferId, string? CurrentTerm, string? ProposedTerm,
     SiteWebmasterOfferStatus? CurrentStatus, SiteWebmasterOfferStatus? ProposedStatus,
-    IReadOnlyList<BulkOfferPriceChange> Prices);
+    IReadOnlyList<BulkOfferPriceChange> Prices)
+{
+    public IReadOnlyList<BulkOfferPurchaseMinimum>? PurchaseMinima { get; init; }
+    public bool CatalogRecalculationNeeded => PurchaseMinima?.Any(key => key.BeforeUsd != key.AfterUsd) == true;
+}
 
 public sealed record BulkOfferPricePreviewResult(
     string PrimaryEmail, string Term, string SourceCurrency, int InputCount, int DuplicateInputCount,

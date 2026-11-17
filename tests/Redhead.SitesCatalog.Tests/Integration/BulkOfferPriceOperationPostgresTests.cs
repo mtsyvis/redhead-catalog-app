@@ -56,6 +56,7 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         var saved = await fresh.SiteWebmasterOffers.Include(value => value.Prices).Include(value => value.Site).SingleAsync();
         var history = await fresh.EntityChangeHistories.SingleAsync();
         var snapshot = ReadSnapshot(await fresh.BulkOfferPriceOperations.SingleAsync());
+        using var calculation = new MemoryStream((await Service(fresh).DownloadAsync(result.Id, true))!);
 
         // Assert
         Assert.Equal(result.Id, reopened!.Id);
@@ -82,6 +83,13 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         Assert.Contains(request.OperationId.ToString("D"), history.ChangesJson);
         Assert.Contains("applied USD surcharge", history.ChangesJson);
         Assert.Equal(4, snapshot.Minima.Count);
+        Assert.True(Assert.Single(preview.Rows).CatalogRecalculationNeeded);
+        Assert.True(Assert.Single(reopened.Result.Rows).CatalogRecalculationNeeded);
+        Assert.Equal(JsonSerializer.Serialize(preview.Rows[0].PurchaseMinima), JsonSerializer.Serialize(reopened.Result.Rows[0].PurchaseMinima));
+        var calculationRow = Assert.Single(XlsxTestWorkbook.ReadRows(calculation, "Webmaster costs"));
+        Assert.Equal("85", calculationRow["Main cost USD"]);
+        Assert.Equal(40m, decimal.Parse(calculationRow["Casino cost USD"], System.Globalization.CultureInfo.InvariantCulture));
+        Assert.False(calculationRow.ContainsKey("Quarantined"));
         Assert.Contains(snapshot.Minima, key => key.Service == PriceType.Casino && key.Term == PricingTerm.FiniteYears(1) && key.BeforeUsd == null && key.AfterUsd == 40);
         Assert.Equal(2, Assert.Single(snapshot.Offers).Before.Count);
         Assert.Equal(2, Assert.Single(snapshot.Offers).After.Count);
@@ -201,8 +209,18 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         context.ChangeTracker.Clear();
 
         // Act
-        await Service(context).ApplyAsync(new(Guid.NewGuid(), input, preview.PreviewVersion), "editor@example.com");
+        var operation = await Service(context).ApplyAsync(new(Guid.NewGuid(), input, preview.PreviewVersion), "editor@example.com");
         var snapshot = ReadSnapshot(await context.BulkOfferPriceOperations.SingleAsync());
+        using var calculation = new MemoryStream((await Service(context).DownloadAsync(operation.Id, true))!);
+        var reportBefore = await Service(context).DownloadAsync(operation.Id, false);
+        var resultBefore = JsonSerializer.Serialize(await Service(context).GetAsync(operation.Id));
+        await using var later = _database.CreateContext();
+        await later.WebmasterOfferPrices.Where(price => price.AvailabilityStatus == ServiceAvailabilityStatus.Available)
+            .ExecuteUpdateAsync(update => update.SetProperty(price => price.WebmasterPriceUsd, 999m).SetProperty(price => price.SourceAmount, 999m));
+        await later.Sites.ExecuteUpdateAsync(update => update.SetProperty(site => site.IsQuarantined, true));
+        using var historical = new MemoryStream((await Service(later).DownloadAsync(operation.Id, true))!);
+        using var oldUpdate = new MemoryStream(reportBefore!);
+        using var laterUpdate = new MemoryStream((await Service(later).DownloadAsync(operation.Id, false))!);
 
         // Assert
         Assert.Equal(2, snapshot.Minima.Count);
@@ -212,6 +230,23 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         var insertion = Assert.Single(snapshot.Minima, key => key.Service == PriceType.LinkInsertionCasino);
         Assert.Equal(50, insertion.BeforeUsd);
         Assert.Null(insertion.AfterUsd);
+        Assert.True(preview.Rows[0].CatalogRecalculationNeeded);
+        Assert.Equal(JsonSerializer.Serialize(snapshot.Minima), JsonSerializer.Serialize(preview.Rows[0].PurchaseMinima));
+        Assert.Equal(new[] { "Needs review" }, XlsxTestWorkbook.GetSheetNames(calculation));
+        var missing = Assert.Single(XlsxTestWorkbook.ReadRows(calculation, "Needs review"));
+        Assert.Equal("Link insertion casino", missing["Service"]);
+        Assert.Equal("No webmaster price is available for this service and term. Review the catalog price manually.", missing["Reason"]);
+        foreach (var sheet in XlsxTestWorkbook.GetSheetNames(calculation))
+        {
+            Assert.Equal(JsonSerializer.Serialize(XlsxTestWorkbook.ReadRows(calculation, sheet)), JsonSerializer.Serialize(XlsxTestWorkbook.ReadRows(historical, sheet)));
+        }
+
+        foreach (var sheet in XlsxTestWorkbook.GetSheetNames(oldUpdate))
+        {
+            Assert.Equal(JsonSerializer.Serialize(XlsxTestWorkbook.ReadRows(oldUpdate, sheet)), JsonSerializer.Serialize(XlsxTestWorkbook.ReadRows(laterUpdate, sheet)));
+        }
+
+        Assert.Equal(resultBefore, JsonSerializer.Serialize(await Service(later).GetAsync(operation.Id)));
     }
 
     [PostgresFact]

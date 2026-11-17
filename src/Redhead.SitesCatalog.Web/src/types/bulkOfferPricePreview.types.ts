@@ -27,6 +27,16 @@ export interface BulkOfferPriceValue {
 }
 
 export interface BulkOfferPricePreviewRow {
+  catalogRecalculationNeeded: boolean;
+  purchaseMinima:
+    | {
+        service: number;
+        term: { termKey: string; displayLabel: string };
+    beforeUsd: string | null;
+    afterUsd: string | null;
+        isQuarantined: boolean;
+      }[]
+    | null;
   domain: string;
   invalidDomain: boolean;
   inputs: BulkOfferPriceInputRow[];

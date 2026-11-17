@@ -11,6 +11,11 @@ import {
   Alert,
   Box,
   Chip,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   MenuItem,
   Stack,
   Tab,
@@ -42,6 +47,116 @@ import { CopyToClipboardIconButton } from "../common/CopyToClipboardIconButton";
 import { quoteAmountKey } from "./editWebmasterOfferForm";
 
 const MAX_VISIBLE_INPUT_ROWS = 10;
+
+const CATALOG_SERVICES = [
+  "Main",
+  "Casino",
+  "Crypto",
+  "Link insertion",
+  "Link insertion casino",
+  "Dating",
+];
+function CatalogImpact({ row }: { row: BulkOfferPricePreviewRow }) {
+  const [open, setOpen] = useState(false);
+  const changed = (row.purchaseMinima ?? []).filter(
+    (key) => quoteAmountKey(key.beforeUsd) !== quoteAmountKey(key.afterUsd)
+  );
+  const amount = (value: string | null) =>
+    value === null ? "No price" : `$${formatUsdAmount(value).replace(/\.00$/, "")}`;
+
+  if (!row.catalogRecalculationNeeded || changed.length === 0) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        —
+      </Typography>
+    );
+  }
+
+  if (changed.length === 1 && row.currentTerm === row.proposedTerm) {
+    const change = changed[0];
+    return (
+      <Typography variant="body2" sx={{ fontVariantNumeric: "tabular-nums" }}>
+        {CATALOG_SERVICES[change.service]}: {amount(change.beforeUsd)} → {amount(change.afterUsd)}
+      </Typography>
+    );
+  }
+
+  const services = new Set(changed.map((key) => key.service)).size;
+  return (
+    <>
+      <Stack direction="row" spacing={0.75} alignItems="center" useFlexGap flexWrap="wrap">
+        <Typography variant="body2">
+          {services} {pluralize(services, "service")} changed
+        </Typography>
+        <Button
+          variant="text"
+          size="small"
+          aria-label={`View catalog changes for ${row.domain}`}
+          onClick={() => setOpen(true)}
+          sx={{ minWidth: 0, p: 0, textTransform: "none" }}
+        >
+          Details
+        </Button>
+      </Stack>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        fullWidth
+        maxWidth="sm"
+        aria-labelledby="catalog-impact-title"
+      >
+        <DialogTitle id="catalog-impact-title">Catalog impact</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+              {row.domain}
+            </Typography>
+            {row.currentTerm !== row.proposedTerm && (
+              <Typography variant="body2" color="text.secondary">
+                Term corrected: {row.currentTerm} → {row.proposedTerm}
+              </Typography>
+            )}
+            <Typography variant="body2" color="text.secondary">
+              Changed minimum purchase prices across suppliers.
+            </Typography>
+            <TableContainer>
+              <Table size="small" aria-label={`Changed purchase minima for ${row.domain}`}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Service</TableCell>
+                    <TableCell>Term</TableCell>
+                    <TableCell>Before USD</TableCell>
+                    <TableCell>After USD</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {changed.map((key) => (
+                    <TableRow key={`${key.service}:${key.term.termKey}`}>
+                      <TableCell>{CATALOG_SERVICES[key.service]}</TableCell>
+                      <TableCell>
+                        {key.term.termKey === "unknown" ? "No term" : key.term.displayLabel}
+                      </TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>{amount(key.beforeUsd)}</TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>{amount(key.afterUsd)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {changed.some((key) => key.isQuarantined) && (
+              <Typography variant="caption" color="text.secondary">
+                Site remains quarantined.
+              </Typography>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <BrandButton onClick={() => setOpen(false)}>Close</BrandButton>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
 
 function formatUsdAmount(amount: string | null) {
   if (amount === null) return "—";
@@ -530,6 +645,7 @@ export function BulkOfferPricePreviewTable({
                         <TableCell>Service</TableCell>
                         <TableCell>{saved ? "Before · USD" : "Current · USD"}</TableCell>
                         <TableCell>{saved ? "After · USD" : "Proposed · USD"}</TableCell>
+                        <TableCell>Catalog impact</TableCell>
                       </>
                     )}
                   </TableRow>
@@ -628,6 +744,14 @@ export function BulkOfferPricePreviewTable({
                                 </Typography>
                               )}
                           </TableCell>
+                          {priceIndex === 0 && (
+                            <TableCell
+                              rowSpan={row.prices.length}
+                              sx={{ minWidth: 180, maxWidth: 480 }}
+                            >
+                              <CatalogImpact row={row} />
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>

@@ -84,9 +84,9 @@ public sealed class BulkOfferPriceOperationService(ApplicationDbContext context,
             var byId = suppliers.ToDictionary(offer => offer.Id);
             var beforePrices = ready.ToDictionary(row => row.OfferId!.Value, row => CapturePrices(byId[row.OfferId!.Value]));
             var term = PricingTerm.FromTerm(request.Input.TermType, request.Input.TermValue, request.Input.TermUnit);
-            var keys = GetAffectedKeys(ready, byId, term);
+            var keys = BulkOfferPurchaseMinima.AffectedKeys(ready, byId, term);
             var suppliersByDomain = suppliers.ToLookup(offer => offer.SiteDomain);
-            var beforeMinima = keys.ToDictionary(key => key, key => Minimum(suppliersByDomain[key.Domain], key));
+            var beforeMinima = keys.ToDictionary(key => key, key => BulkOfferPurchaseMinima.Minimum(suppliersByDomain[key.Domain], key));
             var now = DateTime.UtcNow;
             var actorName = AuditUserFormatter.Format(actor);
             foreach (var row in ready)
@@ -105,6 +105,8 @@ public sealed class BulkOfferPriceOperationService(ApplicationDbContext context,
             }
             var result = new BulkOfferPriceOperationResult(request.OperationId, actorName, now, request.Input.PriceTypes, preview);
             var snapshot = CreateSnapshot(result, request.Input, beforePrices, beforeMinima, byId, suppliersByDomain);
+            result = result with { Result = BulkOfferPurchaseMinima.Attach(result.Result, snapshot.Minima) };
+            snapshot = snapshot with { Operation = result };
             context.BulkOfferPriceOperations.Add(new BulkOfferPriceOperation
             {
                 Id = result.Id, Actor = actorName, AppliedAtUtc = now, PrimaryEmail = preview.PrimaryEmail,
@@ -151,39 +153,9 @@ public sealed class BulkOfferPriceOperationService(ApplicationDbContext context,
         await context.Database.ExecuteSqlRawAsync("LOCK TABLE \"CurrencyReferenceSnapshots\" IN SHARE MODE", cancellationToken);
     }
 
-    private static HashSet<PurchaseKey> GetAffectedKeys(IEnumerable<BulkOfferPricePreviewRow> ready,
-        IReadOnlyDictionary<Guid, SiteWebmasterOffer> byId, PricingTerm term)
-    {
-        var keys = new HashSet<PurchaseKey>();
-        foreach (var row in ready)
-        {
-            var offer = byId[row.OfferId!.Value];
-            var stateChanged = row.CurrentTerm != row.ProposedTerm || row.CurrentStatus != row.ProposedStatus;
-            foreach (var service in Enum.GetValues<PriceType>())
-            {
-                var offerType = CatalogPriceMapping.ToOfferType(service);
-                var price = offer.Prices.SingleOrDefault(price => price.PriceType == offerType);
-                if (!stateChanged && !row.Prices.Any(change => change.PriceType == offerType && change.Changed))
-                {
-                    continue;
-                }
-                if (price is not null)
-                {
-                    keys.Add(new(offer.SiteDomain, service,
-                        BulkOfferPricePreviewService.GetTerm(price.TermType, price.TermValue, price.TermUnit)!));
-                }
-                if (price is not null || row.Prices.Any(change => change.PriceType == offerType))
-                {
-                    keys.Add(new(offer.SiteDomain, service, term));
-                }
-            }
-        }
-        return keys;
-    }
-
     private static BulkOfferPriceOperationSnapshot CreateSnapshot(BulkOfferPriceOperationResult result,
         BulkOfferPricePreviewRequest input, IReadOnlyDictionary<Guid, BulkOfferSavedPrice[]> beforePrices,
-        IReadOnlyDictionary<PurchaseKey, decimal?> beforeMinima, IReadOnlyDictionary<Guid, SiteWebmasterOffer> byId,
+        IReadOnlyDictionary<BulkOfferPurchaseMinima.Key, decimal?> beforeMinima, IReadOnlyDictionary<Guid, SiteWebmasterOffer> byId,
         ILookup<string, SiteWebmasterOffer> byDomain)
     {
         var offers = beforePrices.Select(entry => new BulkOfferSavedOffer(entry.Key, entry.Value,
@@ -191,7 +163,7 @@ public sealed class BulkOfferPriceOperationService(ApplicationDbContext context,
         var minima = beforeMinima.Keys.OrderBy(key => key.Domain, StringComparer.Ordinal)
             .ThenBy(key => key.Service).ThenBy(key => key.Term.TermKey, StringComparer.Ordinal)
             .Select(key => new BulkOfferPurchaseMinimum(key.Domain, key.Service, key.Term, beforeMinima[key],
-                Minimum(byDomain[key.Domain], key), byDomain[key.Domain].First().Site.IsQuarantined)).ToArray();
+                BulkOfferPurchaseMinima.Minimum(byDomain[key.Domain], key), byDomain[key.Domain].First().Site.IsQuarantined)).ToArray();
         return new(result, input, offers, minima);
     }
 
@@ -252,17 +224,33 @@ public sealed class BulkOfferPriceOperationService(ApplicationDbContext context,
         return values;
     }
 
-    private static decimal? Minimum(IEnumerable<SiteWebmasterOffer> suppliers, PurchaseKey key)
-        => suppliers.Where(offer => offer.SiteDomain == key.Domain && offer.Status == SiteWebmasterOfferStatus.Active)
-            .SelectMany(offer => offer.Prices).Where(price => price.PriceType == CatalogPriceMapping.ToOfferType(key.Service)
-                && price.AvailabilityStatus == ServiceAvailabilityStatus.Available && price.WebmasterPriceUsd > 0
-                && BulkOfferPricePreviewService.GetTerm(price.TermType, price.TermValue, price.TermUnit) == key.Term)
-            .Select(price => price.WebmasterPriceUsd).DefaultIfEmpty(null).Min();
+    public async Task<byte[]?> DownloadAsync(Guid id, bool calculation, CancellationToken cancellationToken = default)
+    {
+        var json = await context.BulkOfferPriceOperations.AsNoTracking().Where(row => row.Id == id)
+            .Select(row => row.SnapshotJson).SingleOrDefaultAsync(cancellationToken);
+        if (json is null)
+        {
+            return null;
+        }
+
+        var snapshot = JsonSerializer.Deserialize<BulkOfferPriceOperationSnapshot>(json, JsonOptions)!;
+        return calculation ? BulkOfferPriceReports.Calculation(snapshot) : BulkOfferPriceReports.Update(snapshot);
+    }
 
     private static BulkOfferPriceOperationResult Read(BulkOfferPriceOperation saved)
-        => JsonSerializer.Deserialize<StoredResult>(saved.SnapshotJson, JsonOptions)!.Operation;
+    {
+        var result = JsonSerializer.Deserialize<StoredResult>(saved.SnapshotJson, JsonOptions)!.Operation;
+        if (result.Result.Rows.Any(row => row.Outcome == BulkOfferPricePreviewOutcomes.Ready && row.PurchaseMinima is null))
+        {
+            // Slice 2 results already have factual minima. Read only those needed for display;
+            // never deserialize Input/Offers or query live suppliers to reopen a historical result.
+            var minima = JsonSerializer.Deserialize<StoredMinima>(saved.SnapshotJson, JsonOptions)!.Minima;
+            result = result with { Result = BulkOfferPurchaseMinima.Attach(result.Result, minima) };
+        }
+        return result;
+    }
 
     // Skip input, price snapshots and minima when only the UI result is requested.
     private sealed record StoredResult(BulkOfferPriceOperationResult Operation);
-    private sealed record PurchaseKey(string Domain, PriceType Service, PricingTerm Term);
+    private sealed record StoredMinima(IReadOnlyList<BulkOfferPurchaseMinimum> Minima);
 }

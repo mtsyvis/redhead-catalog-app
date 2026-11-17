@@ -40,6 +40,28 @@ async function requestExport(payload: WebmasterOffersExportPayload, googleDrive:
 }
 
 export const webmasterOffersService = {
+  async downloadBulkReport(id: string, calculation: boolean, signal?: AbortSignal): Promise<void> {
+    const report = calculation ? 'catalog-calculation' : 'update-report';
+    const response = await fetch(`${API_BASE_URL}/api/webmaster-offers/bulk-price-update/operations/${encodeURIComponent(id)}/${report}.xlsx`, {
+      credentials: 'include', signal,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      signal?.throwIfAborted();
+      if (response.status === 401) notifySessionExpired();
+      throw new ApiClientError(error?.message || 'Could not download this report.', response.status);
+    }
+    const blob = await response.blob();
+    signal?.throwIfAborted();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${report}-${id}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
   applyBulkPrices(payload: BulkOfferPriceApplyRequest, signal?: AbortSignal): Promise<BulkOfferPriceOperation> {
     return apiClient.post('/api/webmaster-offers/bulk-price-update/apply', payload, signal);
   },

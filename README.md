@@ -21,7 +21,7 @@ Use this repository documentation in the following way:
 * `docs/backup-restore.md` — production PostgreSQL backup setup, manual backup checks, and restore guidance.
 * `docs/technical-debt.md` — deferred engineering work and known lifecycle gaps.
 * [`docs/features/bulk-webmaster-offer-price-update.md`](docs/features/bulk-webmaster-offer-price-update.md)
-  — bulk webmaster price-update delivery brief and remaining acceptance criteria; current workflow rules are in business requirements.
+  — retired delivery brief linking to the current workflow rules.
 
 Old planning files, commit summaries, and legacy specs are historical context only. They should not be treated as current source of truth unless a task explicitly says so.
 

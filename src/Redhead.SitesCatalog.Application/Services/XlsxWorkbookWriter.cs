@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Xml;
+using System.Text;
 
 namespace Redhead.SitesCatalog.Application.Services;
 
@@ -28,7 +29,9 @@ internal static class XlsxWorkbookWriter
         ("3", "0", "4"),
         ("4", "0", "4"),
         ("164", "0", "4"),
-        ("165", "0", "4")
+        ("165", "0", "4"),
+        ("0", "2", "0"),
+        ("0", "3", "0")
     ];
 
     public static MemoryStream CreateWorkbook(IReadOnlyList<XlsxSheet> sheets)
@@ -153,9 +156,11 @@ internal static class XlsxWorkbookWriter
         writer.WriteEndElement();
 
         writer.WriteStartElement("fonts");
-        writer.WriteAttributeString("count", "2");
+        writer.WriteAttributeString("count", "4");
         WriteFont(writer, bold: false);
         WriteFont(writer, bold: true);
+        WriteFont(writer, bold: true, size: 14);
+        WriteFont(writer, bold: false, size: 10, color: "FF666666");
         writer.WriteEndElement();
 
         writer.WriteStartElement("fills");
@@ -253,7 +258,9 @@ internal static class XlsxWorkbookWriter
     {
         using var writer = CreateXmlWriter(archive.CreateEntry($"xl/worksheets/sheet{sheetNumber}.xml").Open());
         var columnCount = sheet.Headers.Count;
-        var rowCount = sheet.Rows.Count + 1;
+        var introRows = PrepareIntroRows(sheet);
+        var headerRow = (introRows?.Count ?? 0) + 1;
+        var rowCount = sheet.Rows.Count + headerRow;
 
         writer.WriteStartDocument();
         writer.WriteStartElement("worksheet", SpreadsheetNamespace);
@@ -264,8 +271,8 @@ internal static class XlsxWorkbookWriter
         if (sheet.FreezeHeader)
         {
             writer.WriteStartElement("pane");
-            writer.WriteAttributeString("ySplit", "1");
-            writer.WriteAttributeString("topLeftCell", "A2");
+            writer.WriteAttributeString("ySplit", headerRow.ToString(CultureInfo.InvariantCulture));
+            writer.WriteAttributeString("topLeftCell", $"A{headerRow + 1}");
             writer.WriteAttributeString("activePane", "bottomLeft");
             writer.WriteAttributeString("state", "frozen");
             writer.WriteEndElement();
@@ -277,25 +284,107 @@ internal static class XlsxWorkbookWriter
         writer.WriteAttributeString("defaultRowHeight", "15");
         writer.WriteEndElement();
 
-        WriteColumns(writer, sheet.ColumnWidths);
+        var widths = sheet.IntroRows is not null && !sheet.FullWidthIntro && sheet.ColumnWidths.Count < 4
+            ? sheet.ColumnWidths.Concat(Enumerable.Repeat(32d, 4 - sheet.ColumnWidths.Count)).ToArray()
+            : sheet.ColumnWidths;
+        WriteColumns(writer, widths);
 
         writer.WriteStartElement("sheetData");
-        WriteRow(writer, 1, sheet.Headers.Select(XlsxCell.Header).ToList());
+        if (introRows is not null)
+        {
+            for (var i = 0; i < introRows.Count; i++)
+            {
+                var height = sheet.FullWidthIntro
+                    ? introRows[i].Count == 0 ? 8 : HeaderLineHeight(introRows[i][0]) * (1 + (introRows[i][0].TextValue?.Count(ch => ch == '\n') ?? 0))
+                    : 30;
+                WriteRow(writer, i + 1, introRows[i], height: height, wrapText: true);
+            }
+        }
+        WriteRow(writer, headerRow, sheet.Headers.Select(XlsxCell.Header).ToList());
         for (var i = 0; i < sheet.Rows.Count; i++)
         {
-            WriteRow(writer, i + 2, sheet.Rows[i], sheet.DataRowHeight, sheet.WrapText);
+            WriteRow(writer, i + headerRow + 1, sheet.Rows[i], sheet.DataRowHeight, sheet.WrapText);
         }
         writer.WriteEndElement();
 
         if (sheet.AutoFilter && columnCount > 0)
         {
             writer.WriteStartElement("autoFilter");
-            writer.WriteAttributeString("ref", $"A1:{ColumnName(columnCount)}{Math.Max(rowCount, 1)}");
+            writer.WriteAttributeString("ref", $"A{headerRow}:{ColumnName(columnCount)}{rowCount}");
             writer.WriteEndElement();
         }
 
+        if (introRows is { Count: > 0 })
+        {
+            writer.WriteStartElement("mergeCells");
+            var mergedRows = sheet.FullWidthIntro ? introRows.Count - 1 : 1;
+            writer.WriteAttributeString("count", mergedRows.ToString(CultureInfo.InvariantCulture));
+            for (var i = 0; i < mergedRows; i++)
+            {
+                var row = sheet.FullWidthIntro ? i + 1 : headerRow - 1;
+                writer.WriteStartElement("mergeCell");
+                writer.WriteAttributeString("ref", $"A{row}:{ColumnName(sheet.FullWidthIntro ? columnCount : Math.Max(columnCount, 4))}{row}");
+                writer.WriteEndElement();
+            }
+            writer.WriteEndElement();
+        }
+
+
         writer.WriteEndElement();
         writer.WriteEndDocument();
+    }
+
+    private const double MaxExcelRowHeight = 409.5;
+    private const double HeaderWidthSafetyFactor = 0.8;
+
+    private static int HeaderLineHeight(XlsxCell cell) => cell.Style == XlsxCellStyle.ReportTitle ? 24 : 18;
+
+    // Merged cells do not auto-size in Excel. Wrap explicitly and split oversized headers
+    // into continuation rows so even the supported 20,000-character contact stays readable.
+    private static IReadOnlyList<IReadOnlyList<XlsxCell>>? PrepareIntroRows(XlsxSheet sheet)
+    {
+        if (!sheet.FullWidthIntro || sheet.IntroRows is null)
+        {
+            return sheet.IntroRows;
+        }
+        var width = sheet.ColumnWidths.Take(sheet.Headers.Count).Sum() * HeaderWidthSafetyFactor;
+        var result = new List<IReadOnlyList<XlsxCell>>();
+        foreach (var row in sheet.IntroRows)
+        {
+            if (row.Count == 0)
+            {
+                result.Add(row);
+                continue;
+            }
+            var cell = row[0];
+            var capacity = Math.Max(2, (int)(width * 18 / HeaderLineHeight(cell)));
+            var lines = new List<string>();
+            foreach (var line in (cell.TextValue ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+            {
+                var text = new System.Text.StringBuilder();
+                var used = 0;
+                foreach (var rune in line.EnumerateRunes())
+                {
+                    // Non-ASCII widths vary by script; reserve extra room, as for wide Latin glyphs.
+                    var units = !rune.IsAscii || "WMwm@".Contains((char)rune.Value) ? 2 : 1;
+                    if (used + units > capacity)
+                    {
+                        lines.Add(text.ToString());
+                        text.Clear();
+                        used = 0;
+                    }
+                    text.Append(rune.ToString());
+                    used += units;
+                }
+                lines.Add(text.ToString());
+            }
+            var maxLines = (int)(MaxExcelRowHeight / HeaderLineHeight(cell));
+            foreach (var chunk in lines.Chunk(maxLines))
+            {
+                result.Add([cell with { TextValue = string.Join("\n", chunk) }]);
+            }
+        }
+        return result;
     }
 
     private static void WriteColumns(XmlWriter writer, IReadOnlyList<double> widths)
@@ -404,7 +493,7 @@ internal static class XlsxWorkbookWriter
         writer.WriteEndElement();
     }
 
-    private static void WriteFont(XmlWriter writer, bool bold)
+    private static void WriteFont(XmlWriter writer, bool bold, int size = 11, string? color = null)
     {
         writer.WriteStartElement("font");
         if (bold)
@@ -412,8 +501,14 @@ internal static class XlsxWorkbookWriter
             writer.WriteElementString("b", string.Empty);
         }
         writer.WriteStartElement("sz");
-        writer.WriteAttributeString("val", "11");
+        writer.WriteAttributeString("val", size.ToString(CultureInfo.InvariantCulture));
         writer.WriteEndElement();
+        if (color is not null)
+        {
+            writer.WriteStartElement("color");
+            writer.WriteAttributeString("rgb", color);
+            writer.WriteEndElement();
+        }
         writer.WriteStartElement("name");
         writer.WriteAttributeString("val", "Calibri");
         writer.WriteEndElement();
@@ -483,7 +578,9 @@ internal sealed record XlsxSheet(
     bool FreezeHeader = true,
     bool AutoFilter = true,
     bool WrapText = false,
-    double? DataRowHeight = null);
+    double? DataRowHeight = null,
+    IReadOnlyList<IReadOnlyList<XlsxCell>>? IntroRows = null,
+    bool FullWidthIntro = false);
 
 internal sealed record XlsxCell(
     XlsxCellType Type,
@@ -562,5 +659,7 @@ internal enum XlsxCellStyle
     RecentPublicationInteger = 13,
     RecentPublicationDecimal = 14,
     RecentPublicationDate = 15,
-    RecentPublicationDateTime = 16
+    RecentPublicationDateTime = 16,
+    ReportTitle = 17,
+    ReportContext = 18
 }

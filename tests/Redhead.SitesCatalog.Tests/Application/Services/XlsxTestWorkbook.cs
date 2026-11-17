@@ -37,6 +37,7 @@ internal static class XlsxTestWorkbook
             return [];
         }
 
+        sheetRows = sheetRows.Skip(HeaderRowIndex(worksheet)).ToList();
         var headers = ReadRowValues(sheetRows[0])
             .TakeWhile(header => !string.IsNullOrEmpty(header))
             .ToList();
@@ -61,15 +62,53 @@ internal static class XlsxTestWorkbook
         using var archive = OpenArchive(stream);
         var sheetPath = ResolveSheetPath(archive, sheetName);
         var worksheet = ReadXml(archive, sheetPath);
-        var headerRow = worksheet
+        var headerRows = worksheet
             .Root!
             .Element(SpreadsheetNs + "sheetData")!
             .Elements(SpreadsheetNs + "row")
-            .First();
+            .ToList();
+        var headerRow = headerRows[HeaderRowIndex(worksheet)];
 
         return ReadRowValues(headerRow)
             .TakeWhile(header => !string.IsNullOrEmpty(header))
             .ToList();
+    }
+
+    private static int HeaderRowIndex(XDocument worksheet)
+    {
+        var start = worksheet.Root!.Element(SpreadsheetNs + "autoFilter")?.Attribute("ref")?.Value.Split(':')[0];
+        return start is null ? 0 : int.Parse(new string(start.Where(char.IsDigit).ToArray()), System.Globalization.CultureInfo.InvariantCulture) - 1;
+    }
+
+    public static XDocument ReadWorksheet(Stream stream, string sheetName)
+    {
+        using var archive = OpenArchive(stream);
+        return ReadXml(archive, ResolveSheetPath(archive, sheetName));
+    }
+
+    public static XElement ReadCellFont(Stream stream, string sheetName, string cellReference)
+    {
+        using var archive = OpenArchive(stream);
+        var sheet = ReadXml(archive, ResolveSheetPath(archive, sheetName));
+        var cell = sheet.Descendants(SpreadsheetNs + "c").Single(cell => cell.Attribute("r")?.Value == cellReference);
+        var styles = ReadXml(archive, "xl/styles.xml");
+        var format = styles.Root!.Element(SpreadsheetNs + "cellXfs")!.Elements().ElementAt(int.Parse(cell.Attribute("s")!.Value));
+        return styles.Root.Element(SpreadsheetNs + "fonts")!.Elements().ElementAt(int.Parse(format.Attribute("fontId")!.Value));
+    }
+
+    public static string ReadCell(Stream stream, string sheetName, string cellReference)
+    {
+        using var archive = OpenArchive(stream);
+        var worksheet = ReadXml(archive, ResolveSheetPath(archive, sheetName));
+        return ReadCellValue(worksheet.Descendants(SpreadsheetNs + "c").Single(cell => cell.Attribute("r")?.Value == cellReference));
+    }
+
+    public static string ReadCellType(Stream stream, string sheetName, string cellReference)
+    {
+        using var archive = OpenArchive(stream);
+        var worksheet = ReadXml(archive, ResolveSheetPath(archive, sheetName));
+        var cell = worksheet.Descendants(SpreadsheetNs + "c").Single(cell => cell.Attribute("r")?.Value == cellReference);
+        return cell.Attribute("t")?.Value ?? (cell.Element(SpreadsheetNs + "v") is null ? "blank" : "n");
     }
 
     public static string? ReadCellFillRgb(Stream stream, string sheetName, string cellReference)

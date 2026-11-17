@@ -1,5 +1,6 @@
 using Redhead.SitesCatalog.Domain;
 using Redhead.SitesCatalog.Domain.Enums;
+using System.Text.Json.Serialization;
 
 namespace Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 
@@ -8,9 +9,11 @@ public sealed record BulkOfferPriceOperationResult(Guid Id, string Actor, DateTi
     IReadOnlyList<WebmasterOfferPriceType> PriceTypes, BulkOfferPricePreviewResult Result);
 public sealed record BulkOfferPriceOperationSummary(Guid Id, string Actor, DateTime AppliedAtUtc, string PrimaryEmail, int UpdatedCount, int NoChangesCount, int ExceptionCount);
 
-// Immutable factual input for Slice 3. Result reads never recalculate these values.
+// Immutable factual operation data. Result reads never recalculate these values.
 public sealed record BulkOfferPurchaseMinimum(string Domain, PriceType Service, PricingTerm Term,
-    decimal? BeforeUsd, decimal? AfterUsd, bool IsQuarantined);
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal? BeforeUsd,
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString)] decimal? AfterUsd,
+    bool IsQuarantined);
 public sealed record BulkOfferSavedPrice(WebmasterOfferPriceType PriceType, PricingTerm Term,
     BulkOfferPriceValue Value, string? Details);
 public sealed record BulkOfferSavedOffer(Guid OfferId, IReadOnlyList<BulkOfferSavedPrice> Before,

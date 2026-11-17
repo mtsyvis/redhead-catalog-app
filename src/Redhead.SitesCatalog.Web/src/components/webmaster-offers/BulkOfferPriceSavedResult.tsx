@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   Alert,
@@ -21,6 +21,8 @@ import { BrandButton } from "../common/BrandButton";
 import { PageShell } from "../layout/PageShell";
 import { BulkOfferPricePreviewTable } from "./BulkOfferPricePreviewTable";
 import { webmasterOffersService } from "../../services/webmasterOffers.service";
+import { useUserRoles } from "../../hooks/useUserRoles";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import type {
   BulkOfferPriceOperation,
   BulkOfferPriceOperationSummary,
@@ -87,6 +89,64 @@ function SavedResultSkeleton() {
           </Stack>
         ))}
       </Box>
+    </Stack>
+  );
+}
+
+function OperationDownloads({ operation }: { operation: BulkOfferPriceOperation }) {
+  const { canExportWebmasterOffers } = useUserRoles();
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pending = useRef<AbortController | null>(null);
+  useEffect(() => () => pending.current?.abort(), []);
+  const hasCalculation = operation.result.rows.some((row) => row.catalogRecalculationNeeded);
+  const explanation = !canExportWebmasterOffers
+    ? "Report downloads require Webmaster Offers export permission (Admin or SuperAdmin)."
+    : !hasCalculation
+      ? "No purchase minima changed. There is no catalog calculation data to download."
+      : null;
+  const download = async (calculation: boolean) => {
+    if (pending.current) return;
+    const controller = new AbortController();
+    pending.current = controller;
+    setDownloading(calculation ? "calculation" : "update");
+    setError(null);
+    try {
+      await webmasterOffersService.downloadBulkReport(operation.id, calculation, controller.signal);
+    } catch (cause) {
+      if (!controller.signal.aborted)
+        setError(cause instanceof Error ? cause.message : "Could not download this report.");
+    } finally {
+      pending.current = null;
+      if (!controller.signal.aborted) setDownloading(null);
+    }
+  };
+  return (
+    <Stack spacing={0.75}>
+      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+        <BrandButton
+          size="small"
+          startIcon={<DownloadOutlinedIcon />}
+          disabled={!canExportWebmasterOffers || !!downloading}
+          onClick={() => void download(false)}
+        >
+          {downloading === "update" ? "Downloading…" : "Download update report"}
+        </BrandButton>
+        <BrandButton
+          size="small"
+          startIcon={<DownloadOutlinedIcon />}
+          disabled={!canExportWebmasterOffers || !hasCalculation || !!downloading}
+          onClick={() => void download(true)}
+        >
+          {downloading === "calculation" ? "Downloading…" : "Download catalog calculation data"}
+        </BrandButton>
+      </Stack>
+      {explanation && (
+        <Typography variant="caption" color="text.secondary">
+          {explanation}
+        </Typography>
+      )}
+      {error && <Alert severity="error">{error}</Alert>}
     </Stack>
   );
 }
@@ -277,26 +337,29 @@ export function BulkOfferPriceSavedResult({ id }: { id: string }) {
         ) : !operation ? (
           <SavedResultSkeleton />
         ) : (
-          <BulkOfferPricePreviewTable
-            preview={operation.result}
-            saved
-            operationDetails={
-              <Stack sx={{ textAlign: { xs: "left", sm: "right" }, overflowWrap: "anywhere" }}>
-                <Typography variant="caption" color="text.secondary">
-                  {new Date(operation.appliedAtUtc).toLocaleString(undefined, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {operation.actor}
-                </Typography>
-              </Stack>
-            }
-          />
+          <>
+            <OperationDownloads key={operation.id} operation={operation} />
+            <BulkOfferPricePreviewTable
+              preview={operation.result}
+              saved
+              operationDetails={
+                <Stack sx={{ textAlign: { xs: "left", sm: "right" }, overflowWrap: "anywhere" }}>
+                  <Typography variant="caption" color="text.secondary">
+                    {new Date(operation.appliedAtUtc).toLocaleString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {operation.actor}
+                  </Typography>
+                </Stack>
+              }
+            />
+          </>
         )}
       </Stack>
       <SitesSnackbar
