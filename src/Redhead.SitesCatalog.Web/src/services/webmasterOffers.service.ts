@@ -40,6 +40,10 @@ async function requestExport(payload: WebmasterOffersExportPayload, googleDrive:
 }
 
 export const webmasterOffersService = {
+  saveBulkReportToGoogleDrive(id: string, calculation: boolean, signal?: AbortSignal): Promise<GoogleDriveExportResponse> {
+    const report = calculation ? 'catalog-calculation' : 'update-report';
+    return apiClient.post(`/api/webmaster-offers/bulk-price-update/operations/${encodeURIComponent(id)}/${report}/google-drive`, undefined, signal);
+  },
   async downloadBulkReport(id: string, calculation: boolean, signal?: AbortSignal): Promise<void> {
     const report = calculation ? 'catalog-calculation' : 'update-report';
     const response = await fetch(`${API_BASE_URL}/api/webmaster-offers/bulk-price-update/operations/${encodeURIComponent(id)}/${report}.xlsx`, {

@@ -18,7 +18,7 @@ public sealed class BulkOfferPricePreviewControllerTests
     [InlineData(AppRoles.Client, false)]
     [InlineData(AppRoles.Lite, false)]
     [InlineData(null, false)]
-    public async Task Downloads_RequireExportInAdditionToWorkflowPolicies_EvenForDirectOperationIds(string? role, bool allowed)
+    public async Task ReportExports_RequireExportInAdditionToWorkflowPolicies_EvenForDirectOperationIds(string? role, bool allowed)
     {
         // Arrange
         var services = new ServiceCollection();
@@ -34,7 +34,8 @@ public sealed class BulkOfferPricePreviewControllerTests
         var principal = new ClaimsPrincipal(role is null ? new ClaimsIdentity()
             : new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "Test"));
         var controller = typeof(BulkOfferPricePreviewController);
-        var methods = new[] { nameof(BulkOfferPricePreviewController.UpdateReport), nameof(BulkOfferPricePreviewController.CatalogCalculation) };
+        var methods = new[] { nameof(BulkOfferPricePreviewController.UpdateReport), nameof(BulkOfferPricePreviewController.CatalogCalculation),
+            nameof(BulkOfferPricePreviewController.UpdateReportToGoogleDrive), nameof(BulkOfferPricePreviewController.CatalogCalculationToGoogleDrive) };
 
         // Act
         foreach (var method in methods)

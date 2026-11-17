@@ -14,13 +14,13 @@ import { BrandButton } from '../common/BrandButton';
 const ROLE_GUIDE: Record<AppRole, { access: string; limits: string }> = {
   SuperAdmin: {
     access:
-      'Full access. Manage users, roles, account access, export limits, application settings, and all catalog tools. Preview and apply bulk webmaster price lists; reopen shared saved results and download update and catalog calculation reports. Compare margins and edit catalog selling prices in Pricing. Monitor LinkDetective background sync.',
+      'Full access. Manage users, roles, account access, export limits, application settings, and all catalog tools. Preview and apply bulk webmaster price lists; reopen shared saved results and export update and catalog calculation reports to Excel or Google Drive. Compare margins and edit catalog selling prices in Pricing. Monitor LinkDetective background sync.',
     limits:
       'Catalog exports are unlimited. Super Admin is a protected role and cannot be assigned through role changes.',
   },
   Admin: {
     access:
-      'Browse, edit, import, and export sites and webmaster offers. Preview and apply bulk webmaster price lists; reopen shared saved results and download update and catalog calculation reports. View webmaster contacts and prices, analytics, users, and settings. Compare margins and edit catalog selling prices in Pricing. Manage Ahrefs sync and monitor LinkDetective background sync.',
+      'Browse, edit, import, and export sites and webmaster offers. Preview and apply bulk webmaster price lists; reopen shared saved results and export update and catalog calculation reports to Excel or Google Drive. View webmaster contacts and prices, analytics, users, and settings. Compare margins and edit catalog selling prices in Pricing. Manage Ahrefs sync and monitor LinkDetective background sync.',
     limits:
       'Cannot create or change user accounts, reset passwords, change roles or limits, or edit application settings.',
   },
@@ -100,7 +100,7 @@ export function RoleGuideDialog({ open, onClose }: { open: boolean; onClose: () 
           Catalog exports for Admin, Internal, and Client depend on role settings and personal
           overrides. Clients also have daily and weekly export quotas. Trusted clients have no catalog
           selection cap, but export limits still apply. Admin and Super Admin can export Webmaster
-          Offers search results to Excel or Google Drive and download saved bulk price-update reports
+          Offers search results and saved bulk price-update reports to Excel or Google Drive
           without catalog export limits. Clearing Single search enables a full export; Multi-search exports found offers only.
           Editor, Linkbuilder, and Lite cannot export.
         </Alert>

@@ -8,6 +8,7 @@ public sealed record BulkOfferPriceApplyRequest(Guid OperationId, BulkOfferPrice
 public sealed record BulkOfferPriceOperationResult(Guid Id, string Actor, DateTime AppliedAtUtc,
     IReadOnlyList<WebmasterOfferPriceType> PriceTypes, BulkOfferPricePreviewResult Result);
 public sealed record BulkOfferPriceOperationSummary(Guid Id, string Actor, DateTime AppliedAtUtc, string PrimaryEmail, int UpdatedCount, int NoChangesCount, int ExceptionCount);
+public sealed record BulkOfferPriceReport(byte[] Content, int RowsExported);
 
 // Immutable factual operation data. Result reads never recalculate these values.
 public sealed record BulkOfferPurchaseMinimum(string Domain, PriceType Service, PricingTerm Term,

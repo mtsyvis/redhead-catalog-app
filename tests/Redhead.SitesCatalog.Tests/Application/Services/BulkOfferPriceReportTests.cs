@@ -1,8 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Redhead.SitesCatalog.Api.Controllers;
+using Redhead.SitesCatalog.Api.Models;
+using Moq;
+using Redhead.SitesCatalog.Application.Exceptions;
+using Redhead.SitesCatalog.Application.Integrations.GoogleDrive;
 using Redhead.SitesCatalog.Application.Models.WebmasterOffers;
 using Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 using Redhead.SitesCatalog.Domain;
@@ -298,7 +304,7 @@ public sealed class BulkOfferPriceReportTests : IDisposable
         var snapshot = Snapshot() with { Minima = [new("changed.example", PriceType.Main, PricingTerm.Unknown, 70, 70, false)] };
         await SaveAsync(snapshot);
         var service = CreateService();
-        var controller = new BulkOfferPricePreviewController(new(_context, new(_context)), service);
+        var controller = CreateController();
 
         // Act
         var error = await Assert.ThrowsAsync<RequestValidationException>(() => service.DownloadAsync(snapshot.Operation.Id, true));
@@ -314,6 +320,129 @@ public sealed class BulkOfferPriceReportTests : IDisposable
         Assert.IsType<NotFoundResult>(absentUpdate);
         Assert.IsType<NotFoundResult>(absentCalculation);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GoogleDrive_UploadsTheSameSavedReportWithItsRowCount(bool calculation)
+    {
+        // Arrange
+        var snapshot = Snapshot();
+        await SaveAsync(snapshot);
+        using var downloaded = new MemoryStream((await CreateService().DownloadAsync(snapshot.Operation.Id, calculation))!);
+        var sheets = calculation ? new[] { "Webmaster costs", "Needs review" } : ["Changes", "No changes", "Exceptions"];
+        var expectedRows = sheets.Sum(sheet => XlsxTestWorkbook.ReadRows(downloaded, sheet).Count);
+        var expectedName = $"{(calculation ? "catalog-calculation" : "price-update")}-{snapshot.Operation.Id:D}.xlsx";
+        var expected = new GoogleDriveExportResponse("file-1", expectedName, "https://drive.google.com/file/d/file-1/view",
+            expectedRows, false, DateTime.UtcNow, "Google Drive / Exports");
+        using var cancellation = new CancellationTokenSource();
+        var drive = new Mock<IGoogleDriveExportService>(MockBehavior.Strict);
+        drive.Setup(service => service.UploadWorkbookAsync("user-1", It.IsAny<Stream>(), expectedName, expectedRows, cancellation.Token))
+            .Returns<string, Stream, string, int, CancellationToken>((_, workbook, _, _, _) =>
+            {
+                foreach (var sheet in sheets)
+                {
+                    Assert.Equal(XlsxTestWorkbook.ReadWorksheet(downloaded, sheet).ToString(),
+                        XlsxTestWorkbook.ReadWorksheet(workbook, sheet).ToString());
+                }
+                return Task.FromResult(expected);
+            });
+        var controller = CreateController(drive.Object);
+
+        // Act
+        var result = calculation
+            ? await controller.CatalogCalculationToGoogleDrive(snapshot.Operation.Id, cancellation.Token)
+            : await controller.UpdateReportToGoogleDrive(snapshot.Operation.Id, cancellation.Token);
+
+        // Assert
+        Assert.Same(expected, Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Empty(await _context.SiteWebmasterOffers.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GoogleDrive_RejectsMissingOperationsAndMissingUserIdentityWithoutUpload(bool calculation)
+    {
+        // Arrange
+        var controller = CreateController(new Mock<IGoogleDriveExportService>(MockBehavior.Strict).Object);
+        var id = Guid.NewGuid();
+
+        // Act
+        var missing = calculation ? await controller.CatalogCalculationToGoogleDrive(id, default)
+            : await controller.UpdateReportToGoogleDrive(id, default);
+        controller.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+        var unauthorized = calculation ? await controller.CatalogCalculationToGoogleDrive(id, default)
+            : await controller.UpdateReportToGoogleDrive(id, default);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(missing);
+        Assert.IsType<UnauthorizedResult>(unauthorized);
+    }
+
+    [Fact]
+    public async Task GoogleDrive_RejectsCalculationWithoutChangedMinimaBeforeUpload()
+    {
+        // Arrange
+        var snapshot = Snapshot() with { Minima = [] };
+        await SaveAsync(snapshot);
+        var controller = CreateController(new Mock<IGoogleDriveExportService>(MockBehavior.Strict).Object);
+
+        // Act
+        var error = await Assert.ThrowsAsync<RequestValidationException>(() =>
+            controller.CatalogCalculationToGoogleDrive(snapshot.Operation.Id, default));
+
+        // Assert
+        Assert.Contains("No purchase minima changed", error.Message);
+    }
+
+    [Theory]
+    [InlineData(false, GoogleDriveExportException.NotConnectedErrorCode, 409)]
+    [InlineData(true, GoogleDriveExportException.NotConnectedErrorCode, 409)]
+    [InlineData(false, GoogleDriveExportException.ReconnectRequiredErrorCode, 409)]
+    [InlineData(true, GoogleDriveExportException.ReconnectRequiredErrorCode, 409)]
+    [InlineData(false, GoogleDriveExportException.ConfigurationMissingErrorCode, 500)]
+    [InlineData(true, GoogleDriveExportException.ConfigurationMissingErrorCode, 500)]
+    [InlineData(false, GoogleDriveExportException.UploadFailedErrorCode, 502)]
+    [InlineData(true, GoogleDriveExportException.UploadFailedErrorCode, 502)]
+    public async Task GoogleDrive_ReportsConnectionAndUploadFailures(bool calculation, string errorCode, int status)
+    {
+        // Arrange
+        var snapshot = Snapshot();
+        await SaveAsync(snapshot);
+        var exception = errorCode switch
+        {
+            GoogleDriveExportException.NotConnectedErrorCode => GoogleDriveExportException.NotConnected(),
+            GoogleDriveExportException.ReconnectRequiredErrorCode => GoogleDriveExportException.ReconnectRequired(),
+            GoogleDriveExportException.ConfigurationMissingErrorCode => GoogleDriveExportException.ConfigurationMissing(),
+            _ => GoogleDriveExportException.UploadFailed()
+        };
+        var drive = new Mock<IGoogleDriveExportService>(MockBehavior.Strict);
+        drive.Setup(service => service.UploadWorkbookAsync("user-1", It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<int>(), default))
+            .ThrowsAsync(exception);
+        var controller = CreateController(drive.Object);
+
+        // Act
+        var result = calculation ? await controller.CatalogCalculationToGoogleDrive(snapshot.Operation.Id, default)
+            : await controller.UpdateReportToGoogleDrive(snapshot.Operation.Id, default);
+
+        // Assert
+        var response = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(status, response.StatusCode);
+        Assert.Equal(errorCode, Assert.IsType<ApiErrorResponse>(response.Value).Message);
+    }
+
+    private BulkOfferPricePreviewController CreateController(IGoogleDriveExportService? drive = null)
+        => new(new(_context, new(_context)), CreateService(), drive ?? Mock.Of<IGoogleDriveExportService>())
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "user-1")], "Test"))
+                }
+            }
+        };
 
     private async Task SaveAsync(BulkOfferPriceOperationSnapshot snapshot, string? json = null)
     {

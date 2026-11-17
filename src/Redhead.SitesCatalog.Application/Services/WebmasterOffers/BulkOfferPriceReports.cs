@@ -7,7 +7,7 @@ namespace Redhead.SitesCatalog.Application.Services.WebmasterOffers;
 
 internal static class BulkOfferPriceReports
 {
-    internal static byte[] Update(BulkOfferPriceOperationSnapshot snapshot)
+    internal static BulkOfferPriceReport Update(BulkOfferPriceOperationSnapshot snapshot)
     {
         var result = snapshot.Operation.Result;
         var offers = snapshot.Offers.ToDictionary(offer => offer.OfferId);
@@ -49,11 +49,11 @@ internal static class BulkOfferPriceReports
         if (exceptions.Length > 0) sheets.Add(Sheet("Exceptions", new[] { "Source row", "Domain" }
             .Concat(snapshot.Operation.PriceTypes.Select(type => type.ToString())).Append("Reason").ToArray(), exceptions));
         using var workbook = XlsxWorkbookWriter.CreateWorkbook(sheets);
-        return workbook.ToArray();
+        return new(workbook.ToArray(), sheets.Sum(sheet => sheet.Rows.Count));
 
     }
 
-    internal static byte[] Calculation(BulkOfferPriceOperationSnapshot snapshot)
+    internal static BulkOfferPriceReport Calculation(BulkOfferPriceOperationSnapshot snapshot)
     {
         var changed = snapshot.Minima.Where(key => key.BeforeUsd != key.AfterUsd).ToArray();
         if (changed.Length == 0)
@@ -85,7 +85,7 @@ internal static class BulkOfferPriceReports
                 "Review these catalog prices manually. Do not automatically set them to zero or NO.") : sheet);
         }
         using var workbook = XlsxWorkbookWriter.CreateWorkbook(sheets);
-        return workbook.ToArray();
+        return new(workbook.ToArray(), sheets.Sum(sheet => sheet.Rows.Count));
     }
 
     private static string MissingReason(BulkOfferPricePreviewRow row, BulkOfferPurchaseMinimum key)

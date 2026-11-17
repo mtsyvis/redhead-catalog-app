@@ -225,6 +225,9 @@ public sealed class BulkOfferPriceOperationService(ApplicationDbContext context,
     }
 
     public async Task<byte[]?> DownloadAsync(Guid id, bool calculation, CancellationToken cancellationToken = default)
+        => (await PrepareReportAsync(id, calculation, cancellationToken))?.Content;
+
+    public async Task<BulkOfferPriceReport?> PrepareReportAsync(Guid id, bool calculation, CancellationToken cancellationToken = default)
     {
         var json = await context.BulkOfferPriceOperations.AsNoTracking().Where(row => row.Id == id)
             .Select(row => row.SnapshotJson).SingleOrDefaultAsync(cancellationToken);
