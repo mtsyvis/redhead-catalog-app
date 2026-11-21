@@ -480,9 +480,11 @@ public sealed class BulkOfferPricePreviewTests : IDisposable
     }
 
     [Theory]
-    [InlineData(0, 8)]
-    [InlineData(5, 13)]
-    public async Task Preview_UnchangedForeignQuotePreservesSavedSurchargeAndHistoricConversion(int surcharge, int usd)
+    [InlineData(0, 8, null)]
+    [InlineData(5, 13, null)]
+    [InlineData(5, 13, "10 CAD\nPayment by bank transfer")]
+    public async Task Preview_UnchangedForeignQuotePreservesHistoricConversionWhenClearingDetails(
+        int surcharge, int usd, string? details)
     {
         // Arrange
         var offer = AddOffer("historic.example", PricingTerm.Unknown);
@@ -493,6 +495,7 @@ public sealed class BulkOfferPricePreviewTests : IDisposable
         price.WebmasterPriceUsd = usd;
         price.AppliedUsdSurcharge = surcharge;
         price.RateDate = new DateOnly(2026, 11, 10);
+        price.WebmasterPriceDetails = details;
         OfferCurrencyTestData.AddSnapshot(_context, 0.9m, new DateTime(2026, 11, 12, 0, 0, 0, DateTimeKind.Utc));
         await _context.SaveChangesAsync();
         _context.ChangeTracker.Clear();
@@ -502,9 +505,13 @@ public sealed class BulkOfferPricePreviewTests : IDisposable
         var result = await CreateService().PreviewAsync(Request(PricingTerm.Unknown, [0], ("historic.example", ["10"])) with { SourceCurrency = "CAD" });
 
         // Assert
-        Assert.Equal(1, result.NoChangesCount);
+        Assert.Equal(details is null ? 1 : 0, result.NoChangesCount);
+        Assert.Equal(details is null ? 0 : 1, result.ReadyCount);
         var change = Assert.Single(Assert.Single(result.Rows).Prices);
-        Assert.False(change.Changed);
+        Assert.Equal(details is not null, change.Changed);
+        Assert.Equal(details, change.RemovedPriceDetails);
+        Assert.Equal(change.Current, change.Proposed);
+        Assert.False(result.Rows[0].CatalogRecalculationNeeded);
         Assert.Equal(surcharge, change.Current!.AppliedUsdSurcharge);
         Assert.Equal(surcharge, change.Proposed.AppliedUsdSurcharge);
         Assert.Equal(usd, change.Proposed.WebmasterPriceUsd);
@@ -734,7 +741,7 @@ public sealed class BulkOfferPricePreviewTests : IDisposable
             TermType = term.TermType, TermValue = term.TermValue, TermUnit = term.TermUnit,
             Prices = [new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Main,
                 AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = amount,
-                SourceCurrency = "USD", SourceAmount = amount, AppliedUsdRate = 1m, WebmasterPriceDetails = "keep payment details",
+                SourceCurrency = "USD", SourceAmount = amount, AppliedUsdRate = 1m,
                 TermType = term.TermType, TermValue = term.TermValue, TermUnit = term.TermUnit }]
         };
         _context.SiteWebmasterOffers.Add(offer);

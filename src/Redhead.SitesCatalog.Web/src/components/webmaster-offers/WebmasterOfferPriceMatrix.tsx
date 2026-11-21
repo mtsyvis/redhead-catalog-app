@@ -87,10 +87,19 @@ function priceValueColor(price: WebmasterOfferPrice | undefined) {
   return 'text.primary';
 }
 
-function PriceCell({ price }: { readonly price: WebmasterOfferPrice | undefined }) {
-  const details = price?.webmasterPriceDetails?.trim();
+function PriceCell({ price, showSourceAmount }: {
+  readonly price: WebmasterOfferPrice | undefined;
+  readonly showSourceAmount: boolean;
+}) {
+  const rawDetails = price?.webmasterPriceDetails?.trim();
   const primary = formatRawPriceValue(price);
   const isEmpty = primary === '—';
+  let details = rawDetails;
+  if (showSourceAmount && !rawDetails && price?.sourceAmount != null &&
+    price.sourceCurrency && price.sourceCurrency !== DEFAULT_CURRENCY &&
+    normalizeServiceAvailabilityStatus(price.availabilityStatus) === SERVICE_AVAILABILITY_STATUS.Available) {
+    details = `${Number(price.sourceAmount).toLocaleString('en-US', { maximumFractionDigits: 2 })} ${price.sourceCurrency}`;
+  }
   const hideEmptyPrimary = isEmpty && Boolean(details);
 
   return (
@@ -157,11 +166,14 @@ export function WebmasterOfferPriceHeader() {
   );
 }
 
-export function WebmasterOfferPriceCells({ offer }: { readonly offer: WebmasterOffer }) {
+export function WebmasterOfferPriceCells({ offer, showSourceAmount = false }: {
+  readonly offer: WebmasterOffer;
+  readonly showSourceAmount?: boolean;
+}) {
   return (
     <>
       {PRICE_TYPE_COLUMNS.map((column) => (
-        <PriceCell key={column.stringValue} price={findPrice(offer, column)} />
+        <PriceCell key={column.stringValue} price={findPrice(offer, column)} showSourceAmount={showSourceAmount} />
       ))}
     </>
   );

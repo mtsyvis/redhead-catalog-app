@@ -200,6 +200,7 @@ public sealed class BulkOfferPriceOperationService(ApplicationDbContext context,
             price.AppliedUsdRate = value.AppliedUsdRate;
             price.AppliedUsdSurcharge = value.AppliedUsdSurcharge;
             price.RateDate = value.RateDate;
+            price.WebmasterPriceDetails = null;
             price.UpdatedAtUtc = now;
         }
     }

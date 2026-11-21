@@ -33,6 +33,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "../../constants/pagination.constants";
 import type {
   BulkOfferPriceInputRow,
@@ -64,7 +65,7 @@ function CatalogImpact({ row }: { row: BulkOfferPricePreviewRow }) {
     (key) => quoteAmountKey(key.beforeUsd) !== quoteAmountKey(key.afterUsd)
   );
   const amount = (value: string | null) =>
-    value === null ? "No price" : `$${formatUsdAmount(value).replace(/\.00$/, "")}`;
+    value === null ? "No price" : formatUsdAmount(value).replace(/\.00$/, "");
 
   if (!row.catalogRecalculationNeeded || changed.length === 0) {
     return (
@@ -163,17 +164,19 @@ function CatalogImpact({ row }: { row: BulkOfferPricePreviewRow }) {
 function formatUsdAmount(amount: string | null) {
   if (amount === null) return "—";
   const [whole, decimals = ""] = amount.split(".");
-  return `${whole}.${decimals.padEnd(2, "0")}`;
+  return `$${whole}.${decimals.padEnd(2, "0")}`;
 }
 
 function PriceValue({
   value,
   proposed = false,
+  highlight = false,
   sharedConversion = false,
   showConversion = true,
 }: {
   value: BulkOfferPriceValue | null;
   proposed?: boolean;
+  highlight?: boolean;
   sharedConversion?: boolean;
   showConversion?: boolean;
 }) {
@@ -196,7 +199,17 @@ function PriceValue({
       <Typography
         variant="body2"
         color={proposed ? "text.primary" : "text.secondary"}
-        sx={{ fontWeight: proposed ? 600 : 400, fontVariantNumeric: "tabular-nums" }}
+        sx={(theme) => ({
+          alignSelf: "flex-start",
+          fontWeight: proposed ? 600 : 400,
+          fontVariantNumeric: "tabular-nums",
+          ...(highlight && {
+            bgcolor: alpha(theme.palette.success.main, 0.12),
+            borderRadius: 1,
+            px: 0.75,
+            ml: -0.75,
+          }),
+        })}
       >
         {label}
       </Typography>
@@ -649,8 +662,8 @@ export function BulkOfferPricePreviewTable({
                     ) : (
                       <>
                         <TableCell>Service</TableCell>
-                        <TableCell>{saved ? "Before · USD" : "Current · USD"}</TableCell>
-                        <TableCell>{saved ? "After · USD" : "Proposed · USD"}</TableCell>
+                        <TableCell>{saved ? "Before" : "Current"}</TableCell>
+                        <TableCell>{saved ? "After" : "Proposed"}</TableCell>
                         <TableCell>Catalog impact</TableCell>
                       </>
                     )}
@@ -719,19 +732,36 @@ export function BulkOfferPricePreviewTable({
                               value={price.current}
                               showConversion={filter === BULK_PREVIEW_OUTCOME.Ready}
                             />
+                            {price.removedPriceDetails != null && (
+                              <Stack spacing={0.25} sx={{ mt: 1 }}>
+                                <Stack direction="row" alignItems="center" spacing={0.75} useFlexGap flexWrap="wrap">
+                                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                    Price Details
+                                  </Typography>
+                                  <Typography
+                                    variant="caption"
+                                    color="warning.dark"
+                                    sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, fontWeight: 600 }}
+                                  >
+                                    <WarningAmberIcon sx={{ fontSize: "1em" }} />
+                                    {saved ? "Removed" : "Will be removed"}
+                                  </Typography>
+                                </Stack>
+                                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                                  {price.removedPriceDetails}
+                                </Typography>
+                              </Stack>
+                            )}
                           </TableCell>
-                          <TableCell
-                            sx={(theme) => ({
-                              minWidth: 180,
-                              maxWidth: 320,
-                              bgcolor: price.changed
-                                ? alpha(theme.palette.success.main, 0.08)
-                                : undefined,
-                            })}
-                          >
+                          <TableCell sx={{ minWidth: 180, maxWidth: 320 }}>
                             <PriceValue
                               value={price.proposed}
                               proposed
+                              highlight={
+                                price.current?.availabilityStatus !== price.proposed.availabilityStatus ||
+                                quoteAmountKey(price.current?.webmasterPriceUsd) !==
+                                  quoteAmountKey(price.proposed.webmasterPriceUsd)
+                              }
                               sharedConversion={usesReference(price.proposed)}
                               showConversion={filter === BULK_PREVIEW_OUTCOME.Ready}
                             />
@@ -741,10 +771,14 @@ export function BulkOfferPricePreviewTable({
                               </Typography>
                             )}
                             {price.changed &&
-                              price.current?.availabilityStatus ===
+                              price.current &&
+                              price.current.availabilityStatus ===
                                 price.proposed.availabilityStatus &&
-                              quoteAmountKey(price.current?.webmasterPriceUsd) ===
-                                quoteAmountKey(price.proposed.webmasterPriceUsd) && (
+                              quoteAmountKey(price.current.webmasterPriceUsd) ===
+                                quoteAmountKey(price.proposed.webmasterPriceUsd) &&
+                              (price.current.sourceCurrency !== price.proposed.sourceCurrency ||
+                                quoteAmountKey(price.current.sourceAmount) !==
+                                  quoteAmountKey(price.proposed.sourceAmount)) && (
                                 <Typography variant="caption" color="text.secondary">
                                   Source quote changed
                                 </Typography>

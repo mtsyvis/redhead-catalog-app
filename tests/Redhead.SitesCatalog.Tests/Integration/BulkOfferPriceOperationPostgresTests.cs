@@ -111,7 +111,7 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         offer.Site.PriceUsd = 999;
         offer.TermRawText = "imported raw term";
         offer.CommentText = "keep comment";
-        offer.Prices.Single().WebmasterPriceDetails = "keep payment details";
+        offer.Prices.Single().WebmasterPriceDetails = "100 CAD\nPayment by bank transfer";
         var unselected = Price(WebmasterOfferPriceType.Casino, 40, "CAD");
         offer.Prices.Add(unselected);
         context.WebmasterOfferPrices.Add(unselected);
@@ -143,7 +143,9 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         Assert.Equal(JsonSerializer.Serialize(reopened), JsonSerializer.Serialize(retry));
         Assert.Equal(85m, saved.Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Main).WebmasterPriceUsd);
         Assert.Equal(5m, saved.Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Main).AppliedUsdSurcharge);
-        Assert.Equal("keep payment details", saved.Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Main).WebmasterPriceDetails);
+        Assert.Null(saved.Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Main).WebmasterPriceDetails);
+        Assert.Equal("100 CAD\nPayment by bank transfer", Assert.Single(Assert.Single(preview.Rows).Prices).RemovedPriceDetails);
+        Assert.Equal(preview.Rows[0].Prices[0].RemovedPriceDetails, Assert.Single(Assert.Single(reopened.Result.Rows).Prices).RemovedPriceDetails);
         var casino = saved.Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Casino);
         Assert.Equal(40m, casino.WebmasterPriceUsd);
         Assert.Equal("CAD", casino.SourceCurrency);
@@ -162,6 +164,9 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         Assert.Equal("Bulk price update", history.Source);
         Assert.Contains(request.OperationId.ToString("D"), history.ChangesJson);
         Assert.Contains("applied USD surcharge", history.ChangesJson);
+        using var historyChanges = JsonDocument.Parse(history.ChangesJson);
+        Assert.Contains(historyChanges.RootElement.EnumerateArray(), change =>
+            change.GetProperty("field").GetString() == "Price · Main · details");
         Assert.Equal(4, snapshot.Minima.Count);
         Assert.True(Assert.Single(preview.Rows).CatalogRecalculationNeeded);
         Assert.True(Assert.Single(reopened.Result.Rows).CatalogRecalculationNeeded);
@@ -220,9 +225,13 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         Assert.Null(casino.WebmasterPriceUsd);
         Assert.Null(casino.RateDate);
         Assert.Equal(0, casino.AppliedUsdSurcharge);
-        Assert.Equal("preserve details", casino.WebmasterPriceDetails);
-        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice,
-            saved.Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Crypto).AvailabilityStatus);
+        Assert.Null(casino.WebmasterPriceDetails);
+        var crypto = saved.Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Crypto);
+        Assert.Equal(ServiceAvailabilityStatus.AvailableWithUnknownPrice, crypto.AvailabilityStatus);
+        Assert.Null(crypto.WebmasterPriceDetails);
+        var changes = Assert.Single(preview.Rows).Prices;
+        Assert.Equal("preserve details", changes[0].RemovedPriceDetails);
+        Assert.Null(changes[1].RemovedPriceDetails);
         Assert.Equal(20, saved.Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Main).WebmasterPriceUsd);
     }
 
@@ -232,6 +241,7 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
     [InlineData("duplicate")]
     [InlineData("quarantine")]
     [InlineData("currency")]
+    [InlineData("details")]
     public async Task Apply_StalePreviewAbortsEntireBatch(string change)
     {
         // Arrange
@@ -247,7 +257,7 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         var preview = await Preview(context).PreviewAsync(input);
         await using (var concurrent = _database.CreateContext())
         {
-            var current = await concurrent.SiteWebmasterOffers.Include(value => value.Webmaster).Include(value => value.Site)
+            var current = await concurrent.SiteWebmasterOffers.Include(value => value.Webmaster).Include(value => value.Site).Include(value => value.Prices)
                 .SingleAsync(value => value.Id == offer.Id);
             switch (change)
             {
@@ -256,6 +266,7 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
                 case "duplicate": AddOffer(concurrent, current.Site, "contact@example.com", 10); break;
                 case "quarantine": current.Site.IsQuarantined = true; break;
                 case "currency": OfferCurrencyTestData.AddSnapshot(concurrent, .9m, DateTime.UtcNow); break;
+                case "details": current.Prices.Single().WebmasterPriceDetails = "added after preview"; break;
             }
             await concurrent.SaveChangesAsync();
         }
@@ -361,12 +372,12 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
     }
 
     [PostgresFact]
-    public async Task Apply_UnchangedForeignQuoteRetainsHistoricalConversion_NoOpsAndExceptionsAreNeverWritten()
+    public async Task Apply_DetailsOnlyChangeRetainsHistoricalConversion_NoOpsAndExceptionsAreNeverWritten()
     {
         // Arrange
         await using var context = await _database.ResetAsync();
         var offer = await OfferCurrencyTestData.SeedForeignOfferAsync(context, "CAD", 25, .8m, DateTime.UtcNow);
-        offer.Status = SiteWebmasterOfferStatus.Inactive;
+        offer.Prices.Single().WebmasterPriceDetails = "25 CAD per article";
         var noOp = AddOffer(context, new Site { Domain = "noop.example", CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow }, "other technical record", 20);
         noOp.Webmaster.PrimaryEmail = "contact@example.com";
         noOp.Prices.Single().SourceCurrency = "CAD";
@@ -385,6 +396,7 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         await using var fresh = _database.CreateContext();
         var savedNoOp = await fresh.SiteWebmasterOffers.SingleAsync(value => value.Id == noOp.Id);
         var price = await fresh.WebmasterOfferPrices.SingleAsync(value => value.SiteWebmasterOfferId == offer.Id);
+        using var report = new MemoryStream((await Service(fresh).DownloadAsync(result.Id, false))!);
 
         // Assert
         Assert.Equal(1, result.Result.ReadyCount);
@@ -398,6 +410,10 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         Assert.Equal(20, price.WebmasterPriceUsd);
         Assert.Equal(.8m, price.AppliedUsdRate);
         Assert.Equal(0, price.AppliedUsdSurcharge);
+        Assert.Null(price.WebmasterPriceDetails);
+        Assert.All(result.Result.Rows, row => Assert.False(row.CatalogRecalculationNeeded));
+        var reportRow = Assert.Single(XlsxTestWorkbook.ReadRows(report, "Changes"));
+        Assert.Equal("Price Details removed", reportRow["Note"]);
         Assert.Equal(noOpVersion, savedNoOp.Version);
         Assert.Equal(noOpTimestamp, savedNoOp.UpdatedAtUtc);
         Assert.Equal(offer.Id.ToString("D"), (await fresh.EntityChangeHistories.SingleAsync()).EntityId);
@@ -486,10 +502,10 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
     private static BulkOfferPricePreviewRequest Input(string amount, string currency = "USD", TermType? term = null, int? years = null)
         => new("contact@example.com", term, years, years.HasValue ? TermUnit.Year : null, currency,
             [WebmasterOfferPriceType.Main], [new(1, "currency.example", [amount])]);
-    private static WebmasterOfferPrice Price(WebmasterOfferPriceType type, decimal amount, string currency = "USD")
+    private static WebmasterOfferPrice Price(WebmasterOfferPriceType type, decimal amount, string currency = "USD", string? details = "preserve details")
         => new() { Id = Guid.NewGuid(), PriceType = type, AvailabilityStatus = ServiceAvailabilityStatus.Available,
             WebmasterPriceUsd = amount, SourceCurrency = currency, SourceAmount = amount, AppliedUsdRate = 1,
-            AppliedUsdSurcharge = currency == "USD" ? 0 : 5, WebmasterPriceDetails = "preserve details",
+            AppliedUsdSurcharge = currency == "USD" ? 0 : 5, WebmasterPriceDetails = details,
             CreatedAtUtc = DateTime.UtcNow.AddDays(-1), UpdatedAtUtc = DateTime.UtcNow.AddDays(-1) };
     private static SiteWebmasterOffer AddOffer(ApplicationDbContext context, Site site, string contact, decimal amount)
     {
@@ -497,7 +513,7 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
             Webmaster = new Webmaster { Id = Guid.NewGuid(), PrimaryEmail = contact, ContactRawText = Guid.NewGuid().ToString(),
                 NormalizedContactRawText = Guid.NewGuid().ToString(), CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow },
             ImportFingerprint = Guid.NewGuid().ToString("N"), ContactRawText = "original contact", CreatedAtUtc = DateTime.UtcNow,
-            UpdatedAtUtc = DateTime.UtcNow, Prices = [Price(WebmasterOfferPriceType.Main, amount)] };
+            UpdatedAtUtc = DateTime.UtcNow, Prices = [Price(WebmasterOfferPriceType.Main, amount, details: null)] };
         context.SiteWebmasterOffers.Add(offer);
         return offer;
     }

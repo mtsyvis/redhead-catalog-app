@@ -30,6 +30,10 @@ internal static class BulkOfferPriceReports
                 if (row.CurrentStatus != row.ProposedStatus) notes.Add("Offer reactivated");
                 if (old?.Value != after.Value && old?.Value.WebmasterPriceUsd == after.Value.WebmasterPriceUsd
                     && old?.Value.AvailabilityStatus == after.Value.AvailabilityStatus) notes.Add("Source quote changed");
+                if (old?.Details is not null && after.Details is null)
+                {
+                    notes.Add("Price Details removed");
+                }
                 changes.Add(new XlsxCell[] { Text(row.Domain), Text(after.PriceType.ToString()),
                     Text(termChanged ? $"{oldTerm} → {Term(after.Term)}" : Term(after.Term)),
                     Quote(old?.Value), Quote(after.Value), Text(string.Join("; ", notes)) });

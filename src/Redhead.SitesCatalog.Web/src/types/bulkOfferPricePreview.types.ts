@@ -54,6 +54,7 @@ export interface BulkOfferPricePreviewRow {
     current: BulkOfferPriceValue | null;
     proposed: BulkOfferPriceValue;
     changed: boolean;
+    removedPriceDetails?: string;
   }[];
 }
 

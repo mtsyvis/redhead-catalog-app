@@ -33,7 +33,11 @@ public sealed record BulkOfferPriceValue(
 }
 
 public sealed record BulkOfferPriceChange(WebmasterOfferPriceType PriceType,
-    BulkOfferPriceValue? Current, BulkOfferPriceValue Proposed, bool Changed);
+    BulkOfferPriceValue? Current, BulkOfferPriceValue Proposed, bool Changed)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RemovedPriceDetails { get; init; }
+}
 
 public sealed record BulkOfferPricePreviewRow(
     string Domain, bool InvalidDomain, IReadOnlyList<BulkOfferPriceInputRow> Inputs,

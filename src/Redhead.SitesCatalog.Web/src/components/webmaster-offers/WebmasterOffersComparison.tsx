@@ -264,7 +264,7 @@ function DesktopOfferRow({
             onCopyError={onPrimaryEmailCopyError}
           />
         </Box>
-        <WebmasterOfferPriceCells offer={offer} />
+        <WebmasterOfferPriceCells offer={offer} showSourceAmount />
       </AccordionSummary>
 
       <AccordionDetails
@@ -387,7 +387,7 @@ function MobileOfferRow({
               <WebmasterOfferPriceHeader />
             </Box>
             <Box sx={{ display: 'grid', gridTemplateColumns: PRICE_GRID_TEMPLATE }}>
-              <WebmasterOfferPriceCells offer={offer} />
+              <WebmasterOfferPriceCells offer={offer} showSourceAmount />
             </Box>
           </Box>
         </Box>

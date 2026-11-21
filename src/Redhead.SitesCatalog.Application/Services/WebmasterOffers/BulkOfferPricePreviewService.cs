@@ -153,7 +153,11 @@ public sealed class BulkOfferPricePreviewService(ApplicationDbContext context, O
                         proposed = new(cell.Status!.Value, null, current?.SourceCurrency ?? request.SourceCurrency, null, null, null);
                     }
 
-                    changes.Add(new(types[index], current, proposed, current != proposed));
+                    var details = saved?.WebmasterPriceDetails;
+                    changes.Add(new(types[index], current, proposed, current != proposed || details is not null)
+                    {
+                        RemovedPriceDetails = details
+                    });
                 }
             }
             var proposedStatus = candidate is null ? (SiteWebmasterOfferStatus?)null
