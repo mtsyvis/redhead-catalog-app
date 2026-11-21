@@ -20,6 +20,66 @@ public sealed class BulkOfferPricePreviewTests : IDisposable
     private BulkOfferPricePreviewService CreateService() => new(_context, new OfferCurrencyService(_context));
 
     [Theory]
+    [InlineData("10", "No changes")]
+    [InlineData("20", "Ready")]
+    public async Task Preview_FollowUpIncludesOnlyUnselectedNumericPricesForMatchedOffer(string amount, string outcome)
+    {
+        // Arrange
+        var offer = AddOffer("follow-up.example", PricingTerm.Unknown);
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Casino,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 40 });
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Banner,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 50 });
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Crypto,
+            AvailabilityStatus = ServiceAvailabilityStatus.AvailableWithUnknownPrice });
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Dating,
+            AvailabilityStatus = ServiceAvailabilityStatus.NotAvailable });
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.LinkInsertion,
+            AvailabilityStatus = ServiceAvailabilityStatus.Unknown });
+        var otherContact = AddOffer("follow-up.example", PricingTerm.Unknown, "other@example.com");
+        otherContact.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Banner18Plus,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 60 });
+        var otherTerm = AddOffer("follow-up.example", PricingTerm.Permanent);
+        otherTerm.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.HomepageTextLink,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 70, TermType = TermType.Permanent });
+        await _context.SaveChangesAsync();
+        var before = await SnapshotAsync();
+
+        // Act
+        var result = await CreateService().PreviewAsync(Request(PricingTerm.Unknown, [0],
+            ("follow-up.example", [amount]), ("https://follow-up.example/path", [amount])));
+
+        // Assert
+        var row = Assert.Single(result.Rows);
+        Assert.Equal(outcome, row.Outcome);
+        Assert.Equal(1, result.DuplicateInputCount);
+        Assert.Equal(new[] { WebmasterOfferPriceType.Casino, WebmasterOfferPriceType.Banner }, row.UnsubmittedPriceTypes);
+        Assert.Equal(before, await SnapshotAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Preview_FollowUpExcludesExceptionsAndAmbiguousOffers(bool ambiguous)
+    {
+        // Arrange
+        var offer = AddOffer("exception.example", PricingTerm.Unknown);
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Casino,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 40 });
+        if (ambiguous) AddOffer("exception.example", PricingTerm.Unknown);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await CreateService().PreviewAsync(Request(PricingTerm.Unknown, [0],
+            ("exception.example", [ambiguous ? "20" : "invalid"])));
+
+        // Assert
+        var row = Assert.Single(result.Rows);
+        Assert.Equal("Exceptions", row.Outcome);
+        Assert.Empty(row.UnsubmittedPriceTypes);
+    }
+
+    [Theory]
     [InlineData("120", 70, 70, false)]
     [InlineData("60", 70, 60, true)]
     [InlineData("100", 0, 100, false)]

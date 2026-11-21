@@ -19,6 +19,40 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
     public BulkOfferPriceOperationPostgresTests(BulkOfferOperationDatabase database) => _database = database;
 
     [PostgresFact]
+    public async Task Apply_SavesFollowUpForUnchangedDomains_AndReadsLegacyResultsWithoutFollowUp()
+    {
+        // Arrange
+        await using var context = await _database.ResetAsync();
+        await OfferCurrencyTestData.SeedForeignOfferAsync(context, "USD", 20, 1, DateTime.UtcNow);
+        var unchanged = AddOffer(context, new Site { Domain = "unchanged.example" }, "contact@example.com", 10);
+        unchanged.Prices.Add(Price(WebmasterOfferPriceType.Casino, 40));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var input = Input("30") with { Rows = [new(1, "currency.example", ["30"]), new(2, "unchanged.example", ["10"])] };
+        var preview = await Preview(context).PreviewAsync(input);
+
+        // Act
+        var result = await Service(context).ApplyAsync(new(Guid.NewGuid(), input, preview.PreviewVersion), "editor@example.com");
+        await using var fresh = _database.CreateContext();
+        var reopened = await Service(fresh).GetAsync(result.Id);
+        var saved = await fresh.BulkOfferPriceOperations.SingleAsync();
+        var legacyJson = System.Text.Json.Nodes.JsonNode.Parse(saved.SnapshotJson)!;
+        foreach (var row in legacyJson["operation"]!["result"]!["rows"]!.AsArray())
+        {
+            row!.AsObject().Remove("unsubmittedPriceTypes");
+        }
+        saved.SnapshotJson = legacyJson.ToJsonString();
+        await fresh.SaveChangesAsync();
+        var legacy = await Service(fresh).GetAsync(result.Id);
+
+        // Assert
+        var unchangedRow = Assert.Single(reopened!.Result.Rows, row => row.Domain == "unchanged.example");
+        Assert.Equal(BulkOfferPricePreviewOutcomes.NoChanges, unchangedRow.Outcome);
+        Assert.Equal(new[] { WebmasterOfferPriceType.Casino }, unchangedRow.UnsubmittedPriceTypes);
+        Assert.All(legacy!.Result.Rows, row => Assert.Empty(row.UnsubmittedPriceTypes));
+    }
+
+    [PostgresFact]
     public async Task Apply_PatchesSelectedQuotes_CorrectsAllTerms_ReactivatesWithoutChangingCatalog_AndSavesImmutableResult()
     {
         // Arrange
@@ -101,6 +135,14 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         Assert.Equal(1, repeat.NoChangesCount);
         Assert.Equal(0, repeat.ReadyCount);
         Assert.Equal(reopened.Result.Rows[0].Prices[0].Proposed, repeat.Rows[0].Prices[0].Current);
+        Assert.Equal(new[] { WebmasterOfferPriceType.Casino }, Assert.Single(reopened.Result.Rows).UnsubmittedPriceTypes);
+        casino.AvailabilityStatus = ServiceAvailabilityStatus.Unknown;
+        casino.WebmasterPriceUsd = null;
+        casino.SourceAmount = null;
+        casino.AppliedUsdRate = null;
+        await fresh.SaveChangesAsync();
+        var reopenedAfterEdit = await Service(fresh).GetAsync(result.Id);
+        Assert.Equal(new[] { WebmasterOfferPriceType.Casino }, Assert.Single(reopenedAfterEdit!.Result.Rows).UnsubmittedPriceTypes);
     }
 
     [PostgresFact]

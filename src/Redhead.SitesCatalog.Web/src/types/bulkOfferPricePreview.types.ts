@@ -27,6 +27,7 @@ export interface BulkOfferPriceValue {
 }
 
 export interface BulkOfferPricePreviewRow {
+  unsubmittedPriceTypes?: number[];
   catalogRecalculationNeeded: boolean;
   purchaseMinima:
     | {

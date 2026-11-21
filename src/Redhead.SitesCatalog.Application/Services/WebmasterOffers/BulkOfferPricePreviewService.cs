@@ -162,7 +162,14 @@ public sealed class BulkOfferPricePreviewService(ApplicationDbContext context, O
                 : changes.Any(change => change.Changed) || currentTerm != term || candidate!.Status != proposedStatus ? BulkOfferPricePreviewOutcomes.Ready : BulkOfferPricePreviewOutcomes.NoChanges;
             rows.Add(new(validDomain ? first.Domain : first.Input.Domain, !validDomain, originals, outcome, category,
                 reasons.Distinct().ToArray(), candidate?.Id, currentTerm is null ? null : Label(currentTerm),
-                candidate is null ? null : Label(term), candidate?.Status, proposedStatus, changes));
+                candidate is null ? null : Label(term), candidate?.Status, proposedStatus, changes)
+            {
+                UnsubmittedPriceTypes = category is null && candidate is not null
+                    ? candidate.Prices.Where(price => !types.Contains(price.PriceType)
+                            && price.AvailabilityStatus == ServiceAvailabilityStatus.Available && price.WebmasterPriceUsd > 0)
+                        .OrderBy(price => price.PriceType).Select(price => price.PriceType).ToArray()
+                    : []
+            });
         }
 
         // Recheck the same existing reference contract once, never silently mix provider snapshots.

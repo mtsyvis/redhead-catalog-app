@@ -45,6 +45,7 @@ import { pluralize } from "../../utils/pluralize";
 import { BrandButton } from "../common/BrandButton";
 import { CopyToClipboardIconButton } from "../common/CopyToClipboardIconButton";
 import { quoteAmountKey } from "./editWebmasterOfferForm";
+import { BulkOfferPriceFollowUp } from "./BulkOfferPriceFollowUp";
 
 const MAX_VISIBLE_INPUT_ROWS = 10;
 
@@ -482,6 +483,7 @@ export function BulkOfferPricePreviewTable({
           )}
         </Stack>
       </Stack>
+      <BulkOfferPriceFollowUp preview={preview} saved={saved} />
       <Stack
         direction={{ xs: "column", sm: "row" }}
         alignItems={{ xs: "stretch", sm: "center" }}

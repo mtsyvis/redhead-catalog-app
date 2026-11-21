@@ -42,6 +42,7 @@ public sealed record BulkOfferPricePreviewRow(
     SiteWebmasterOfferStatus? CurrentStatus, SiteWebmasterOfferStatus? ProposedStatus,
     IReadOnlyList<BulkOfferPriceChange> Prices)
 {
+    public IReadOnlyList<WebmasterOfferPriceType> UnsubmittedPriceTypes { get; init; } = [];
     public IReadOnlyList<BulkOfferPurchaseMinimum>? PurchaseMinima { get; init; }
     public bool CatalogRecalculationNeeded => PurchaseMinima?.Any(key => key.BeforeUsd != key.AfterUsd) == true;
 }
