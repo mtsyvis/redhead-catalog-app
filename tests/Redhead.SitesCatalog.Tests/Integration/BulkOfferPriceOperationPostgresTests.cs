@@ -52,6 +52,52 @@ public sealed class BulkOfferPriceOperationPostgresTests : IClassFixture<BulkOff
         Assert.All(legacy!.Result.Rows, row => Assert.Empty(row.UnsubmittedPriceTypes));
     }
 
+    [PostgresTheory]
+    [InlineData(ServiceAvailabilityStatus.Available, 40, null)]
+    [InlineData(ServiceAvailabilityStatus.AvailableWithUnknownPrice, null, null)]
+    [InlineData(ServiceAvailabilityStatus.Unknown, null, "40 USD per placement")]
+    public async Task Apply_SkipsDomainThatNeedsTermReview_AndCorrectsTheEligibleOffer(
+        ServiceAvailabilityStatus status, int? amount, string? details)
+    {
+        // Arrange
+        await using var context = await _database.ResetAsync();
+        var blocked = AddOffer(context, new Site { Domain = "blocked.example" }, "contact@example.com", 10);
+        blocked.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Banner,
+            AvailabilityStatus = status, WebmasterPriceUsd = amount, WebmasterPriceDetails = details });
+        var eligible = AddOffer(context, new Site { Domain = "eligible.example" }, "contact@example.com", 20);
+        eligible.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Banner,
+            AvailabilityStatus = ServiceAvailabilityStatus.NotAvailable });
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var input = Input("30", term: TermType.Permanent) with
+        {
+            Rows = [new(1, blocked.SiteDomain, ["30"]), new(2, eligible.SiteDomain, ["30"])]
+        };
+        var preview = await Preview(context).PreviewAsync(input);
+
+        // Act
+        var result = await Service(context).ApplyAsync(new(Guid.NewGuid(), input, preview.PreviewVersion), "editor@example.com");
+        await using var fresh = _database.CreateContext();
+        var savedOffers = await fresh.SiteWebmasterOffers.Include(offer => offer.Prices).ToDictionaryAsync(offer => offer.Id);
+
+        // Assert
+        Assert.Equal(1, result.Result.ReadyCount);
+        Assert.Equal(1, result.Result.ExceptionCount);
+        Assert.Equal("Confirm existing price terms", Assert.Single(result.Result.Rows, row => row.OfferId == blocked.Id).Category);
+        Assert.Equal(2, savedOffers.Count);
+        Assert.Null(savedOffers[blocked.Id].TermType);
+        Assert.All(savedOffers[blocked.Id].Prices, price => Assert.Null(price.TermType));
+        Assert.Equal(10m, savedOffers[blocked.Id].Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Main).WebmasterPriceUsd);
+        var blockedBanner = savedOffers[blocked.Id].Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Banner);
+        Assert.Equal((decimal?)amount, blockedBanner.WebmasterPriceUsd);
+        Assert.Equal(status, blockedBanner.AvailabilityStatus);
+        Assert.Equal(details, blockedBanner.WebmasterPriceDetails);
+        Assert.Equal(TermType.Permanent, savedOffers[eligible.Id].TermType);
+        Assert.All(savedOffers[eligible.Id].Prices, price => Assert.Equal(TermType.Permanent, price.TermType));
+        Assert.Equal(30m, savedOffers[eligible.Id].Prices.Single(price => price.PriceType == WebmasterOfferPriceType.Main).WebmasterPriceUsd);
+        Assert.Equal(eligible.Id.ToString("D"), (await fresh.EntityChangeHistories.SingleAsync()).EntityId);
+    }
+
     [PostgresFact]
     public async Task Apply_PatchesSelectedQuotes_CorrectsAllTerms_ReactivatesWithoutChangingCatalog_AndSavesImmutableResult()
     {

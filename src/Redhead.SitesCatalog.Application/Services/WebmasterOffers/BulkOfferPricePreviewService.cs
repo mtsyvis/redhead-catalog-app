@@ -215,11 +215,14 @@ public sealed class BulkOfferPricePreviewService(ApplicationDbContext context, O
             reject("Invalid structured term", "An offer for this contact/domain has a malformed structured term.");
         }
 
-        var eligible = valid.Where(entry => entry.Term is not null &&
-            (entry.Term == term || entry.Term == PricingTerm.Unknown)).ToArray();
+        var eligible = valid.Where(entry => entry.Term == term).ToArray();
+        if (eligible.Length == 0 && term != PricingTerm.Unknown)
+        {
+            eligible = valid.Where(entry => entry.Term == PricingTerm.Unknown).ToArray();
+        }
         if (eligible.Length > 1)
         {
-            reject("Multiple matching offers", $"{eligible.Length} offers match the selected term or No term, including Active and Inactive offers.");
+            reject("Multiple matching offers", $"{eligible.Length} offers have the term {Label(eligible[0].Term!)}, including Active and Inactive offers.");
         }
         else if (eligible.Length == 0 && valid.All(entry => entry.Term is not null))
         {
@@ -233,9 +236,46 @@ public sealed class BulkOfferPricePreviewService(ApplicationDbContext context, O
             {
                 reject("Inconsistent price terms", "Every existing price row, including unselected types, must have a valid structured term equal to the offer term.");
             }
+            else if (currentTerm == PricingTerm.Unknown && term != PricingTerm.Unknown)
+            {
+                var servicesToReview = candidate.Prices
+                    .OrderBy(price => price.PriceType)
+                    .Select(GetServiceTermReviewReason)
+                    .OfType<string>()
+                    .ToArray();
+                if (servicesToReview.Length > 0)
+                {
+                    reject("Confirm existing price terms", $"Review {string.Join(", ", servicesToReview)} on this No term offer before changing its term to {Label(term)}. This domain will be skipped.");
+                }
+            }
             return (candidate, currentTerm);
         }
         return (null, null);
+    }
+
+    private static string? GetServiceTermReviewReason(WebmasterOfferPrice price)
+    {
+        var service = price.PriceType switch
+        {
+            WebmasterOfferPriceType.Banner => "Banner",
+            WebmasterOfferPriceType.Banner18Plus => "Banner 18+",
+            WebmasterOfferPriceType.HomepageTextLink => "Homepage Text Link",
+            WebmasterOfferPriceType.HomepageTextLink18Plus => "Homepage Text Link 18+",
+            _ => null
+        };
+        if (service is null)
+        {
+            return null;
+        }
+
+        var reason = price.AvailabilityStatus switch
+        {
+            ServiceAvailabilityStatus.Available when price.WebmasterPriceUsd > 0 => "saved price",
+            ServiceAvailabilityStatus.AvailableWithUnknownPrice => "YES",
+            _ when !string.IsNullOrWhiteSpace(price.WebmasterPriceDetails) => "Price Details",
+            _ => null
+        };
+        return reason is null ? null : $"{service} ({reason})";
     }
 
     internal static void ValidateRequest(BulkOfferPricePreviewRequest request)

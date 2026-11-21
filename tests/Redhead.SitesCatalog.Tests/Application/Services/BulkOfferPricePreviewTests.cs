@@ -120,7 +120,9 @@ public sealed class BulkOfferPricePreviewTests : IDisposable
         offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.LinkInsertion18Plus,
             AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 50, SourceCurrency = "USD", SourceAmount = 50, AppliedUsdRate = 1 });
         offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Banner,
-            AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 10 });
+            AvailabilityStatus = ServiceAvailabilityStatus.NotAvailable });
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.HomepageTextLink18Plus,
+            AvailabilityStatus = ServiceAvailabilityStatus.Unknown, WebmasterPriceDetails = "  " });
         await _context.SaveChangesAsync();
 
         // Act
@@ -225,13 +227,13 @@ public sealed class BulkOfferPricePreviewTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Preview_NeverPrefersExactTermOrActiveAcrossDuplicateCandidates(bool sameTerm)
+    [InlineData("unknown")]
+    [InlineData("1year")]
+    public async Task Preview_RejectsDuplicateOffersWithinTheMatchingTerm(string matchingTerm)
     {
         // Arrange
-        AddOffer("duplicate.example", PricingTerm.FiniteYears(1));
-        var second = AddOffer("duplicate.example", sameTerm ? PricingTerm.FiniteYears(1) : PricingTerm.Unknown);
+        AddOffer("duplicate.example", Term(matchingTerm));
+        var second = AddOffer("duplicate.example", Term(matchingTerm));
         second.Status = SiteWebmasterOfferStatus.Inactive;
         await _context.SaveChangesAsync();
 
@@ -241,6 +243,82 @@ public sealed class BulkOfferPricePreviewTests : IDisposable
         // Assert
         Assert.Equal("Multiple matching offers", Assert.Single(result.Rows).Category);
         Assert.Equal(0, result.ReadyCount);
+    }
+
+    [Fact]
+    public async Task Preview_PrefersAnInactiveExactTermOverAnActiveNoTermOffer()
+    {
+        // Arrange
+        var exact = AddOffer("match.example", PricingTerm.FiniteYears(1));
+        exact.Status = SiteWebmasterOfferStatus.Inactive;
+        exact.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.Banner,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 40,
+            TermType = TermType.Finite, TermValue = 1, TermUnit = TermUnit.Year });
+        AddOffer("match.example", PricingTerm.Unknown);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await CreateService().PreviewAsync(Request(PricingTerm.FiniteYears(1), [0], ("match.example", ["15"])));
+
+        // Assert
+        var row = Assert.Single(result.Rows);
+        Assert.Equal(exact.Id, row.OfferId);
+        Assert.Equal("Ready", row.Outcome);
+        Assert.Equal(new[] { WebmasterOfferPriceType.Banner }, row.UnsubmittedPriceTypes);
+    }
+
+    [Theory]
+    [InlineData(WebmasterOfferPriceType.Banner, "Banner", false)]
+    [InlineData(WebmasterOfferPriceType.Banner18Plus, "Banner 18+", true)]
+    [InlineData(WebmasterOfferPriceType.HomepageTextLink, "Homepage Text Link", false)]
+    [InlineData(WebmasterOfferPriceType.HomepageTextLink18Plus, "Homepage Text Link 18+", false)]
+    public async Task Preview_RejectsCorrectionWhenAnExistingNoTermPriceNeedsConfirmation(
+        WebmasterOfferPriceType type, string serviceLabel, bool selected)
+    {
+        // Arrange
+        var offer = AddOffer("priced.example", PricingTerm.Unknown);
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = type,
+            AvailabilityStatus = ServiceAvailabilityStatus.Available, WebmasterPriceUsd = 40 });
+        await _context.SaveChangesAsync();
+        var types = selected ? new[] { 0, (int)type } : new[] { 0 };
+        var values = selected ? new[] { "15", "50" } : new[] { "15" };
+
+        // Act
+        var result = await CreateService().PreviewAsync(Request(PricingTerm.Permanent, types, ("priced.example", values)));
+
+        // Assert
+        var row = Assert.Single(result.Rows);
+        Assert.Equal("Exceptions", row.Outcome);
+        Assert.Equal("Confirm existing price terms", row.Category);
+        Assert.Contains($"{serviceLabel} (saved price)", Assert.Single(row.Reasons));
+        Assert.Contains("Permanent", row.Reasons[0]);
+        Assert.Empty(row.Prices);
+        Assert.Empty(row.UnsubmittedPriceTypes);
+    }
+
+    [Theory]
+    [InlineData(ServiceAvailabilityStatus.AvailableWithUnknownPrice, null, "YES")]
+    [InlineData(ServiceAvailabilityStatus.NotAvailable, "Confirm with publisher", "Price Details")]
+    [InlineData(ServiceAvailabilityStatus.Unknown, "$40 for one placement", "Price Details")]
+    public async Task Preview_RequiresManualTermReviewForYesOrNonblankPriceDetails(
+        ServiceAvailabilityStatus status, string? details, string reason)
+    {
+        // Arrange
+        var offer = AddOffer("review.example", PricingTerm.Unknown);
+        offer.Prices.Add(new WebmasterOfferPrice { Id = Guid.NewGuid(), PriceType = WebmasterOfferPriceType.HomepageTextLink18Plus,
+            AvailabilityStatus = status, WebmasterPriceDetails = details });
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await CreateService().PreviewAsync(Request(PricingTerm.FiniteYears(1), [0], ("review.example", ["15"])));
+
+        // Assert
+        var row = Assert.Single(result.Rows);
+        Assert.Equal("Exceptions", row.Outcome);
+        Assert.Equal("Confirm existing price terms", row.Category);
+        Assert.Contains($"Homepage Text Link 18+ ({reason})", Assert.Single(row.Reasons));
+        Assert.Empty(row.Prices);
+        Assert.Empty(row.UnsubmittedPriceTypes);
     }
 
     [Fact]

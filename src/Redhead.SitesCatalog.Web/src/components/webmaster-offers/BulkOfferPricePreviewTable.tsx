@@ -46,6 +46,7 @@ import { BrandButton } from "../common/BrandButton";
 import { CopyToClipboardIconButton } from "../common/CopyToClipboardIconButton";
 import { quoteAmountKey } from "./editWebmasterOfferForm";
 import { BulkOfferPriceFollowUp } from "./BulkOfferPriceFollowUp";
+import { WebmasterOffersLink } from "./WebmasterOffersLink";
 
 const MAX_VISIBLE_INPUT_ROWS = 10;
 
@@ -286,9 +287,12 @@ function DomainContext({
   const proposedStatus = row.proposedStatus === STATUS_ACTIVE ? "Active" : "Inactive";
   return (
     <Stack spacing={0.5}>
-      <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
-        {row.domain || "(blank domain)"}
-      </Typography>
+      <Stack direction="row" spacing={0.5} alignItems="center">
+        <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere", minWidth: 0 }}>
+          {row.domain || "(blank domain)"}
+        </Typography>
+        {!row.invalidDomain && row.domain && <WebmasterOffersLink domain={row.domain} />}
+      </Stack>
       {row.invalidDomain && (
         <Typography variant="caption" color="error">
           Invalid domain input
